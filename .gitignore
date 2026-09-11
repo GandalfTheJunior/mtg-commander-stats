@@ -1,0 +1,20 @@
+# Build output and dependencies
+**/target/
+**/node_modules/
+**/dist/
+**/coverage/
+*.tsbuildinfo
+
+# Local configuration, editor files, and logs
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+*.iml
+.classpath
+.project
+.settings/
+*.log
+.DS_Store
+Thumbs.db

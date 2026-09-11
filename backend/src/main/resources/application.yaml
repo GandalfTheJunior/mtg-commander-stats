@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: mtg-commander-stats
+  datasource:
+    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:mtg_commander_stats}
+    username: ${POSTGRES_USER:mtg_commander_stats}
+    password: ${POSTGRES_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
