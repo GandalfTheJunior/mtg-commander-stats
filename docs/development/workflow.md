@@ -27,8 +27,8 @@ Codex does not merge its own PR or bypass protection. The Product Owner is the
 final merge authority. Squash merge is the normal merge method and is required
 by the current `protect-main` ruleset.
 
-At bootstrap, the ruleset requires PRs and resolution of review conversations,
-but does not enforce approving-review counts or required CI checks. The
-independent review above remains a human process. The new workflow produces
-`backend` and `frontend` checks; making them required is a separate repository
-settings decision, not an automatic result of adding the workflow.
+The current `protect-main` ruleset requires Pull Requests, resolution of review
+conversations, squash merging, and successful `backend` and `frontend` status
+checks. It does not currently require an approving review count. Independent
+Senior Reviewer and Product Owner review remains part of the documented human
+process.

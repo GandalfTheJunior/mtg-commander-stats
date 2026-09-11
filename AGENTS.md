@@ -196,6 +196,10 @@ Authentication uses Spring Security and server-side sessions for the MVP.
 
 Do not implement custom cryptography, password hashing algorithms, session mechanisms, or authentication protocols.
 
+Do not implement custom authentication or authorization flows in this
+bootstrap task. Add only the baseline dependencies/configuration necessary
+for the application skeleton to work.
+
 Never commit:
 
 * passwords
