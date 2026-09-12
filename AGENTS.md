@@ -12,6 +12,8 @@ The goal is not only to produce working code, but to maintain a codebase that is
 
 ## 1. Before Starting Work
 
+Issues labeled Draft are work in progress. They may be used for context or refinement, but must not be treated as implementation-ready or implemented unless explicitly requested.
+
 Before implementing a task:
 
 1. Read this `AGENTS.md`.
