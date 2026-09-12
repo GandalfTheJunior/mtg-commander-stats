@@ -95,5 +95,6 @@ Tests terminate without watch mode. GitHub Actions runs separate `backend` and
 - [MVP scope](docs/product/mvp-scope.md)
 - [Architecture and ADRs](docs/architecture/overview.md)
 - [Development workflow](docs/development/workflow.md)
+- [Testing and verification](docs/development/testing.md)
 - [Reviewing principles](docs/development/reviewing.md)
-- [Agent working rules](AGENTS.md)
+- [Agent bootstrap](AGENTS.md) and [role registry](docs/agents/README.md)
