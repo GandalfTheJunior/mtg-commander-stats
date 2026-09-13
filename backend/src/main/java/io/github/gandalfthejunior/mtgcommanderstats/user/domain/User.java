@@ -1,6 +1,5 @@
 package io.github.gandalfthejunior.mtgcommanderstats.user.domain;
 
-import java.util.Locale;
 import java.util.UUID;
 
 import jakarta.persistence.Column;
@@ -25,14 +24,14 @@ public class User {
 
     public User(String username, String encodedPassword) {
         this.id = UUID.randomUUID();
-        this.username = canonicalUsername(username);
+        this.username = trimUsername(username);
         if (encodedPassword == null || encodedPassword.isBlank()) {
             throw new IllegalArgumentException("An encoded password is required.");
         }
         this.encodedPassword = encodedPassword;
     }
 
-    public static String canonicalUsername(String username) {
+    public static String trimUsername(String username) {
         if (username == null) {
             throw new InvalidRegistrationException();
         }
@@ -47,7 +46,7 @@ public class User {
         if (start == end) {
             throw new InvalidRegistrationException();
         }
-        return username.substring(start, end).toLowerCase(Locale.ROOT);
+        return username.substring(start, end);
     }
 
     public static void validatePassword(String password) {

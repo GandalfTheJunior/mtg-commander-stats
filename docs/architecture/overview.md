@@ -43,6 +43,18 @@ manually created local database state. Use database constraints where they provi
 meaningful data-integrity protection rather than assuming application validation
 alone is sufficient for invariants the database can safely enforce.
 
+Username canonicalization is owned by the Flyway-defined `canonical_username`
+function: trim the product-defined boundary whitespace, apply PostgreSQL 18
+`casefold` under explicit `pg_catalog.pg_unicode_fast`, then lowercase under the same
+collation (including Cherokee). The registration service calls this function
+through the user repository; the database CHECK uses that exact function too.
+The username column uses deterministic `C` collation for exact canonical-key
+uniqueness. This avoids divergent Java/database case mappings and needs no new
+library. The domain retains input validation; passwords never use this function.
+See [PostgreSQL's casefold documentation](https://www.postgresql.org/docs/18/functions-string.html).
+Changes to Unicode mappings on database upgrades require reviewing existing
+canonical keys and potential collisions before rewriting data.
+
 See the [testing guide](../development/testing.md) for database integration
 coverage and verification infrastructure.
 

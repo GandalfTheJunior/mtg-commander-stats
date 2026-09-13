@@ -20,8 +20,9 @@ public class RegisterUser {
 
     @Transactional
     public User register(String username, String password) {
-        String canonicalUsername = User.canonicalUsername(username);
+        String trimmedUsername = User.trimUsername(username);
         User.validatePassword(password);
+        String canonicalUsername = users.canonicalizeUsername(trimmedUsername);
         User user = new User(canonicalUsername, passwords.encode(password));
         try {
             // Flush inside this boundary so concurrent duplicates receive the same result.

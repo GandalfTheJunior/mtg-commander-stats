@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.beans.factory.annotation.Value;
@@ -134,16 +135,72 @@ class UserRegistrationTest {
         assertThat(users.findAll().getFirst().getUsername()).isEqualTo("grey" + whitespace + "wizard");
     }
 
+    @ParameterizedTest
+    @CsvSource({"Σ,ς,σ", "ΟΣ,Ος,οσ", "Straße,STRASSE,strasse", "ẞ,ss,ss",
+            "ﬃ,FFI,ffi", "İ,i̇,i̇", "Ꭰ,ꭰ,ꭰ", "𐐀,𐐨,𐐨"})
+    void unicodeCaseEquivalentUsernamesShareOneCanonicalIdentity(String first, String second, String expected)
+            throws Exception {
+        var response = register("\u00A0" + first + "\u202F", "correct horse battery");
+        assertThat(response.statusCode()).isEqualTo(201);
+        assertThat(json.readTree(response.body()).get("username").asText()).isEqualTo(expected);
+        assertThat(users.findAll().getFirst().getUsername()).isEqualTo(expected);
+        assertThat(register(second, "another good password").statusCode()).isEqualTo(409);
+        assertThat(register(expected, "another good password").statusCode()).isEqualTo(409);
+        assertThat(users.canonicalizeUsername(expected)).isEqualTo(expected);
+        assertThat(users.count()).isEqualTo(1);
+        assertThatThrownBy(() -> insertUser(expected, "encoded-value"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        for (String variant : List.of(first, second)) {
+            if (!variant.equals(expected)) {
+                assertThatThrownBy(() -> insertUser(variant, "encoded-value"))
+                        .isInstanceOf(DataIntegrityViolationException.class);
+            }
+        }
+    }
+
     @Test
-    void concurrentDuplicatesCreateOnlyOneUser() throws Exception {
+    void usernameCanonicalizationDoesNotDependOnJvmLocale() {
+        var previous = java.util.Locale.getDefault();
+        try {
+            java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr-TR"));
+            assertThat(registerUser.register("  GANDALF I  ", "correct horse battery").getUsername())
+                    .isEqualTo("gandalf i");
+        } finally {
+            java.util.Locale.setDefault(previous);
+        }
+    }
+
+    @Test
+    void defaultCaselessMatchingPreservesAccentsAndInternalWhitespace() throws Exception {
+        for (String username : List.of("i", "ı", "é", "e", "grey wizard", "grey\u00A0wizard")) {
+            var response = register(username, "correct horse battery");
+            assertThat(response.statusCode()).isEqualTo(201);
+            assertThat(json.readTree(response.body()).get("username").asText()).isEqualTo(username);
+        }
+        assertThat(users.count()).isEqualTo(6);
+    }
+
+    @Test
+    void passwordCaseVariantsAreNotCasefolded() throws Exception {
+        String password = "Σtraße password";
+        assertThat(register("wizard", password).statusCode()).isEqualTo(201);
+        var encoded = users.findAll().getFirst().getEncodedPassword();
+        assertThat(passwords.matches(password, encoded)).isTrue();
+        assertThat(passwords.matches("σtrasse password", encoded)).isFalse();
+        assertThat(passwords.matches("ςtraße password", encoded)).isFalse();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"Gandalf,gandalf", "Σ,ς", "Straße,STRASSE"})
+    void concurrentDuplicatesCreateOnlyOneUser(String firstUsername, String secondUsername) throws Exception {
         try (var executor = Executors.newFixedThreadPool(2)) {
             var start = new CountDownLatch(1);
-            Callable<Integer> request = () -> {
+            java.util.function.Function<String, Callable<Integer>> request = username -> () -> {
                 start.await();
-                return register("Gandalf", "correct horse battery").statusCode();
+                return register(username, "correct horse battery").statusCode();
             };
-            var first = executor.submit(request);
-            var second = executor.submit(request);
+            var first = executor.submit(request.apply(firstUsername));
+            var second = executor.submit(request.apply(secondUsername));
             start.countDown();
             assertThat(List.of(first.get(), second.get())).containsExactlyInAnyOrder(201, 409);
         }

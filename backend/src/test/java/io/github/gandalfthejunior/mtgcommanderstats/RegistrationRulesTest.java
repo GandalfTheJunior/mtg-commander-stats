@@ -1,7 +1,5 @@
 package io.github.gandalfthejunior.mtgcommanderstats;
 
-import java.util.Locale;
-
 import io.github.gandalfthejunior.mtgcommanderstats.user.domain.InvalidRegistrationException;
 import io.github.gandalfthejunior.mtgcommanderstats.user.domain.User;
 import org.junit.jupiter.api.Test;
@@ -14,28 +12,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class RegistrationRulesTest {
     @Test
-    void usernameCanonicalizationDoesNotDependOnServerLocale() {
-        Locale previous = Locale.getDefault();
-        try {
-            Locale.setDefault(Locale.forLanguageTag("tr-TR"));
-            assertThat(User.canonicalUsername("  GANDALF I  ")).isEqualTo("gandalf i");
-        } finally {
-            Locale.setDefault(previous);
-        }
-    }
-
-    @Test
     void unicodeWhitespaceIsStrippedAndNoUsernameFormatIsInvented() {
-        assertThat(User.canonicalUsername("\u2003Wizard #1!\t")).isEqualTo("wizard #1!");
+        assertThat(User.trimUsername("\u2003Wizard #1!\t")).isEqualTo("Wizard #1!");
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"\u00A0", "\u2007", "\u202F", "\u0085", " \t\u00A0\u2007\u202F\u0085\u2003"})
     void unicodeWhitespaceUsesTheSameRulesForUsernamesAndPasswords(String whitespace) {
-        assertThat(User.canonicalUsername(whitespace + "GANDALF" + whitespace)).isEqualTo("gandalf");
-        assertThat(User.canonicalUsername("Grey" + whitespace + "Wizard"))
-                .isEqualTo("grey" + whitespace + "wizard");
-        assertThatThrownBy(() -> User.canonicalUsername(whitespace))
+        assertThat(User.trimUsername(whitespace + "GANDALF" + whitespace)).isEqualTo("GANDALF");
+        assertThat(User.trimUsername("Grey" + whitespace + "Wizard"))
+                .isEqualTo("Grey" + whitespace + "Wizard");
+        assertThatThrownBy(() -> User.trimUsername(whitespace))
                 .isInstanceOf(InvalidRegistrationException.class);
         assertThatThrownBy(() -> User.validatePassword(whitespace.repeat(12)))
                 .isInstanceOf(InvalidRegistrationException.class);
@@ -46,8 +33,8 @@ class RegistrationRulesTest {
     @ParameterizedTest
     @ValueSource(strings = {"\u200B", "\uFEFF"})
     void formatCharactersAreNotSilentlyTreatedAsWhitespace(String character) {
-        assertThat(User.canonicalUsername(character + "GANDALF" + character))
-                .isEqualTo(character + "gandalf" + character);
+        assertThat(User.trimUsername(character + "GANDALF" + character))
+                .isEqualTo(character + "GANDALF" + character);
         assertThatCode(() -> User.validatePassword(character.repeat(12))).doesNotThrowAnyException();
     }
 

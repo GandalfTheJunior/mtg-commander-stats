@@ -66,7 +66,11 @@ outside this MVP.
   registration. E-mail is not required or stored.
 - A username is required, stripped of leading/trailing whitespace, and stored in
   lowercase. Usernames are case-insensitive and unique; no additional format
-  restrictions are imposed.
+  restrictions are imposed. Case-insensitive equivalence uses Unicode Default
+  Caseless Matching (full case folding), with the folded result stored in
+  lowercase. Thus `Σ`, `σ`, and `ς` share `σ`, and `Straße` and `STRASSE` share
+  `strasse`. This is locale-independent; accents and internal whitespace remain
+  significant. No additional Unicode normalization is applied.
 - For username boundaries and whitespace-only password validation, whitespace
   means Unicode `White_Space` plus the Java whitespace controls U+001C–U+001F.
   This includes NBSP (U+00A0), figure space (U+2007), narrow NBSP (U+202F), and
