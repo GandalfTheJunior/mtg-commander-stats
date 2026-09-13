@@ -5,9 +5,9 @@ CREATE TABLE users (
     CONSTRAINT users_username_key UNIQUE (username),
     CONSTRAINT users_username_canonical CHECK (
         username <> '' AND username = lower(username)
-        -- Match Java String.strip()/Character.isWhitespace at the storage boundary.
+        -- Match User registration whitespace: Unicode White_Space plus U+001C–U+001F.
         AND username = btrim(username,
-            U&'\0009\000A\000B\000C\000D\001C\001D\001E\001F\0020\1680\2000\2001\2002\2003\2004\2005\2006\2008\2009\200A\2028\2029\205F\3000')
+            U&'\0009\000A\000B\000C\000D\001C\001D\001E\001F\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000')
     ),
     CONSTRAINT users_encoded_password_nonblank CHECK (btrim(encoded_password) <> '')
 );

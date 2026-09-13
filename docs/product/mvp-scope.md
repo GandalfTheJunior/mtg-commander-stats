@@ -67,6 +67,11 @@ outside this MVP.
 - A username is required, stripped of leading/trailing whitespace, and stored in
   lowercase. Usernames are case-insensitive and unique; no additional format
   restrictions are imposed.
+- For username boundaries and whitespace-only password validation, whitespace
+  means Unicode `White_Space` plus the Java whitespace controls U+001C–U+001F.
+  This includes NBSP (U+00A0), figure space (U+2007), narrow NBSP (U+202F), and
+  next line (U+0085). Internal username whitespace is preserved. Zero-width space
+  (U+200B) and BOM (U+FEFF) are not whitespace under this definition.
 - Passwords require at least 12 characters (Unicode code points). Whitespace is
   allowed and counts toward that minimum. Passwords are validated and encoded
   exactly as supplied, without trimming, case conversion, or normalization.

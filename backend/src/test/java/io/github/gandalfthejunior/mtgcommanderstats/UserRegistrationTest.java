@@ -98,6 +98,42 @@ class UserRegistrationTest {
         assertThat(users.count()).isEqualTo(1);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"\u00A0", "\u2007", "\u202F", "\u0085", " \t\u00A0\u2007\u202F\u0085\u2003"})
+    void unicodeWhitespaceIsNormalizedAndCannotCreateDuplicateUsers(String whitespace) throws Exception {
+        var response = register(whitespace + "GANDALF" + whitespace, "correct horse battery");
+        assertThat(response.statusCode()).isEqualTo(201);
+        assertThat(json.readTree(response.body()).get("username").asText()).isEqualTo("gandalf");
+        assertThat(users.findAll().getFirst().getUsername()).isEqualTo("gandalf");
+        assertThat(register("gandalf", "another good password").statusCode()).isEqualTo(409);
+        assertThat(register(whitespace, "correct horse battery").statusCode()).isEqualTo(400);
+        assertThat(register("wizard", whitespace.repeat(12)).statusCode()).isEqualTo(400);
+        assertThat(users.count()).isEqualTo(1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"\u00A0", "\u2007", "\u202F", "\u0085"})
+    void unicodePasswordWhitespaceCountsAndIsEncodedExactly(String whitespace) throws Exception {
+        String password = whitespace + "abcde" + whitespace + "fghi" + whitespace;
+        assertThat(register("wizard", password).statusCode()).isEqualTo(201);
+        var encoded = users.findAll().getFirst().getEncodedPassword();
+        assertThat(passwords.matches(password, encoded)).isTrue();
+        assertThat(passwords.matches("abcde" + whitespace + "fghi", encoded)).isFalse();
+        assertThat(passwords.matches(password.replace(whitespace, " "), encoded)).isFalse();
+        assertThat(register("other", whitespace + "abcdefgh" + whitespace).statusCode()).isEqualTo(400);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"\u00A0", "\u2007", "\u202F", "\u0085", " \t\u00A0\u2007\u202F\u0085\u2003"})
+    void databaseEnforcesBroaderWhitespaceBoundariesButPreservesInternalSpaces(String whitespace) {
+        for (String username : List.of(whitespace, whitespace + "wizard", "wizard" + whitespace)) {
+            assertThatThrownBy(() -> insertUser(username, "encoded-value"))
+                    .isInstanceOf(DataIntegrityViolationException.class);
+        }
+        insertUser("grey" + whitespace + "wizard", "encoded-value");
+        assertThat(users.findAll().getFirst().getUsername()).isEqualTo("grey" + whitespace + "wizard");
+    }
+
     @Test
     void concurrentDuplicatesCreateOnlyOneUser() throws Exception {
         try (var executor = Executors.newFixedThreadPool(2)) {
