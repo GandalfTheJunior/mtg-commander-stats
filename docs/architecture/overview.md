@@ -6,9 +6,9 @@ The application direction is:
 Browser → React/TypeScript SPA → REST/JSON → Spring Boot modular monolith → PostgreSQL
 ```
 
-The bootstrap contains only the application skeleton, a static application root,
-and development/test infrastructure. REST features and authentication flows have
-not been implemented.
+The backend implements user registration in the `user` feature, alongside the
+application skeleton and development/test infrastructure. Login and other
+authentication flows remain unimplemented.
 
 ## Backend organization
 
@@ -36,9 +36,8 @@ Introduce abstractions only for concrete problems, not to simulate loose couplin
 
 PostgreSQL is the database for local development and the production direction.
 Flyway owns schema changes. Hibernate validates mappings; it does not create or
-update the schema. There are no business tables or migration scripts yet. Add
-the first real migration under `backend/src/main/resources/db/migration` when a
-feature needs a table. Do not rewrite merged migrations.
+update the schema. The `users` table is introduced by the first Flyway migration
+under `backend/src/main/resources/db/migration`. Do not rewrite merged migrations.
 Create a new migration instead of changing production history; do not rely on
 manually created local database state. Use database constraints where they provide
 meaningful data-integrity protection rather than assuming application validation
@@ -53,12 +52,17 @@ hashing, and session/authentication protocols are governed by
 from authentication: knowing the current user is insufficient. Operations on
 group, game, deck, or other user-owned data must enforce relevant ownership or
 membership rules on the server; frontend restrictions are not security controls.
-The bootstrap retains Spring Security auto-configuration; its generated
-development password and default login page are not the MVP login flow. That
-bootstrap task was limited to baseline dependencies/configuration for the
-skeleton, with no custom authentication or authorization flows. Future flows
-require their own approved task and must follow the accepted authentication ADR.
-Security-sensitive behavior requires coverage under the testing guide.
+The security configuration permits anonymous `POST /api/users` and requires
+authentication for other requests. Only that exact registration method/path is
+exempt from CSRF; all other unsafe requests retain CSRF protection. Registration
+does not authenticate or create a session. No login/logout flow is configured.
+Passwords use Spring Security's versioned PBKDF2 encoder through a delegating
+encoder, supporting long passphrases without bcrypt's 72-byte limit. The User
+owns its UUID, canonical username, and encoded password; API DTOs expose only
+UUID and username. PostgreSQL enforces unique, nonempty canonical usernames,
+and the application maps the named uniqueness constraint to a conflict even
+under concurrent registration. Security-sensitive behavior requires coverage
+under the testing guide.
 
 ## Decisions and source of truth
 
