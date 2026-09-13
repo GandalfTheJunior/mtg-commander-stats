@@ -52,5 +52,9 @@ class RegistrationSecurityTest {
     @EnableWebSecurity
     @Import(SecurityConfiguration.class)
     static class Config {
+        @org.springframework.context.annotation.Bean
+        org.springframework.security.core.userdetails.UserDetailsService users() {
+            return username -> { throw new org.springframework.security.core.userdetails.UsernameNotFoundException("unknown"); };
+        }
     }
 }

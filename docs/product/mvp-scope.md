@@ -1,6 +1,6 @@
 # MVP scope
 
-This document records the agreed product target. Backend user registration is
+This document records the agreed product target. Backend user registration and session authentication are
 implemented; later milestone features remain planned.
 
 ## Product milestone
@@ -57,6 +57,20 @@ established password hashing/security mechanisms, and server-side sessions.
 Do not implement custom cryptography. JWT, OIDC, and mobile authentication are
 outside this MVP.
 
+- Registered users log in with username/password through `POST /api/session`.
+  Login uses the same database-owned username canonicalization as registration
+  and verifies the password exactly as supplied. Invalid credentials receive a
+  generic `401`, regardless of whether the username exists.
+- The authenticated principal carries the existing `User` UUID and canonical
+  username. Later business features obtain the actor from that principal.
+- `GET /api/me` restores that identity from a valid session, or returns `401`.
+- `GET /api/csrf` is available anonymously and while authenticated. Clients use
+  its token and header name for login and other unsafe requests, including
+  `DELETE /api/session`. Refresh the CSRF token after successful login.
+- Logout requires authentication and CSRF protection, returns `204`, and
+  invalidates the session. Protected anonymous requests receive `401`; forbidden
+  operations and invalid/missing CSRF protection receive `403`.
+
 ## User identity and registration
 
 - The registered `User`, identified by a stable UUID, is the application identity
@@ -80,8 +94,7 @@ outside this MVP.
   allowed and counts toward that minimum. Passwords are validated and encoded
   exactly as supplied, without trimming, case conversion, or normalization.
   Whitespace-only passwords are invalid.
-- Registration does not log the user in. Login and other authentication flows
-  remain separate work.
+- Registration does not log the user in. Login is a separate, explicit request.
 
 ## Explicitly out of scope
 

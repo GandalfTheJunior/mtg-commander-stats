@@ -69,7 +69,7 @@ class UserRegistrationTest {
         assertThat(passwords.matches("correct horse battery", stored.getEncodedPassword())).isTrue();
         assertThat(response.body()).doesNotContain("password", stored.getEncodedPassword(), "correct horse battery");
         assertThat(response.headers().allValues("set-cookie")).isEmpty();
-        assertThat(send("GET", "/api/users", "").statusCode()).isEqualTo(403);
+        assertThat(send("GET", "/api/users", "").statusCode()).isEqualTo(401);
     }
 
     @ParameterizedTest

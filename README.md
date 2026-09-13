@@ -1,8 +1,8 @@
 # MTG Commander Stats
 
 A Commander statistics application and a learning project for AI-assisted
-software engineering. The backend supports user registration. Login, profiles,
-decks, groups, games, and statistics remain planned.
+software engineering. The backend supports user registration and session
+authentication. Profiles, decks, groups, games, and statistics remain planned.
 
 ## Stack and prerequisites
 
@@ -50,8 +50,26 @@ and the canonical `username`; invalid input returns `400`, and duplicate
 usernames return `409`. Credentials are never returned. See the
 [registration rules](docs/product/mvp-scope.md#user-identity-and-registration).
 
-Only the exact registration POST is exempt from CSRF. Other routes require
-authentication, and no login/logout or automatic-login flow is configured.
+Only the exact registration POST is exempt from CSRF. Login and logout require
+CSRF protection; registration does not automatically log the user in. The browser API flow is:
+
+1. `GET /api/csrf` returns `{"headerName":"X-CSRF-TOKEN","token":"..."}`.
+   Keep the session cookie from this response.
+2. `POST /api/session` with JSON `{"username":"Gandalf","password":"exact supplied password"}`,
+   the session cookie, and the returned token in the `X-CSRF-TOKEN` header.
+   Success returns `200` with `{"id":"<uuid>","username":"gandalf"}` and rotates
+   the session cookie. Invalid credentials return a generic `401`.
+3. Fetch `GET /api/csrf` again with the updated cookie: login invalidates the old
+   token. Use the new token for subsequent unsafe requests.
+4. `GET /api/me` with the cookie returns the current identity, including after a
+   page reload. It returns `401` when the session is missing or expired.
+5. `DELETE /api/session` with the cookie and current CSRF token returns `204`
+   and invalidates the session. Bootstrap again before another login.
+
+Browser `fetch` calls must retain cookies (same-origin credentials by default).
+The token is read from the JSON response, not from the HttpOnly session cookie.
+Missing/invalid CSRF protection returns `403`; protected anonymous requests return
+`401` without redirects. Other authenticated access denials return `403`.
 Flyway creates the `users` table; Hibernate validates rather than creates tables.
 
 In another terminal, start the frontend:

@@ -6,9 +6,8 @@ The application direction is:
 Browser → React/TypeScript SPA → REST/JSON → Spring Boot modular monolith → PostgreSQL
 ```
 
-The backend implements user registration in the `user` feature, alongside the
-application skeleton and development/test infrastructure. Login and other
-authentication flows remain unimplemented.
+The backend implements user registration in the `user` feature and session
+authentication in `security`, alongside development/test infrastructure.
 
 ## Backend organization
 
@@ -64,10 +63,34 @@ hashing, and session/authentication protocols are governed by
 from authentication: knowing the current user is insufficient. Operations on
 group, game, deck, or other user-owned data must enforce relevant ownership or
 membership rules on the server; frontend restrictions are not security controls.
-The security configuration permits anonymous `POST /api/users` and requires
-authentication for other requests. Only that exact registration method/path is
-exempt from CSRF; all other unsafe requests retain CSRF protection. Registration
-does not authenticate or create a session. No login/logout flow is configured.
+The security configuration permits anonymous `POST /api/users`, `GET /api/csrf`,
+and `POST /api/session`; other requests require authentication. Only that exact
+registration method/path is exempt from CSRF. Registration does not authenticate
+or create a session. API failures use `401` for missing authentication and `403`
+for access denial/CSRF failures, without form login, Basic auth, or redirects.
+
+`UserAuthenticationDetails` loads the existing User through the repository's
+canonicalization function and canonical-username lookup. `DaoAuthenticationProvider`
+verifies the exact password with the configured encoder. `UserPrincipal` adapts
+Spring's credential-erasing UserDetails to carry the existing User UUID; it is
+not a new domain entity. API DTOs expose only UUID and canonical username.
+
+The JSON login controller invokes Spring's `AuthenticationManager`, then
+`ChangeSessionIdAuthenticationStrategy` and `CsrfAuthenticationStrategy` before
+explicitly saving the security context in `HttpSessionSecurityContextRepository`.
+This preserves session-fixation protection and clears the pre-login CSRF token.
+`GET /api/me` reads that principal. Logout runs behind authorization and CSRF
+filters and delegates to `CsrfLogoutHandler` and `SecurityContextLogoutHandler`
+to remove the token, clear the context, and invalidate the session.
+
+CSRF uses `HttpSessionCsrfTokenRepository` and Spring's default masked token
+handler. `GET /api/csrf` resolves the deferred token and returns `{headerName,
+token}`, creating an anonymous session if needed. Clients retain the session
+cookie, submit the returned token in the named header, and bootstrap again after
+login or logout. Security responses are not cacheable. Session cookies retain
+framework defaults (including HttpOnly); deployment-specific settings remain
+externally configurable through Spring Boot's `server.servlet.session.*`
+properties. No shared session store or additional persistence is introduced.
 Passwords use Spring Security's versioned PBKDF2 encoder through a delegating
 encoder, supporting long passphrases without bcrypt's 72-byte limit. The User
 owns its UUID, canonical username, and encoded password; API DTOs expose only
