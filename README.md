@@ -1,9 +1,8 @@
 # MTG Commander Stats
 
 A Commander statistics application and a learning project for AI-assisted
-software engineering. This bootstrap provides development infrastructure and
-application skeletons; accounts, decks, groups, games, and statistics are not
-implemented yet.
+software engineering. The backend supports user registration. Login, profiles,
+decks, groups, games, and statistics remain planned.
 
 ## Stack and prerequisites
 
@@ -45,10 +44,15 @@ cd backend
 ./mvnw spring-boot:run
 ```
 
-It listens on port 8080. Spring Security's default login page and generated
-in-memory development user remain enabled; these are not an implemented MVP
-login flow. There are no product API endpoints. Flyway is enabled without
-business migrations, and Hibernate validates rather than creates tables.
+It listens on port 8080. Anonymous `POST /api/users` accepts JSON containing
+`username` and `password`. Successful registration returns `201` with `id` (UUID)
+and the canonical `username`; invalid input returns `400`, and duplicate
+usernames return `409`. Credentials are never returned. See the
+[registration rules](docs/product/mvp-scope.md#user-identity-and-registration).
+
+Only the exact registration POST is exempt from CSRF. Other routes require
+authentication, and no login/logout or automatic-login flow is configured.
+Flyway creates the `users` table; Hibernate validates rather than creates tables.
 
 In another terminal, start the frontend:
 

@@ -1,7 +1,7 @@
 # MVP scope
 
-This document records the agreed product target. The repository bootstrap does
-not implement these features.
+This document records the agreed product target. Backend user registration is
+implemented; later milestone features remain planned.
 
 ## Product milestone
 
@@ -56,6 +56,32 @@ Authentication is part of the learning scope. The web MVP uses Spring Security,
 established password hashing/security mechanisms, and server-side sessions.
 Do not implement custom cryptography. JWT, OIDC, and mobile authentication are
 outside this MVP.
+
+## User identity and registration
+
+- The registered `User`, identified by a stable UUID, is the application identity
+  that later profiles, decks, memberships, games, and statistics reference.
+- MVP username and encoded password credentials belong directly to that user.
+  Separate `Account`, `Credentials`, and `Profile` entities are not part of
+  registration. E-mail is not required or stored.
+- A username is required, stripped of leading/trailing whitespace, and stored in
+  lowercase. Usernames are case-insensitive and unique; no additional format
+  restrictions are imposed. Case-insensitive equivalence uses Unicode Default
+  Caseless Matching (full case folding), with the folded result stored in
+  lowercase. Thus `Σ`, `σ`, and `ς` share `σ`, and `Straße` and `STRASSE` share
+  `strasse`. This is locale-independent; accents and internal whitespace remain
+  significant. No additional Unicode normalization is applied.
+- For username boundaries and whitespace-only password validation, whitespace
+  means Unicode `White_Space` plus the Java whitespace controls U+001C–U+001F.
+  This includes NBSP (U+00A0), figure space (U+2007), narrow NBSP (U+202F), and
+  next line (U+0085). Internal username whitespace is preserved. Zero-width space
+  (U+200B) and BOM (U+FEFF) are not whitespace under this definition.
+- Passwords require at least 12 characters (Unicode code points). Whitespace is
+  allowed and counts toward that minimum. Passwords are validated and encoded
+  exactly as supplied, without trimming, case conversion, or normalization.
+  Whitespace-only passwords are invalid.
+- Registration does not log the user in. Login and other authentication flows
+  remain separate work.
 
 ## Explicitly out of scope
 
