@@ -3,6 +3,7 @@ package io.github.gandalfthejunior.mtgcommanderstats;
 import java.sql.Connection;
 import javax.sql.DataSource;
 
+import io.github.gandalfthejunior.mtgcommanderstats.MtgCommanderStatsApplicationTest.DatabaseConfiguration;
 import jakarta.persistence.EntityManagerFactory;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
@@ -17,7 +18,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-@Import(MtgCommanderStatsApplicationTest.DatabaseConfiguration.class)
+@Import(DatabaseConfiguration.class)
 class MtgCommanderStatsApplicationTest {
 
     @Autowired

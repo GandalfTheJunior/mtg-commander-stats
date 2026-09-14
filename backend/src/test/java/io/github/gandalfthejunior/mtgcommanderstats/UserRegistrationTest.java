@@ -13,7 +13,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.Function;
 
+import io.github.gandalfthejunior.mtgcommanderstats.MtgCommanderStatsApplicationTest.DatabaseConfiguration;
 import io.github.gandalfthejunior.mtgcommanderstats.user.application.RegisterUser;
 import io.github.gandalfthejunior.mtgcommanderstats.user.domain.InvalidRegistrationException;
 import io.github.gandalfthejunior.mtgcommanderstats.user.domain.User;
@@ -37,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import(MtgCommanderStatsApplicationTest.DatabaseConfiguration.class)
+@Import(DatabaseConfiguration.class)
 class UserRegistrationTest {
     @Value("${local.server.port}")
     private int port;
@@ -87,8 +89,8 @@ class UserRegistrationTest {
         if (!password.equals(password.strip())) {
             assertThat(passwords.matches(password.strip(), encoded)).isFalse();
         }
-        if (!password.equals(password.toLowerCase(java.util.Locale.ROOT))) {
-            assertThat(passwords.matches(password.toLowerCase(java.util.Locale.ROOT), encoded)).isFalse();
+        if (!password.equals(password.toLowerCase(Locale.ROOT))) {
+            assertThat(passwords.matches(password.toLowerCase(Locale.ROOT), encoded)).isFalse();
         }
     }
 
@@ -166,11 +168,11 @@ class UserRegistrationTest {
     void usernameCanonicalizationDoesNotDependOnJvmLocale() {
         Locale previous = Locale.getDefault();
         try {
-            java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr-TR"));
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"));
             assertThat(registerUser.register("  GANDALF I  ", "correct horse battery").getUsername())
                     .isEqualTo("gandalf i");
         } finally {
-            java.util.Locale.setDefault(previous);
+            Locale.setDefault(previous);
         }
     }
 
@@ -199,7 +201,7 @@ class UserRegistrationTest {
     void concurrentDuplicatesCreateOnlyOneUser(String firstUsername, String secondUsername) throws Exception {
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
             CountDownLatch start = new CountDownLatch(1);
-            java.util.function.Function<String, Callable<Integer>> request = username -> () -> {
+            Function<String, Callable<Integer>> request = username -> () -> {
                 start.await();
                 return register(username, "correct horse battery").statusCode();
             };
