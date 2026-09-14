@@ -10,6 +10,7 @@ import java.util.Map;
 import io.github.gandalfthejunior.mtgcommanderstats.MtgCommanderStatsApplicationTest.DatabaseConfiguration;
 import io.github.gandalfthejunior.mtgcommanderstats.SessionAuthenticationTest.AuthorizationConfiguration;
 import io.github.gandalfthejunior.mtgcommanderstats.security.UserPrincipal;
+import io.github.gandalfthejunior.mtgcommanderstats.user.application.UserAuthenticationDetails;
 import io.github.gandalfthejunior.mtgcommanderstats.user.persistence.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.core.Authentication;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -36,6 +38,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doThrow;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import({DatabaseConfiguration.class, AuthorizationConfiguration.class})
@@ -44,6 +47,8 @@ class SessionAuthenticationTest {
     private int port;
     @Autowired
     private UserRepository users;
+    @MockitoSpyBean
+    private UserAuthenticationDetails authenticationDetails;
     private final HttpClient client = HttpClient.newHttpClient();
     private final JsonMapper json = JsonMapper.builder().build();
     private static final String PASSWORD = "  Élf Σtraße password  ";
@@ -108,6 +113,18 @@ class SessionAuthenticationTest {
         }
         assertThat(send(HttpMethod.GET, "/api/me", "", cookie(csrf), null).statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
         assertThat(login("gandalf", PASSWORD, cookie(csrf), token(csrf)).statusCode()).isEqualTo(HttpStatus.OK.value());
+    }
+
+    @Test
+    void internalAuthenticationServiceFailureIsNotReportedAsInvalidCredentials() throws Exception {
+        register("gandalf", PASSWORD);
+        HttpResponse<String> csrf = bootstrap("");
+        doThrow(new IllegalStateException("Authentication store unavailable"))
+                .when(authenticationDetails).loadUserByUsername("gandalf");
+
+        HttpResponse<String> response = login("gandalf", PASSWORD, cookie(csrf), token(csrf));
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.value());
+        assertThat(response.body()).doesNotContain("Invalid credentials.", "Authentication store unavailable");
     }
 
     @Test
