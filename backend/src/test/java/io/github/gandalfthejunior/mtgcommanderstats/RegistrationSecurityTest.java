@@ -2,6 +2,7 @@ package io.github.gandalfthejunior.mtgcommanderstats;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import io.github.gandalfthejunior.mtgcommanderstats.RegistrationSecurityTest.Config;
 import io.github.gandalfthejunior.mtgcommanderstats.security.SecurityConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,7 +18,7 @@ import org.springframework.test.context.junit.jupiter.web.SpringJUnitWebConfig;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringJUnitWebConfig(RegistrationSecurityTest.Config.class)
+@SpringJUnitWebConfig(Config.class)
 class RegistrationSecurityTest {
     @Autowired
     private SecurityFilterChain chain;
