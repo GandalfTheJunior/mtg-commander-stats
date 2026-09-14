@@ -8,5 +8,9 @@
             <property name="illegalClassNames" value="var"/>
             <property name="tokens" value="VARIABLE_DEF"/>
         </module>
+        <module name="MatchXpath">
+            <property name="query" value="//RESOURCE[./TYPE/IDENT[@text='var']]"/>
+            <message key="matchxpath.match" value="Use an explicit type for try-with-resources variables."/>
+        </module>
     </module>
 </module>
