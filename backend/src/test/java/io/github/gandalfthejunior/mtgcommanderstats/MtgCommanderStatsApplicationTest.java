@@ -1,5 +1,6 @@
 package io.github.gandalfthejunior.mtgcommanderstats;
 
+import java.sql.Connection;
 import javax.sql.DataSource;
 
 import jakarta.persistence.EntityManagerFactory;
@@ -30,14 +31,14 @@ class MtgCommanderStatsApplicationTest {
 
     @Test
     void applicationInitializesWithPostgresJpaAndFlyway() throws Exception {
-        try (var connection = dataSource.getConnection()) {
+        try (Connection connection = dataSource.getConnection()) {
             assertThat(connection.isValid(5)).isTrue();
             assertThat(connection.getMetaData().getDatabaseProductName()).isEqualTo("PostgreSQL");
             assertThat(connection.getMetaData().getDatabaseMajorVersion()).isEqualTo(18);
         }
         assertThat(entityManagerFactory.isOpen()).isTrue();
-        try (var migrationConnection = flyway.getConfiguration().getDataSource().getConnection();
-             var applicationConnection = dataSource.getConnection()) {
+        try (Connection migrationConnection = flyway.getConfiguration().getDataSource().getConnection();
+             Connection applicationConnection = dataSource.getConnection()) {
             assertThat(migrationConnection.getMetaData().getURL())
                     .isEqualTo(applicationConnection.getMetaData().getURL());
         }
