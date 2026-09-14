@@ -67,7 +67,9 @@ API flow is:
 5. `DELETE /api/session` with the cookie and current CSRF token returns `204`
    and invalidates the session. Bootstrap again before another login.
 
-Browser `fetch` calls must retain cookies (same-origin credentials by default).
+For a same-origin SPA, browser `fetch` retains cookies by default. The current
+frontend on port 5173 does not call the backend; a future frontend integration
+will need a same-origin development proxy or an explicit cross-origin setup.
 The token is read from the JSON response, not from the HttpOnly session cookie.
 Missing/invalid CSRF protection returns `403`; protected anonymous requests return
 `401` without redirects. Other authenticated access denials return `403`.
