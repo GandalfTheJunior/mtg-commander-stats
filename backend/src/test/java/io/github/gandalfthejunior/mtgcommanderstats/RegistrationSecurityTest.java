@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -34,17 +35,17 @@ class RegistrationSecurityTest {
     }
 
     private void assertCsrf(String method, String path, boolean allowed) throws Exception {
-        var csrf = chain.getFilters().stream().filter(CsrfFilter.class::isInstance)
+        CsrfFilter csrf = chain.getFilters().stream().filter(CsrfFilter.class::isInstance)
                 .map(CsrfFilter.class::cast).findFirst().orElseThrow();
-        var request = new MockHttpServletRequest(method, path);
+        MockHttpServletRequest request = new MockHttpServletRequest(method, path);
         request.setServletPath(path);
-        var response = new MockHttpServletResponse();
-        var continued = new AtomicBoolean();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        AtomicBoolean continued = new AtomicBoolean();
         // Isolate the real configured CSRF filter so authorization cannot mask a disabled CSRF check.
         csrf.doFilter(request, response, (req, res) -> continued.set(true));
         assertThat(continued.get()).as("%s %s", method, path).isEqualTo(allowed);
         if (!allowed) {
-            assertThat(response.getStatus()).isEqualTo(403);
+            assertThat(response.getStatus()).isEqualTo(HttpStatus.FORBIDDEN.value());
         }
     }
 
