@@ -6,12 +6,15 @@ import io.github.gandalfthejunior.mtgcommanderstats.RegistrationSecurityTest.Con
 import io.github.gandalfthejunior.mtgcommanderstats.security.SecurityConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.test.context.junit.jupiter.web.SpringJUnitWebConfig;
@@ -54,5 +57,11 @@ class RegistrationSecurityTest {
     @EnableWebSecurity
     @Import(SecurityConfiguration.class)
     static class Config {
+        @Bean
+        UserDetailsService users() {
+            return username -> {
+                throw new UsernameNotFoundException("unknown");
+            };
+        }
     }
 }

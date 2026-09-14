@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted for the web MVP; authentication flows are not implemented in bootstrap.
+Accepted for the web MVP. The initial bootstrap did not implement authentication
+flows; backend session authentication now implements this decision.
 
 ## Context
 
@@ -38,5 +39,5 @@ logout, and server-side authorization. Scaling across application instances may
 require a shared session store; none is introduced now.
 
 This decision is not permanent. Revisit JWT or an external identity provider if
-future clients or integration requirements justify them. The bootstrap retains
-default Spring Security behavior and does not implement these future flows.
+future clients or integration requirements justify them. The initial bootstrap
+retained default Spring Security behavior before the session flow was added.

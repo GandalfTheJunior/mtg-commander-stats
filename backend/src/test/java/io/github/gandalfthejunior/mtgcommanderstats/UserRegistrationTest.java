@@ -30,6 +30,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import tools.jackson.databind.JsonNode;
@@ -75,7 +76,7 @@ class UserRegistrationTest {
         assertThat(passwords.matches("correct horse battery", stored.getEncodedPassword())).isTrue();
         assertThat(response.body()).doesNotContain("password", stored.getEncodedPassword(), "correct horse battery");
         assertThat(response.headers().allValues("set-cookie")).isEmpty();
-        assertThat(send("GET", "/api/users", "").statusCode()).isEqualTo(403);
+        assertThat(send("GET", "/api/users", "").statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
     }
 
     @ParameterizedTest
