@@ -8,6 +8,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import io.github.gandalfthejunior.mtgcommanderstats.MtgCommanderStatsApplicationTest.DatabaseConfiguration;
+import io.github.gandalfthejunior.mtgcommanderstats.SessionAuthenticationTest.AuthorizationConfiguration;
 import io.github.gandalfthejunior.mtgcommanderstats.security.UserPrincipal;
 import io.github.gandalfthejunior.mtgcommanderstats.user.persistence.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
