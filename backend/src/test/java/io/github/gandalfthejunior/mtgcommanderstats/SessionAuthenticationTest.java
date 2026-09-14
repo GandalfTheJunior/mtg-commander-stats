@@ -4,8 +4,11 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Locale;
 import java.util.Map;
 
+import io.github.gandalfthejunior.mtgcommanderstats.MtgCommanderStatsApplicationTest.DatabaseConfiguration;
+import io.github.gandalfthejunior.mtgcommanderstats.security.UserPrincipal;
 import io.github.gandalfthejunior.mtgcommanderstats.user.persistence.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,14 +18,26 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import({MtgCommanderStatsApplicationTest.DatabaseConfiguration.class, SessionAuthenticationTest.AuthorizationConfiguration.class})
+@Import({DatabaseConfiguration.class, AuthorizationConfiguration.class})
 class SessionAuthenticationTest {
     @Value("${local.server.port}")
     private int port;
@@ -31,6 +46,7 @@ class SessionAuthenticationTest {
     private final HttpClient client = HttpClient.newHttpClient();
     private final JsonMapper json = JsonMapper.builder().build();
     private static final String PASSWORD = "  Élf Σtraße password  ";
+    private static final String CSRF_HEADER = "X-CSRF-TOKEN";
 
     @BeforeEach
     void clearUsers() {
@@ -39,27 +55,27 @@ class SessionAuthenticationTest {
 
     @Test
     void completeSessionLifecycleRotatesSessionAndCsrfAndInvalidatesLogout() throws Exception {
-        var registered = register("Gandalf", PASSWORD);
-        var bootstrap = bootstrap("");
+        JsonNode registered = register("Gandalf", PASSWORD);
+        HttpResponse<String> bootstrap = bootstrap("");
         String anonymousCookie = cookie(bootstrap);
-        var login = login("GANDALF", PASSWORD, anonymousCookie, token(bootstrap));
+        HttpResponse<String> login = login("GANDALF", PASSWORD, anonymousCookie, token(bootstrap));
         assertIdentity(login, registered);
         String sessionCookie = cookie(login);
         assertThat(sessionCookie).isNotEqualTo(anonymousCookie);
-        assertThat(login.headers().firstValue("set-cookie").orElseThrow()).containsIgnoringCase("HttpOnly");
-        assertIdentity(send("GET", "/api/me", "", sessionCookie, null), registered);
-        assertThat(send("GET", "/api/me", "", anonymousCookie, null).statusCode()).isEqualTo(401);
-        assertThat(send("DELETE", "/api/session", "", sessionCookie, token(bootstrap)).statusCode()).isEqualTo(403);
-        var refreshed = bootstrap(sessionCookie);
-        assertThat(send("DELETE", "/api/session", "", sessionCookie, null).statusCode()).isEqualTo(403);
-        assertThat(send("POST", "/api/protected", "{}", sessionCookie, null).statusCode()).isEqualTo(403);
-        var logout = send("DELETE", "/api/session", "", sessionCookie, token(refreshed));
-        assertThat(logout.statusCode()).isEqualTo(204);
+        assertThat(login.headers().firstValue(HttpHeaders.SET_COOKIE).orElseThrow()).containsIgnoringCase("HttpOnly");
+        assertIdentity(send(HttpMethod.GET, "/api/me", "", sessionCookie, null), registered);
+        assertThat(send(HttpMethod.GET, "/api/me", "", anonymousCookie, null).statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+        assertThat(send(HttpMethod.DELETE, "/api/session", "", sessionCookie, token(bootstrap)).statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        HttpResponse<String> refreshed = bootstrap(sessionCookie);
+        assertThat(send(HttpMethod.DELETE, "/api/session", "", sessionCookie, null).statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(send(HttpMethod.POST, "/api/protected", "{}", sessionCookie, null).statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        HttpResponse<String> logout = send(HttpMethod.DELETE, "/api/session", "", sessionCookie, token(refreshed));
+        assertThat(logout.statusCode()).isEqualTo(HttpStatus.NO_CONTENT.value());
         assertThat(logout.body()).isEmpty();
-        assertThat(send("GET", "/api/me", "", sessionCookie, null).statusCode()).isEqualTo(401);
-        var next = bootstrap("");
-        assertThat(send("DELETE", "/api/session", "", cookie(next), token(next)).statusCode()).isEqualTo(401);
-        assertThat(send("DELETE", "/api/session", "", "", null).statusCode()).isEqualTo(403);
+        assertThat(send(HttpMethod.GET, "/api/me", "", sessionCookie, null).statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+        HttpResponse<String> next = bootstrap("");
+        assertThat(send(HttpMethod.DELETE, "/api/session", "", cookie(next), token(next)).statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+        assertThat(send(HttpMethod.DELETE, "/api/session", "", "", null).statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
     }
 
     @ParameterizedTest
@@ -67,10 +83,10 @@ class SessionAuthenticationTest {
             "ẞ,ss,ss", "ﬃ,FFI,ffi", "İ,i̇,i̇", "Ꭰ,ꭰ,ꭰ", "𐐀,𐐨,𐐨"})
     void loginUsesDatabaseOwnedCanonicalIdentity(String registeredName, String loginName, String expected)
             throws Exception {
-        var registered = register(registeredName, PASSWORD);
-        var csrf = bootstrap("");
+        JsonNode registered = register(registeredName, PASSWORD);
+        HttpResponse<String> csrf = bootstrap("");
         String whitespace = " \t\u001c\u00a0\u2007\u202f\u0085\u2003";
-        var result = login(whitespace + loginName + whitespace, PASSWORD, cookie(csrf), token(csrf));
+        HttpResponse<String> result = login(whitespace + loginName + whitespace, PASSWORD, cookie(csrf), token(csrf));
         assertIdentity(result, registered);
         assertThat(json.readTree(result.body()).get("username").asText()).isEqualTo(expected);
     }
@@ -78,105 +94,105 @@ class SessionAuthenticationTest {
     @Test
     void passwordsAreExactAndCredentialFailuresAreIndistinguishable() throws Exception {
         register("gandalf", PASSWORD);
-        var csrf = bootstrap("");
-        var wrong = login("gandalf", PASSWORD.strip(), cookie(csrf), token(csrf));
-        var unknown = login("unknown", PASSWORD, cookie(csrf), token(csrf));
-        assertThat(wrong.statusCode()).isEqualTo(401);
-        assertThat(unknown.statusCode()).isEqualTo(401);
+        HttpResponse<String> csrf = bootstrap("");
+        HttpResponse<String> wrong = login("gandalf", PASSWORD.strip(), cookie(csrf), token(csrf));
+        HttpResponse<String> unknown = login("unknown", PASSWORD, cookie(csrf), token(csrf));
+        assertThat(wrong.statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+        assertThat(unknown.statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
         assertThat(unknown.body()).isEqualTo(wrong.body());
         assertThat(wrong.body()).doesNotContain(PASSWORD, "gandalf", "unknown", "encoded");
-        for (String transformed : new String[]{PASSWORD.toLowerCase(java.util.Locale.ROOT),
+        for (String transformed : new String[]{PASSWORD.toLowerCase(Locale.ROOT),
                 PASSWORD.replace("É", "E\u0301"), PASSWORD + " "}) {
-            assertThat(login("gandalf", transformed, cookie(csrf), token(csrf)).statusCode()).isEqualTo(401);
+            assertThat(login("gandalf", transformed, cookie(csrf), token(csrf)).statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
         }
-        assertThat(send("GET", "/api/me", "", cookie(csrf), null).statusCode()).isEqualTo(401);
-        assertThat(login("gandalf", PASSWORD, cookie(csrf), token(csrf)).statusCode()).isEqualTo(200);
+        assertThat(send(HttpMethod.GET, "/api/me", "", cookie(csrf), null).statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+        assertThat(login("gandalf", PASSWORD, cookie(csrf), token(csrf)).statusCode()).isEqualTo(HttpStatus.OK.value());
     }
 
     @Test
     void loginRequiresRealBootstrapTokenAndSession() throws Exception {
         register("gandalf", PASSWORD);
-        var csrf = bootstrap("");
-        assertThat(login("gandalf", PASSWORD, cookie(csrf), null).statusCode()).isEqualTo(403);
-        assertThat(login("gandalf", PASSWORD, cookie(csrf), "invalid").statusCode()).isEqualTo(403);
-        assertThat(login("gandalf", PASSWORD, "", token(csrf)).statusCode()).isEqualTo(403);
-        assertThat(login("gandalf", PASSWORD, cookie(csrf), token(csrf)).statusCode()).isEqualTo(200);
+        HttpResponse<String> csrf = bootstrap("");
+        assertThat(login("gandalf", PASSWORD, cookie(csrf), null).statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(login("gandalf", PASSWORD, cookie(csrf), "invalid").statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(login("gandalf", PASSWORD, "", token(csrf)).statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(login("gandalf", PASSWORD, cookie(csrf), token(csrf)).statusCode()).isEqualTo(HttpStatus.OK.value());
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"/api/me", "/api/users", "/api/unknown", "/login", "/logout"})
     void anonymousProtectedRequestsReturn401WithoutRedirect(String path) throws Exception {
-        var response = send("GET", path, "", "", null);
-        assertThat(response.statusCode()).isEqualTo(401);
-        assertThat(response.headers().firstValue("location")).isEmpty();
+        HttpResponse<String> response = send(HttpMethod.GET, path, "", "", null);
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+        assertThat(response.headers().firstValue(HttpHeaders.LOCATION)).isEmpty();
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"{}", "{\"username\":null,\"password\":null}"})
     void missingCredentialsAreGenericFailures(String body) throws Exception {
-        var csrf = bootstrap("");
-        assertThat(send("POST", "/api/session", body, cookie(csrf), token(csrf)).statusCode()).isEqualTo(401);
+        HttpResponse<String> csrf = bootstrap("");
+        assertThat(send(HttpMethod.POST, "/api/session", body, cookie(csrf), token(csrf)).statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
     }
 
     @Test
     void downstreamCodeUsesCredentialFreePrincipalAndForbiddenAccessIs403() throws Exception {
-        var registered = register("gandalf", PASSWORD);
-        var csrf = bootstrap("");
+        JsonNode registered = register("gandalf", PASSWORD);
+        HttpResponse<String> csrf = bootstrap("");
         String session = cookie(login("gandalf", PASSWORD, cookie(csrf), token(csrf)));
-        var fresh = bootstrap(session);
-        assertThat(send("POST", "/api/test/actor", "", session, null).statusCode()).isEqualTo(403);
-        var actor = send("POST", "/api/test/actor", "", session, token(fresh));
-        assertThat(actor.statusCode()).isEqualTo(200);
+        HttpResponse<String> fresh = bootstrap(session);
+        assertThat(send(HttpMethod.POST, "/api/test/actor", "", session, null).statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        HttpResponse<String> actor = send(HttpMethod.POST, "/api/test/actor", "", session, token(fresh));
+        assertThat(actor.statusCode()).isEqualTo(HttpStatus.OK.value());
         assertThat(json.readTree(actor.body()).get("id").asText()).isEqualTo(registered.get("id").asText());
         assertThat(json.readTree(actor.body()).get("credentialsErased").asBoolean()).isTrue();
-        assertThat(send("GET", "/api/test/forbidden", "", session, null).statusCode()).isEqualTo(403);
-        assertThat(send("GET", "/api/test/forbidden", "", "", null).statusCode()).isEqualTo(401);
+        assertThat(send(HttpMethod.GET, "/api/test/forbidden", "", session, null).statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(send(HttpMethod.GET, "/api/test/forbidden", "", "", null).statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"null", "{", "[]"})
     void malformedLoginJsonReturns400(String body) throws Exception {
-        var csrf = bootstrap("");
-        assertThat(send("POST", "/api/session", body, cookie(csrf), token(csrf)).statusCode()).isEqualTo(400);
+        HttpResponse<String> csrf = bootstrap("");
+        assertThat(send(HttpMethod.POST, "/api/session", body, cookie(csrf), token(csrf)).statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
     }
 
-    @org.springframework.boot.test.context.TestConfiguration(proxyBeanMethods = false)
-    @org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
+    @TestConfiguration(proxyBeanMethods = false)
+    @EnableMethodSecurity
     static class AuthorizationConfiguration {
-        @org.springframework.context.annotation.Bean
+        @Bean
         ProtectedEndpoints protectedEndpoints() {
             return new ProtectedEndpoints();
         }
     }
 
-    @org.springframework.web.bind.annotation.RestController
+    @RestController
     static class ProtectedEndpoints {
-        @org.springframework.web.bind.annotation.PostMapping("/api/test/actor")
-        Map<String, Object> actor(org.springframework.security.core.Authentication authentication) {
-            var user = (io.github.gandalfthejunior.mtgcommanderstats.security.UserPrincipal) authentication.getPrincipal();
+        @PostMapping("/api/test/actor")
+        Map<String, Object> actor(Authentication authentication) {
+            UserPrincipal user = (UserPrincipal) authentication.getPrincipal();
             return Map.of("id", user.getId(), "credentialsErased",
                     user.getPassword() == null && authentication.getCredentials() == null);
         }
 
-        @org.springframework.web.bind.annotation.GetMapping("/api/test/forbidden")
-        @org.springframework.security.access.prepost.PreAuthorize("denyAll()")
+        @GetMapping("/api/test/forbidden")
+        @PreAuthorize("denyAll()")
         String forbidden() {
             return "unreachable";
         }
     }
 
     private JsonNode register(String username, String password) throws Exception {
-        var response = send("POST", "/api/users", credentials(username, password), "", null);
-        assertThat(response.statusCode()).isEqualTo(201);
-        assertThat(response.headers().allValues("set-cookie")).isEmpty();
+        HttpResponse<String> response = send(HttpMethod.POST, "/api/users", credentials(username, password), "", null);
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.CREATED.value());
+        assertThat(response.headers().allValues(HttpHeaders.SET_COOKIE)).isEmpty();
         return json.readTree(response.body());
     }
 
     private HttpResponse<String> bootstrap(String cookie) throws Exception {
-        var response = send("GET", "/api/csrf", "", cookie, null);
-        assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.headers().firstValue("cache-control").orElseThrow()).contains("no-store");
-        assertThat(json.readTree(response.body()).get("headerName").asText()).isEqualTo("X-CSRF-TOKEN");
+        HttpResponse<String> response = send(HttpMethod.GET, "/api/csrf", "", cookie, null);
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.OK.value());
+        assertThat(response.headers().firstValue(HttpHeaders.CACHE_CONTROL).orElseThrow()).contains("no-store");
+        assertThat(json.readTree(response.body()).get("headerName").asText()).isEqualTo(CSRF_HEADER);
         return response;
     }
 
@@ -185,11 +201,11 @@ class SessionAuthenticationTest {
     }
 
     private String cookie(HttpResponse<String> response) {
-        return response.headers().firstValue("set-cookie").orElseThrow().split(";", 2)[0];
+        return response.headers().firstValue(HttpHeaders.SET_COOKIE).orElseThrow().split(";", 2)[0];
     }
 
     private void assertIdentity(HttpResponse<String> response, JsonNode registered) {
-        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.OK.value());
         assertThat(json.readTree(response.body())).isEqualTo(registered);
         assertThat(json.readTree(response.body()).size()).isEqualTo(2);
         assertThat(response.body()).doesNotContain("password", PASSWORD, users.findAll().getFirst().getEncodedPassword());
@@ -200,16 +216,16 @@ class SessionAuthenticationTest {
     }
 
     private HttpResponse<String> login(String username, String password, String cookie, String token) throws Exception {
-        return send("POST", "/api/session", credentials(username, password), cookie, token);
+        return send(HttpMethod.POST, "/api/session", credentials(username, password), cookie, token);
     }
 
-    private HttpResponse<String> send(String method, String path, String body, String cookie, String token)
+    private HttpResponse<String> send(HttpMethod method, String path, String body, String cookie, String token)
             throws Exception {
-        var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
-                .header("Content-Type", "application/json");
-        if (!cookie.isEmpty()) request.header("Cookie", cookie);
-        if (token != null) request.header("X-CSRF-TOKEN", token);
-        return client.send(request.method(method, HttpRequest.BodyPublishers.ofString(body)).build(),
+        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+        if (!cookie.isEmpty()) request.header(HttpHeaders.COOKIE, cookie);
+        if (token != null) request.header(CSRF_HEADER, token);
+        return client.send(request.method(method.name(), HttpRequest.BodyPublishers.ofString(body)).build(),
                 HttpResponse.BodyHandlers.ofString());
     }
 }

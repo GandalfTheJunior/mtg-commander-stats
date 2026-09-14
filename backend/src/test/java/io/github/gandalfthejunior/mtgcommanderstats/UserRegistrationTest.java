@@ -5,14 +5,20 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.function.Function;
 
+import io.github.gandalfthejunior.mtgcommanderstats.MtgCommanderStatsApplicationTest.DatabaseConfiguration;
 import io.github.gandalfthejunior.mtgcommanderstats.user.application.RegisterUser;
 import io.github.gandalfthejunior.mtgcommanderstats.user.domain.InvalidRegistrationException;
+import io.github.gandalfthejunior.mtgcommanderstats.user.domain.User;
 import io.github.gandalfthejunior.mtgcommanderstats.user.persistence.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +30,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import tools.jackson.databind.JsonNode;
@@ -33,7 +40,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import(MtgCommanderStatsApplicationTest.DatabaseConfiguration.class)
+@Import(DatabaseConfiguration.class)
 class UserRegistrationTest {
     @Value("${local.server.port}")
     private int port;
@@ -56,20 +63,20 @@ class UserRegistrationTest {
 
     @Test
     void anonymousRegistrationPersistsStableIdentityAndOnlyReturnsPublicFields() throws Exception {
-        var response = register(" \tGANDALF\n ", "correct horse battery");
+        HttpResponse<String> response = register(" \tGANDALF\n ", "correct horse battery");
         assertThat(response.statusCode()).isEqualTo(201);
         JsonNode body = json.readTree(response.body());
         assertThat(body.size()).isEqualTo(2);
         assertThat(body.get("username").asText()).isEqualTo("gandalf");
         UUID id = UUID.fromString(body.get("id").asText());
-        var stored = users.findById(id).orElseThrow();
+        User stored = users.findById(id).orElseThrow();
         assertThat(stored.getId()).isEqualTo(id);
         assertThat(stored.getUsername()).isEqualTo("gandalf");
         assertThat(stored.getEncodedPassword()).isNotEqualTo("correct horse battery");
         assertThat(passwords.matches("correct horse battery", stored.getEncodedPassword())).isTrue();
         assertThat(response.body()).doesNotContain("password", stored.getEncodedPassword(), "correct horse battery");
         assertThat(response.headers().allValues("set-cookie")).isEmpty();
-        assertThat(send("GET", "/api/users", "").statusCode()).isEqualTo(401);
+        assertThat(send("GET", "/api/users", "").statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
     }
 
     @ParameterizedTest
@@ -77,21 +84,21 @@ class UserRegistrationTest {
             "A long passphrase with whitespace and more than seventy-two bytes of password material!", "  Élf Wizards  "})
     void preservesExactPasswordIncludingWhitespace(String password) throws Exception {
         assertThat(register("wizard", password).statusCode()).isEqualTo(201);
-        var encoded = users.findAll().getFirst().getEncodedPassword();
+        String encoded = users.findAll().getFirst().getEncodedPassword();
         assertThat(passwords.matches(password, encoded)).isTrue();
         assertThat(passwords.matches(password + " ", encoded)).isFalse();
         if (!password.equals(password.strip())) {
             assertThat(passwords.matches(password.strip(), encoded)).isFalse();
         }
-        if (!password.equals(password.toLowerCase(java.util.Locale.ROOT))) {
-            assertThat(passwords.matches(password.toLowerCase(java.util.Locale.ROOT), encoded)).isFalse();
+        if (!password.equals(password.toLowerCase(Locale.ROOT))) {
+            assertThat(passwords.matches(password.toLowerCase(Locale.ROOT), encoded)).isFalse();
         }
     }
 
     @Test
     void canonicalDuplicateReturnsConflictWithoutDatabaseDetails() throws Exception {
         assertThat(register("Gandalf", "correct horse battery").statusCode()).isEqualTo(201);
-        var duplicate = register(" GANDALF ", "another good password");
+        HttpResponse<String> duplicate = register(" GANDALF ", "another good password");
         assertThat(duplicate.statusCode()).isEqualTo(409);
         assertThat(json.readTree(duplicate.body()).get("detail").asText())
                 .isEqualTo("Username is already registered.");
@@ -102,7 +109,7 @@ class UserRegistrationTest {
     @ParameterizedTest
     @ValueSource(strings = {"\u00A0", "\u2007", "\u202F", "\u0085", " \t\u00A0\u2007\u202F\u0085\u2003"})
     void unicodeWhitespaceIsNormalizedAndCannotCreateDuplicateUsers(String whitespace) throws Exception {
-        var response = register(whitespace + "GANDALF" + whitespace, "correct horse battery");
+        HttpResponse<String> response = register(whitespace + "GANDALF" + whitespace, "correct horse battery");
         assertThat(response.statusCode()).isEqualTo(201);
         assertThat(json.readTree(response.body()).get("username").asText()).isEqualTo("gandalf");
         assertThat(users.findAll().getFirst().getUsername()).isEqualTo("gandalf");
@@ -117,7 +124,7 @@ class UserRegistrationTest {
     void unicodePasswordWhitespaceCountsAndIsEncodedExactly(String whitespace) throws Exception {
         String password = whitespace + "abcde" + whitespace + "fghi" + whitespace;
         assertThat(register("wizard", password).statusCode()).isEqualTo(201);
-        var encoded = users.findAll().getFirst().getEncodedPassword();
+        String encoded = users.findAll().getFirst().getEncodedPassword();
         assertThat(passwords.matches(password, encoded)).isTrue();
         assertThat(passwords.matches("abcde" + whitespace + "fghi", encoded)).isFalse();
         assertThat(passwords.matches(password.replace(whitespace, " "), encoded)).isFalse();
@@ -140,7 +147,7 @@ class UserRegistrationTest {
             "ﬃ,FFI,ffi", "İ,i̇,i̇", "Ꭰ,ꭰ,ꭰ", "𐐀,𐐨,𐐨"})
     void unicodeCaseEquivalentUsernamesShareOneCanonicalIdentity(String first, String second, String expected)
             throws Exception {
-        var response = register("\u00A0" + first + "\u202F", "correct horse battery");
+        HttpResponse<String> response = register("\u00A0" + first + "\u202F", "correct horse battery");
         assertThat(response.statusCode()).isEqualTo(201);
         assertThat(json.readTree(response.body()).get("username").asText()).isEqualTo(expected);
         assertThat(users.findAll().getFirst().getUsername()).isEqualTo(expected);
@@ -160,20 +167,20 @@ class UserRegistrationTest {
 
     @Test
     void usernameCanonicalizationDoesNotDependOnJvmLocale() {
-        var previous = java.util.Locale.getDefault();
+        Locale previous = Locale.getDefault();
         try {
-            java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr-TR"));
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"));
             assertThat(registerUser.register("  GANDALF I  ", "correct horse battery").getUsername())
                     .isEqualTo("gandalf i");
         } finally {
-            java.util.Locale.setDefault(previous);
+            Locale.setDefault(previous);
         }
     }
 
     @Test
     void defaultCaselessMatchingPreservesAccentsAndInternalWhitespace() throws Exception {
         for (String username : List.of("i", "ı", "é", "e", "grey wizard", "grey\u00A0wizard")) {
-            var response = register(username, "correct horse battery");
+            HttpResponse<String> response = register(username, "correct horse battery");
             assertThat(response.statusCode()).isEqualTo(201);
             assertThat(json.readTree(response.body()).get("username").asText()).isEqualTo(username);
         }
@@ -184,7 +191,7 @@ class UserRegistrationTest {
     void passwordCaseVariantsAreNotCasefolded() throws Exception {
         String password = "Σtraße password";
         assertThat(register("wizard", password).statusCode()).isEqualTo(201);
-        var encoded = users.findAll().getFirst().getEncodedPassword();
+        String encoded = users.findAll().getFirst().getEncodedPassword();
         assertThat(passwords.matches(password, encoded)).isTrue();
         assertThat(passwords.matches("σtrasse password", encoded)).isFalse();
         assertThat(passwords.matches("ςtraße password", encoded)).isFalse();
@@ -193,14 +200,14 @@ class UserRegistrationTest {
     @ParameterizedTest
     @CsvSource({"Gandalf,gandalf", "Σ,ς", "Straße,STRASSE"})
     void concurrentDuplicatesCreateOnlyOneUser(String firstUsername, String secondUsername) throws Exception {
-        try (var executor = Executors.newFixedThreadPool(2)) {
-            var start = new CountDownLatch(1);
-            java.util.function.Function<String, Callable<Integer>> request = username -> () -> {
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            CountDownLatch start = new CountDownLatch(1);
+            Function<String, Callable<Integer>> request = username -> () -> {
                 start.await();
                 return register(username, "correct horse battery").statusCode();
             };
-            var first = executor.submit(request.apply(firstUsername));
-            var second = executor.submit(request.apply(secondUsername));
+            Future<Integer> first = executor.submit(request.apply(firstUsername));
+            Future<Integer> second = executor.submit(request.apply(secondUsername));
             start.countDown();
             assertThat(List.of(first.get(), second.get())).containsExactlyInAnyOrder(201, 409);
         }
@@ -242,7 +249,7 @@ class UserRegistrationTest {
 
     @Test
     void databaseProtectsUsernameUniquenessIndependentlyOfService() {
-        var user = registerUser.register("gandalf", "correct horse battery");
+        User user = registerUser.register("gandalf", "correct horse battery");
         assertThatThrownBy(() -> insertUser("gandalf", user.getEncodedPassword()))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(users.findById(user.getId())).isPresent();
@@ -258,8 +265,8 @@ class UserRegistrationTest {
 
     @Test
     void passwordHashesAreSalted() {
-        var first = registerUser.register("first", "correct horse battery");
-        var second = registerUser.register("second", "correct horse battery");
+        User first = registerUser.register("first", "correct horse battery");
+        User second = registerUser.register("second", "correct horse battery");
         assertThat(first.getEncodedPassword()).isNotEqualTo(second.getEncodedPassword());
     }
 

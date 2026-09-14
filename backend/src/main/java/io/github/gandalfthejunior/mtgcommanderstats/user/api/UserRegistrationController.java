@@ -3,6 +3,7 @@ package io.github.gandalfthejunior.mtgcommanderstats.user.api;
 import java.util.UUID;
 
 import io.github.gandalfthejunior.mtgcommanderstats.user.application.RegisterUser;
+import io.github.gandalfthejunior.mtgcommanderstats.user.domain.User;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -20,7 +21,7 @@ public class UserRegistrationController {
     @PostMapping("/api/users")
     @ResponseStatus(HttpStatus.CREATED)
     public RegisteredUser register(@RequestBody RegistrationRequest request) {
-        var user = registerUser.register(request.username(), request.password());
+        User user = registerUser.register(request.username(), request.password());
         return new RegisteredUser(user.getId(), user.getUsername());
     }
 

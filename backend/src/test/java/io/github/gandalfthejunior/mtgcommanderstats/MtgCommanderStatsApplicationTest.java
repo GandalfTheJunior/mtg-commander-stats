@@ -1,7 +1,9 @@
 package io.github.gandalfthejunior.mtgcommanderstats;
 
+import java.sql.Connection;
 import javax.sql.DataSource;
 
+import io.github.gandalfthejunior.mtgcommanderstats.MtgCommanderStatsApplicationTest.DatabaseConfiguration;
 import jakarta.persistence.EntityManagerFactory;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
@@ -16,7 +18,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-@Import(MtgCommanderStatsApplicationTest.DatabaseConfiguration.class)
+@Import(DatabaseConfiguration.class)
 class MtgCommanderStatsApplicationTest {
 
     @Autowired
@@ -30,14 +32,14 @@ class MtgCommanderStatsApplicationTest {
 
     @Test
     void applicationInitializesWithPostgresJpaAndFlyway() throws Exception {
-        try (var connection = dataSource.getConnection()) {
+        try (Connection connection = dataSource.getConnection()) {
             assertThat(connection.isValid(5)).isTrue();
             assertThat(connection.getMetaData().getDatabaseProductName()).isEqualTo("PostgreSQL");
             assertThat(connection.getMetaData().getDatabaseMajorVersion()).isEqualTo(18);
         }
         assertThat(entityManagerFactory.isOpen()).isTrue();
-        try (var migrationConnection = flyway.getConfiguration().getDataSource().getConnection();
-             var applicationConnection = dataSource.getConnection()) {
+        try (Connection migrationConnection = flyway.getConfiguration().getDataSource().getConnection();
+             Connection applicationConnection = dataSource.getConnection()) {
             assertThat(migrationConnection.getMetaData().getURL())
                     .isEqualTo(applicationConnection.getMetaData().getURL());
         }

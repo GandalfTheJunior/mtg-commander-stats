@@ -1,6 +1,7 @@
 package io.github.gandalfthejunior.mtgcommanderstats.user.application;
 
 import io.github.gandalfthejunior.mtgcommanderstats.security.UserPrincipal;
+import io.github.gandalfthejunior.mtgcommanderstats.user.domain.User;
 import io.github.gandalfthejunior.mtgcommanderstats.user.persistence.UserRepository;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -19,7 +20,7 @@ public class UserAuthenticationDetails implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String username) {
-        var user = users.findByUsername(users.canonicalizeUsername(username))
+        User user = users.findByUsername(users.canonicalizeUsername(username))
                 .orElseThrow(() -> new UsernameNotFoundException("Invalid credentials."));
         return new UserPrincipal(user.getId(), user.getUsername(), user.getEncodedPassword());
     }

@@ -1,7 +1,7 @@
 # MVP scope
 
-This document records the agreed product target. Backend user registration and session authentication are
-implemented; later milestone features remain planned.
+This document records the agreed product target. Backend user registration and
+session authentication are implemented; later milestone features remain planned.
 
 ## Product milestone
 

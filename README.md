@@ -51,7 +51,8 @@ usernames return `409`. Credentials are never returned. See the
 [registration rules](docs/product/mvp-scope.md#user-identity-and-registration).
 
 Only the exact registration POST is exempt from CSRF. Login and logout require
-CSRF protection; registration does not automatically log the user in. The browser API flow is:
+CSRF protection; registration does not automatically log the user in. The browser
+API flow is:
 
 1. `GET /api/csrf` returns `{"headerName":"X-CSRF-TOKEN","token":"..."}`.
    Keep the session cookie from this response.
@@ -117,6 +118,7 @@ Tests terminate without watch mode. GitHub Actions runs separate `backend` and
 - [MVP scope](docs/product/mvp-scope.md)
 - [Architecture and ADRs](docs/architecture/overview.md)
 - [Development workflow](docs/development/workflow.md)
+- [Java coding conventions](docs/development/java-conventions.md)
 - [Testing and verification](docs/development/testing.md)
 - [Reviewing principles](docs/development/reviewing.md)
 - [Agent bootstrap](AGENTS.md) and [role registry](docs/agents/README.md)
