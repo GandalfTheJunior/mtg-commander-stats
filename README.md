@@ -4,6 +4,15 @@ A Commander statistics application and a learning project for AI-assisted
 software engineering. The backend supports user registration and session
 authentication. Profiles, decks, groups, games, and statistics remain planned.
 
+## Agent entry point
+
+Agent clients and repository harnesses must load the root [AGENTS.md](AGENTS.md)
+before substantive repository work. That bootstrap selects and loads the applicable
+role contract; a PR review therefore loads the [Reviewer contract](docs/agents/roles/reviewer.md)
+before the review begins. Configure the repository root as the task workspace when
+the client discovers instruction files automatically, or load these files explicitly
+when it does not.
+
 ## Stack and prerequisites
 
 - Java 25 JDK (`JAVA_HOME`), Spring Boot 4.1.1, and Maven 3.9.11 via the included Wrapper
@@ -129,3 +138,4 @@ Tests terminate without watch mode. GitHub Actions runs separate `backend` and
 - [Testing and verification](docs/development/testing.md)
 - [Reviewing principles](docs/development/reviewing.md)
 - [Agent bootstrap](AGENTS.md) and [role registry](docs/agents/README.md)
+- [Agent harness verification scenarios](docs/agents/harness-verification.md)

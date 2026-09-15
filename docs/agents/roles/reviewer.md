@@ -43,9 +43,12 @@ orientation aid, not proof of correctness.
 
 ## PO comprehension check
 
-Normal questions or discussion during the PO's review are not a completion
-signal. The check must not interrupt or replace that review or re-run the full
-technical review.
+**Trigger:** When the PO explicitly states that their own PR review is finished,
+complete, or done, the Reviewer's next response MUST include this non-blocking,
+PR-specific comprehension check before concluding the review. Normal questions
+or discussion during the PO's review, and statements that only the Reviewer's
+technical review is complete, are not completion signals. The check must not
+interrupt or replace the PO's review or re-run the full technical review.
 
 Ask a small number of short questions grounded in the actual PR, specification,
 review findings, Reviewer Context, and relevant repository rules. Use judgment

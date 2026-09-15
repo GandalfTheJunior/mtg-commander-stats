@@ -3,6 +3,8 @@
 Start every task with the root [AGENTS.md](../../AGENTS.md). It owns the startup
 protocol and repository-wide authority constraints. This registry helps select
 the role contract; it is not a replacement for product or technical documentation.
+Client and harness behavior can be checked against the documented
+[verification scenarios](harness-verification.md).
 
 ## Intent selects the role
 
