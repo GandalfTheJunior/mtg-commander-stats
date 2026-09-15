@@ -1,9 +1,12 @@
 # Agent bootstrap
 
-Read this file at the start of every task. The repository is the source of truth:
-inspect its documentation, code, tests, and referenced issues/PRs instead of
-assuming knowledge from previous conversations. Work must remain understandable,
-testable, secure, and reviewable by the human Product Owner (PO).
+The client or harness must load this file at the start of every repository task,
+before substantive work. Treat that as a bootstrap gate, not a step that may be
+deferred: if this file was not loaded automatically, load it explicitly before
+continuing. The repository is the source of truth: inspect its documentation,
+code, tests, and referenced issues/PRs instead of assuming knowledge from previous
+conversations. Work must remain understandable, testable, secure, and reviewable
+by the human Product Owner (PO).
 
 ## Global invariants
 
@@ -51,6 +54,13 @@ testable, secure, and reviewable by the human Product Owner (PO).
    do not load all documentation by default.
 5. Before substantive work, briefly state the selected role and intended scope.
 6. Perform the task within that role's authority and actual client capabilities.
+
+Reviewer recovery checkpoint: when the PO explicitly states that their own PR
+review is finished, the next Reviewer response must include the
+[non-blocking PO comprehension check](docs/agents/roles/reviewer.md#po-comprehension-check)
+before concluding. Ordinary review discussion and the Reviewer's own technical
+review completion are not triggers. The Reviewer contract remains authoritative
+for the detailed behavior.
 
 When the PO changes the requested outcome, recognize the new intent, read the
 new role contract, check its prerequisites, explicitly announce the transition,

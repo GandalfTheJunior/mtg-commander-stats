@@ -1,3 +1,9 @@
+<!--
+Agent review bootstrap: before substantive review work, load /AGENTS.md and then
+/docs/agents/roles/reviewer.md. The Reviewer contract is authoritative, including
+its required response after the PO explicitly finishes their own review.
+-->
+
 ## Goal
 
 <!-- State the concrete problem and intended outcome. -->
