@@ -1,6 +1,6 @@
 package io.github.gandalfthejunior.mtgcommanderstats.user.api;
 
-import io.github.gandalfthejunior.mtgcommanderstats.user.application.DuplicateUsernameException;
+import io.github.gandalfthejunior.mtgcommanderstats.user.application.DuplicateEmailException;
 import io.github.gandalfthejunior.mtgcommanderstats.user.domain.InvalidRegistrationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -13,12 +13,12 @@ public class RegistrationErrors {
     @ExceptionHandler({InvalidRegistrationException.class, HttpMessageNotReadableException.class})
     public ProblemDetail invalidInput() {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
-                "Provide a nonblank username and a nonblank password of at least 12 characters.");
+                "Provide a valid email, a nonblank username, and a nonblank password of at least 12 characters.");
     }
 
-    @ExceptionHandler(DuplicateUsernameException.class)
-    public ProblemDetail duplicateUsername() {
-        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "Username is already registered.");
+    @ExceptionHandler(DuplicateEmailException.class)
+    public ProblemDetail duplicateEmail() {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "Email is already registered.");
     }
 
     @ExceptionHandler(Exception.class)

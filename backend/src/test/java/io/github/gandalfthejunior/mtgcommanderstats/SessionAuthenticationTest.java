@@ -15,7 +15,6 @@ import io.github.gandalfthejunior.mtgcommanderstats.user.persistence.UserReposit
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -51,6 +50,7 @@ class SessionAuthenticationTest {
     private UserAuthenticationDetails authenticationDetails;
     private final HttpClient client = HttpClient.newHttpClient();
     private final JsonMapper json = JsonMapper.builder().build();
+    private static final String EMAIL = "gandalf@example.com";
     private static final String PASSWORD = "  Élf Σtraße password  ";
     private static final String CSRF_HEADER = "X-CSRF-TOKEN";
 
@@ -61,10 +61,10 @@ class SessionAuthenticationTest {
 
     @Test
     void completeSessionLifecycleRotatesSessionAndCsrfAndInvalidatesLogout() throws Exception {
-        JsonNode registered = register("Gandalf", PASSWORD);
+        JsonNode registered = register(EMAIL, "Gandalf", PASSWORD);
         HttpResponse<String> bootstrap = bootstrap("");
         String anonymousCookie = cookie(bootstrap);
-        HttpResponse<String> login = login("GANDALF", PASSWORD, anonymousCookie, token(bootstrap));
+        HttpResponse<String> login = login(" GANDALF@EXAMPLE.COM ", PASSWORD, anonymousCookie, token(bootstrap));
         assertIdentity(login, registered);
         String sessionCookie = cookie(login);
         assertThat(sessionCookie).isNotEqualTo(anonymousCookie);
@@ -84,57 +84,63 @@ class SessionAuthenticationTest {
         assertThat(send(HttpMethod.DELETE, "/api/session", "", "", null).statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
     }
 
-    @ParameterizedTest
-    @CsvSource({"Gandalf,GANDALF,gandalf", "Σ,ς,σ", "ΟΣ,Ος,οσ", "Straße,STRASSE,strasse",
-            "ẞ,ss,ss", "ﬃ,FFI,ffi", "İ,i̇,i̇", "Ꭰ,ꭰ,ꭰ", "𐐀,𐐨,𐐨"})
-    void loginUsesDatabaseOwnedCanonicalIdentity(String registeredName, String loginName, String expected)
-            throws Exception {
-        JsonNode registered = register(registeredName, PASSWORD);
+    @Test
+    void loginUsesDatabaseOwnedCanonicalEmailAndReturnsDisplayUsername() throws Exception {
+        JsonNode registered = register("Alice@Example.com", "Mixed Case Name", PASSWORD);
         HttpResponse<String> csrf = bootstrap("");
         String whitespace = " \t\u001c\u00a0\u2007\u202f\u0085\u2003";
-        HttpResponse<String> result = login(whitespace + loginName + whitespace, PASSWORD, cookie(csrf), token(csrf));
+        HttpResponse<String> result = login(whitespace + "ALICE@example.COM" + whitespace,
+                PASSWORD, cookie(csrf), token(csrf));
         assertIdentity(result, registered);
-        assertThat(json.readTree(result.body()).get("username").asText()).isEqualTo(expected);
+        assertThat(json.readTree(result.body()).get("username").asText()).isEqualTo("Mixed Case Name");
+        assertThat(result.body()).doesNotContain("alice@example.com");
     }
 
     @Test
     void passwordsAreExactAndCredentialFailuresAreIndistinguishable() throws Exception {
-        register("gandalf", PASSWORD);
+        register(EMAIL, "Gandalf", PASSWORD);
         HttpResponse<String> csrf = bootstrap("");
-        HttpResponse<String> wrong = login("gandalf", PASSWORD.strip(), cookie(csrf), token(csrf));
-        HttpResponse<String> unknown = login("unknown", PASSWORD, cookie(csrf), token(csrf));
+        HttpResponse<String> wrong = login(EMAIL, PASSWORD.strip(), cookie(csrf), token(csrf));
+        HttpResponse<String> unknown = login("unknown@example.com", PASSWORD, cookie(csrf), token(csrf));
+        HttpResponse<String> malformed = login("not-an-email", PASSWORD, cookie(csrf), token(csrf));
+        HttpResponse<String> username = login("Gandalf", PASSWORD, cookie(csrf), token(csrf));
         assertThat(wrong.statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
         assertThat(unknown.statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+        assertThat(malformed.statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+        assertThat(username.statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
         assertThat(unknown.body()).isEqualTo(wrong.body());
-        assertThat(wrong.body()).doesNotContain(PASSWORD, "gandalf", "unknown", "encoded");
+        assertThat(malformed.body()).isEqualTo(wrong.body());
+        assertThat(username.body()).isEqualTo(wrong.body());
+        assertThat(wrong.body()).doesNotContain(PASSWORD, EMAIL, "Gandalf", "unknown", "encoded");
         for (String transformed : new String[]{PASSWORD.toLowerCase(Locale.ROOT),
                 PASSWORD.replace("É", "E\u0301"), PASSWORD + " "}) {
-            assertThat(login("gandalf", transformed, cookie(csrf), token(csrf)).statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+            assertThat(login(EMAIL, transformed, cookie(csrf), token(csrf)).statusCode())
+                    .isEqualTo(HttpStatus.UNAUTHORIZED.value());
         }
         assertThat(send(HttpMethod.GET, "/api/me", "", cookie(csrf), null).statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
-        assertThat(login("gandalf", PASSWORD, cookie(csrf), token(csrf)).statusCode()).isEqualTo(HttpStatus.OK.value());
+        assertThat(login(EMAIL, PASSWORD, cookie(csrf), token(csrf)).statusCode()).isEqualTo(HttpStatus.OK.value());
     }
 
     @Test
     void internalAuthenticationServiceFailureIsNotReportedAsInvalidCredentials() throws Exception {
-        register("gandalf", PASSWORD);
+        register(EMAIL, "Gandalf", PASSWORD);
         HttpResponse<String> csrf = bootstrap("");
         doThrow(new IllegalStateException("Authentication store unavailable"))
-                .when(authenticationDetails).loadUserByUsername("gandalf");
+                .when(authenticationDetails).loadUserByUsername(EMAIL);
 
-        HttpResponse<String> response = login("gandalf", PASSWORD, cookie(csrf), token(csrf));
+        HttpResponse<String> response = login(EMAIL, PASSWORD, cookie(csrf), token(csrf));
         assertThat(response.statusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.value());
         assertThat(response.body()).doesNotContain("Invalid credentials.", "Authentication store unavailable");
     }
 
     @Test
     void loginRequiresRealBootstrapTokenAndSession() throws Exception {
-        register("gandalf", PASSWORD);
+        register(EMAIL, "Gandalf", PASSWORD);
         HttpResponse<String> csrf = bootstrap("");
-        assertThat(login("gandalf", PASSWORD, cookie(csrf), null).statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
-        assertThat(login("gandalf", PASSWORD, cookie(csrf), "invalid").statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
-        assertThat(login("gandalf", PASSWORD, "", token(csrf)).statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
-        assertThat(login("gandalf", PASSWORD, cookie(csrf), token(csrf)).statusCode()).isEqualTo(HttpStatus.OK.value());
+        assertThat(login(EMAIL, PASSWORD, cookie(csrf), null).statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(login(EMAIL, PASSWORD, cookie(csrf), "invalid").statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(login(EMAIL, PASSWORD, "", token(csrf)).statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(login(EMAIL, PASSWORD, cookie(csrf), token(csrf)).statusCode()).isEqualTo(HttpStatus.OK.value());
     }
 
     @ParameterizedTest
@@ -146,7 +152,8 @@ class SessionAuthenticationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"{}", "{\"username\":null,\"password\":null}"})
+    @ValueSource(strings = {"{}", "{\"email\":null,\"password\":null}",
+            "{\"username\":\"Gandalf\",\"password\":\"  Élf Σtraße password  \"}"})
     void missingCredentialsAreGenericFailures(String body) throws Exception {
         HttpResponse<String> csrf = bootstrap("");
         assertThat(send(HttpMethod.POST, "/api/session", body, cookie(csrf), token(csrf)).statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
@@ -154,9 +161,9 @@ class SessionAuthenticationTest {
 
     @Test
     void downstreamCodeUsesCredentialFreePrincipalAndForbiddenAccessIs403() throws Exception {
-        JsonNode registered = register("gandalf", PASSWORD);
+        JsonNode registered = register(EMAIL, "Gandalf", PASSWORD);
         HttpResponse<String> csrf = bootstrap("");
-        String session = cookie(login("gandalf", PASSWORD, cookie(csrf), token(csrf)));
+        String session = cookie(login(EMAIL, PASSWORD, cookie(csrf), token(csrf)));
         HttpResponse<String> fresh = bootstrap(session);
         assertThat(send(HttpMethod.POST, "/api/test/actor", "", session, null).statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
         HttpResponse<String> actor = send(HttpMethod.POST, "/api/test/actor", "", session, token(fresh));
@@ -199,8 +206,9 @@ class SessionAuthenticationTest {
         }
     }
 
-    private JsonNode register(String username, String password) throws Exception {
-        HttpResponse<String> response = send(HttpMethod.POST, "/api/users", credentials(username, password), "", null);
+    private JsonNode register(String email, String username, String password) throws Exception {
+        String body = json.writeValueAsString(Map.of("email", email, "username", username, "password", password));
+        HttpResponse<String> response = send(HttpMethod.POST, "/api/users", body, "", null);
         assertThat(response.statusCode()).isEqualTo(HttpStatus.CREATED.value());
         assertThat(response.headers().allValues(HttpHeaders.SET_COOKIE)).isEmpty();
         return json.readTree(response.body());
@@ -226,15 +234,16 @@ class SessionAuthenticationTest {
         assertThat(response.statusCode()).isEqualTo(HttpStatus.OK.value());
         assertThat(json.readTree(response.body())).isEqualTo(registered);
         assertThat(json.readTree(response.body()).size()).isEqualTo(2);
-        assertThat(response.body()).doesNotContain("password", PASSWORD, users.findAll().getFirst().getEncodedPassword());
+        assertThat(response.body()).doesNotContain("email", "password", PASSWORD,
+                users.findAll().getFirst().getEmail(), users.findAll().getFirst().getEncodedPassword());
     }
 
-    private String credentials(String username, String password) {
-        return json.writeValueAsString(Map.of("username", username, "password", password));
+    private String credentials(String email, String password) {
+        return json.writeValueAsString(Map.of("email", email, "password", password));
     }
 
-    private HttpResponse<String> login(String username, String password, String cookie, String token) throws Exception {
-        return send(HttpMethod.POST, "/api/session", credentials(username, password), cookie, token);
+    private HttpResponse<String> login(String email, String password, String cookie, String token) throws Exception {
+        return send(HttpMethod.POST, "/api/session", credentials(email, password), cookie, token);
     }
 
     private HttpResponse<String> send(HttpMethod method, String path, String body, String cookie, String token)

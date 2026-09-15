@@ -42,14 +42,15 @@ manually created local database state. Use database constraints where they provi
 meaningful data-integrity protection rather than assuming application validation
 alone is sufficient for invariants the database can safely enforce.
 
-Username canonicalization is owned by the Flyway-defined `canonical_username`
+Email canonicalization is owned by the Flyway-defined `canonical_email`
 function: trim the product-defined boundary whitespace, apply PostgreSQL 18
 `casefold` under explicit `pg_catalog.pg_unicode_fast`, then lowercase under the same
-collation (including Cherokee). The registration service calls this function
+collation (including Cherokee). Registration and authentication call this function
 through the user repository; the database CHECK uses that exact function too.
-The username column uses deterministic `C` collation for exact canonical-key
+The email column uses deterministic `C` collation for exact canonical-key
 uniqueness. This avoids divergent Java/database case mappings and needs no new
-library. The domain retains input validation; passwords never use this function.
+library. Jakarta Validation checks email syntax at the application boundary;
+passwords and display usernames never use the email canonicalization function.
 See [PostgreSQL's casefold documentation](https://www.postgresql.org/docs/18/functions-string.html).
 Changes to Unicode mappings on database upgrades require reviewing existing
 canonical keys and potential collisions before rewriting data.
@@ -70,10 +71,11 @@ or create a session. API failures use `401` for missing authentication and `403`
 for access denial/CSRF failures, without form login, Basic auth, or redirects.
 
 `UserAuthenticationDetails` loads the existing User through the repository's
-canonicalization function and canonical-username lookup. `DaoAuthenticationProvider`
+canonicalization function and canonical-email lookup. `DaoAuthenticationProvider`
 verifies the exact password with the configured encoder. `UserPrincipal` adapts
-Spring's credential-erasing UserDetails to carry the existing User UUID; it is
-not a new domain entity. API DTOs expose only UUID and canonical username.
+Spring's credential-erasing UserDetails to authenticate by canonical email while
+carrying the existing User UUID and display username; it is not a new domain
+entity. API DTOs expose only UUID and display username.
 
 The JSON login controller invokes Spring's `AuthenticationManager`, then
 `ChangeSessionIdAuthenticationStrategy` and `CsrfAuthenticationStrategy` before
@@ -93,11 +95,15 @@ externally configurable through Spring Boot's `server.servlet.session.*`
 properties. No shared session store or additional persistence is introduced.
 Passwords use Spring Security's versioned PBKDF2 encoder through a delegating
 encoder, supporting long passphrases without bcrypt's 72-byte limit. The User
-owns its UUID, canonical username, and encoded password; API DTOs expose only
-UUID and username. PostgreSQL enforces unique, nonempty canonical usernames,
-and the application maps the named uniqueness constraint to a conflict even
-under concurrent registration. Security-sensitive behavior requires coverage
-under the testing guide.
+owns its UUID, canonical email, display username, and encoded password; API DTOs
+expose only UUID and username. PostgreSQL enforces unique, nonempty canonical
+emails plus a nonblank username, while allowing duplicate display usernames. The
+application maps the named email uniqueness constraint to a conflict even under
+concurrent registration. The V2 Flyway migration removes obsolete username
+canonicalization/uniqueness and deliberately fails on pre-email user rows; local
+development databases containing those rows must be reset rather than assigned
+invented identities. Security-sensitive behavior requires coverage under the
+testing guide.
 
 ## Decisions and source of truth
 

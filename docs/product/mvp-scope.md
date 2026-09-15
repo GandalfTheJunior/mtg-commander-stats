@@ -57,12 +57,13 @@ established password hashing/security mechanisms, and server-side sessions.
 Do not implement custom cryptography. JWT, OIDC, and mobile authentication are
 outside this MVP.
 
-- Registered users log in with username/password through `POST /api/session`.
-  Login uses the same database-owned username canonicalization as registration
-  and verifies the password exactly as supplied. Invalid credentials receive a
-  generic `401`, regardless of whether the username exists.
-- The authenticated principal carries the existing `User` UUID and canonical
-  username. Later business features obtain the actor from that principal.
+- Registered users log in with email/password through `POST /api/session`.
+  Login uses the same database-owned email canonicalization as registration and
+  verifies the password exactly as supplied. Invalid credentials receive a
+  generic `401`, regardless of whether the email exists or is syntactically usable.
+- The authenticated principal carries the existing `User` UUID, canonical login
+  email, and display username. Later business features obtain the actor from the
+  stable UUID rather than a client-supplied identifier.
 - `GET /api/me` restores that identity from a valid session, or returns `401`.
 - `GET /api/csrf` is available anonymously and while authenticated. Clients use
   its token and header name for login and other unsafe requests, including
@@ -75,16 +76,16 @@ outside this MVP.
 
 - The registered `User`, identified by a stable UUID, is the application identity
   that later profiles, decks, memberships, games, and statistics reference.
-- MVP username and encoded password credentials belong directly to that user.
+- MVP email, username, and encoded password fields belong directly to that user.
   Separate `Account`, `Credentials`, and `Profile` entities are not part of
-  registration. E-mail is not required or stored.
-- A username is required, stripped of leading/trailing whitespace, and stored in
-  lowercase. Usernames are case-insensitive and unique; no additional format
-  restrictions are imposed. Case-insensitive equivalence uses Unicode Default
-  Caseless Matching (full case folding), with the folded result stored in
-  lowercase. Thus `Σ`, `σ`, and `ς` share `σ`, and `Straße` and `STRASSE` share
-  `strasse`. This is locale-independent; accents and internal whitespace remain
-  significant. No additional Unicode normalization is applied.
+  registration.
+- Email is required, syntactically validated, and used as the only login
+  identifier. Registration strips the defined boundary whitespace and stores a
+  case-insensitive canonical value. Canonical emails are unique. Provider-specific
+  transformations such as dot removal or `+tag` stripping are not applied.
+- A username is required as a display/profile name. Its leading/trailing
+  registration whitespace is stripped, while internal whitespace and the user's
+  casing are preserved. Usernames are not login identifiers and are not unique.
 - For username boundaries and whitespace-only password validation, whitespace
   means Unicode `White_Space` plus the Java whitespace controls U+001C–U+001F.
   This includes NBSP (U+00A0), figure space (U+2007), narrow NBSP (U+202F), and

@@ -58,7 +58,7 @@ public class SessionController {
             HttpServletRequest request, HttpServletResponse response) {
         Authentication authentication = authenticationManager.authenticate(
                 UsernamePasswordAuthenticationToken.unauthenticated(
-                        credentials.username() == null ? "" : credentials.username(),
+                        credentials.email() == null ? "" : credentials.email(),
                         credentials.password() == null ? "" : credentials.password()));
         sessions.onAuthentication(authentication, request, response);
         SecurityContext context = SecurityContextHolder.createEmptyContext();
@@ -70,7 +70,7 @@ public class SessionController {
 
     @GetMapping("/api/me")
     public CurrentUser currentUser(@AuthenticationPrincipal UserPrincipal user) {
-        return new CurrentUser(user.getId(), user.getUsername());
+        return new CurrentUser(user.getId(), user.getDisplayUsername());
     }
 
     @DeleteMapping("/api/session")
@@ -92,10 +92,10 @@ public class SessionController {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ProblemDetail malformedRequest() {
-        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Provide username and password JSON.");
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Provide email and password JSON.");
     }
 
-    public record LoginRequest(String username, String password) {}
+    public record LoginRequest(String email, String password) {}
     public record CurrentUser(UUID id, String username) {}
     public record CsrfResponse(String headerName, String token) {}
 }

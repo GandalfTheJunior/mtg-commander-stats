@@ -9,9 +9,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<User, UUID> {
-    Optional<User> findByUsername(String username);
+    Optional<User> findByEmail(String email);
 
-    // The same Unicode canonicalization function also guards direct database writes.
-    @Query(value = "SELECT canonical_username(:username)", nativeQuery = true)
-    String canonicalizeUsername(@Param("username") String username);
+    // PostgreSQL owns the canonical representation used by registration, login, and constraints.
+    @Query(value = "SELECT canonical_email(:email)", nativeQuery = true)
+    String canonicalizeEmail(@Param("email") String email);
 }
