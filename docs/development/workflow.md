@@ -19,6 +19,11 @@ approved task specification
 Senior Reviewer describes the human review process, not an additional agent role.
 The workflow is independent of the agent client used.
 
+After the Product Owner explicitly signals completion of their own PR review,
+the Reviewer asks the [non-blocking comprehension questions](../agents/roles/reviewer.md#po-comprehension-check).
+This follow-up supports understanding; it is not a prerequisite for approval or
+merge and does not change the Product Owner's final authority.
+
 ## Git workflow
 
 1. Start each cohesive implementation task from current `main`.
