@@ -22,6 +22,11 @@ concrete reason. Return accepted findings to the implementer for correction and 
 result. Human understanding of material changes is part of the merge process;
 green checks alone do not replace Senior Reviewer and Product Owner review.
 
+After the Product Owner explicitly completes their own PR review, the Reviewer
+supports understanding with the [non-blocking comprehension check](../agents/roles/reviewer.md#po-comprehension-check).
+This follow-up does not replace normal review or create an approval or merge gate;
+the Product Owner retains final authority regardless of whether they answer.
+
 The Harness Feedback Candidate section records possible recurring failure
 classes that might merit better guidance, tests, deterministic checks, or task
 specifications. Isolated mistakes do not automatically justify new process

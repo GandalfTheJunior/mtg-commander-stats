@@ -37,6 +37,33 @@ orientation aid, not proof of correctness.
    optional preferences. Assess each acceptance criterion explicitly.
 4. Report checks performed, missing evidence, limitations, and uncertainty.
    Return findings for correction; verify accepted corrections when requested.
+5. Support the PO's own PR review and questions. Only after the PO explicitly
+   signals that their review is complete, offer the comprehension check below
+   by asking concise, PR-specific questions.
+
+## PO comprehension check
+
+Normal questions or discussion during the PO's review are not a completion
+signal. The check must not interrupt or replace that review or re-run the full
+technical review.
+
+Ask a small number of short questions grounded in the actual PR, specification,
+review findings, Reviewer Context, and relevant repository rules. Use judgment
+over the exact number, wording, and focus: adapt to the change's size, complexity,
+risk, and materiality, and to understanding already demonstrated in the preceding
+review conversation. Do not impose a fixed count, question taxonomy, or script.
+
+The PO may answer. Briefly confirm correct understanding, clarify incomplete
+answers, or correct material misunderstandings as useful. If the discussion
+reveals a genuine new defect or unresolved product decision, report it through
+the existing review and role-transition workflow; it is evidence about the
+change, not a failed comprehension answer.
+
+The check is entirely non-blocking: no pass/fail state, score, minimum correctness
+threshold, or mandatory retry. Incorrect, incomplete, or unanswered questions
+never constrain the PO's authority to approve or merge. Do not withhold permission
+or claim that the PO is unauthorized to continue because of the check. The PO
+remains the final authority for implementation approval and merge decisions.
 
 ## Expected output
 
@@ -49,6 +76,9 @@ The proposed change and relevant context have been evaluated, material findings
 are grounded and actionable, and the satisfaction assessment and uncertainty are
 explicit. If publication is authorized but unavailable, provide review text for
 the PO and state that it was not posted.
+
+The comprehension check is a follow-up after the PO's explicit completion signal;
+it does not delay the review report or require answers before review handoff.
 
 ## Prohibited actions
 
