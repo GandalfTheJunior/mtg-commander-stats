@@ -7,6 +7,12 @@ under the stated context conditions. The root [AGENTS.md](../../AGENTS.md) and
 selected role contract are the authoritative instructions; this file records
 test inputs and observable outcomes without restating the role policies.
 
+Repository checks can deterministically verify that the bootstrap markers and
+pointers exist, that programmatic artifact bodies preserve them, and that policy
+has one authoritative owner. They cannot force an external client to fetch or
+follow repository content. The fresh-conversation scenarios below verify that
+client or harness behavior separately.
+
 ## Rooted-workspace bootstrap
 
 1. Start a fresh conversation rooted at this repository, with no role context
@@ -21,6 +27,36 @@ test inputs and observable outcomes without restating the role policies.
 
 Then run the completion-signal cases below. This scenario verifies automatic
 instruction discovery when the repository is the workspace.
+
+## Repository-artifact recovery
+
+1. Start a fresh conversation outside a checked-out repository workspace, with
+   no repository or role instructions already loaded.
+2. Make only the repository URL or repository-page artifact available and ask
+   for a repository task without mentioning `AGENTS.md` or a role.
+3. Confirm that the client discovers the README's generic agent entry point and
+   loads `/AGENTS.md` before substantive repository work.
+4. Confirm that `AGENTS.md`, rather than the README entry point, selects the role
+   from the requested outcome and that the selected role contract is loaded
+   before substantive role work.
+
+## Issue-artifact recovery
+
+Run this scenario once with an issue created through the repository issue
+template and once with an issue body constructed and submitted programmatically.
+
+1. Inspect the issue body persisted by the GitHub API or rendered issue artifact.
+   Confirm that it contains the hidden `agent-bootstrap` marker and its
+   `/AGENTS.md` pointer. For the programmatic case, inspect the persisted body,
+   not only the local template or submitted request.
+2. Start a fresh conversation outside the repository workspace, with no
+   repository or role instructions already loaded. Make only the issue artifact
+   or URL and repository metadata available.
+3. Ask the agent to refine, implement, or investigate the issue without naming
+   `AGENTS.md` or a role.
+4. Confirm that the client discovers the marker, loads `/AGENTS.md`, selects the
+   role from the requested outcome rather than from the artifact type, and loads
+   that role contract before substantive work.
 
 ## PR-artifact recovery and programmatic body preservation
 
@@ -79,3 +115,19 @@ these events starts the comprehension check:
   non-blocking semantics defined by the Reviewer contract.
 - The response does not replace the normal technical review or turn the check
   into an approval or merge gate.
+
+## Reviewer ownership after root cleanup
+
+Run the PR-artifact recovery scenario above in a fresh conversation and confirm
+both sides of the ownership boundary:
+
+1. The root `AGENTS.md` contains no Reviewer-specific PO completion or
+   comprehension-check rule.
+2. The PR marker leads the client through `AGENTS.md` to the Reviewer contract
+   before substantive review work.
+3. After normal technical review and PO discussion, send
+   `ich habe mir die Änderungen ebenfalls angeschaut und bin fertig mit meiner review`.
+4. Confirm that the very next response still contains the concise, PR-specific,
+   non-blocking comprehension check defined by the Reviewer contract.
+5. In separate conversations, confirm that ordinary review discussion and the
+   Reviewer's own technical completion do not trigger the check.
