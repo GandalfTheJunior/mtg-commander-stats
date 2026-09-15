@@ -1,7 +1,7 @@
 :root {
   font-family: system-ui, sans-serif;
   color: #20262e;
-  background: #f7f8fa;
+  background: #f2f4f1;
   line-height: 1.5;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -13,7 +13,106 @@ body {
 }
 
 main {
-  max-width: 48rem;
-  margin: 4rem auto;
-  padding: 0 1.5rem;
+  max-width: 64rem;
+  margin: 3rem auto;
+  padding: 0 1.25rem 3rem;
+}
+
+header {
+  margin-bottom: 2rem;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+.eyebrow {
+  margin-bottom: 0.25rem;
+  color: #526052;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.session,
+.forms section {
+  border: 1px solid #d4d9d2;
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 1.5rem;
+  box-shadow: 0 0.25rem 1rem rgb(40 50 42 / 8%);
+}
+
+.session {
+  margin-bottom: 1.25rem;
+}
+
+.session p,
+.forms section > p {
+  margin-bottom: 0;
+}
+
+.forms {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 1.25rem;
+}
+
+form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+input,
+button {
+  border-radius: 0.4rem;
+  font: inherit;
+}
+
+input {
+  border: 1px solid #aab3aa;
+  padding: 0.65rem 0.75rem;
+}
+
+input:focus {
+  border-color: #426b48;
+  outline: 0.15rem solid rgb(66 107 72 / 20%);
+}
+
+button {
+  border: 0;
+  background: #315d3a;
+  color: #fff;
+  cursor: pointer;
+  padding: 0.7rem 1rem;
+  font-weight: 700;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.success,
+.error {
+  margin: 1rem 0 0;
+  font-weight: 600;
+}
+
+.success {
+  color: #286234;
+}
+
+.error {
+  color: #a12323;
 }

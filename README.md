@@ -68,9 +68,9 @@ API flow is:
 5. `DELETE /api/session` with the cookie and current CSRF token returns `204`
    and invalidates the session. Bootstrap again before another login.
 
-For a same-origin SPA, browser `fetch` retains cookies by default. The current
-frontend on port 5173 does not call the backend; a future frontend integration
-will need a same-origin development proxy or an explicit cross-origin setup.
+For the same-origin SPA, browser `fetch` retains cookies by default. During local
+development, Vite proxies `/api/*` from port 5173 to the backend on port 8080, so
+registration and session authentication work without separate CORS configuration.
 The token is read from the JSON response, not from the HttpOnly session cookie.
 Missing/invalid CSRF protection returns `403`; protected anonymous requests return
 `401` without redirects. Other authenticated access denials return `403`.
@@ -88,8 +88,9 @@ npm ci
 npm run dev
 ```
 
-Open the local URL printed by Vite (normally http://localhost:5173). The root
-currently identifies the project and does not call the backend.
+Open the local URL printed by Vite (normally http://localhost:5173). The page
+supports account registration and separate login, displays the authenticated
+username from `GET /api/me`, and restores that session after a reload.
 
 Stop the applications with Ctrl+C and PostgreSQL with `docker compose stop`.
 The named volume preserves local data.
