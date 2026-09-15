@@ -44,10 +44,11 @@ cd backend
 ./mvnw spring-boot:run
 ```
 
-It listens on port 8080. Anonymous `POST /api/users` accepts JSON containing
-`username` and `password`. Successful registration returns `201` with `id` (UUID)
-and the canonical `username`; invalid input returns `400`, and duplicate
-usernames return `409`. Credentials are never returned. See the
+It listens on port 8080. Anonymous `POST /api/users` accepts JSON such as
+`{"email":"gandalf@example.com","username":"Gandalf","password":"exact supplied password"}`.
+Successful registration returns `201` with the stable `id` (UUID) and display
+`username`; invalid input returns `400`, and duplicate case-insensitive email
+identities return `409`. Email and credentials are never returned. See the
 [registration rules](docs/product/mvp-scope.md#user-identity-and-registration).
 
 Only the exact registration POST is exempt from CSRF. Login and logout require
@@ -56,9 +57,9 @@ API flow is:
 
 1. `GET /api/csrf` returns `{"headerName":"X-CSRF-TOKEN","token":"..."}`.
    Keep the session cookie from this response.
-2. `POST /api/session` with JSON `{"username":"Gandalf","password":"exact supplied password"}`,
+2. `POST /api/session` with JSON `{"email":"gandalf@example.com","password":"exact supplied password"}`,
    the session cookie, and the returned token in the `X-CSRF-TOKEN` header.
-   Success returns `200` with `{"id":"<uuid>","username":"gandalf"}` and rotates
+   Success returns `200` with `{"id":"<uuid>","username":"Gandalf"}` and rotates
    the session cookie. Invalid credentials return a generic `401`.
 3. Fetch `GET /api/csrf` again with the updated cookie: login invalidates the old
    token. Use the new token for subsequent unsafe requests.
@@ -74,6 +75,10 @@ The token is read from the JSON response, not from the HttpOnly session cookie.
 Missing/invalid CSRF protection returns `403`; protected anonymous requests return
 `401` without redirects. Other authenticated access denials return `403`.
 Flyway creates the `users` table; Hibernate validates rather than creates tables.
+The email migration cannot safely infer addresses for users created by older
+versions. If a local development database contains pre-email users, reset and
+recreate its volume before starting this version; the migration fails instead of
+inventing email values or deleting users.
 
 In another terminal, start the frontend:
 

@@ -24,10 +24,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -42,6 +41,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(DatabaseConfiguration.class)
 class UserRegistrationTest {
+    private static final String EMAIL = "wizard@example.com";
+    private static final String PASSWORD = "correct horse battery";
+
     @Value("${local.server.port}")
     private int port;
     @Autowired
@@ -62,19 +64,19 @@ class UserRegistrationTest {
     }
 
     @Test
-    void anonymousRegistrationPersistsStableIdentityAndOnlyReturnsPublicFields() throws Exception {
-        HttpResponse<String> response = register(" \tGANDALF\n ", "correct horse battery");
-        assertThat(response.statusCode()).isEqualTo(201);
+    void anonymousRegistrationPersistsCanonicalEmailAndOnlyReturnsPublicIdentity() throws Exception {
+        HttpResponse<String> response = register(" Alice@Example.COM ", " \tGANDALF\n ", PASSWORD);
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.CREATED.value());
         JsonNode body = json.readTree(response.body());
         assertThat(body.size()).isEqualTo(2);
-        assertThat(body.get("username").asText()).isEqualTo("gandalf");
+        assertThat(body.get("username").asText()).isEqualTo("GANDALF");
         UUID id = UUID.fromString(body.get("id").asText());
         User stored = users.findById(id).orElseThrow();
-        assertThat(stored.getId()).isEqualTo(id);
-        assertThat(stored.getUsername()).isEqualTo("gandalf");
-        assertThat(stored.getEncodedPassword()).isNotEqualTo("correct horse battery");
-        assertThat(passwords.matches("correct horse battery", stored.getEncodedPassword())).isTrue();
-        assertThat(response.body()).doesNotContain("password", stored.getEncodedPassword(), "correct horse battery");
+        assertThat(stored.getEmail()).isEqualTo("alice@example.com");
+        assertThat(stored.getUsername()).isEqualTo("GANDALF");
+        assertThat(stored.getEncodedPassword()).isNotEqualTo(PASSWORD);
+        assertThat(passwords.matches(PASSWORD, stored.getEncodedPassword())).isTrue();
+        assertThat(response.body()).doesNotContain("email", "password", stored.getEncodedPassword(), PASSWORD);
         assertThat(response.headers().allValues("set-cookie")).isEmpty();
         assertThat(send("GET", "/api/users", "").statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
     }
@@ -83,7 +85,7 @@ class UserRegistrationTest {
     @ValueSource(strings = {"  abcdefghij", "abcdefghij  ", "hello world!", "\tabcdefghij\n",
             "A long passphrase with whitespace and more than seventy-two bytes of password material!", "  Élf Wizards  "})
     void preservesExactPasswordIncludingWhitespace(String password) throws Exception {
-        assertThat(register("wizard", password).statusCode()).isEqualTo(201);
+        assertThat(register(EMAIL, "wizard", password).statusCode()).isEqualTo(HttpStatus.CREATED.value());
         String encoded = users.findAll().getFirst().getEncodedPassword();
         assertThat(passwords.matches(password, encoded)).isTrue();
         assertThat(passwords.matches(password + " ", encoded)).isFalse();
@@ -96,198 +98,136 @@ class UserRegistrationTest {
     }
 
     @Test
-    void canonicalDuplicateReturnsConflictWithoutDatabaseDetails() throws Exception {
-        assertThat(register("Gandalf", "correct horse battery").statusCode()).isEqualTo(201);
-        HttpResponse<String> duplicate = register(" GANDALF ", "another good password");
-        assertThat(duplicate.statusCode()).isEqualTo(409);
+    void canonicalDuplicateEmailReturnsConflictWithoutDatabaseDetails() throws Exception {
+        assertThat(register("Alice@Example.com", "Gandalf", PASSWORD).statusCode())
+                .isEqualTo(HttpStatus.CREATED.value());
+        HttpResponse<String> duplicate = register(" ALICE@example.COM ", "Other", "another good password");
+        assertThat(duplicate.statusCode()).isEqualTo(HttpStatus.CONFLICT.value());
         assertThat(json.readTree(duplicate.body()).get("detail").asText())
-                .isEqualTo("Username is already registered.");
-        assertThat(duplicate.body()).doesNotContain("users_username_key", "SQL", "encoded_password");
+                .isEqualTo("Email is already registered.");
+        assertThat(duplicate.body()).doesNotContain("users_email_key", "SQL", "encoded_password");
         assertThat(users.count()).isEqualTo(1);
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"\u00A0", "\u2007", "\u202F", "\u0085", " \t\u00A0\u2007\u202F\u0085\u2003"})
-    void unicodeWhitespaceIsNormalizedAndCannotCreateDuplicateUsers(String whitespace) throws Exception {
-        HttpResponse<String> response = register(whitespace + "GANDALF" + whitespace, "correct horse battery");
-        assertThat(response.statusCode()).isEqualTo(201);
-        assertThat(json.readTree(response.body()).get("username").asText()).isEqualTo("gandalf");
-        assertThat(users.findAll().getFirst().getUsername()).isEqualTo("gandalf");
-        assertThat(register("gandalf", "another good password").statusCode()).isEqualTo(409);
-        assertThat(register(whitespace, "correct horse battery").statusCode()).isEqualTo(400);
-        assertThat(register("wizard", whitespace.repeat(12)).statusCode()).isEqualTo(400);
-        assertThat(users.count()).isEqualTo(1);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"\u00A0", "\u2007", "\u202F", "\u0085"})
-    void unicodePasswordWhitespaceCountsAndIsEncodedExactly(String whitespace) throws Exception {
-        String password = whitespace + "abcde" + whitespace + "fghi" + whitespace;
-        assertThat(register("wizard", password).statusCode()).isEqualTo(201);
-        String encoded = users.findAll().getFirst().getEncodedPassword();
-        assertThat(passwords.matches(password, encoded)).isTrue();
-        assertThat(passwords.matches("abcde" + whitespace + "fghi", encoded)).isFalse();
-        assertThat(passwords.matches(password.replace(whitespace, " "), encoded)).isFalse();
-        assertThat(register("other", whitespace + "abcdefgh" + whitespace).statusCode()).isEqualTo(400);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"\u00A0", "\u2007", "\u202F", "\u0085", " \t\u00A0\u2007\u202F\u0085\u2003"})
-    void databaseEnforcesBroaderWhitespaceBoundariesButPreservesInternalSpaces(String whitespace) {
-        for (String username : List.of(whitespace, whitespace + "wizard", "wizard" + whitespace)) {
-            assertThatThrownBy(() -> insertUser(username, "encoded-value"))
-                    .isInstanceOf(DataIntegrityViolationException.class);
-        }
-        insertUser("grey" + whitespace + "wizard", "encoded-value");
-        assertThat(users.findAll().getFirst().getUsername()).isEqualTo("grey" + whitespace + "wizard");
-    }
-
-    @ParameterizedTest
-    @CsvSource({"Σ,ς,σ", "ΟΣ,Ος,οσ", "Straße,STRASSE,strasse", "ẞ,ss,ss",
-            "ﬃ,FFI,ffi", "İ,i̇,i̇", "Ꭰ,ꭰ,ꭰ", "𐐀,𐐨,𐐨"})
-    void unicodeCaseEquivalentUsernamesShareOneCanonicalIdentity(String first, String second, String expected)
-            throws Exception {
-        HttpResponse<String> response = register("\u00A0" + first + "\u202F", "correct horse battery");
-        assertThat(response.statusCode()).isEqualTo(201);
-        assertThat(json.readTree(response.body()).get("username").asText()).isEqualTo(expected);
-        assertThat(users.findAll().getFirst().getUsername()).isEqualTo(expected);
-        assertThat(register(second, "another good password").statusCode()).isEqualTo(409);
-        assertThat(register(expected, "another good password").statusCode()).isEqualTo(409);
-        assertThat(users.canonicalizeUsername(expected)).isEqualTo(expected);
-        assertThat(users.count()).isEqualTo(1);
-        assertThatThrownBy(() -> insertUser(expected, "encoded-value"))
-                .isInstanceOf(DataIntegrityViolationException.class);
-        for (String variant : List.of(first, second)) {
-            if (!variant.equals(expected)) {
-                assertThatThrownBy(() -> insertUser(variant, "encoded-value"))
-                        .isInstanceOf(DataIntegrityViolationException.class);
-            }
-        }
+    void emailBoundaryWhitespaceUsesDatabaseCanonicalIdentity(String whitespace) throws Exception {
+        HttpResponse<String> response = register(whitespace + "Alice@Example.COM" + whitespace, "Gandalf", PASSWORD);
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.CREATED.value());
+        assertThat(users.findAll().getFirst().getEmail()).isEqualTo("alice@example.com");
+        assertThat(register("alice@example.com", "Other", "another good password").statusCode())
+                .isEqualTo(HttpStatus.CONFLICT.value());
     }
 
     @Test
-    void usernameCanonicalizationDoesNotDependOnJvmLocale() {
-        Locale previous = Locale.getDefault();
-        try {
-            Locale.setDefault(Locale.forLanguageTag("tr-TR"));
-            assertThat(registerUser.register("  GANDALF I  ", "correct horse battery").getUsername())
-                    .isEqualTo("gandalf i");
-        } finally {
-            Locale.setDefault(previous);
-        }
-    }
-
-    @Test
-    void defaultCaselessMatchingPreservesAccentsAndInternalWhitespace() throws Exception {
-        for (String username : List.of("i", "ı", "é", "e", "grey wizard", "grey\u00A0wizard")) {
-            HttpResponse<String> response = register(username, "correct horse battery");
-            assertThat(response.statusCode()).isEqualTo(201);
-            assertThat(json.readTree(response.body()).get("username").asText()).isEqualTo(username);
-        }
-        assertThat(users.count()).isEqualTo(6);
-    }
-
-    @Test
-    void passwordCaseVariantsAreNotCasefolded() throws Exception {
-        String password = "Σtraße password";
-        assertThat(register("wizard", password).statusCode()).isEqualTo(201);
-        String encoded = users.findAll().getFirst().getEncodedPassword();
-        assertThat(passwords.matches(password, encoded)).isTrue();
-        assertThat(passwords.matches("σtrasse password", encoded)).isFalse();
-        assertThat(passwords.matches("ςtraße password", encoded)).isFalse();
+    void differentEmailsMayShareTheSameCasePreservedUsername() throws Exception {
+        assertThat(register("first@example.com", " Gandalf ", PASSWORD).statusCode())
+                .isEqualTo(HttpStatus.CREATED.value());
+        assertThat(register("second@example.com", "Gandalf", PASSWORD).statusCode())
+                .isEqualTo(HttpStatus.CREATED.value());
+        assertThat(users.findAll()).extracting(User::getUsername).containsOnly("Gandalf");
     }
 
     @ParameterizedTest
-    @CsvSource({"Gandalf,gandalf", "Σ,ς", "Straße,STRASSE"})
-    void concurrentDuplicatesCreateOnlyOneUser(String firstUsername, String secondUsername) throws Exception {
-        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
-            CountDownLatch start = new CountDownLatch(1);
-            Function<String, Callable<Integer>> request = username -> () -> {
-                start.await();
-                return register(username, "correct horse battery").statusCode();
-            };
-            Future<Integer> first = executor.submit(request.apply(firstUsername));
-            Future<Integer> second = executor.submit(request.apply(secondUsername));
-            start.countDown();
-            assertThat(List.of(first.get(), second.get())).containsExactlyInAnyOrder(201, 409);
-        }
-        assertThat(users.count()).isEqualTo(1);
+    @ValueSource(strings = {"", "plain-address", "missing-at.example.com", "user@", "@example.com", "user@example..com"})
+    void rejectsInvalidEmailsAtHttpAndApplicationBoundaries(String email) throws Exception {
+        assertThat(register(email, "wizard", PASSWORD).statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThatThrownBy(() -> registerUser.register(email, "wizard", PASSWORD))
+                .isInstanceOf(InvalidRegistrationException.class);
+        assertThat(users.count()).isZero();
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"{}", "null", "{", "{\"username\":\"gandalf\"}",
-            "{\"password\":\"correct horse battery\"}",
-            "{\"username\":null,\"password\":\"correct horse battery\"}",
-            "{\"username\":\"gandalf\",\"password\":null}"})
+    @ValueSource(strings = {"{}", "null", "{", "{\"username\":\"gandalf\",\"password\":\"correct horse battery\"}",
+            "{\"email\":\"gandalf@example.com\",\"password\":\"correct horse battery\"}",
+            "{\"email\":null,\"username\":\"gandalf\",\"password\":\"correct horse battery\"}",
+            "{\"email\":\"gandalf@example.com\",\"username\":null,\"password\":\"correct horse battery\"}",
+            "{\"email\":\"gandalf@example.com\",\"username\":\"gandalf\",\"password\":null}"})
     void missingOrMalformedInputReturnsBadRequest(String body) throws Exception {
-        assertThat(send("POST", "/api/users", body).statusCode()).isEqualTo(400);
+        assertThat(send("POST", "/api/users", body).statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
         assertThat(users.count()).isZero();
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"", "short", "12345678901", "            ", " \t\n            ", "😀😀😀😀😀😀"})
     void rejectsInvalidPasswords(String password) throws Exception {
-        assertThat(register("wizard", password).statusCode()).isEqualTo(400);
+        assertThat(register(EMAIL, "wizard", password).statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
         assertThat(users.count()).isZero();
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"", "   ", "\t\n", "\u2003"})
     void rejectsBlankUsernames(String username) throws Exception {
-        assertThat(register(username, "correct horse battery").statusCode()).isEqualTo(400);
+        assertThat(register(EMAIL, username, PASSWORD).statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
         assertThat(users.count()).isZero();
     }
 
     @Test
-    void serviceAlsoValidatesInputOutsideHttpBoundary() {
-        assertThatThrownBy(() -> registerUser.register("wizard", "short"))
-                .isInstanceOf(InvalidRegistrationException.class);
-        assertThatThrownBy(() -> registerUser.register(" ", "correct horse battery"))
-                .isInstanceOf(InvalidRegistrationException.class);
-        assertThat(users.count()).isZero();
-    }
-
-    @Test
-    void databaseProtectsUsernameUniquenessIndependentlyOfService() {
-        User user = registerUser.register("gandalf", "correct horse battery");
-        assertThatThrownBy(() -> insertUser("gandalf", user.getEncodedPassword()))
+    void databaseProtectsCanonicalEmailUniquenessIndependentlyOfService() {
+        User user = registerUser.register(EMAIL, "Gandalf", PASSWORD);
+        assertThatThrownBy(() -> insertUser(EMAIL, "Other", user.getEncodedPassword()))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(users.findById(user.getId())).isPresent();
         assertThat(users.count()).isEqualTo(1);
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"", "Gandalf", " gandalf", "gandalf ", "\tgandalf", "gandalf\n", "\u2003gandalf", "\u2003"})
-    void databaseRejectsNoncanonicalUsernames(String username) {
-        assertThatThrownBy(() -> insertUser(username, "encoded-value"))
+    @ValueSource(strings = {"", "Alice@Example.com", " alice@example.com", "alice@example.com ", "\u2003alice@example.com"})
+    void databaseRejectsNoncanonicalEmails(String email) {
+        assertThatThrownBy(() -> insertUser(email, "Gandalf", "encoded-value"))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
+    void databaseRejectsBlankUsernameButAllowsMixedCaseAndBoundaryWhitespace() {
+        assertThatThrownBy(() -> insertUser(EMAIL, "\u2003", "encoded-value"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        insertUser(EMAIL, " Gandalf ", "encoded-value");
+        assertThat(users.findAll().getFirst().getUsername()).isEqualTo(" Gandalf ");
+    }
+
+    @Test
+    void concurrentCaseEquivalentEmailsCreateOnlyOneUser() throws Exception {
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            CountDownLatch start = new CountDownLatch(1);
+            Function<String, Callable<Integer>> request = email -> () -> {
+                start.await();
+                return register(email, "Gandalf", PASSWORD).statusCode();
+            };
+            Future<Integer> first = executor.submit(request.apply("Alice@Example.com"));
+            Future<Integer> second = executor.submit(request.apply(" ALICE@example.COM "));
+            start.countDown();
+            assertThat(List.of(first.get(), second.get()))
+                    .containsExactlyInAnyOrder(HttpStatus.CREATED.value(), HttpStatus.CONFLICT.value());
+        }
+        assertThat(users.count()).isEqualTo(1);
+    }
+
+    @Test
     void passwordHashesAreSalted() {
-        User first = registerUser.register("first", "correct horse battery");
-        User second = registerUser.register("second", "correct horse battery");
+        User first = registerUser.register("first@example.com", "Same name", PASSWORD);
+        User second = registerUser.register("second@example.com", "Same name", PASSWORD);
         assertThat(first.getEncodedPassword()).isNotEqualTo(second.getEncodedPassword());
     }
 
     @Test
     void csrfExceptionIsLimitedToExactRegistrationPost() throws Exception {
-        assertThat(register("wizard", "correct horse battery").statusCode()).isEqualTo(201);
-        // These requests are rejected by CSRF before authorization (and before any endpoint lookup).
+        assertThat(register(EMAIL, "wizard", PASSWORD).statusCode()).isEqualTo(HttpStatus.CREATED.value());
         for (String path : List.of("/api/users", "/api/users/", "/api/users/other", "/other")) {
-            assertThat(send("DELETE", path, "{}").statusCode()).isEqualTo(403);
+            assertThat(send("DELETE", path, "{}").statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
         }
-        assertThat(send("POST", "/api/users/other", "{}").statusCode()).isEqualTo(403);
-        assertThat(send("POST", "/api/users/", "{}").statusCode()).isEqualTo(403);
+        assertThat(send("POST", "/api/users/other", "{}").statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(send("POST", "/api/users/", "{}").statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
     }
 
-    private void insertUser(String username, String encodedPassword) {
-        jdbc.update("INSERT INTO users (id, username, encoded_password) VALUES (?, ?, ?)",
-                UUID.randomUUID(), username, encodedPassword);
+    private void insertUser(String email, String username, String encodedPassword) {
+        jdbc.update("INSERT INTO users (id, email, username, encoded_password) VALUES (?, ?, ?, ?)",
+                UUID.randomUUID(), email, username, encodedPassword);
     }
 
-    private HttpResponse<String> register(String username, String password) throws Exception {
-        return send("POST", "/api/users", json.writeValueAsString(Map.of("username", username, "password", password)));
+    private HttpResponse<String> register(String email, String username, String password) throws Exception {
+        return send("POST", "/api/users", json.writeValueAsString(
+                Map.of("email", email, "username", username, "password", password)));
     }
 
     private HttpResponse<String> send(String method, String path, String body) throws Exception {

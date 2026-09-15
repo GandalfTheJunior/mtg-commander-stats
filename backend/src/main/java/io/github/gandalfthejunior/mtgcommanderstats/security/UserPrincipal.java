@@ -9,13 +9,19 @@ import org.springframework.security.core.userdetails.User;
 // security adapter for the existing User identity, not another domain identity.
 public final class UserPrincipal extends User {
     private final UUID id;
+    private final String displayUsername;
 
-    public UserPrincipal(UUID id, String username, String encodedPassword) {
-        super(username, encodedPassword, List.of());
+    public UserPrincipal(UUID id, String email, String displayUsername, String encodedPassword) {
+        super(email, encodedPassword, List.of());
         this.id = id;
+        this.displayUsername = displayUsername;
     }
 
     public UUID getId() {
         return id;
+    }
+
+    public String getDisplayUsername() {
+        return displayUsername;
     }
 }

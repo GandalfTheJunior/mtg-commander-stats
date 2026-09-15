@@ -21,11 +21,11 @@ public class UserRegistrationController {
     @PostMapping("/api/users")
     @ResponseStatus(HttpStatus.CREATED)
     public RegisteredUser register(@RequestBody RegistrationRequest request) {
-        User user = registerUser.register(request.username(), request.password());
+        User user = registerUser.register(request.email(), request.username(), request.password());
         return new RegisteredUser(user.getId(), user.getUsername());
     }
 
-    public record RegistrationRequest(String username, String password) {
+    public record RegistrationRequest(String email, String username, String password) {
         @Override
         public String toString() {
             return "RegistrationRequest[redacted]";

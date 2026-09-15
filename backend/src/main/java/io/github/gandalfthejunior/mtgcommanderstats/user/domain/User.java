@@ -14,6 +14,9 @@ public class User {
     private UUID id;
 
     @Column(nullable = false, columnDefinition = "text")
+    private String email;
+
+    @Column(nullable = false, columnDefinition = "text")
     private String username;
 
     @Column(name = "encoded_password", nullable = false, columnDefinition = "text")
@@ -22,8 +25,12 @@ public class User {
     protected User() {
     }
 
-    public User(String username, String encodedPassword) {
+    public User(String email, String username, String encodedPassword) {
         this.id = UUID.randomUUID();
+        if (email == null || email.isBlank()) {
+            throw new InvalidRegistrationException();
+        }
+        this.email = email;
         this.username = trimUsername(username);
         if (encodedPassword == null || encodedPassword.isBlank()) {
             throw new IllegalArgumentException("An encoded password is required.");
@@ -57,13 +64,16 @@ public class User {
     }
 
     // Unicode White_Space plus Java's existing whitespace controls (U+001C–U+001F).
-    // Keep the users_username_canonical Flyway constraint aligned with this definition.
     private static boolean isRegistrationWhitespace(int codePoint) {
         return Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint) || codePoint == 0x0085;
     }
 
     public UUID getId() {
         return id;
+    }
+
+    public String getEmail() {
+        return email;
     }
 
     public String getUsername() {

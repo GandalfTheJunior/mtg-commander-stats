@@ -12,16 +12,22 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class UserAuthenticationDetails implements UserDetailsService {
     private final UserRepository users;
+    private final EmailAddressValidator emailAddresses;
 
-    public UserAuthenticationDetails(UserRepository users) {
+    public UserAuthenticationDetails(UserRepository users, EmailAddressValidator emailAddresses) {
         this.users = users;
+        this.emailAddresses = emailAddresses;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public UserDetails loadUserByUsername(String username) {
-        User user = users.findByUsername(users.canonicalizeUsername(username))
+    public UserDetails loadUserByUsername(String email) {
+        String canonicalEmail = users.canonicalizeEmail(email);
+        if (!emailAddresses.isValid(canonicalEmail)) {
+            throw new UsernameNotFoundException("Invalid credentials.");
+        }
+        User user = users.findByEmail(canonicalEmail)
                 .orElseThrow(() -> new UsernameNotFoundException("Invalid credentials."));
-        return new UserPrincipal(user.getId(), user.getUsername(), user.getEncodedPassword());
+        return new UserPrincipal(user.getId(), user.getEmail(), user.getUsername(), user.getEncodedPassword());
     }
 }
