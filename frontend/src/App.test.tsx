@@ -216,3 +216,71 @@ test('failed re-login preserves an existing authenticated UI state', async () =>
   expect(screen.getByText(/Signed in as/)).toBeInTheDocument()
   expect(screen.queryByText('Not signed in.')).not.toBeInTheDocument()
 })
+
+test('does not preserve a previous identity when post-login CSRF refresh fails', async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(jsonResponse(user))
+    .mockResolvedValueOnce(
+      jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'login-token' }),
+    )
+    .mockResolvedValueOnce(
+      jsonResponse({
+        id: 'e55c4c26-2d30-4ae0-8f9b-6100171ee99a',
+        username: 'Saruman',
+      }),
+    )
+    .mockResolvedValueOnce(jsonResponse({}, 503))
+  vi.stubGlobal('fetch', fetchMock)
+  render(<App />)
+  await screen.findByText('Gandalf')
+
+  const form = loginForm()
+  fireEvent.change(form.getByLabelText('Email'), {
+    target: { value: 'saruman@example.com' },
+  })
+  fireEvent.change(form.getByLabelText('Password'), {
+    target: { value: password },
+  })
+  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
+
+  expect(await screen.findByText('Could not prepare login.')).toBeInTheDocument()
+  expect(
+    screen.getByText('Your session identity could not be confirmed.'),
+  ).toBeInTheDocument()
+  expect(screen.queryByText('Gandalf')).not.toBeInTheDocument()
+  expect(screen.queryByText(/Signed in as/)).not.toBeInTheDocument()
+})
+
+test('shows an unverified session when identity confirmation fails after login', async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(jsonResponse({}, 401))
+    .mockResolvedValueOnce(
+      jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'login-token' }),
+    )
+    .mockResolvedValueOnce(jsonResponse(user))
+    .mockResolvedValueOnce(
+      jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'post-login-token' }),
+    )
+    .mockResolvedValueOnce(jsonResponse({}, 503))
+  vi.stubGlobal('fetch', fetchMock)
+  render(<App />)
+  await screen.findByText('Not signed in.')
+
+  const form = loginForm()
+  fireEvent.change(form.getByLabelText('Email'), {
+    target: { value: 'gandalf@example.com' },
+  })
+  fireEvent.change(form.getByLabelText('Password'), {
+    target: { value: password },
+  })
+  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
+
+  expect(await screen.findByText('Could not check your session.')).toBeInTheDocument()
+  expect(
+    screen.getByText('Your session identity could not be confirmed.'),
+  ).toBeInTheDocument()
+  expect(screen.queryByText('Not signed in.')).not.toBeInTheDocument()
+  expect(screen.queryByText(/Signed in as/)).not.toBeInTheDocument()
+})

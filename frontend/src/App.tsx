@@ -7,6 +7,7 @@ import {
 } from './api'
 
 type Notice = { kind: 'success' | 'error'; message: string } | null
+type SessionStatus = 'checking' | 'signed-out' | 'authenticated' | 'unverified'
 
 function messageFrom(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
@@ -14,7 +15,7 @@ function messageFrom(error: unknown, fallback: string) {
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
-  const [checkingSession, setCheckingSession] = useState(true)
+  const [sessionStatus, setSessionStatus] = useState<SessionStatus>('checking')
   const [registrationNotice, setRegistrationNotice] = useState<Notice>(null)
   const [loginNotice, setLoginNotice] = useState<Notice>(null)
   const [registering, setRegistering] = useState(false)
@@ -24,18 +25,20 @@ export default function App() {
     let active = true
     restoreSession()
       .then((user) => {
-        if (active) setCurrentUser(user)
+        if (active) {
+          setCurrentUser(user)
+          setSessionStatus(user ? 'authenticated' : 'signed-out')
+        }
       })
       .catch((error: unknown) => {
         if (active) {
+          setCurrentUser(null)
+          setSessionStatus('unverified')
           setLoginNotice({
             kind: 'error',
             message: messageFrom(error, 'Could not check your session.'),
           })
         }
-      })
-      .finally(() => {
-        if (active) setCheckingSession(false)
       })
     return () => {
       active = false
@@ -76,11 +79,18 @@ export default function App() {
     setLoginNotice(null)
     const form = new FormData(submittedForm)
     try {
-      const user = await login({
-        email: String(form.get('email')),
-        password: String(form.get('password')),
-      })
+      const user = await login(
+        {
+          email: String(form.get('email')),
+          password: String(form.get('password')),
+        },
+        () => {
+          setCurrentUser(null)
+          setSessionStatus('unverified')
+        },
+      )
       setCurrentUser(user)
+      setSessionStatus('authenticated')
       setLoginNotice({ kind: 'success', message: 'Login successful.' })
       submittedForm.reset()
     } catch (error) {
@@ -103,12 +113,14 @@ export default function App() {
 
       <section className="session" aria-live="polite">
         <h2>Your session</h2>
-        {checkingSession ? (
+        {sessionStatus === 'checking' ? (
           <p>Checking your session…</p>
-        ) : currentUser ? (
+        ) : sessionStatus === 'authenticated' && currentUser ? (
           <p>
             Signed in as <strong>{currentUser.username}</strong>.
           </p>
+        ) : sessionStatus === 'unverified' ? (
+          <p>Your session identity could not be confirmed.</p>
         ) : (
           <p>Not signed in.</p>
         )}
@@ -163,7 +175,7 @@ export default function App() {
                 required
               />
             </label>
-            <button disabled={loggingIn || checkingSession} type="submit">
+            <button disabled={loggingIn || sessionStatus === 'checking'} type="submit">
               {loggingIn ? 'Signing in…' : 'Sign in'}
             </button>
           </form>

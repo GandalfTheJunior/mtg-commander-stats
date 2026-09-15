@@ -96,7 +96,10 @@ async function getCsrf(): Promise<CsrfToken> {
   return { headerName: csrf.headerName, token: csrf.token }
 }
 
-export async function login(credentials: Credentials): Promise<CurrentUser> {
+export async function login(
+  credentials: Credentials,
+  onSessionChanged: () => void,
+): Promise<CurrentUser> {
   const csrf = await getCsrf()
   const response = await fetch('/api/session', {
     ...requestDefaults,
@@ -111,7 +114,9 @@ export async function login(credentials: Credentials): Promise<CurrentUser> {
     throw new Error(await errorMessage(response, 'Login failed.'))
   }
 
-  // Successful authentication rotates the session and invalidates the old token.
+  // The server-side identity changed, so the previous client identity is no
+  // longer authoritative while the rotated session is being verified.
+  onSessionChanged()
   await getCsrf()
   const user = await restoreSession()
   if (user === null) throw new Error('The authenticated session could not be confirmed.')
