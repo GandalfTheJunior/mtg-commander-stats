@@ -74,7 +74,6 @@ export default function App() {
     const submittedForm = event.currentTarget
     setLoggingIn(true)
     setLoginNotice(null)
-    setCurrentUser(null)
     const form = new FormData(submittedForm)
     try {
       const user = await login({
@@ -134,7 +133,6 @@ export default function App() {
                 name="password"
                 type="password"
                 autoComplete="new-password"
-                minLength={12}
                 required
               />
             </label>

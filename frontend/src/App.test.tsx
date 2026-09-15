@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App'
 
@@ -164,7 +164,33 @@ test('logs in with the bootstrapped CSRF token, refreshes it, and confirms ident
   })
 })
 
-test('invalid credentials show a failure and clear authenticated UI state', async () => {
+test('invalid credentials leave an unauthenticated UI signed out', async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(jsonResponse({}, 401))
+    .mockResolvedValueOnce(
+      jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'login-token' }),
+    )
+    .mockResolvedValueOnce(jsonResponse({ detail: 'Invalid credentials.' }, 401))
+  vi.stubGlobal('fetch', fetchMock)
+  render(<App />)
+  await screen.findByText('Not signed in.')
+
+  const form = loginForm()
+  fireEvent.change(form.getByLabelText('Email'), {
+    target: { value: 'gandalf@example.com' },
+  })
+  fireEvent.change(form.getByLabelText('Password'), {
+    target: { value: 'wrong password' },
+  })
+  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
+
+  expect(await screen.findByText('Invalid credentials.')).toBeInTheDocument()
+  expect(screen.getByText('Not signed in.')).toBeInTheDocument()
+  expect(screen.queryByText(/Signed in as/)).not.toBeInTheDocument()
+})
+
+test('failed re-login preserves an existing authenticated UI state', async () => {
   const fetchMock = vi
     .fn()
     .mockResolvedValueOnce(jsonResponse(user))
@@ -186,8 +212,7 @@ test('invalid credentials show a failure and clear authenticated UI state', asyn
   fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
 
   expect(await screen.findByText('Invalid credentials.')).toBeInTheDocument()
-  await waitFor(() => {
-    expect(screen.getByText('Not signed in.')).toBeInTheDocument()
-  })
-  expect(screen.queryByText(/Signed in as/)).not.toBeInTheDocument()
+  expect(screen.getByText('Gandalf')).toBeInTheDocument()
+  expect(screen.getByText(/Signed in as/)).toBeInTheDocument()
+  expect(screen.queryByText('Not signed in.')).not.toBeInTheDocument()
 })
