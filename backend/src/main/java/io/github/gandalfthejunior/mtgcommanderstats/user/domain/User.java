@@ -2,6 +2,8 @@ package io.github.gandalfthejunior.mtgcommanderstats.user.domain;
 
 import java.util.UUID;
 
+import io.github.gandalfthejunior.mtgcommanderstats.displaytext.DisplayText;
+import io.github.gandalfthejunior.mtgcommanderstats.displaytext.InvalidDisplayTextException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -39,33 +41,18 @@ public class User {
     }
 
     public static String trimUsername(String username) {
-        if (username == null) {
+        try {
+            return new DisplayText(username).value();
+        } catch (InvalidDisplayTextException exception) {
             throw new InvalidRegistrationException();
         }
-        int start = 0;
-        int end = username.length();
-        while (start < end && isRegistrationWhitespace(username.codePointAt(start))) {
-            start += Character.charCount(username.codePointAt(start));
-        }
-        while (end > start && isRegistrationWhitespace(username.codePointBefore(end))) {
-            end -= Character.charCount(username.codePointBefore(end));
-        }
-        if (start == end) {
-            throw new InvalidRegistrationException();
-        }
-        return username.substring(start, end);
     }
 
     public static void validatePassword(String password) {
-        if (password == null || password.codePoints().allMatch(User::isRegistrationWhitespace)
+        if (password == null || password.codePoints().allMatch(DisplayText::isBoundaryWhitespace)
                 || password.codePointCount(0, password.length()) < 12) {
             throw new InvalidRegistrationException();
         }
-    }
-
-    // Unicode White_Space plus Java's existing whitespace controls (U+001C–U+001F).
-    private static boolean isRegistrationWhitespace(int codePoint) {
-        return Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint) || codePoint == 0x0085;
     }
 
     public UUID getId() {
