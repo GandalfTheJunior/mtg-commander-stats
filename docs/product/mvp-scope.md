@@ -1,7 +1,8 @@
 # MVP scope
 
-This document records the agreed product target. Backend user registration and
-session authentication are implemented; later milestone features remain planned.
+This document records the agreed product target. User registration, session
+authentication, and authenticated deck management are implemented; later milestone
+features remain planned.
 
 ## Product milestone
 
@@ -36,6 +37,14 @@ and decks, store results, and view basic player/deck statistics.
 
 - Decks belong to users. Data is entered manually and includes at least the deck
   name, commander, and color identity.
+- Authenticated users can list, create, edit, and delete their own currently unused
+  decks. Ownership comes from the authenticated user's stable UUID and is enforced
+  by the backend; clients do not choose an owner.
+- Deck name and commander are required display text. They use the shared
+  `DisplayText` rule documented below, are not unique, and are not checked against
+  an external card database.
+- Color identity is any distinct subset of W, U, B, R, and G. An empty set is
+  colorless, and API responses use canonical WUBRG order.
 - No decklist, Scryfall integration, ManaBox integration, or DeckVersion.
 - The deck name remains editable.
 - Commander and color identity may change until the deck is first used in a
@@ -83,19 +92,28 @@ outside this MVP.
   identifier. Registration strips the defined boundary whitespace and stores a
   case-insensitive canonical value. Canonical emails are unique. Provider-specific
   transformations such as dot removal or `+tag` stripping are not applied.
-- A username is required as a display/profile name. Its leading/trailing
-  registration whitespace is stripped, while internal whitespace and the user's
-  casing are preserved. Usernames are not login identifiers and are not unique.
-- For username boundaries and whitespace-only password validation, whitespace
-  means Unicode `White_Space` plus the Java whitespace controls U+001C–U+001F.
-  This includes NBSP (U+00A0), figure space (U+2007), narrow NBSP (U+202F), and
-  next line (U+0085). Internal username whitespace is preserved. Zero-width space
-  (U+200B) and BOM (U+FEFF) are not whitespace under this definition.
+- A username is required as a display/profile name and uses the shared
+  `DisplayText` rule. Usernames are not login identifiers and are not unique.
 - Passwords require at least 12 characters (Unicode code points). Whitespace is
   allowed and counts toward that minimum. Passwords are validated and encoded
   exactly as supplied, without trimming, case conversion, or normalization.
   Whitespace-only passwords are invalid.
 - Registration does not log the user in. Login is a separate, explicit request.
+
+## Display text
+
+Required human-readable labels such as display usernames, deck names, and
+commander names share the `DisplayText` rule. Leading and trailing product
+boundary whitespace is removed before persistence; casing and all internal
+whitespace are preserved. Null, missing, or blank-after-trimming values are
+invalid.
+
+Product boundary whitespace means Unicode `White_Space` plus Java whitespace
+controls U+001C–U+001F. It includes NBSP (U+00A0), figure space (U+2007), narrow
+NBSP (U+202F), and next line (U+0085). Zero-width space (U+200B) and BOM (U+FEFF)
+are not whitespace under this rule. Email keeps its separate database-owned
+canonicalization, and passwords remain validated and encoded exactly as supplied
+without applying `DisplayText` trimming.
 
 ## Explicitly out of scope
 

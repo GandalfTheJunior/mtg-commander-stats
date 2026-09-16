@@ -1,8 +1,9 @@
 # MTG Commander Stats
 
 A Commander statistics application and a learning project for AI-assisted
-software engineering. The backend supports user registration and session
-authentication. Profiles, decks, groups, games, and statistics remain planned.
+software engineering. The application supports user registration, session
+authentication, and authenticated management of the current user's Commander
+decks. Profiles, groups, games, and statistics remain planned.
 
 ## Agent entry point
 
@@ -98,7 +99,10 @@ npm run dev
 
 Open the local URL printed by Vite (normally http://localhost:5173). The page
 supports account registration and separate login, displays the authenticated
-username from `GET /api/me`, and restores that session after a reload.
+username from `GET /api/me`, and restores that session after a reload. An
+authenticated user can list, create, edit, and delete their own manually entered
+decks in the **My decks** area. Deck changes use the existing CSRF/session flow,
+persist in PostgreSQL, and remain scoped to the authenticated user's stable UUID.
 
 Stop the applications with Ctrl+C and PostgreSQL with `docker compose stop`.
 The named volume preserves local data.
