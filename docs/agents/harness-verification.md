@@ -7,11 +7,13 @@ under the stated context conditions. The root [AGENTS.md](../../AGENTS.md) and
 selected role contract are the authoritative instructions; this file records
 test inputs and observable outcomes without restating the role policies.
 
-Repository checks can deterministically verify that the bootstrap markers and
-pointers exist, that programmatic artifact bodies preserve them, and that policy
-has one authoritative owner. They cannot force an external client to fetch or
-follow repository content. The fresh-conversation scenarios below verify that
-client or harness behavior separately.
+Repository checks can deterministically verify that repository-controlled
+templates and guidance contain or require the bootstrap markers and pointers,
+and that policy has one authoritative owner. They cannot prove what GitHub
+persisted for a submitted issue or PR, or force an external client to fetch or
+follow repository content. Persisted-body preservation must be verified
+separately against the GitHub API or rendered artifact; the fresh-conversation
+scenarios below verify client or harness behavior.
 
 ## Rooted-workspace bootstrap
 
