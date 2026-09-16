@@ -12,6 +12,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.MtgCommanderStatsApplication
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.Deck;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.DeckRepository;
 import io.github.gandalfthejunior.mtgcommanderstats.user.persistence.UserRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -51,6 +52,7 @@ class DeckManagementTest {
     private final HttpClient client = HttpClient.newHttpClient();
 
     @BeforeEach
+    @AfterEach
     void clearData() {
         decks.deleteAll();
         users.deleteAll();
