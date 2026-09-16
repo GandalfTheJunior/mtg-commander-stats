@@ -55,13 +55,6 @@ by the human Product Owner (PO).
 5. Before substantive work, briefly state the selected role and intended scope.
 6. Perform the task within that role's authority and actual client capabilities.
 
-Reviewer recovery checkpoint: when the PO explicitly states that their own PR
-review is finished, the next Reviewer response must include the
-[non-blocking PO comprehension check](docs/agents/roles/reviewer.md#po-comprehension-check)
-before concluding. Ordinary review discussion and the Reviewer's own technical
-review completion are not triggers. The Reviewer contract remains authoritative
-for the detailed behavior.
-
 When the PO changes the requested outcome, recognize the new intent, read the
 new role contract, check its prerequisites, explicitly announce the transition,
 and continue under the new authority. Previous discussion alone is never

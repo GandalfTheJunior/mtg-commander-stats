@@ -39,6 +39,10 @@ Read the [development workflow](../../development/workflow.md), relevant
    Whether the template is applied automatically or the PR body is constructed
    programmatically, preserve its `agent-review-bootstrap` comment in the actual
    submitted body and verify that the persisted PR body contains it.
+   When authorized implementation work creates a follow-up issue programmatically,
+   derive its body from the current repository issue template, preserve the generic
+   `agent-bootstrap` comment and `/AGENTS.md` pointer, and verify the body persisted
+   by GitHub rather than checking only the local template or submitted request.
 5. If a required authorized action is unavailable, prepare the change/commands
    or PR body for the PO and explicitly identify the remaining action. Never
    claim that a branch was pushed, PR opened, or check passed when it was not.

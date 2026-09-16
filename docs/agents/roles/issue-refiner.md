@@ -30,7 +30,10 @@ Inspect readiness labels without treating them as approval.
    sufficient for implementation without guessing material decisions.
 4. Present the refined specification and outstanding questions. If an issue
    update was requested, apply it when possible; otherwise prepare the final body
-   for the PO. Report whether it was actually published.
+   for the PO. For a repository-controlled full-body rewrite, preserve any
+   existing generic `agent-bootstrap` comment and `/AGENTS.md` pointer, then
+   verify that the persisted issue body still contains them. Report whether the
+   update was actually published and verified.
 
 ## Expected output
 
