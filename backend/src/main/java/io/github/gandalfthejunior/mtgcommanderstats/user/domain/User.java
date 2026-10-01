@@ -49,10 +49,14 @@ public class User {
     }
 
     public static void validatePassword(String password) {
-        if (password == null || password.codePoints().allMatch(DisplayText::isBoundaryWhitespace)
+        if (password == null || password.codePoints().allMatch(User::isPasswordWhitespace)
                 || password.codePointCount(0, password.length()) < 12) {
             throw new InvalidRegistrationException();
         }
+    }
+
+    private static boolean isPasswordWhitespace(int codePoint) {
+        return Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint) || codePoint == 0x0085;
     }
 
     public UUID getId() {

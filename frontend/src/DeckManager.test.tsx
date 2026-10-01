@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import DeckManager from './DeckManager'
 
@@ -22,6 +22,61 @@ function csrfResponse() {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+})
+
+test('waits for the initial list before allowing creation and keeps both confirmed decks', async () => {
+  let resolveList!: (response: Response) => void
+  const initialList = new Promise<Response>((resolve) => { resolveList = resolve })
+  const created = { ...deck, id: 'new-deck', name: 'New deck' }
+  const fetchMock = vi
+    .fn()
+    .mockReturnValueOnce(initialList)
+    .mockResolvedValueOnce(csrfResponse())
+    .mockResolvedValueOnce(jsonResponse(created, 201))
+  vi.stubGlobal('fetch', fetchMock)
+  render(<DeckManager onUnauthorized={vi.fn()} />)
+
+  expect(screen.getByText('Loading your decks…')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Create deck' })).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('Deck name')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
+  expect(screen.queryByText('You have no decks yet.')).not.toBeInTheDocument()
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+
+  await act(async () => { resolveList(jsonResponse([deck])) })
+  expect(await screen.findByText(deck.name)).toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText('Deck name'), { target: { value: created.name } })
+  fireEvent.change(screen.getByLabelText('Commander'), { target: { value: created.commander } })
+  fireEvent.click(screen.getByRole('button', { name: 'Create deck' }))
+
+  expect(await screen.findByText('New deck created.')).toBeInTheDocument()
+  expect(screen.getByText(created.name)).toBeInTheDocument()
+  expect(screen.getByText(deck.name)).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenCalledTimes(3)
+})
+
+test.each(['server', 'network'])('initial %s failure leaves the collection unknown and prevents mutations', async (failure) => {
+  const fetchMock = vi.fn()
+  if (failure === 'server') {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ detail: 'Could not load your decks.' }, 500))
+  } else {
+    fetchMock.mockRejectedValueOnce(new Error('Could not load your decks.'))
+  }
+  vi.stubGlobal('fetch', fetchMock)
+  const onUnauthorized = vi.fn()
+  render(<DeckManager onUnauthorized={onUnauthorized} />)
+
+  expect(await screen.findByText('Could not load your decks.')).toBeInTheDocument()
+  expect(screen.getByText('Your deck list is unavailable. Reload the page to try again.')).toBeInTheDocument()
+  expect(screen.queryByText('Loading your decks…')).not.toBeInTheDocument()
+  expect(screen.queryByText('You have no decks yet.')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Create deck' })).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('Deck name')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  expect(onUnauthorized).not.toHaveBeenCalled()
 })
 
 test('creates a deck with the selected colors and updates the visible list', async () => {

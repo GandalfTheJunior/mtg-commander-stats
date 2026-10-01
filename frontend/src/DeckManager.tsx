@@ -12,6 +12,7 @@ import {
 } from './api'
 
 type Notice = { kind: 'success' | 'error'; message: string } | null
+type LoadStatus = 'loading' | 'loaded' | 'error'
 
 function messageFrom(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
@@ -66,7 +67,7 @@ function DeckFields({ deck }: { deck?: Deck }) {
 
 export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => void }) {
   const [decks, setDecks] = useState<Deck[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loadStatus, setLoadStatus] = useState<LoadStatus>('loading')
   const [busy, setBusy] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [notice, setNotice] = useState<Notice>(null)
@@ -83,13 +84,16 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
     let active = true
     listDecks()
       .then((loadedDecks) => {
-        if (active) setDecks(loadedDecks)
+        if (active) {
+          setDecks(loadedDecks)
+          setLoadStatus('loaded')
+        }
       })
       .catch((error: unknown) => {
-        if (active) handleError(error, 'Could not load your decks.')
-      })
-      .finally(() => {
-        if (active) setLoading(false)
+        if (active) {
+          setLoadStatus('error')
+          handleError(error, 'Could not load your decks.')
+        }
       })
     return () => {
       active = false
@@ -98,6 +102,7 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
 
   async function submitCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (loadStatus !== 'loaded') return
     const form = event.currentTarget
     setBusy(true)
     setNotice(null)
@@ -115,6 +120,7 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
 
   async function submitEdit(event: FormEvent<HTMLFormElement>, id: string) {
     event.preventDefault()
+    if (loadStatus !== 'loaded') return
     setBusy(true)
     setNotice(null)
     try {
@@ -130,6 +136,7 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
   }
 
   async function removeDeck(deck: Deck) {
+    if (loadStatus !== 'loaded') return
     setBusy(true)
     setNotice(null)
     try {
@@ -146,8 +153,10 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
   return (
     <section className="decks">
       <h2>My decks</h2>
-      {loading ? (
+      {loadStatus === 'loading' ? (
         <p>Loading your decks…</p>
+      ) : loadStatus === 'error' ? (
+        <p>Your deck list is unavailable. Reload the page to try again.</p>
       ) : decks.length === 0 ? (
         <p>You have no decks yet.</p>
       ) : (
@@ -194,13 +203,17 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
         </ul>
       )}
 
-      <h3>Add a deck</h3>
-      <form onSubmit={submitCreate}>
-        <DeckFields />
-        <button disabled={busy} type="submit">
-          {busy ? 'Saving…' : 'Create deck'}
-        </button>
-      </form>
+      {loadStatus === 'loaded' && (
+        <>
+          <h3>Add a deck</h3>
+          <form onSubmit={submitCreate}>
+            <DeckFields />
+            <button disabled={busy} type="submit">
+              {busy ? 'Saving…' : 'Create deck'}
+            </button>
+          </form>
+        </>
+      )}
       {notice && (
         <p className={notice.kind} role="status">
           {notice.message}
