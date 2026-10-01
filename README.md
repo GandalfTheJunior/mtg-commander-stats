@@ -2,8 +2,9 @@
 
 A Commander statistics application and a learning project for AI-assisted
 software engineering. The application supports user registration, session
-authentication, and authenticated management of the current user's Commander
-decks. Profiles, groups, games, and statistics remain planned.
+authentication, authenticated deck management, and a backend API for play groups
+and join-code membership. The group browser UI, profiles, games, and statistics
+remain planned.
 
 ## Agent entry point
 
@@ -104,6 +105,12 @@ authenticated user can list, create, edit, and delete their own manually entered
 decks in the **My decks** area. Deck changes use the existing CSRF/session flow,
 persist in PostgreSQL, and remain scoped to the authenticated user's stable UUID.
 
+Authenticated clients can also create and list play groups, inspect active
+members, join or rejoin with an invitation code, leave as a MEMBER, and perform
+OWNER-only join-code retrieval and regeneration through `/api/groups`. See the
+[play groups API](docs/product/groups-api.md) for the exact contract. This is a
+backend handoff only; the group UI remains pending.
+
 Stop the applications with Ctrl+C and PostgreSQL with `docker compose stop`.
 The named volume preserves local data.
 
@@ -136,6 +143,7 @@ Tests terminate without watch mode. GitHub Actions runs separate `backend` and
 ## Project documentation
 
 - [MVP scope](docs/product/mvp-scope.md)
+- [Play groups API](docs/product/groups-api.md)
 - [Architecture and ADRs](docs/architecture/overview.md)
 - [Development workflow](docs/development/workflow.md)
 - [Java coding conventions](docs/development/java-conventions.md)
