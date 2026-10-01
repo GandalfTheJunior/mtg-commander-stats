@@ -1,10 +1,11 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
   login,
   registerUser,
   restoreSession,
   type CurrentUser,
 } from './api'
+import DeckManager from './DeckManager'
 
 type Notice = { kind: 'success' | 'error'; message: string } | null
 type SessionStatus = 'checking' | 'signed-out' | 'authenticated' | 'unverified'
@@ -103,6 +104,12 @@ export default function App() {
     }
   }
 
+  const deckSessionExpired = useCallback(() => {
+    setCurrentUser(null)
+    setSessionStatus('signed-out')
+    setLoginNotice({ kind: 'error', message: 'Your session expired. Sign in again.' })
+  }, [])
+
   return (
     <main>
       <header>
@@ -186,6 +193,10 @@ export default function App() {
           )}
         </section>
       </div>
+
+      {sessionStatus === 'authenticated' && currentUser && (
+        <DeckManager onUnauthorized={deckSessionExpired} />
+      )}
     </main>
   )
 }

@@ -37,10 +37,51 @@ test('identifies the application and shows separate auth forms', async () => {
   expect(await screen.findByText('Not signed in.')).toBeInTheDocument()
   expect(registrationForm().getByLabelText('Username')).toBeInTheDocument()
   expect(loginForm().queryByLabelText('Username')).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'My decks' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Create deck' })).not.toBeInTheDocument()
+})
+
+test('restores the authenticated session and loads its decks', async () => {
+  const deck = {
+    id: 'd7c6daac-d72f-49b2-9c10-cb7c653ededa',
+    name: 'Atraxa Superfriends',
+    commander: "Atraxa, Praetors' Voice",
+    colorIdentity: ['W', 'U', 'B', 'G'],
+  }
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(jsonResponse(user))
+    .mockResolvedValueOnce(jsonResponse([deck]))
+  vi.stubGlobal('fetch', fetchMock)
+  render(<App />)
+
+  expect(await screen.findByRole('heading', { name: 'My decks' })).toBeInTheDocument()
+  expect(await screen.findByText('Atraxa Superfriends')).toBeInTheDocument()
+  expect(screen.getByText(/Atraxa, Praetors' Voice/)).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/decks', {
+    credentials: 'same-origin',
+  })
+})
+
+test('a deck API 401 clears authenticated controls and reports an expired session', async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(jsonResponse(user))
+    .mockResolvedValueOnce(jsonResponse({}, 401))
+  vi.stubGlobal('fetch', fetchMock)
+  render(<App />)
+
+  expect(await screen.findByText('Your session expired. Sign in again.')).toBeInTheDocument()
+  expect(screen.getByText('Not signed in.')).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'My decks' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Create deck' })).not.toBeInTheDocument()
 })
 
 test('restores and displays the current user from an existing session', async () => {
-  const fetchMock = vi.fn().mockResolvedValue(jsonResponse(user))
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(jsonResponse(user))
+    .mockResolvedValueOnce(jsonResponse([]))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
 
@@ -194,6 +235,7 @@ test('failed re-login preserves an existing authenticated UI state', async () =>
   const fetchMock = vi
     .fn()
     .mockResolvedValueOnce(jsonResponse(user))
+    .mockResolvedValueOnce(jsonResponse([]))
     .mockResolvedValueOnce(
       jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'login-token' }),
     )
@@ -201,6 +243,7 @@ test('failed re-login preserves an existing authenticated UI state', async () =>
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
   await screen.findByText('Gandalf')
+  await screen.findByText('You have no decks yet.')
 
   const form = loginForm()
   fireEvent.change(form.getByLabelText('Email'), {
@@ -221,6 +264,7 @@ test('does not preserve a previous identity when post-login CSRF refresh fails',
   const fetchMock = vi
     .fn()
     .mockResolvedValueOnce(jsonResponse(user))
+    .mockResolvedValueOnce(jsonResponse([]))
     .mockResolvedValueOnce(
       jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'login-token' }),
     )
@@ -234,6 +278,7 @@ test('does not preserve a previous identity when post-login CSRF refresh fails',
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
   await screen.findByText('Gandalf')
+  await screen.findByText('You have no decks yet.')
 
   const form = loginForm()
   fireEvent.change(form.getByLabelText('Email'), {

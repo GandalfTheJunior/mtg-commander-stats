@@ -38,12 +38,64 @@ p {
 }
 
 .session,
-.forms section {
+.forms section,
+.decks,
+.deck-list li {
   border: 1px solid #d4d9d2;
   border-radius: 0.75rem;
   background: #fff;
   padding: 1.5rem;
   box-shadow: 0 0.25rem 1rem rgb(40 50 42 / 8%);
+}
+
+.decks {
+  margin-top: 1.25rem;
+}
+
+.decks h3 {
+  margin-top: 1.5rem;
+}
+
+.deck-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.deck-list li {
+  box-shadow: none;
+}
+
+.deck-list li h3 {
+  margin-top: 0;
+}
+
+fieldset {
+  border: 1px solid #d4d9d2;
+  border-radius: 0.4rem;
+}
+
+fieldset p {
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.colors,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.colors label {
+  display: flex;
+  flex-direction: row;
+}
+
+.actions button {
+  flex: 1;
 }
 
 .session {
@@ -101,6 +153,14 @@ button {
 button:disabled {
   cursor: wait;
   opacity: 0.65;
+}
+
+button.secondary {
+  background: #617064;
+}
+
+button.danger {
+  background: #8a2f2f;
 }
 
 .success,

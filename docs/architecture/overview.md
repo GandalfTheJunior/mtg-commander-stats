@@ -6,8 +6,9 @@ The application direction is:
 Browser → React/TypeScript SPA → REST/JSON → Spring Boot modular monolith → PostgreSQL
 ```
 
-The backend implements user registration in the `user` feature and session
-authentication in `security`, alongside development/test infrastructure.
+The backend implements user registration in the `user` feature, session
+authentication in `security`, and authenticated deck management in the `deck`
+feature, alongside development/test infrastructure.
 
 ## Backend organization
 
@@ -41,6 +42,21 @@ Create a new migration instead of changing production history; do not rely on
 manually created local database state. Use database constraints where they provide
 meaningful data-integrity protection rather than assuming application validation
 alone is sufficient for invariants the database can safely enforce.
+
+The `deck` feature follows the modular-monolith feature layers: its controller
+maps REST DTOs, its application service derives and enforces ownership using the
+authenticated `UserPrincipal` UUID, its domain owns display-text/color rules, and
+its repository persists internal JPA entities. Flyway creates `decks` with a
+foreign key to `users`, database nonblank checks, and a canonical constrained
+WUBRG-string representation; REST exposes color identity as a canonical symbol
+array. This slice physically deletes decks because no game can reference them yet.
+The documented game-dependent immutability and archival lifecycle remains deferred
+until game usage exists.
+
+Required human-readable labels use the small cross-feature `DisplayText` value
+rule. It trims only the product-defined boundary-whitespace set and preserves
+casing and internal whitespace. Username, deck name, and commander reuse this
+rule; email canonicalization and exact password handling remain separate.
 
 Email canonicalization is owned by the Flyway-defined `canonical_email`
 function: trim the product-defined boundary whitespace, apply PostgreSQL 18

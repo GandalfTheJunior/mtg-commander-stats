@@ -47,4 +47,15 @@ class RegistrationRulesTest {
         assertThatThrownBy(() -> User.validatePassword("\u2003".repeat(12)))
                 .isInstanceOf(InvalidRegistrationException.class);
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"\t", "\n", "\r", "\u001C", "\u001D", "\u001E", "\u001F", "\u1680", "\u2028", "\u2029", "\u205F", "\u3000"})
+    void passwordValidationRejectsWhitespaceOnlyWithoutTrimmingForLength(String whitespace) {
+        assertThatThrownBy(() -> User.validatePassword(whitespace.repeat(12)))
+                .isInstanceOf(InvalidRegistrationException.class);
+        assertThatCode(() -> User.validatePassword(whitespace + "abcdefghij" + whitespace))
+                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> User.validatePassword(whitespace + "abcdefghi" + whitespace))
+                .isInstanceOf(InvalidRegistrationException.class);
+    }
 }
