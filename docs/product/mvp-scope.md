@@ -1,8 +1,9 @@
 # MVP scope
 
 This document records the agreed product target. User registration, session
-authentication, and authenticated deck management are implemented; later milestone
-features remain planned.
+authentication, authenticated deck management, and the backend play-group and
+membership API are implemented; the group UI and later milestone features remain
+planned.
 
 ## Product milestone
 
@@ -26,12 +27,20 @@ and decks, store results, and view basic player/deck statistics.
 
 - Users may belong to multiple groups and create multiple groups.
 - Joining uses a join code.
+- Join codes remain valid until the OWNER regenerates them. Only the OWNER may
+  retrieve or regenerate the current code, and regeneration immediately
+  invalidates the previous code.
 - Roles are OWNER and MEMBER. Each group has exactly one OWNER, who is also a
   group member.
 - The OWNER cannot leave the group. Ownership transfer is out of scope.
 - Leaving must preserve historical membership, game, and statistics data.
+- A former member may rejoin with the current code. Rejoining reactivates the
+  existing stable membership as MEMBER rather than creating a duplicate.
 - Former members lose access that requires active membership.
 - Fine-grained permissions and additional roles are out of scope.
+
+The backend API for these rules is implemented and documented in
+[Play groups API](groups-api.md). A browser UI remains pending.
 
 ## Decks
 
