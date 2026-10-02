@@ -3,6 +3,7 @@ package io.github.gandalfthejunior.mtgcommanderstats.group.api;
 import java.util.List;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.ManageGroups;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.ManageGroups.GroupDetails;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.ManageGroups.GroupSummary;
@@ -60,13 +61,14 @@ public class GroupController {
 
     @PostMapping("/api/groups/{groupId}/join-code")
     public ResponseEntity<JoinCodeResponse> regenerateJoinCode(@AuthenticationPrincipal UserPrincipal user,
-            @PathVariable UUID groupId) {
+            @PathVariable UUID groupId, @RequestBody(required = false) EmptyGroupRequest request) {
         return noStore(groups.regenerateJoinCode(user.getId(), groupId));
     }
 
     @DeleteMapping("/api/groups/{groupId}/membership")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void leave(@AuthenticationPrincipal UserPrincipal user, @PathVariable UUID groupId) {
+    public void leave(@AuthenticationPrincipal UserPrincipal user, @PathVariable UUID groupId,
+            @RequestBody(required = false) EmptyGroupRequest request) {
         groups.leave(user.getId(), groupId);
     }
 
@@ -75,9 +77,24 @@ public class GroupController {
     }
 
     public record CreateGroupRequest(String name) {
+        @JsonAnySetter
+        public void rejectUnknownField(String field, Object value) {
+            throw new InvalidGroupRequestException();
+        }
     }
 
     public record JoinGroupRequest(String code) {
+        @JsonAnySetter
+        public void rejectUnknownField(String field, Object value) {
+            throw new InvalidGroupRequestException();
+        }
+    }
+
+    public record EmptyGroupRequest() {
+        @JsonAnySetter
+        public void rejectUnknownField(String field, Object value) {
+            throw new InvalidGroupRequestException();
+        }
     }
 
     public record GroupSummaryResponse(UUID id, String name, GroupRole role) {

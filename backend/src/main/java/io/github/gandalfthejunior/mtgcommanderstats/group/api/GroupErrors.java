@@ -16,11 +16,12 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice(assignableTypes = GroupController.class)
 public class GroupErrors {
     @ExceptionHandler({InvalidDisplayTextException.class, InvalidJoinCodeException.class,
+            InvalidGroupRequestException.class,
             HttpMessageNotReadableException.class, MethodArgumentNotValidException.class,
             MethodArgumentTypeMismatchException.class})
     public ProblemDetail invalidInput() {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
-                "Provide a nonblank group name or a valid current join code.");
+                "Provide only the documented request fields, with a nonblank name or valid current code as required.");
     }
 
     @ExceptionHandler(GroupNotFoundException.class)

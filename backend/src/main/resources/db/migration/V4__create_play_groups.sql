@@ -28,20 +28,23 @@ CREATE FUNCTION verify_play_group_owner() RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 DECLARE
+    checked_group_ids UUID[];
     checked_group_id UUID;
 BEGIN
     IF TG_TABLE_NAME = 'play_groups' THEN
-        checked_group_id := NEW.id;
+        checked_group_ids := ARRAY[NEW.id];
     ELSIF TG_OP = 'DELETE' THEN
-        checked_group_id := OLD.group_id;
+        checked_group_ids := ARRAY[OLD.group_id];
+    ELSIF TG_OP = 'UPDATE' THEN
+        -- A moved membership can invalidate its previous group as well.
+        checked_group_ids := ARRAY[OLD.group_id, NEW.group_id];
     ELSE
-        checked_group_id := NEW.group_id;
+        checked_group_ids := ARRAY[NEW.group_id];
     END IF;
 
-    IF EXISTS (
-        SELECT 1
+    SELECT play_group.id INTO checked_group_id
         FROM play_groups play_group
-        WHERE play_group.id = checked_group_id
+        WHERE play_group.id = ANY(checked_group_ids)
           AND NOT EXISTS (
               SELECT 1
               FROM group_memberships membership
@@ -50,7 +53,8 @@ BEGIN
                 AND membership.role = 'OWNER'
                 AND membership.active
           )
-    ) THEN
+        LIMIT 1;
+    IF FOUND THEN
         RAISE EXCEPTION 'Group % must have its designated active owner membership.', checked_group_id
             USING ERRCODE = '23514', CONSTRAINT = 'play_groups_active_owner_required';
     END IF;

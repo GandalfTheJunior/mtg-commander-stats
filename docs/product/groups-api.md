@@ -4,7 +4,13 @@ The backend play-group and membership API is available under `/api/groups`. A
 group browser UI is not implemented yet. Every endpoint requires the existing
 authenticated session. Unsafe requests also require the current CSRF token.
 Actor, owner, and role always come from the authenticated principal and server
-state; request fields cannot select or override them.
+state; request fields cannot select or override them. Create accepts only `name`,
+and join accepts only `code`. Unknown payload fields (including `actorId`,
+`ownerId`, `userId`, and `role`) are rejected with `400` before any write.
+Regeneration and leave accept no body or an empty JSON object; a body containing
+fields is rejected with `400`. In particular, a leave request cannot name another
+member: it either leaves for the authenticated actor or fails without changing
+either membership. This strict payload handling is scoped to the group API.
 
 ## Representations
 
@@ -87,6 +93,7 @@ The API uses RFC 9457 problem responses consistently with the existing backend.
 | Successful list, details, join, or code operation | `200` |
 | Successful member departure | `204` |
 | Malformed/blank name, invalid group UUID syntax, or blank/unknown/obsolete code | `400` |
+| Unknown payload fields or actor/owner/role tampering | `400` |
 | Missing or invalid authenticated session | `401` |
 | Existing group but inactive/absent membership, non-owner code access, owner departure, or invalid CSRF | `403` |
 | Well-formed group UUID that does not exist | `404` |
