@@ -150,3 +150,23 @@ Keep them aligned as features are added. See
 [ADR 0001](adr/0001-use-modular-monolith.md) for application architecture and code
 organization, and [ADR 0002](adr/0002-use-session-based-authentication.md) for the
 authentication direction.
+
+## Browser group management
+
+The SPA renders `GroupManager` only for a confirmed authenticated identity, next
+to `DeckManager`. It uses typed operations in `frontend/src/api.ts` against the
+[play groups API](../product/groups-api.md); unsafe operations reuse the existing
+same-origin cookies and fresh CSRF bootstrap. Group responses are validated
+before updating the UI. Failed CSRF preparation retains HTTP status information,
+so a 401 follows the same session-expiration path as a business-request 401.
+A 403 remains an access/CSRF error rather than asserting session expiration.
+
+Group state is scoped to the user's UUID, and details/code state to the selected
+group's component lifetime. Request cleanup ignores late results after a group
+or identity change. Closing/reopening or explicitly refreshing details fetches
+active members again and discards any displayed invitation code. Access denial
+clears inaccessible details/code and reloads the active group list. Only a
+confirmed OWNER gets code controls and code requests; the server remains the
+authorization boundary. MEMBER departure and code regeneration require visible
+confirmation. Sign-out and session expiration unmount protected group content.
+No router, real-time infrastructure, or new dependencies were added.

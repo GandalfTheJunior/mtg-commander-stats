@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App'
 
@@ -52,6 +52,7 @@ test('restores the authenticated session and loads its decks', async () => {
     .fn()
     .mockResolvedValueOnce(jsonResponse(user))
     .mockResolvedValueOnce(jsonResponse([deck]))
+    .mockResolvedValueOnce(jsonResponse([]))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
 
@@ -68,6 +69,7 @@ test('a deck API 401 clears authenticated controls and reports an expired sessio
     .fn()
     .mockResolvedValueOnce(jsonResponse(user))
     .mockResolvedValueOnce(jsonResponse({}, 401))
+    .mockResolvedValueOnce(jsonResponse([]))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
 
@@ -81,6 +83,7 @@ test('restores and displays the current user from an existing session', async ()
   const fetchMock = vi
     .fn()
     .mockResolvedValueOnce(jsonResponse(user))
+    .mockResolvedValueOnce(jsonResponse([]))
     .mockResolvedValueOnce(jsonResponse([]))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
@@ -170,6 +173,8 @@ test('logs in with the bootstrapped CSRF token, refreshes it, and confirms ident
       jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'post-login-token' }),
     )
     .mockResolvedValueOnce(jsonResponse(user))
+    .mockResolvedValueOnce(jsonResponse([]))
+    .mockResolvedValueOnce(jsonResponse([]))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
   await screen.findByText('Not signed in.')
@@ -236,6 +241,7 @@ test('failed re-login preserves an existing authenticated UI state', async () =>
     .fn()
     .mockResolvedValueOnce(jsonResponse(user))
     .mockResolvedValueOnce(jsonResponse([]))
+    .mockResolvedValueOnce(jsonResponse([]))
     .mockResolvedValueOnce(
       jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'login-token' }),
     )
@@ -264,6 +270,7 @@ test('does not preserve a previous identity when post-login CSRF refresh fails',
   const fetchMock = vi
     .fn()
     .mockResolvedValueOnce(jsonResponse(user))
+    .mockResolvedValueOnce(jsonResponse([]))
     .mockResolvedValueOnce(jsonResponse([]))
     .mockResolvedValueOnce(
       jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'login-token' }),
@@ -328,4 +335,93 @@ test('shows an unverified session when identity confirmation fails after login',
   ).toBeInTheDocument()
   expect(screen.queryByText('Not signed in.')).not.toBeInTheDocument()
   expect(screen.queryByText(/Signed in as/)).not.toBeInTheDocument()
+})
+
+test.each(['request', 'csrf'])('a group 401 during %s expires the session and clears decks and groups', async (source) => {
+  const group = { id: '11111111-1111-4111-8111-111111111111', name: 'Private group', role: 'OWNER' }
+  const fetchMock = vi.fn((path: string) => {
+    if (path === '/api/me') return Promise.resolve(jsonResponse(user))
+    if (path === '/api/decks') return Promise.resolve(jsonResponse([]))
+    if (path === '/api/groups') return Promise.resolve(jsonResponse([group]))
+    if (path === '/api/csrf') return Promise.resolve(jsonResponse({}, 401))
+    return Promise.resolve(jsonResponse({}, 401))
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  render(<App />)
+  await screen.findByRole('button', { name: 'Private group (OWNER)' })
+  if (source === 'request') {
+    fireEvent.click(screen.getByRole('button', { name: 'Private group (OWNER)' }))
+  } else {
+    fireEvent.change(screen.getByLabelText('Invitation code'), { target: { value: 'abcdefghijklmnopqrstuv' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Join group' }))
+  }
+  await screen.findByText('Your session expired. Sign in again.')
+  expect(screen.queryByRole('heading', { name: 'My groups' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'My decks' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument()
+  if (source === 'csrf') expect(fetchMock.mock.calls.some(([path]) => path === '/api/groups/join')).toBe(false)
+})
+
+test('sign-out clears group details and a late invitation-code response cannot restore them', async () => {
+  const group = { id: '11111111-1111-4111-8111-111111111111', name: 'Private group', role: 'OWNER' }
+  let resolveCode!: (response: Response) => void
+  const pendingCode = new Promise<Response>((resolve) => { resolveCode = resolve })
+  const fetchMock = vi.fn((path: string) => {
+    if (path === '/api/me') return Promise.resolve(jsonResponse(user))
+    if (path === '/api/decks') return Promise.resolve(jsonResponse([]))
+    if (path === '/api/groups') return Promise.resolve(jsonResponse([group]))
+    if (path === `/api/groups/${group.id}`) return Promise.resolve(jsonResponse({ ...group, members: [] }))
+    if (path.endsWith('/join-code')) return pendingCode
+    if (path === '/api/csrf') return Promise.resolve(jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'logout-token' }))
+    if (path === '/api/session') return Promise.resolve(new Response(null, { status: 204 }))
+    throw new Error(`Unexpected request: ${path}`)
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  render(<App />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Private group (OWNER)' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Show invitation code' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+  await screen.findByText('Signed out.')
+  await act(async () => { resolveCode(jsonResponse({ code: 'abcdefghijklmnopqrstuv' })) })
+  expect(screen.queryByRole('heading', { name: 'My groups' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
+  expect(screen.queryByDisplayValue('abcdefghijklmnopqrstuv')).not.toBeInTheDocument()
+  expect(fetchMock).toHaveBeenCalledWith('/api/session', {
+    credentials: 'same-origin', method: 'DELETE', headers: { 'X-CSRF-TOKEN': 'logout-token' },
+  })
+})
+
+test('switching identity discards old groups and ignores a late create response', async () => {
+  const nextUser = { id: 'e55c4c26-2d30-4ae0-8f9b-6100171ee99a', username: 'Saruman' }
+  const group = { id: '11111111-1111-4111-8111-111111111111', name: 'Old private group', role: 'OWNER' }
+  let currentUser = user
+  let resolveCreate!: (response: Response) => void
+  const pendingCreate = new Promise<Response>((resolve) => { resolveCreate = resolve })
+  const fetchMock = vi.fn((path: string, init?: RequestInit) => {
+    if (path === '/api/me') return Promise.resolve(jsonResponse(currentUser))
+    if (path === '/api/decks') return Promise.resolve(jsonResponse([]))
+    if (path === '/api/groups' && init?.method === 'POST') return pendingCreate
+    if (path === '/api/groups') return Promise.resolve(jsonResponse(currentUser.id === user.id ? [group] : []))
+    if (path === '/api/csrf') return Promise.resolve(jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'login-token' }))
+    if (path === '/api/session') {
+      currentUser = nextUser
+      return Promise.resolve(jsonResponse(nextUser))
+    }
+    throw new Error(`Unexpected request: ${path}`)
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  render(<App />)
+  await screen.findByRole('button', { name: 'Old private group (OWNER)' })
+  fireEvent.change(screen.getByLabelText('Group name'), { target: { value: 'Unconfirmed old group' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Create group' }))
+  const form = loginForm()
+  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'saruman@example.com' } })
+  fireEvent.change(form.getByLabelText('Password'), { target: { value: password } })
+  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
+  await screen.findByText('Saruman')
+  await screen.findByText('You have no groups yet.')
+  await act(async () => { resolveCreate(jsonResponse({ ...group, name: 'Unconfirmed old group' }, 201)) })
+  expect(screen.queryByText(/Old private group/)).not.toBeInTheDocument()
+  expect(screen.queryByText(/Unconfirmed old group/)).not.toBeInTheDocument()
+  expect(screen.getByText('Saruman')).toBeInTheDocument()
 })

@@ -2,9 +2,8 @@
 
 A Commander statistics application and a learning project for AI-assisted
 software engineering. The application supports user registration, session
-authentication, authenticated deck management, and a backend API for play groups
-and join-code membership. The group browser UI, profiles, games, and statistics
-remain planned.
+authentication, authenticated deck management, and browser play-group management
+with join-code membership. Profiles, games, and statistics remain planned.
 
 ## Agent entry point
 
@@ -105,11 +104,21 @@ authenticated user can list, create, edit, and delete their own manually entered
 decks in the **My decks** area. Deck changes use the existing CSRF/session flow,
 persist in PostgreSQL, and remain scoped to the authenticated user's stable UUID.
 
-Authenticated clients can also create and list play groups, inspect active
-members, join or rejoin with an invitation code, leave as a MEMBER, and perform
-OWNER-only join-code retrieval and regeneration through `/api/groups`. See the
-[play groups API](docs/product/groups-api.md) for the exact contract. This is a
-backend handoff only; the group UI remains pending.
+In **My groups**, create a named group or join/rejoin using a current invitation
+code. Select a group to see your role and active members; UUIDs distinguish users
+with the same display name. **Refresh members** or close and reopen details to see
+membership changes; **Refresh groups** retries or reloads your active memberships.
+Memberships persist after a page reload and session restoration.
+
+An OWNER can show/copy the invitation code and regenerate it after confirming
+that the old code will stop working. If clipboard access fails, copy the visible
+code manually. A MEMBER can leave after confirming the loss of active access;
+historical membership/results remain associated with the user. Rejoin using a
+current code. Owners cannot leave. **Sign out** clears protected browser content;
+an expired session also clears it and asks the user to sign in again.
+
+The browser uses the existing session/CSRF flow and the merged
+[play groups API](docs/product/groups-api.md), with no new backend endpoints.
 
 Stop the applications with Ctrl+C and PostgreSQL with `docker compose stop`.
 The named volume preserves local data.

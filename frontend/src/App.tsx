@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
+  ApiError,
   login,
+  logout,
   registerUser,
   restoreSession,
   type CurrentUser,
 } from './api'
 import DeckManager from './DeckManager'
+import GroupManager from './GroupManager'
 
 type Notice = { kind: 'success' | 'error'; message: string } | null
 type SessionStatus = 'checking' | 'signed-out' | 'authenticated' | 'unverified'
@@ -21,6 +24,7 @@ export default function App() {
   const [loginNotice, setLoginNotice] = useState<Notice>(null)
   const [registering, setRegistering] = useState(false)
   const [loggingIn, setLoggingIn] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -104,11 +108,27 @@ export default function App() {
     }
   }
 
-  const deckSessionExpired = useCallback(() => {
+  const sessionExpired = useCallback(() => {
     setCurrentUser(null)
     setSessionStatus('signed-out')
     setLoginNotice({ kind: 'error', message: 'Your session expired. Sign in again.' })
   }, [])
+
+  async function signOut() {
+    setSigningOut(true)
+    setLoginNotice(null)
+    try {
+      await logout()
+      setCurrentUser(null)
+      setSessionStatus('signed-out')
+      setLoginNotice({ kind: 'success', message: 'Signed out.' })
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) sessionExpired()
+      else setLoginNotice({ kind: 'error', message: messageFrom(error, 'Could not sign out.') })
+    } finally {
+      setSigningOut(false)
+    }
+  }
 
   return (
     <main>
@@ -123,9 +143,12 @@ export default function App() {
         {sessionStatus === 'checking' ? (
           <p>Checking your session…</p>
         ) : sessionStatus === 'authenticated' && currentUser ? (
-          <p>
+          <div><p>
             Signed in as <strong>{currentUser.username}</strong>.
           </p>
+          <button type="button" disabled={signingOut || loggingIn} onClick={signOut}>
+            {signingOut ? 'Signing out…' : 'Sign out'}
+          </button></div>
         ) : sessionStatus === 'unverified' ? (
           <p>Your session identity could not be confirmed.</p>
         ) : (
@@ -182,7 +205,7 @@ export default function App() {
                 required
               />
             </label>
-            <button disabled={loggingIn || sessionStatus === 'checking'} type="submit">
+            <button disabled={loggingIn || signingOut || sessionStatus === 'checking'} type="submit">
               {loggingIn ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
@@ -195,7 +218,10 @@ export default function App() {
       </div>
 
       {sessionStatus === 'authenticated' && currentUser && (
-        <DeckManager onUnauthorized={deckSessionExpired} />
+        <>
+          <DeckManager key={`decks-${currentUser.id}`} onUnauthorized={sessionExpired} />
+          <GroupManager key={`groups-${currentUser.id}`} onUnauthorized={sessionExpired} />
+        </>
       )}
     </main>
   )

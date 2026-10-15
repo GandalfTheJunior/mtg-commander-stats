@@ -1,9 +1,9 @@
 # MVP scope
 
 This document records the agreed product target. User registration, session
-authentication, authenticated deck management, and the backend play-group and
-membership API are implemented; the group UI and later milestone features remain
-planned.
+authentication, authenticated deck management, and browser play-group management
+with the play-group/membership API are implemented; later milestone features
+remain planned.
 
 ## Product milestone
 
@@ -40,7 +40,8 @@ and decks, store results, and view basic player/deck statistics.
 - Fine-grained permissions and additional roles are out of scope.
 
 The backend API for these rules is implemented and documented in
-[Play groups API](groups-api.md). A browser UI remains pending.
+[Play groups API](groups-api.md). The browser My groups area supports these
+operations; see the [usage guide](../../README.md#local-development).
 
 ## Decks
 
