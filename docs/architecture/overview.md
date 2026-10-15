@@ -7,8 +7,9 @@ Browser → React/TypeScript SPA → REST/JSON → Spring Boot modular monolith 
 ```
 
 The backend implements user registration in the `user` feature, session
-authentication in `security`, and authenticated deck management in the `deck`
-feature, alongside development/test infrastructure.
+authentication in `security`, authenticated deck management in the `deck`
+feature, and play groups plus membership in the `group` feature, alongside
+development/test infrastructure.
 
 ## Backend organization
 
@@ -52,6 +53,27 @@ WUBRG-string representation; REST exposes color identity as a canonical symbol
 array. This slice physically deletes decks because no game can reference them yet.
 The documented game-dependent immutability and archival lifecycle remains deferred
 until game usage exists.
+
+The `group` feature uses the same feature layers. `play_groups` owns the stable
+group UUID, DisplayText name, owner UUID, and unique join code;
+`group_memberships` owns the stable membership UUID, group/user pair, role, and
+active state. Database foreign keys, code uniqueness, unique group/user
+membership, and a partial unique index for the active OWNER protect persistence
+integrity. Deferred constraint triggers also require every persisted group to
+have its designated owner as that active OWNER. Application transactions create
+the group and OWNER membership atomically and prohibit OWNER departure,
+preserving exactly one active OWNER through all supported operations.
+
+Join codes are 128-bit values from `SecureRandom`, encoded as 22 URL-safe Base64
+characters without padding. Creation and regeneration retry unique-code
+collisions in isolated transactions so failed attempts leave no partial writes.
+Join and regeneration take a pessimistic lock on the same group row. This
+serializes the boundary: once regeneration commits, a request using the old code
+cannot add or reactivate a membership. Ordinary group and member responses never
+include codes; only active OWNER-authorized, non-cacheable responses expose them.
+The group application layer uses the `user` feature's public-user directory to
+resolve display usernames without exposing user persistence entities through the
+API.
 
 Required human-readable labels use the small cross-feature `DisplayText` value
 rule. It trims only the product-defined boundary-whitespace set and preserves
