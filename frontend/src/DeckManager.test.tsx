@@ -181,21 +181,30 @@ test('edits a deck with CSRF and renders the server-confirmed result', async () 
   })
 })
 
-test('deletes a deck with CSRF after the server confirms success', async () => {
+test.each([false, true])('deletes a deck with CSRF and focuses success feedback (surviving deck: %s)', async (hasSurvivor) => {
+  const other = { ...deck, id: 'other', name: 'Other deck' }
   const fetchMock = vi
     .fn()
-    .mockResolvedValueOnce(jsonResponse([deck]))
+    .mockResolvedValueOnce(jsonResponse(hasSurvivor ? [deck, other] : [deck]))
     .mockResolvedValueOnce(csrfResponse())
     .mockResolvedValueOnce(new Response(null, { status: 204 }))
   vi.stubGlobal('fetch', fetchMock)
   render(<DeckManager onUnauthorized={vi.fn()} />)
   const item = (await screen.findByText(deck.name)).closest('li')!
 
-  fireEvent.click(within(item).getByRole('button', { name: 'Delete' }))
-  fireEvent.click(within(item).getByRole('button', { name: 'Confirm deletion' }))
+  const trigger = within(item).getByRole('button', { name: 'Delete' })
+  trigger.focus()
+  fireEvent.click(trigger)
+  const confirm = within(item).getByRole('button', { name: 'Confirm deletion' })
+  confirm.focus()
+  fireEvent.click(confirm)
 
-  expect(await screen.findByText('Atraxa Superfriends deleted.')).toBeInTheDocument()
+  expect(await screen.findByRole('status')).toHaveTextContent('Atraxa Superfriends deleted.')
+  expect(screen.getByRole('status')).toHaveFocus()
   expect(screen.queryByText(deck.name)).not.toBeInTheDocument()
+  expect(trigger).not.toBeInTheDocument()
+  if (hasSurvivor) expect(screen.getByText(other.name)).toBeInTheDocument()
+  else expect(screen.getByText('You have no decks yet.')).toBeInTheDocument()
   expect(fetchMock).toHaveBeenNthCalledWith(3, `/api/decks/${deck.id}`, {
     credentials: 'same-origin',
     method: 'DELETE',
@@ -234,21 +243,64 @@ test('failed edit and delete keep the confirmed deck state visible', async () =>
 })
 
 
-test('canceling a deck-specific deletion confirmation performs no request and leaves both decks unchanged', async () => {
+test.each([0, 1])('opening and canceling deletion focuses the selected confirmation and original trigger (deck index: %s)', async (index) => {
   const other = { ...deck, id: 'other', name: 'Other deck' }
+  const selected = [deck, other][index]
   const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse([deck, other]))
+  vi.stubGlobal('fetch', fetchMock)
+  render(<DeckManager onUnauthorized={vi.fn()} />)
+  const item = (await screen.findByText(selected.name)).closest('li')!
+  const trigger = within(item).getByRole('button', { name: 'Delete' })
+  trigger.focus()
+  fireEvent.click(trigger)
+  const confirmation = screen.getByRole('group', { name: `Delete ${selected.name}?` })
+  expect(confirmation).toHaveFocus()
+  expect(trigger).toBeDisabled()
+  expect(within(confirmation).getByText(/cannot be undone/)).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  const cancel = within(confirmation).getByRole('button', { name: 'Cancel deletion' })
+  cancel.focus()
+  fireEvent.click(cancel)
+  expect(screen.queryByRole('group', { name: `Delete ${selected.name}?` })).not.toBeInTheDocument()
+  expect(trigger).toBeEnabled()
+  expect(trigger).toHaveFocus()
+  expect(screen.getByText(deck.name)).toBeInTheDocument()
+  expect(screen.getByText(other.name)).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+})
+
+test.each(['server', 'network'])('deletion %s failure restores confirmation focus and allows retry or cancel', async (failure) => {
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce(jsonResponse([deck]))
+    .mockResolvedValueOnce(csrfResponse())
+  if (failure === 'server') {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ detail: 'Delete failed.' }, 500))
+  } else {
+    fetchMock.mockRejectedValueOnce(new Error('Delete failed.'))
+  }
+  fetchMock.mockResolvedValueOnce(csrfResponse())
+    .mockResolvedValueOnce(new Response(null, { status: 204 }))
   vi.stubGlobal('fetch', fetchMock)
   render(<DeckManager onUnauthorized={vi.fn()} />)
   const item = (await screen.findByText(deck.name)).closest('li')!
   fireEvent.click(within(item).getByRole('button', { name: 'Delete' }))
   const confirmation = screen.getByRole('group', { name: `Delete ${deck.name}?` })
-  expect(within(confirmation).getByText(/cannot be undone/)).toBeInTheDocument()
-  expect(fetchMock).toHaveBeenCalledTimes(1)
-  fireEvent.click(within(confirmation).getByRole('button', { name: 'Cancel deletion' }))
-  expect(screen.queryByRole('group', { name: `Delete ${deck.name}?` })).not.toBeInTheDocument()
-  expect(screen.getByText(deck.name)).toBeInTheDocument()
-  expect(screen.getByText(other.name)).toBeInTheDocument()
-  expect(fetchMock).toHaveBeenCalledTimes(1)
+  const confirm = within(confirmation).getByRole('button', { name: 'Confirm deletion' })
+  confirm.focus()
+  fireEvent.click(confirm)
+
+  expect(await screen.findByRole('status')).toHaveTextContent('Delete failed.')
+  expect(confirmation).toHaveFocus()
+  expect(confirm).toBeEnabled()
+  expect(within(confirmation).getByRole('button', { name: 'Cancel deletion' })).toBeEnabled()
+  expect(within(item).getByText(deck.name)).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenCalledTimes(3)
+
+  confirm.focus()
+  fireEvent.click(confirm)
+  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(`${deck.name} deleted.`))
+  expect(screen.getByRole('status')).toHaveFocus()
+  expect(fetchMock).toHaveBeenCalledTimes(5)
 })
 
 
@@ -269,6 +321,7 @@ test('confirmation sends exactly one selected DELETE and retains both decks unti
   fireEvent.click(confirm)
   fireEvent.click(confirm)
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
+  expect(screen.getByRole('group', { name: `Delete ${deck.name}?` })).toHaveFocus()
   expect(fetchMock).toHaveBeenLastCalledWith(`/api/decks/${deck.id}`, {
     credentials: 'same-origin', method: 'DELETE', headers: { 'X-CSRF-TOKEN': 'deck-token' },
   })
