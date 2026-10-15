@@ -56,6 +56,9 @@ operations; see the [usage guide](../../README.md#local-development).
 - Color identity is any distinct subset of W, U, B, R, and G. An empty set is
   colorless, and API responses use canonical WUBRG order.
 - No decklist, Scryfall integration, ManaBox integration, or DeckVersion.
+- Browser deletion requires a confirmation naming the selected unused deck.
+  Canceling does not change the deck; confirmed deletion updates the UI only
+  after the server acknowledges success.
 - The deck name remains editable.
 - Commander and color identity may change until the deck is first used in a
   recorded game; they become immutable after first use.
@@ -90,6 +93,12 @@ outside this MVP.
 - Logout requires authentication and CSRF protection, returns `204`, and
   invalidates the session. Protected anonymous requests receive `401`; forbidden
   operations and invalid/missing CSRF protection receive `403`.
+- Confirmed browser sessions show Log out and hide login/registration forms.
+  Logout hides protected deck/group content, including invitation codes, while
+  awaiting the server's `204`. Failed or ambiguous attempts recheck `/api/me`:
+  a valid identity restores fresh protected views, an absent identity shows the
+  signed-out controls, and an unavailable check leaves protected data hidden
+  with an explicit retry. Only a confirmed `204` is reported as successful logout.
 
 ## User identity and registration
 

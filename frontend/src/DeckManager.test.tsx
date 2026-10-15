@@ -192,6 +192,7 @@ test('deletes a deck with CSRF after the server confirms success', async () => {
   const item = (await screen.findByText(deck.name)).closest('li')!
 
   fireEvent.click(within(item).getByRole('button', { name: 'Delete' }))
+  fireEvent.click(within(item).getByRole('button', { name: 'Confirm deletion' }))
 
   expect(await screen.findByText('Atraxa Superfriends deleted.')).toBeInTheDocument()
   expect(screen.queryByText(deck.name)).not.toBeInTheDocument()
@@ -224,7 +225,58 @@ test('failed edit and delete keep the confirmed deck state visible', async () =>
   expect(within(item).getByText(deck.name)).toBeInTheDocument()
 
   fireEvent.click(within(item).getByRole('button', { name: 'Delete' }))
+  fireEvent.click(within(item).getByRole('button', { name: 'Confirm deletion' }))
   expect(await screen.findByText('Delete failed.')).toBeInTheDocument()
+  expect(within(item).getByRole('button', { name: 'Confirm deletion' })).toBeEnabled()
+  expect(within(item).getByRole('button', { name: 'Cancel deletion' })).toBeEnabled()
   expect(within(item).getByText(deck.name)).toBeInTheDocument()
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5))
+})
+
+
+test('canceling a deck-specific deletion confirmation performs no request and leaves both decks unchanged', async () => {
+  const other = { ...deck, id: 'other', name: 'Other deck' }
+  const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse([deck, other]))
+  vi.stubGlobal('fetch', fetchMock)
+  render(<DeckManager onUnauthorized={vi.fn()} />)
+  const item = (await screen.findByText(deck.name)).closest('li')!
+  fireEvent.click(within(item).getByRole('button', { name: 'Delete' }))
+  const confirmation = screen.getByRole('group', { name: `Delete ${deck.name}?` })
+  expect(within(confirmation).getByText(/cannot be undone/)).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  fireEvent.click(within(confirmation).getByRole('button', { name: 'Cancel deletion' }))
+  expect(screen.queryByRole('group', { name: `Delete ${deck.name}?` })).not.toBeInTheDocument()
+  expect(screen.getByText(deck.name)).toBeInTheDocument()
+  expect(screen.getByText(other.name)).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+})
+
+
+test('confirmation sends exactly one selected DELETE and retains both decks until acknowledgement', async () => {
+  const other = { ...deck, id: 'other', name: 'Other deck' }
+  let resolveDelete!: (response: Response) => void
+  const pendingDelete = new Promise<Response>((resolve) => { resolveDelete = resolve })
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce(jsonResponse([deck, other]))
+    .mockResolvedValueOnce(csrfResponse())
+    .mockReturnValueOnce(pendingDelete)
+  vi.stubGlobal('fetch', fetchMock)
+  render(<DeckManager onUnauthorized={vi.fn()} />)
+  const item = (await screen.findByText(deck.name)).closest('li')!
+  fireEvent.click(within(item).getByRole('button', { name: 'Delete' }))
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  const confirm = within(item).getByRole('button', { name: 'Confirm deletion' })
+  fireEvent.click(confirm)
+  fireEvent.click(confirm)
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
+  expect(fetchMock).toHaveBeenLastCalledWith(`/api/decks/${deck.id}`, {
+    credentials: 'same-origin', method: 'DELETE', headers: { 'X-CSRF-TOKEN': 'deck-token' },
+  })
+  expect(screen.getByText(deck.name)).toBeInTheDocument()
+  expect(screen.getByText(other.name)).toBeInTheDocument()
+  await act(async () => { resolveDelete(new Response(null, { status: 204 })) })
+  await screen.findByText(`${deck.name} deleted.`)
+  expect(screen.queryByText(deck.name)).not.toBeInTheDocument()
+  expect(screen.getByText(other.name)).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenCalledTimes(3)
 })

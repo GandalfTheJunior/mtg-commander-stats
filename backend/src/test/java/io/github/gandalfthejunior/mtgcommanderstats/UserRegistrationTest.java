@@ -22,11 +22,14 @@ import io.github.gandalfthejunior.mtgcommanderstats.user.domain.User;
 import io.github.gandalfthejunior.mtgcommanderstats.user.persistence.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -38,10 +41,12 @@ import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ExtendWith(OutputCaptureExtension.class)
 @Import(DatabaseConfiguration.class)
 class UserRegistrationTest {
     private static final String EMAIL = "wizard@example.com";
@@ -55,7 +60,7 @@ class UserRegistrationTest {
     private PasswordEncoder passwords;
     @Autowired
     private JdbcTemplate jdbc;
-    @Autowired
+    @MockitoSpyBean
     private RegisterUser registerUser;
 
     private final JsonMapper json = JsonMapper.builder().build();
@@ -64,6 +69,20 @@ class UserRegistrationTest {
     @BeforeEach
     void clearUsers() {
         users.deleteAll();
+    }
+
+    @Test
+    void unexpectedRegistrationFailureLogsSafeDiagnosticsOnly(CapturedOutput output) throws Exception {
+        String secret = "REGISTRATION_SECRET password cookie csrf";
+        doThrow(new IllegalStateException(secret, new UnsupportedOperationException("NESTED_REGISTRATION_SECRET")))
+                .when(registerUser).register(EMAIL, "wizard", PASSWORD);
+        HttpResponse<String> response = register(EMAIL, "wizard", PASSWORD);
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.value());
+        assertThat(json.readTree(response.body()).get("detail").asText()).isEqualTo("Registration could not be completed.");
+        assertThat(output.getAll()).contains("ERROR", "Unexpected registration failure", "UnsupportedOperationException",
+                "UserRegistrationTest.unexpectedRegistrationFailure");
+        assertThat(output.getAll() + response.body()).doesNotContain(secret, "NESTED_REGISTRATION_SECRET", PASSWORD, EMAIL);
+        assertThat(users.count()).isZero();
     }
 
     @Test

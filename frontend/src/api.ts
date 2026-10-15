@@ -190,6 +190,13 @@ export async function login(
   return user
 }
 
+export async function logout(): Promise<void> {
+  const response = await unsafeRequest('DELETE', '/api/session')
+  if (response.status !== 204) {
+    throw new ApiError('Logout could not be confirmed.', response.status)
+  }
+}
+
 export async function listDecks(): Promise<Deck[]> {
   const response = await fetch('/api/decks', requestDefaults)
   if (!response.ok) {

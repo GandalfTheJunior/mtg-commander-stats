@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   login,
+  logout,
   registerUser,
   restoreSession,
   type CurrentUser,
@@ -9,37 +10,38 @@ import DeckManager from './DeckManager'
 import GroupManager from './GroupManager'
 
 type Notice = { kind: 'success' | 'error'; message: string } | null
-type SessionStatus = 'checking' | 'signed-out' | 'authenticated' | 'unverified'
+type SessionStatus = 'checking' | 'signed-out' | 'authenticated' | 'unverified' | 'logging-out'
 
 function messageFrom(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
 }
 
 export default function App() {
-  // A new login is a new session lifetime, even when its user UUID is unchanged.
+  // Session transitions retire protected state even when the user UUID is unchanged.
   const sessionVersionRef = useRef(0)
   const [sessionVersion, setSessionVersion] = useState(0)
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('checking')
   const [registrationNotice, setRegistrationNotice] = useState<Notice>(null)
-  const [loginNotice, setLoginNotice] = useState<Notice>(null)
+  const [sessionNotice, setSessionNotice] = useState<Notice>(null)
   const [registering, setRegistering] = useState(false)
   const [loggingIn, setLoggingIn] = useState(false)
 
   useEffect(() => {
     let active = true
+    const version = sessionVersionRef.current
     restoreSession()
       .then((user) => {
-        if (active) {
+        if (active && version === sessionVersionRef.current) {
           setCurrentUser(user)
           setSessionStatus(user ? 'authenticated' : 'signed-out')
         }
       })
       .catch((error: unknown) => {
-        if (active) {
+        if (active && version === sessionVersionRef.current) {
           setCurrentUser(null)
           setSessionStatus('unverified')
-          setLoginNotice({
+          setSessionNotice({
             kind: 'error',
             message: messageFrom(error, 'Could not check your session.'),
           })
@@ -79,9 +81,11 @@ export default function App() {
 
   async function submitLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (loggingIn || sessionStatus === 'checking' || sessionStatus === 'logging-out') return
+    let version = sessionVersionRef.current
     const submittedForm = event.currentTarget
     setLoggingIn(true)
-    setLoginNotice(null)
+    setSessionNotice(null)
     const form = new FormData(submittedForm)
     try {
       const user = await login(
@@ -90,22 +94,81 @@ export default function App() {
           password: String(form.get('password')),
         },
         () => {
-          setSessionVersion(++sessionVersionRef.current)
+          if (version !== sessionVersionRef.current) return
+          version = ++sessionVersionRef.current
+          setSessionVersion(version)
           setCurrentUser(null)
           setSessionStatus('unverified')
         },
       )
+      if (version !== sessionVersionRef.current) return
       setCurrentUser(user)
       setSessionStatus('authenticated')
-      setLoginNotice({ kind: 'success', message: 'Login successful.' })
+      setRegistrationNotice(null)
+      setSessionNotice({ kind: 'success', message: 'Login successful.' })
       submittedForm.reset()
     } catch (error) {
-      setLoginNotice({
+      if (version !== sessionVersionRef.current) return
+      setSessionNotice({
         kind: 'error',
         message: messageFrom(error, 'Login failed.'),
       })
     } finally {
-      setLoggingIn(false)
+      if (version === sessionVersionRef.current) setLoggingIn(false)
+    }
+  }
+
+  async function logOut() {
+    if (sessionStatus !== 'authenticated') return
+    // Retire old requests immediately, including while DELETE or its recovery GET is pending.
+    const version = ++sessionVersionRef.current
+    setSessionVersion(version)
+    setSessionStatus('logging-out')
+    setSessionNotice(null)
+    setRegistrationNotice(null)
+    try {
+      await logout()
+      if (version !== sessionVersionRef.current) return
+      setCurrentUser(null)
+      setSessionStatus('signed-out')
+      setSessionNotice({ kind: 'success', message: 'Logged out.' })
+    } catch {
+      try {
+        const user = await restoreSession()
+        if (version !== sessionVersionRef.current) return
+        setCurrentUser(user)
+        setSessionStatus(user ? 'authenticated' : 'signed-out')
+        setSessionNotice({
+          kind: 'error',
+          message: user
+            ? 'Logout could not be confirmed. You are still signed in. Try again.'
+            : 'Logout could not be confirmed. Your session is no longer active.',
+        })
+      } catch {
+        if (version !== sessionVersionRef.current) return
+        setCurrentUser(null)
+        setSessionStatus('unverified')
+        setSessionNotice({ kind: 'error', message: 'Logout could not be confirmed. Check your session before continuing.' })
+      }
+    }
+  }
+
+  async function checkSession() {
+    if (loggingIn || sessionStatus !== 'unverified') return
+    const version = ++sessionVersionRef.current
+    setSessionVersion(version)
+    setSessionStatus('checking')
+    setSessionNotice(null)
+    try {
+      const user = await restoreSession()
+      if (version !== sessionVersionRef.current) return
+      setCurrentUser(user)
+      setSessionStatus(user ? 'authenticated' : 'signed-out')
+    } catch {
+      if (version !== sessionVersionRef.current) return
+      setCurrentUser(null)
+      setSessionStatus('unverified')
+      setSessionNotice({ kind: 'error', message: 'Could not check your session. Try again or reload.' })
     }
   }
 
@@ -115,7 +178,7 @@ export default function App() {
     setSessionVersion(++sessionVersionRef.current)
     setCurrentUser(null)
     setSessionStatus('signed-out')
-    setLoginNotice({ kind: 'error', message: 'Your session expired. Sign in again.' })
+    setSessionNotice({ kind: 'error', message: 'Your session expired. Sign in again.' })
   }, [sessionVersion])
 
   return (
@@ -128,7 +191,9 @@ export default function App() {
 
       <section className="session" aria-live="polite">
         <h2>Your session</h2>
-        {sessionStatus === 'checking' ? (
+        {sessionStatus === 'logging-out' ? (
+          <p>Logging out…</p>
+        ) : sessionStatus === 'checking' ? (
           <p>Checking your session…</p>
         ) : sessionStatus === 'authenticated' && currentUser ? (
           <p>
@@ -139,68 +204,74 @@ export default function App() {
         ) : (
           <p>Not signed in.</p>
         )}
+        {sessionStatus === 'authenticated' && (
+          <button type="button" onClick={logOut}>Log out</button>
+        )}
+        {sessionStatus === 'unverified' && (
+          <button type="button" disabled={loggingIn} onClick={checkSession}>Check session</button>
+        )}
+        {sessionNotice && (
+          <p className={sessionNotice.kind} role="status">{sessionNotice.message}</p>
+        )}
       </section>
 
-      <div className="forms">
-        <section>
-          <h2>Create an account</h2>
-          <p>Registration creates your account. You will sign in afterward.</p>
-          <form onSubmit={submitRegistration}>
-            <label>
-              Email
-              <input name="email" type="email" autoComplete="email" required />
-            </label>
-            <label>
-              Username
-              <input name="username" autoComplete="username" required />
-            </label>
-            <label>
-              Password
-              <input
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                required
-              />
-            </label>
-            <button disabled={registering} type="submit">
-              {registering ? 'Creating account…' : 'Create account'}
-            </button>
-          </form>
-          {registrationNotice && (
-            <p className={registrationNotice.kind} role="status">
-              {registrationNotice.message}
-            </p>
-          )}
-        </section>
+      {sessionStatus !== 'authenticated' && sessionStatus !== 'logging-out' && (
+        <div className="forms">
+          <section>
+            <h2>Create an account</h2>
+            <p>Registration creates your account. You will sign in afterward.</p>
+            <form onSubmit={submitRegistration}>
+              <label>
+                Email
+                <input name="email" type="email" autoComplete="email" required />
+              </label>
+              <label>
+                Username
+                <input name="username" autoComplete="username" required />
+              </label>
+              <label>
+                Password
+                <input
+                  name="password"
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                />
+              </label>
+              <button disabled={registering} type="submit">
+                {registering ? 'Creating account…' : 'Create account'}
+              </button>
+            </form>
+            {registrationNotice && (
+              <p className={registrationNotice.kind} role="status">
+                {registrationNotice.message}
+              </p>
+            )}
+          </section>
 
-        <section>
-          <h2>Sign in</h2>
-          <form onSubmit={submitLogin}>
-            <label>
-              Email
-              <input name="email" type="email" autoComplete="email" required />
-            </label>
-            <label>
-              Password
-              <input
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-              />
-            </label>
-            <button disabled={loggingIn || sessionStatus === 'checking'} type="submit">
-              {loggingIn ? 'Signing in…' : 'Sign in'}
-            </button>
-          </form>
-          {loginNotice && (
-            <p className={loginNotice.kind} role="status">
-              {loginNotice.message}
-            </p>
-          )}
-        </section>
-      </div>
+          <section>
+            <h2>Sign in</h2>
+            <form onSubmit={submitLogin}>
+              <label>
+                Email
+                <input name="email" type="email" autoComplete="email" required />
+              </label>
+              <label>
+                Password
+                <input
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                />
+              </label>
+              <button disabled={loggingIn || sessionStatus === 'checking'} type="submit">
+                {loggingIn ? 'Signing in…' : 'Sign in'}
+              </button>
+            </form>
+          </section>
+        </div>
+      )}
 
       {sessionStatus === 'authenticated' && currentUser && (
         <>
