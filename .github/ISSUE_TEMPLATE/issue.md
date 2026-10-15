@@ -6,10 +6,7 @@ labels: ''
 assignees: ''
 ---
 
-<!-- agent-bootstrap
-Before substantive repository work, load /AGENTS.md. That file selects the
-applicable role contract from the requested outcome.
--->
+<!-- repository-agent-context: /AGENTS.md -->
 
 ## Summary
 

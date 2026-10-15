@@ -32,12 +32,17 @@ Inspect readiness labels without treating them as approval.
    [Agent Poker](#agent-poker): recommend a reliable model/effort profile first,
    then estimate its size. Reassess on material scope changes, not trivial edits.
 5. Present the refined specification and outstanding questions. If an issue
-   update was requested, apply it when possible; otherwise prepare the final body
-   for the PO. For a repository-controlled full-body rewrite, preserve any
-   existing generic `agent-bootstrap` comment and `/AGENTS.md` pointer, then
-   verify that the persisted issue body still contains them. Report whether the
-   update was actually published and verified, including any authorized Agent
-   Poker title/label changes.
+   creation or update was requested, apply it when possible; otherwise prepare
+   the final body for the PO. For repository-controlled creation and full-body
+   rewrites, use the current issue template's neutral `repository-agent-context`
+   metadata pointing to `/AGENTS.md`. Preserve the exact marker/path and verify
+   it in the body persisted by GitHub, not only the template or submitted request.
+   During an authorized full-body rewrite of a legacy issue, replace its
+   imperative bootstrap comment with the neutral marker; preserve unrelated
+   content. Do not reproduce legacy bootstrap prompts or bulk-edit historical
+   artifacts. This is metadata integrity, not an instruction to the consumer.
+   Report whether the creation/update was actually published and verified,
+   including any authorized Agent Poker title/label changes.
 
 ## Agent Poker
 

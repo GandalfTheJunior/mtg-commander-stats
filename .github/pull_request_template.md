@@ -1,7 +1,5 @@
-<!-- agent-review-bootstrap
-Before substantive review work, load /AGENTS.md and then
-/docs/agents/roles/reviewer.md. The Reviewer contract is authoritative.
--->
+<!-- repository-agent-context: /AGENTS.md -->
+<!-- repository-review-context: /docs/agents/roles/reviewer.md -->
 
 ## Goal
 
