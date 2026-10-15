@@ -32,6 +32,30 @@ If GitHub writing is available, perform the authorized update; otherwise provide
 the finalized issue body for the PO and state that it was not published. The role
 does not change merely because a client has more or fewer tools.
 
+## Agent Poker planning aid
+
+Agent Poker recommends a reliable Codex execution profile first, then estimates
+its relative impact on the PO's **ChatGPT Plus five-hour Codex allowance**:
+
+| Size label | Qualitative planning meaning |
+| --- | --- |
+| `Pea` 🫛 | Very low expected usage; a small, self-contained task plausibly fitting after a Pumpkin or two Potatoes, if capacity remains. |
+| `Potato` 🥔 | More substantial than a Pea; expected to use less than 50% of a fresh allowance, with enough margin for two typical Potatoes to fit together. |
+| `Pumpkin` 🎃 | Expected to use at least 50% of a fresh allowance; start with substantial capacity and consider useful smaller issues. |
+
+These are qualitative thresholds, not human hours, raw tokens, elapsed runtime,
+or guaranteed percentages. Usage varies with model, reasoning effort, execution
+mode (cloud/local), context, task, tools, and account limits; weekly caps may also
+apply. This is a planning baseline, not a permanent account entitlement; revisit
+it if the PO changes plan or workflow. The PO starts Codex runs manually.
+
+The title convention is `[<Model> // <Reasoning effort>] <Original issue title>`.
+Persist only one concise profile prefix and at most one size label; issue bodies
+carry no estimation prose, scores, percentages, or usage tracking. The
+[Issue Refiner contract](roles/issue-refiner.md#agent-poker) owns profile research,
+estimation, mutation authority, and reassessment. A size is neither readiness nor
+implementation approval.
+
 ## Role transitions
 
 Follow the root transition protocol whenever the PO changes the outcome. For
