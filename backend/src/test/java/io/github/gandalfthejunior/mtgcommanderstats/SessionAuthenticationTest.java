@@ -7,6 +7,9 @@ import java.net.http.HttpResponse;
 import java.util.Locale;
 import java.util.Map;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+
 import io.github.gandalfthejunior.mtgcommanderstats.MtgCommanderStatsApplicationTest.DatabaseConfiguration;
 import io.github.gandalfthejunior.mtgcommanderstats.SessionAuthenticationTest.AuthorizationConfiguration;
 import io.github.gandalfthejunior.mtgcommanderstats.security.UserPrincipal;
@@ -14,11 +17,14 @@ import io.github.gandalfthejunior.mtgcommanderstats.user.application.UserAuthent
 import io.github.gandalfthejunior.mtgcommanderstats.user.persistence.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -38,13 +44,16 @@ import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ExtendWith(OutputCaptureExtension.class)
 @Import({DatabaseConfiguration.class, AuthorizationConfiguration.class})
 class SessionAuthenticationTest {
     @Value("${local.server.port}")
     private int port;
-    @Autowired
+    @MockitoSpyBean
     private UserRepository users;
     @MockitoSpyBean
     private UserAuthenticationDetails authenticationDetails;
@@ -57,6 +66,47 @@ class SessionAuthenticationTest {
     @BeforeEach
     void clearUsers() {
         users.deleteAll();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"DEBUG", "TRACE"})
+    void verboseMvcArgumentLogsDoNotExposeLoginOrRegistrationCredentials(String level, CapturedOutput output) throws Exception {
+        Logger mvc = (Logger) LoggerFactory.getLogger("org.springframework.web.servlet.mvc.method.annotation");
+        Level previous = mvc.getLevel();
+        mvc.setLevel(Level.valueOf(level));
+        try {
+            String registrationPassword = "REGISTRATION_SENTINEL_PASSWORD_36";
+            String loginPassword = "LOGIN_SENTINEL_PASSWORD_36";
+            register(EMAIL, "Gandalf", registrationPassword);
+            HttpResponse<String> invalidRegistration = send(HttpMethod.POST, "/api/users",
+                    json.writeValueAsString(Map.of("email", "invalid", "username", "Gandalf", "password", loginPassword)), "", null);
+            assertThat(invalidRegistration.statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+            HttpResponse<String> csrf = bootstrap("");
+            assertThat(login(EMAIL, loginPassword, cookie(csrf), token(csrf)).statusCode())
+                    .isEqualTo(HttpStatus.UNAUTHORIZED.value());
+            assertThat(login(EMAIL, registrationPassword, cookie(csrf), token(csrf)).statusCode())
+                    .isEqualTo(HttpStatus.OK.value());
+            // Positive controls prove actual framework request-argument logging was exercised.
+            assertThat(output.getOut()).contains("Read \"application/json");
+            assertThat(output.getAll()).doesNotContain(registrationPassword, loginPassword);
+            assertThat(output.getOut()).contains("LoginRequest[redacted]", "RegistrationRequest[redacted]");
+        } finally {
+            mvc.setLevel(previous);
+        }
+    }
+
+    @Test
+    void nulEmailLoginIsTheSameGeneric401AsUnknownCredentials() throws Exception {
+        HttpResponse<String> csrf = bootstrap("");
+        String email = "wizard" + (char) 0 + "@example.com";
+        String body = credentials(email, PASSWORD);
+        assertThat(json.readTree(body).get("email").asText()).isEqualTo(email).contains(String.valueOf((char) 0));
+        HttpResponse<String> response = send(HttpMethod.POST, "/api/session", body, cookie(csrf), token(csrf));
+        HttpResponse<String> unknown = login("unknown@example.com", PASSWORD, cookie(csrf), token(csrf));
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+        verify(users, never()).canonicalizeEmail(email);
+        assertThat(response.body()).isEqualTo(unknown.body());
+        assertThat(response.body()).doesNotContain("SQL", "PostgreSQL", PASSWORD);
     }
 
     @Test

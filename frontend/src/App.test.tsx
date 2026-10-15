@@ -391,19 +391,21 @@ test('session expiration clears group details and ignores a late invitation-code
   expect(screen.queryByDisplayValue('abcdefghijklmnopqrstuv')).not.toBeInTheDocument()
 })
 
-test('switching identity discards old groups and ignores a late create response', async () => {
-  const nextUser = { id: 'e55c4c26-2d30-4ae0-8f9b-6100171ee99a', username: 'Saruman' }
+test.each(['same user', 'different user'])('a confirmed login for %s discards old groups and ignores a late create response', async (identity) => {
+  const nextUser = identity === 'same user' ? user : { id: 'e55c4c26-2d30-4ae0-8f9b-6100171ee99a', username: 'Saruman' }
   const group = { id: '11111111-1111-4111-8111-111111111111', name: 'Old private group', role: 'OWNER' }
   let currentUser = user
+  let reloggedIn = false
   let resolveCreate!: (response: Response) => void
   const pendingCreate = new Promise<Response>((resolve) => { resolveCreate = resolve })
   const fetchMock = vi.fn((path: string, init?: RequestInit) => {
     if (path === '/api/me') return Promise.resolve(jsonResponse(currentUser))
     if (path === '/api/decks') return Promise.resolve(jsonResponse([]))
     if (path === '/api/groups' && init?.method === 'POST') return pendingCreate
-    if (path === '/api/groups') return Promise.resolve(jsonResponse(currentUser.id === user.id ? [group] : []))
+    if (path === '/api/groups') return Promise.resolve(jsonResponse(reloggedIn ? [] : [group]))
     if (path === '/api/csrf') return Promise.resolve(jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'login-token' }))
     if (path === '/api/session') {
+      reloggedIn = true
       currentUser = nextUser
       return Promise.resolve(jsonResponse(nextUser))
     }
@@ -418,10 +420,119 @@ test('switching identity discards old groups and ignores a late create response'
   fireEvent.change(form.getByLabelText('Email'), { target: { value: 'saruman@example.com' } })
   fireEvent.change(form.getByLabelText('Password'), { target: { value: password } })
   fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
-  await screen.findByText('Saruman')
+  await screen.findByText('Login successful.')
   await screen.findByText('You have no groups yet.')
   await act(async () => { resolveCreate(jsonResponse({ ...group, name: 'Unconfirmed old group' }, 201)) })
   expect(screen.queryByText(/Old private group/)).not.toBeInTheDocument()
   expect(screen.queryByText(/Unconfirmed old group/)).not.toBeInTheDocument()
-  expect(screen.getByText('Saruman')).toBeInTheDocument()
+  expect(screen.getByText(nextUser.username)).toBeInTheDocument()
+})
+
+
+for (const identity of ['same user', 'different user']) {
+  for (const operation of ['list', 'create', 'edit', 'delete']) {
+    test.each(['401', '500', 'success', 'network'])(`late ${operation} %s cannot affect a confirmed login for ${identity}`, async (outcome) => {
+      const nextUser = identity === 'same user' ? user : {
+        id: 'e55c4c26-2d30-4ae0-8f9b-6100171ee99a', username: 'Saruman',
+      }
+      const oldDeck = { id: 'old-deck', name: 'Old private deck', commander: 'Atraxa', colorIdentity: [] }
+      const newDeck = { ...oldDeck, id: 'new-deck', name: 'Current session deck' }
+      let resolveOld!: (response: Response) => void
+      let rejectOld!: (error: Error) => void
+      const pendingOld = new Promise<Response>((resolve, reject) => { resolveOld = resolve; rejectOld = reject })
+      let confirmedLogin = false
+      let oldRequestStarted = false
+      const fetchMock = vi.fn((path: string, init?: RequestInit) => {
+        if (path === '/api/me') return Promise.resolve(jsonResponse(confirmedLogin ? nextUser : user))
+        if (path === '/api/csrf') return Promise.resolve(jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'token' }))
+        if (path === '/api/session') {
+          confirmedLogin = true
+          return Promise.resolve(jsonResponse(nextUser))
+        }
+        if (path === '/api/groups') return Promise.resolve(jsonResponse([]))
+        if (path.startsWith('/api/decks')) {
+          if (confirmedLogin) return Promise.resolve(jsonResponse([newDeck]))
+          if (operation === 'list' || init?.method) {
+            oldRequestStarted = true
+            return pendingOld
+          }
+          return Promise.resolve(jsonResponse([oldDeck]))
+        }
+        throw new Error(`Unexpected request: ${path}`)
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      render(<App />)
+      await screen.findByText('Gandalf')
+      if (operation !== 'list') {
+        await screen.findByText(oldDeck.name)
+        if (operation === 'create') {
+          fireEvent.change(screen.getByLabelText('Deck name'), { target: { value: 'Stale created deck' } })
+          fireEvent.change(screen.getByLabelText('Commander'), { target: { value: 'Atraxa' } })
+          fireEvent.click(screen.getByRole('button', { name: 'Create deck' }))
+        } else if (operation === 'edit') {
+          fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+          fireEvent.click(screen.getByRole('button', { name: 'Save deck' }))
+        } else {
+          fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+        }
+      }
+      // Flush CSRF and start the business request before replacing its session.
+      await act(async () => {})
+      expect(oldRequestStarted).toBe(true)
+      const form = loginForm()
+      fireEvent.change(form.getByLabelText('Email'), { target: { value: 'wizard@example.com' } })
+      fireEvent.change(form.getByLabelText('Password'), { target: { value: password } })
+      fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
+      await screen.findByText('Login successful.')
+      await act(async () => {
+        if (outcome === 'network') rejectOld(new Error('Stale network failure'))
+        else if (outcome === '401' || outcome === '500') resolveOld(jsonResponse({ detail: 'Stale request failure' }, Number(outcome)))
+        else if (operation === 'delete') resolveOld(new Response(null, { status: 204 }))
+        else resolveOld(jsonResponse(operation === 'list' ? [oldDeck] : oldDeck, operation === 'create' ? 201 : 200))
+      })
+      expect(screen.getByText(nextUser.username)).toBeInTheDocument()
+      expect(screen.getByText(/Signed in as/)).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'My decks' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Create deck' })).toBeEnabled()
+      expect(screen.getByText(newDeck.name)).toBeInTheDocument()
+      expect(screen.queryByText(oldDeck.name)).not.toBeInTheDocument()
+      expect(screen.queryByText('Stale request failure')).not.toBeInTheDocument()
+      expect(screen.queryByText('Stale network failure')).not.toBeInTheDocument()
+      expect(screen.queryByText('Your session expired. Sign in again.')).not.toBeInTheDocument()
+      expect(screen.queryByText(`${oldDeck.name} created.`)).not.toBeInTheDocument()
+      expect(screen.queryByText(`${oldDeck.name} updated.`)).not.toBeInTheDocument()
+      expect(screen.queryByText(`${oldDeck.name} deleted.`)).not.toBeInTheDocument()
+    })
+  }
+}
+
+
+test.each(['request', 'csrf'])('a current deck %s 401 after re-login still expires the active session', async (source) => {
+  let rejectDeck = false
+  const fetchMock = vi.fn((path: string, init?: RequestInit) => {
+    if (path === '/api/me' || path === '/api/session') return Promise.resolve(jsonResponse(user))
+    if (path === '/api/groups') return Promise.resolve(jsonResponse([]))
+    if (path === '/api/decks') return Promise.resolve(jsonResponse(init?.method ? {} : [], init?.method ? 401 : 200))
+    if (path === '/api/csrf') return Promise.resolve(rejectDeck && source === 'csrf'
+      ? jsonResponse({}, 401) : jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'token' }))
+    throw new Error(`Unexpected request: ${path}`)
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  render(<App />)
+  await screen.findByText('You have no decks yet.')
+  const form = loginForm()
+  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'gandalf@example.com' } })
+  fireEvent.change(form.getByLabelText('Password'), { target: { value: password } })
+  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
+  await screen.findByText('Login successful.')
+  await screen.findByText('You have no decks yet.')
+  rejectDeck = true
+  fireEvent.change(screen.getByLabelText('Deck name'), { target: { value: 'Deck' } })
+  fireEvent.change(screen.getByLabelText('Commander'), { target: { value: 'Atraxa' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Create deck' }))
+  await screen.findByText('Your session expired. Sign in again.')
+  expect(screen.getByText('Not signed in.')).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'My decks' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'My groups' })).not.toBeInTheDocument()
+  if (source === 'csrf') expect(fetchMock.mock.calls.some(([path, init]) => path === '/api/decks' && init?.method)).toBe(false)
 })

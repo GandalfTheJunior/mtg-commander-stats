@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   login,
   registerUser,
@@ -16,6 +16,9 @@ function messageFrom(error: unknown, fallback: string) {
 }
 
 export default function App() {
+  // A new login is a new session lifetime, even when its user UUID is unchanged.
+  const sessionVersionRef = useRef(0)
+  const [sessionVersion, setSessionVersion] = useState(0)
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('checking')
   const [registrationNotice, setRegistrationNotice] = useState<Notice>(null)
@@ -87,6 +90,7 @@ export default function App() {
           password: String(form.get('password')),
         },
         () => {
+          setSessionVersion(++sessionVersionRef.current)
           setCurrentUser(null)
           setSessionStatus('unverified')
         },
@@ -106,10 +110,13 @@ export default function App() {
   }
 
   const sessionExpired = useCallback(() => {
+    // Check synchronously: an old response can arrive before effect cleanup.
+    if (sessionVersion !== sessionVersionRef.current) return
+    setSessionVersion(++sessionVersionRef.current)
     setCurrentUser(null)
     setSessionStatus('signed-out')
     setLoginNotice({ kind: 'error', message: 'Your session expired. Sign in again.' })
-  }, [])
+  }, [sessionVersion])
 
   return (
     <main>
@@ -197,8 +204,8 @@ export default function App() {
 
       {sessionStatus === 'authenticated' && currentUser && (
         <>
-          <DeckManager key={`decks-${currentUser.id}`} onUnauthorized={sessionExpired} />
-          <GroupManager key={`groups-${currentUser.id}`} onUnauthorized={sessionExpired} />
+          <DeckManager key={`decks-${sessionVersion}`} onUnauthorized={sessionExpired} />
+          <GroupManager key={`groups-${sessionVersion}`} onUnauthorized={sessionExpired} />
         </>
       )}
     </main>

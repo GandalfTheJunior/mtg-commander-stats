@@ -14,7 +14,7 @@ function Feedback({ notice }: { notice: Notice }) {
   return notice && <p className={notice.kind} role="status">{notice.message}</p>
 }
 
-// This component is keyed by the authenticated UUID in App. Each selected group
+// This component is keyed by the confirmed session lifetime in App. Each selected group
 // is also a separate lifetime, so old requests cannot restore protected content.
 export default function GroupManager({ onUnauthorized }: { onUnauthorized: () => void }) {
   const [groups, setGroups] = useState<GroupSummary[]>([])

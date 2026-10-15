@@ -95,7 +95,12 @@ public class SessionController {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Provide email and password JSON.");
     }
 
-    public record LoginRequest(String email, String password) {}
+    public record LoginRequest(String email, String password) {
+        @Override
+        public String toString() {
+            return "LoginRequest[redacted]";
+        }
+    }
     public record CurrentUser(UUID id, String username) {}
     public record CsrfResponse(String headerName, String token) {}
 }

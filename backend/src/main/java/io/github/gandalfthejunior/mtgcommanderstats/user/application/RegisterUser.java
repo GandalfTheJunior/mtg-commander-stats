@@ -23,6 +23,9 @@ public class RegisterUser {
 
     @Transactional
     public User register(String email, String username, String password) {
+        if (!emailAddresses.canCanonicalize(email)) {
+            throw new InvalidRegistrationException();
+        }
         String canonicalEmail = users.canonicalizeEmail(email);
         if (!emailAddresses.isValid(canonicalEmail)) {
             throw new InvalidRegistrationException();

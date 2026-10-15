@@ -32,11 +32,14 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(DatabaseConfiguration.class)
@@ -46,7 +49,7 @@ class UserRegistrationTest {
 
     @Value("${local.server.port}")
     private int port;
-    @Autowired
+    @MockitoSpyBean
     private UserRepository users;
     @Autowired
     private PasswordEncoder passwords;
@@ -61,6 +64,22 @@ class UserRegistrationTest {
     @BeforeEach
     void clearUsers() {
         users.deleteAll();
+    }
+
+    @Test
+    void nulEmailIsRejectedThroughRealJsonHttpWithoutCreatingAUser() throws Exception {
+        String email = "wizard" + (char) 0 + "@example.com";
+        String body = json.writeValueAsString(Map.of("email", email, "username", "wizard", "password", PASSWORD));
+        // Assert the JSON represents U+0000, rather than a literal backslash-u sequence.
+        assertThat(json.readTree(body).get("email").asText()).isEqualTo(email).contains(String.valueOf((char) 0));
+        HttpResponse<String> response = send("POST", "/api/users", body);
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(json.readTree(response.body()).get("detail").asText()).startsWith("Provide a valid email");
+        assertThat(response.body()).doesNotContain("SQL", "PostgreSQL", "Registration could not be completed.");
+        verify(users, never()).canonicalizeEmail(email);
+        assertThat(users.count()).isZero();
+        assertThatThrownBy(() -> registerUser.register(email, "wizard", PASSWORD))
+                .isInstanceOf(InvalidRegistrationException.class);
     }
 
     @Test
