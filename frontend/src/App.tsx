@@ -6,6 +6,7 @@ import {
   type CurrentUser,
 } from './api'
 import DeckManager from './DeckManager'
+import GroupManager from './GroupManager'
 
 type Notice = { kind: 'success' | 'error'; message: string } | null
 type SessionStatus = 'checking' | 'signed-out' | 'authenticated' | 'unverified'
@@ -104,7 +105,7 @@ export default function App() {
     }
   }
 
-  const deckSessionExpired = useCallback(() => {
+  const sessionExpired = useCallback(() => {
     setCurrentUser(null)
     setSessionStatus('signed-out')
     setLoginNotice({ kind: 'error', message: 'Your session expired. Sign in again.' })
@@ -195,7 +196,10 @@ export default function App() {
       </div>
 
       {sessionStatus === 'authenticated' && currentUser && (
-        <DeckManager onUnauthorized={deckSessionExpired} />
+        <>
+          <DeckManager key={`decks-${currentUser.id}`} onUnauthorized={sessionExpired} />
+          <GroupManager key={`groups-${currentUser.id}`} onUnauthorized={sessionExpired} />
+        </>
       )}
     </main>
   )

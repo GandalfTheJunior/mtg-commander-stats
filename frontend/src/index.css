@@ -176,3 +176,45 @@ button.danger {
 .error {
   color: #a12323;
 }
+
+.groups {
+  border: 1px solid #d4d9d2;
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 1.5rem;
+  margin-top: 1.25rem;
+}
+
+.group-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+.group-list button[aria-pressed='true'] {
+  outline: 0.2rem solid #20262e;
+  outline-offset: 0.1rem;
+}
+
+.group-details,
+.confirmation {
+  border-top: 1px solid #d4d9d2;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+}
+
+.group-details h3 {
+  margin-top: 1.25rem;
+}
+
+.member-id,
+.group-details input {
+  overflow-wrap: anywhere;
+  font-family: monospace;
+}
+
+input {
+  min-width: 0;
+}

@@ -1,7 +1,7 @@
 # Play groups API
 
-The backend play-group and membership API is available under `/api/groups`. A
-group browser UI is not implemented yet. Every endpoint requires the existing
+The backend play-group and membership API is available under `/api/groups`. The
+browser My groups feature consumes this contract. Every endpoint requires the existing
 authenticated session. Unsafe requests also require the current CSRF token.
 Actor, owner, and role always come from the authenticated principal and server
 state; request fields cannot select or override them. Create accepts only `name`,
