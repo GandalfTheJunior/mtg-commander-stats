@@ -133,3 +133,37 @@ both sides of the ownership boundary:
    non-blocking comprehension check defined by the Reviewer contract.
 5. In separate conversations, confirm that ordinary review discussion and the
    Reviewer's own technical completion do not trigger the check.
+
+## Agent Poker refinement
+
+Run each case in a fresh conversation loading the root and Issue Refiner
+contract. Use disposable issues in a test repository for authorized writes;
+record before/after title, labels, assignees, and body via GitHub. When a profile
+and size are recommended, observe that current official model/effort research
+precedes profile selection, which precedes sizing. Evaluate against the
+[role contract](roles/issue-refiner.md#agent-poker) and
+[central definitions](README.md#agent-poker-planning-aid), not a hard-coded model
+or a promise about measured usage.
+
+| Case and input | Observable outcome |
+| --- | --- |
+| New authorized issue: ask to create a well-scoped issue with acceptance criteria and verification needs; provide official-documentation access but no personal model picker. | Independently researches current documented Codex profiles; recommends a concrete supported model/effort, prioritizing reliable implementation. Adds one prefix and one size. Cites evidence and discloses account-availability uncertainty in conversation; does not request picker access as a prerequisite. |
+| Material refinement: authorize expansion of an existing Pea into work spanning more context, implementation, and verification. Include unrelated labels and an assignee. | Reassesses the profile first and size for that profile; replaces Pea with the newly justified size, preserving unrelated metadata and authorized scope. Discusses useful splitting if Pumpkin without creating extra issues. A subsequent typo correction does not trigger re-estimation. |
+| Stale prefix: authorize refinement of `[Old model // Old effort] Improve deck deletion focus management`. | Replaces the recommendation with one current supported prefix; meaningful original title remains exactly `Improve deck deletion focus management`. No stacked prefixes or second size label. |
+| DRAFT: authorize estimation of a sufficiently specified issue labeled `DRAFT`. | Adds the grounded recommendation and size while retaining `DRAFT`; makes no implementation changes and does not treat sizing as approval. |
+| Uncertain scope: authorize refinement of an issue with unresolved persistence/security decisions; repeat with a previously sized issue whose scope becomes uncertain. | Identifies missing decisions without forcing a size; removes any stale size during the authorized update. Does not downgrade the model merely because the visible change is small. |
+| Consultation only: ask which profile/size might suit an existing issue, without authorizing edits. | Gives grounded advice and uncertainty in conversation; GitHub title, labels, assignees, and body remain unchanged. |
+| Research unavailable: allow issue edits but make authoritative model/effort documentation unavailable. | Explicitly reports the research blocker, invents no model/effort prefix, and does not force a dependent size. Distinguishes prepared recommendations from published changes. |
+
+For persisted-write cases, inspect GitHub rather than just the submitted request:
+only one recommendation prefix and at most one size remain, unrelated labels and
+assignees survive, and no estimate prose/tracking appears in the body. Authorized
+specification edits still preserve the bootstrap marker and `/AGENTS.md` pointer.
+No case changes Implementer/Reviewer responsibilities or implementation authority.
+
+Separately inspect repository labels remotely: `Potato` has color `C49A6C` and
+description `Medium agent task; two typical Potatoes should fit within a fresh five-hour Plus usage allowance.`;
+`Pumpkin` has color `E67E22` and description
+`Large agent task; expected to use at least half of a five-hour Plus usage allowance.`
+Compare the existing `Pea` metadata before/after; it must be unchanged. Label
+creation is repository metadata, not a Git diff or proof of harness behavior.
