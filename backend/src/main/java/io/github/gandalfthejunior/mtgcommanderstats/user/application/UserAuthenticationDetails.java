@@ -22,6 +22,9 @@ public class UserAuthenticationDetails implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String email) {
+        if (!emailAddresses.canCanonicalize(email)) {
+            throw new UsernameNotFoundException("Invalid credentials.");
+        }
         String canonicalEmail = users.canonicalizeEmail(email);
         if (!emailAddresses.isValid(canonicalEmail)) {
             throw new UsernameNotFoundException("Invalid credentials.");

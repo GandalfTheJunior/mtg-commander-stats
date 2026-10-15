@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   ApiError,
   createDeck,
@@ -66,6 +66,12 @@ function DeckFields({ deck }: { deck?: Deck }) {
 }
 
 export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => void }) {
+  const active = useRef(false)
+  useEffect(() => {
+    active.current = true
+    return () => { active.current = false }
+  }, [])
+
   const [decks, setDecks] = useState<Deck[]>([])
   const [loadStatus, setLoadStatus] = useState<LoadStatus>('loading')
   const [busy, setBusy] = useState(false)
@@ -73,6 +79,7 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
   const [notice, setNotice] = useState<Notice>(null)
 
   const handleError = useCallback((error: unknown, fallback: string) => {
+    if (!active.current) return
     if (error instanceof ApiError && error.status === 401) {
       onUnauthorized()
       return
@@ -108,13 +115,14 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
     setNotice(null)
     try {
       const created = await createDeck(deckInput(form))
+      if (!active.current) return
       setDecks((current) => [...current, created])
       setNotice({ kind: 'success', message: `${created.name} created.` })
       form.reset()
     } catch (error) {
       handleError(error, 'Could not create the deck.')
     } finally {
-      setBusy(false)
+      if (active.current) setBusy(false)
     }
   }
 
@@ -125,13 +133,14 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
     setNotice(null)
     try {
       const updated = await updateDeck(id, deckInput(event.currentTarget))
+      if (!active.current) return
       setDecks((current) => current.map((deck) => (deck.id === id ? updated : deck)))
       setEditingId(null)
       setNotice({ kind: 'success', message: `${updated.name} updated.` })
     } catch (error) {
       handleError(error, 'Could not update the deck.')
     } finally {
-      setBusy(false)
+      if (active.current) setBusy(false)
     }
   }
 
@@ -141,12 +150,13 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
     setNotice(null)
     try {
       await deleteDeck(deck.id)
+      if (!active.current) return
       setDecks((current) => current.filter((candidate) => candidate.id !== deck.id))
       setNotice({ kind: 'success', message: `${deck.name} deleted.` })
     } catch (error) {
       handleError(error, 'Could not delete the deck.')
     } finally {
-      setBusy(false)
+      if (active.current) setBusy(false)
     }
   }
 

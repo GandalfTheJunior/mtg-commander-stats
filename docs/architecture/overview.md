@@ -83,7 +83,8 @@ rule; email canonicalization and exact password handling remain separate.
 Email canonicalization is owned by the Flyway-defined `canonical_email`
 function: trim the product-defined boundary whitespace, apply PostgreSQL 18
 `casefold` under explicit `pg_catalog.pg_unicode_fast`, then lowercase under the same
-collation (including Cherokee). Registration and authentication call this function
+collation (including Cherokee). Registration and authentication reject null and
+NUL-containing input before any database text operation, then call this function
 through the user repository; the database CHECK uses that exact function too.
 The email column uses deterministic `C` collation for exact canonical-key
 uniqueness. This avoids divergent Java/database case mappings and needs no new
@@ -161,9 +162,13 @@ before updating the UI. Failed CSRF preparation retains HTTP status information,
 so a 401 follows the same session-expiration path as a business-request 401.
 A 403 remains an access/CSRF error rather than asserting session expiration.
 
-Group state is scoped to the user's UUID, and details/code state to the selected
-group's component lifetime. Request cleanup ignores late results after a group
-or identity change. Closing/reopening or explicitly refreshing details fetches
+Protected browser state is scoped to each confirmed session lifetime, including
+when the same user signs in again. A successful login invalidates callbacks from
+the previous session before refreshing CSRF and confirming identity. Deck and
+group components remount for the new session; late results from their previous
+lifetime cannot update protected state or expire the new session. Group
+details/code state is also scoped to the selected group's component lifetime.
+Request cleanup ignores late results after a group or identity change. Closing/reopening or explicitly refreshing details fetches
 active members again and discards any displayed invitation code. A 403 from a
 group action triggers a safe details GET to distinguish active membership from
 CSRF/authorization denial. Protected details/code are hidden during this check;

@@ -13,6 +13,11 @@ public class EmailAddressValidator {
         this.validator = validator;
     }
 
+    public boolean canCanonicalize(String email) {
+        // PostgreSQL text cannot represent NUL. Check before sending any email to the database.
+        return email != null && email.indexOf(0) < 0;
+    }
+
     public boolean isValid(String email) {
         return validator.validate(new Candidate(email)).isEmpty();
     }
