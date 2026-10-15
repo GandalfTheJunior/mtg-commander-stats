@@ -90,6 +90,7 @@ test('restores and displays the current user from an existing session', async ()
 
   expect(await screen.findByText('Gandalf')).toBeInTheDocument()
   expect(screen.getByText(/Signed in as/)).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument()
   expect(fetchMock).toHaveBeenCalledWith('/api/me', {
     credentials: 'same-origin',
   })
@@ -362,33 +363,32 @@ test.each(['request', 'csrf'])('a group 401 during %s expires the session and cl
   if (source === 'csrf') expect(fetchMock.mock.calls.some(([path]) => path === '/api/groups/join')).toBe(false)
 })
 
-test('sign-out clears group details and a late invitation-code response cannot restore them', async () => {
+test('session expiration clears group details and ignores a late invitation-code response', async () => {
   const group = { id: '11111111-1111-4111-8111-111111111111', name: 'Private group', role: 'OWNER' }
   let resolveCode!: (response: Response) => void
   const pendingCode = new Promise<Response>((resolve) => { resolveCode = resolve })
-  const fetchMock = vi.fn((path: string) => {
+  const fetchMock = vi.fn((path: string, init?: RequestInit) => {
     if (path === '/api/me') return Promise.resolve(jsonResponse(user))
+    if (path === '/api/decks' && init?.method === 'POST') return Promise.resolve(jsonResponse({}, 401))
     if (path === '/api/decks') return Promise.resolve(jsonResponse([]))
     if (path === '/api/groups') return Promise.resolve(jsonResponse([group]))
     if (path === `/api/groups/${group.id}`) return Promise.resolve(jsonResponse({ ...group, members: [] }))
     if (path.endsWith('/join-code')) return pendingCode
-    if (path === '/api/csrf') return Promise.resolve(jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'logout-token' }))
-    if (path === '/api/session') return Promise.resolve(new Response(null, { status: 204 }))
+    if (path === '/api/csrf') return Promise.resolve(jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'deck-token' }))
     throw new Error(`Unexpected request: ${path}`)
   })
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
   fireEvent.click(await screen.findByRole('button', { name: 'Private group (OWNER)' }))
   fireEvent.click(await screen.findByRole('button', { name: 'Show invitation code' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
-  await screen.findByText('Signed out.')
+  fireEvent.change(screen.getByLabelText('Deck name'), { target: { value: 'My deck' } })
+  fireEvent.change(screen.getByLabelText('Commander'), { target: { value: 'Atraxa' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Create deck' }))
+  await screen.findByText('Your session expired. Sign in again.')
   await act(async () => { resolveCode(jsonResponse({ code: 'abcdefghijklmnopqrstuv' })) })
   expect(screen.queryByRole('heading', { name: 'My groups' })).not.toBeInTheDocument()
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
   expect(screen.queryByDisplayValue('abcdefghijklmnopqrstuv')).not.toBeInTheDocument()
-  expect(fetchMock).toHaveBeenCalledWith('/api/session', {
-    credentials: 'same-origin', method: 'DELETE', headers: { 'X-CSRF-TOKEN': 'logout-token' },
-  })
 })
 
 test('switching identity discards old groups and ignores a late create response', async () => {

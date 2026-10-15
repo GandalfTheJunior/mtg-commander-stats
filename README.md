@@ -114,8 +114,9 @@ An OWNER can show/copy the invitation code and regenerate it after confirming
 that the old code will stop working. If clipboard access fails, copy the visible
 code manually. A MEMBER can leave after confirming the loss of active access;
 historical membership/results remain associated with the user. Rejoin using a
-current code. Owners cannot leave. **Sign out** clears protected browser content;
-an expired session also clears it and asks the user to sign in again.
+current code. Owners cannot leave. An expired session clears protected browser
+content and asks the user to sign in again. Browser sign-out remains tracked in
+[issue #37](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/37).
 
 The browser uses the existing session/CSRF flow and the merged
 [play groups API](docs/product/groups-api.md), with no new backend endpoints.

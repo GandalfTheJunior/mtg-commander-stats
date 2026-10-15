@@ -314,7 +314,3 @@ export async function getJoinCode(id: string, regenerate = false): Promise<strin
 export async function leaveGroup(id: string): Promise<void> {
   await checkedResponse(await unsafeRequest('DELETE', `/api/groups/${encodeURIComponent(id)}/membership`), 204, 'Could not leave the group.')
 }
-
-export async function logout(): Promise<void> {
-  await checkedResponse(await unsafeRequest('DELETE', '/api/session'), 204, 'Could not sign out.')
-}

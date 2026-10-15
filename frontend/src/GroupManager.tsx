@@ -201,6 +201,30 @@ function GroupView({ id, busy, setBusy, onUnauthorized, onAccessLost, onLeft, on
     setRevision((value) => value + 1)
   }
 
+  async function handleActionError(error: unknown) {
+    if (!active.current) return
+    if (!(error instanceof ApiError) || error.status !== 403) {
+      handleError(error)
+      return
+    }
+
+    // Unsafe requests (including CSRF preparation) may be denied while the
+    // membership is still active. Hide protected data until a safe GET verifies
+    // access; only its 403/404 establishes that group access was lost.
+    setDetails(null)
+    setCode(null)
+    setNotice({ kind: 'error', message: 'The action was denied (authorization or CSRF). Checking group access…' })
+    try {
+      const group = await getGroup(id)
+      if (!active.current) return
+      setDetails(group)
+      if (group.role === 'OWNER') setCode(code)
+      setNotice({ kind: 'error', message: 'The action was denied (authorization or CSRF). Please try again.' })
+    } catch (accessError) {
+      if (active.current) handleError(accessError)
+    }
+  }
+
   async function act(operation: 'retrieve' | 'regenerate' | 'leave' | 'copy') {
     if (busy || pending.current || !details) return
     pending.current = true
@@ -226,7 +250,7 @@ function GroupView({ id, busy, setBusy, onUnauthorized, onAccessLost, onLeft, on
         }
       }
     } catch (error) {
-      if (active.current) handleError(error)
+      await handleActionError(error)
     } finally {
       // The parent may have removed this view after a successful leave/denial.
       if (active.current) pending.current = false

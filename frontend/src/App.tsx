@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
-  ApiError,
   login,
-  logout,
   registerUser,
   restoreSession,
   type CurrentUser,
@@ -24,7 +22,6 @@ export default function App() {
   const [loginNotice, setLoginNotice] = useState<Notice>(null)
   const [registering, setRegistering] = useState(false)
   const [loggingIn, setLoggingIn] = useState(false)
-  const [signingOut, setSigningOut] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -114,22 +111,6 @@ export default function App() {
     setLoginNotice({ kind: 'error', message: 'Your session expired. Sign in again.' })
   }, [])
 
-  async function signOut() {
-    setSigningOut(true)
-    setLoginNotice(null)
-    try {
-      await logout()
-      setCurrentUser(null)
-      setSessionStatus('signed-out')
-      setLoginNotice({ kind: 'success', message: 'Signed out.' })
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) sessionExpired()
-      else setLoginNotice({ kind: 'error', message: messageFrom(error, 'Could not sign out.') })
-    } finally {
-      setSigningOut(false)
-    }
-  }
-
   return (
     <main>
       <header>
@@ -143,12 +124,9 @@ export default function App() {
         {sessionStatus === 'checking' ? (
           <p>Checking your session…</p>
         ) : sessionStatus === 'authenticated' && currentUser ? (
-          <div><p>
+          <p>
             Signed in as <strong>{currentUser.username}</strong>.
           </p>
-          <button type="button" disabled={signingOut || loggingIn} onClick={signOut}>
-            {signingOut ? 'Signing out…' : 'Sign out'}
-          </button></div>
         ) : sessionStatus === 'unverified' ? (
           <p>Your session identity could not be confirmed.</p>
         ) : (
@@ -205,7 +183,7 @@ export default function App() {
                 required
               />
             </label>
-            <button disabled={loggingIn || signingOut || sessionStatus === 'checking'} type="submit">
+            <button disabled={loggingIn || sessionStatus === 'checking'} type="submit">
               {loggingIn ? 'Signing in…' : 'Sign in'}
             </button>
           </form>

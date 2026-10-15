@@ -164,9 +164,16 @@ A 403 remains an access/CSRF error rather than asserting session expiration.
 Group state is scoped to the user's UUID, and details/code state to the selected
 group's component lifetime. Request cleanup ignores late results after a group
 or identity change. Closing/reopening or explicitly refreshing details fetches
-active members again and discards any displayed invitation code. Access denial
-clears inaccessible details/code and reloads the active group list. Only a
+active members again and discards any displayed invitation code. A 403 from a
+group action triggers a safe details GET to distinguish active membership from
+CSRF/authorization denial. Protected details/code are hidden during this check;
+a successful check restores details and, for an OWNER, the previous code.
+A details GET returning 403/404 confirms lost access, clears details/code and
+reloads the active group list. A failed check leaves protected data hidden and
+allows an explicit refresh without asserting membership loss. Only a
 confirmed OWNER gets code controls and code requests; the server remains the
 authorization boundary. MEMBER departure and code regeneration require visible
-confirmation. Sign-out and session expiration unmount protected group content.
+confirmation. Identity changes and session expiration unmount protected group
+content. Browser sign-out is deferred to
+[issue #37](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/37).
 No router, real-time infrastructure, or new dependencies were added.
