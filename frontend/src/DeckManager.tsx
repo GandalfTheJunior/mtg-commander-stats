@@ -68,6 +68,9 @@ function DeckFields({ deck }: { deck?: Deck }) {
 export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => void }) {
   const active = useRef(false)
   const deleting = useRef(false)
+  const deleteTrigger = useRef<HTMLButtonElement | null>(null)
+  const deletionConfirmation = useRef<HTMLDivElement | null>(null)
+  const noticeElement = useRef<HTMLParagraphElement | null>(null)
   useEffect(() => {
     active.current = true
     return () => { active.current = false }
@@ -79,6 +82,18 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [notice, setNotice] = useState<Notice>(null)
+
+  useEffect(() => {
+    if (deletingId !== null) {
+      // The named group stays focusable while its action buttons are disabled.
+      deletionConfirmation.current?.focus()
+    } else if (deleteTrigger.current) {
+      // Cancel restores the trigger; successful deletion removes it.
+      if (deleteTrigger.current.isConnected) deleteTrigger.current.focus()
+      else noticeElement.current?.focus()
+      deleteTrigger.current = null
+    }
+  }, [deletingId, busy])
 
   const handleError = useCallback((error: unknown, fallback: string) => {
     if (!active.current) return
@@ -205,14 +220,18 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
                     <button
                       className="danger"
                       disabled={busy || deletingId !== null}
-                      onClick={() => { setNotice(null); setDeletingId(deck.id) }}
+                      onClick={(event) => {
+                        deleteTrigger.current = event.currentTarget
+                        setNotice(null)
+                        setDeletingId(deck.id)
+                      }}
                       type="button"
                     >
                       Delete
                     </button>
                   </div>
                   {deletingId === deck.id && (
-                    <div role="group" aria-label={`Delete ${deck.name}?`}>
+                    <div ref={deletionConfirmation} role="group" aria-label={`Delete ${deck.name}?`} tabIndex={-1}>
                       <p>Permanently delete {deck.name}? This cannot be undone.</p>
                       <button className="danger" disabled={busy} type="button" onClick={() => removeDeck(deck)}>
                         {busy ? 'Deleting…' : 'Confirm deletion'}
@@ -241,7 +260,7 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
         </>
       )}
       {notice && (
-        <p className={notice.kind} role="status">
+        <p ref={noticeElement} className={notice.kind} role="status" tabIndex={-1}>
           {notice.message}
         </p>
       )}
