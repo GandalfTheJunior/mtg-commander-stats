@@ -4,6 +4,9 @@ import java.util.UUID;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.core.NestedExceptionUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -31,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class SessionController {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SessionController.class);
     private final AuthenticationManager authenticationManager;
     private final SessionAuthenticationStrategy sessions;
     private final SecurityContextRepository contexts;
@@ -86,7 +90,11 @@ public class SessionController {
     }
 
     @ExceptionHandler(AuthenticationServiceException.class)
-    public ProblemDetail authenticationServiceFailure() {
+    public ProblemDetail authenticationServiceFailure(AuthenticationServiceException exception) {
+        // Exception messages and throwable rendering can contain credentials or request values.
+        Throwable cause = NestedExceptionUtils.getMostSpecificCause(exception);
+        LOGGER.error("Unexpected authentication service failure; exceptionType={}, causeType={}, causeStack={}",
+                exception.getClass().getName(), cause.getClass().getName(), cause.getStackTrace());
         return ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "Authentication unavailable.");
     }
 

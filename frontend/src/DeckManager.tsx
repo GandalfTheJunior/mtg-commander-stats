@@ -67,6 +67,7 @@ function DeckFields({ deck }: { deck?: Deck }) {
 
 export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => void }) {
   const active = useRef(false)
+  const deleting = useRef(false)
   useEffect(() => {
     active.current = true
     return () => { active.current = false }
@@ -75,6 +76,7 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
   const [decks, setDecks] = useState<Deck[]>([])
   const [loadStatus, setLoadStatus] = useState<LoadStatus>('loading')
   const [busy, setBusy] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [notice, setNotice] = useState<Notice>(null)
 
@@ -145,17 +147,20 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
   }
 
   async function removeDeck(deck: Deck) {
-    if (loadStatus !== 'loaded') return
+    if (loadStatus !== 'loaded' || deleting.current) return
+    deleting.current = true
     setBusy(true)
     setNotice(null)
     try {
       await deleteDeck(deck.id)
       if (!active.current) return
       setDecks((current) => current.filter((candidate) => candidate.id !== deck.id))
+      setDeletingId(null)
       setNotice({ kind: 'success', message: `${deck.name} deleted.` })
     } catch (error) {
-      handleError(error, 'Could not delete the deck.')
+      handleError(error, 'Could not delete the deck. Try again or cancel.')
     } finally {
+      deleting.current = false
       if (active.current) setBusy(false)
     }
   }
@@ -194,18 +199,29 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
                   <p>Commander: {deck.commander}</p>
                   <p>Color identity: {deck.colorIdentity.join('') || 'Colorless'}</p>
                   <div className="actions">
-                    <button disabled={busy} onClick={() => setEditingId(deck.id)} type="button">
+                    <button disabled={busy || deletingId !== null} onClick={() => setEditingId(deck.id)} type="button">
                       Edit
                     </button>
                     <button
                       className="danger"
-                      disabled={busy}
-                      onClick={() => removeDeck(deck)}
+                      disabled={busy || deletingId !== null}
+                      onClick={() => { setNotice(null); setDeletingId(deck.id) }}
                       type="button"
                     >
                       Delete
                     </button>
                   </div>
+                  {deletingId === deck.id && (
+                    <div role="group" aria-label={`Delete ${deck.name}?`}>
+                      <p>Permanently delete {deck.name}? This cannot be undone.</p>
+                      <button className="danger" disabled={busy} type="button" onClick={() => removeDeck(deck)}>
+                        {busy ? 'Deleting…' : 'Confirm deletion'}
+                      </button>
+                      <button disabled={busy} type="button" onClick={() => { setDeletingId(null); setNotice(null) }}>
+                        Cancel deletion
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
             </li>
@@ -218,7 +234,7 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
           <h3>Add a deck</h3>
           <form onSubmit={submitCreate}>
             <DeckFields />
-            <button disabled={busy} type="submit">
+            <button disabled={busy || deletingId !== null} type="submit">
               {busy ? 'Saving…' : 'Create deck'}
             </button>
           </form>

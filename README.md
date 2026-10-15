@@ -103,6 +103,11 @@ username from `GET /api/me`, and restores that session after a reload. An
 authenticated user can list, create, edit, and delete their own manually entered
 decks in the **My decks** area. Deck changes use the existing CSRF/session flow,
 persist in PostgreSQL, and remain scoped to the authenticated user's stable UUID.
+Deleting an unused deck asks for confirmation naming that deck; canceling sends
+no deletion request. Signed-in users can **Log out**; login and registration
+forms are shown again after logout. Protected deck/group content and invitation
+codes are hidden during logout. Failed attempts recheck the session and offer
+retry; an unavailable identity check keeps protected content hidden.
 
 In **My groups**, create a named group or join/rejoin using a current invitation
 code. Select a group to see your role and active members; UUIDs distinguish users

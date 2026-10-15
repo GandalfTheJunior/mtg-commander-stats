@@ -132,6 +132,14 @@ login or logout. Security responses are not cacheable. Session cookies retain
 framework defaults (including HttpOnly); deployment-specific settings remain
 externally configurable through Spring Boot's `server.servlet.session.*`
 properties. No shared session store or additional persistence is introduced.
+
+Unexpected registration and authentication service failures produce ERROR
+application diagnostics with exception types and root-cause stack frames.
+Exception messages, throwable rendering, and request values are excluded because
+these may contain credentials, cookies, or CSRF tokens. Client 500 details remain
+generic; expected validation, credential, and duplicate failures do not use these
+application ERROR paths.
+
 Passwords use Spring Security's versioned PBKDF2 encoder through a delegating
 encoder, supporting long passphrases without bcrypt's 72-byte limit. The User
 owns its UUID, canonical email, display username, and encoded password; API DTOs
@@ -179,6 +187,11 @@ allows an explicit refresh without asserting membership loss. Only a
 confirmed OWNER gets code controls and code requests; the server remains the
 authorization boundary. MEMBER departure and code regeneration require visible
 confirmation. Identity changes and session expiration unmount protected group
-content. Browser sign-out is deferred to
-[issue #37](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/37).
+content. Browser logout advances the session version and unmounts both deck and
+group content before CSRF preparation and DELETE. Only `204` confirms completion;
+other statuses or network failures recheck `/api/me`. A valid identity remounts
+fresh managers, an absent identity exposes signed-out controls without a success
+claim, and an unavailable check keeps protected content hidden until an explicit
+session check or login. Recovery and initial identity checks also respect the
+session version, so old results cannot restore retired state or invitation codes.
 No router, real-time infrastructure, or new dependencies were added.

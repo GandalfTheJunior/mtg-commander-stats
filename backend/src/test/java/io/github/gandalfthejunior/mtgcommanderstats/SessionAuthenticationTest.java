@@ -81,6 +81,9 @@ class SessionAuthenticationTest {
             HttpResponse<String> invalidRegistration = send(HttpMethod.POST, "/api/users",
                     json.writeValueAsString(Map.of("email", "invalid", "username", "Gandalf", "password", loginPassword)), "", null);
             assertThat(invalidRegistration.statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+            HttpResponse<String> duplicateRegistration = send(HttpMethod.POST, "/api/users",
+                    json.writeValueAsString(Map.of("email", EMAIL, "username", "Other", "password", registrationPassword)), "", null);
+            assertThat(duplicateRegistration.statusCode()).isEqualTo(HttpStatus.CONFLICT.value());
             HttpResponse<String> csrf = bootstrap("");
             assertThat(login(EMAIL, loginPassword, cookie(csrf), token(csrf)).statusCode())
                     .isEqualTo(HttpStatus.UNAUTHORIZED.value());
@@ -88,7 +91,8 @@ class SessionAuthenticationTest {
                     .isEqualTo(HttpStatus.OK.value());
             // Positive controls prove actual framework request-argument logging was exercised.
             assertThat(output.getOut()).contains("Read \"application/json");
-            assertThat(output.getAll()).doesNotContain(registrationPassword, loginPassword);
+            assertThat(output.getAll()).doesNotContain(registrationPassword, loginPassword,
+                    "Unexpected registration failure", "Unexpected authentication service failure");
             assertThat(output.getOut()).contains("LoginRequest[redacted]", "RegistrationRequest[redacted]");
         } finally {
             mvc.setLevel(previous);
@@ -172,15 +176,18 @@ class SessionAuthenticationTest {
     }
 
     @Test
-    void internalAuthenticationServiceFailureIsNotReportedAsInvalidCredentials() throws Exception {
+    void internalAuthenticationServiceFailureIsNotReportedAsInvalidCredentials(CapturedOutput output) throws Exception {
         register(EMAIL, "Gandalf", PASSWORD);
         HttpResponse<String> csrf = bootstrap("");
-        doThrow(new IllegalStateException("Authentication store unavailable"))
+        doThrow(new IllegalStateException("AUTH_SECRET password cookie csrf", new UnsupportedOperationException("NESTED_AUTH_SECRET")))
                 .when(authenticationDetails).loadUserByUsername(EMAIL);
 
         HttpResponse<String> response = login(EMAIL, PASSWORD, cookie(csrf), token(csrf));
         assertThat(response.statusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.value());
-        assertThat(response.body()).doesNotContain("Invalid credentials.", "Authentication store unavailable");
+        assertThat(json.readTree(response.body()).get("detail").asText()).isEqualTo("Authentication unavailable.");
+        assertThat(output.getAll()).contains("ERROR", "Unexpected authentication service failure", "UnsupportedOperationException",
+                "SessionAuthenticationTest.internalAuthenticationServiceFailure");
+        assertThat(output.getAll() + response.body()).doesNotContain("AUTH_SECRET", "NESTED_AUTH_SECRET", PASSWORD, token(csrf), cookie(csrf));
     }
 
     @Test

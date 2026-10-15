@@ -22,6 +22,11 @@ function loginForm() {
   return within(screen.getByRole('heading', { name: 'Sign in' }).closest('section')!)
 }
 
+async function logOutBeforeLogin() {
+  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  await screen.findByText('Logged out.')
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
 })
@@ -90,7 +95,9 @@ test('restores and displays the current user from an existing session', async ()
 
   expect(await screen.findByText('Gandalf')).toBeInTheDocument()
   expect(screen.getByText(/Signed in as/)).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Create an account' })).not.toBeInTheDocument()
   expect(fetchMock).toHaveBeenCalledWith('/api/me', {
     credentials: 'same-origin',
   })
@@ -237,34 +244,19 @@ test('invalid credentials leave an unauthenticated UI signed out', async () => {
   expect(screen.queryByText(/Signed in as/)).not.toBeInTheDocument()
 })
 
-test('failed re-login preserves an existing authenticated UI state', async () => {
-  const fetchMock = vi
-    .fn()
+test('confirmed authentication hides credentials forms and prevents browser re-login until logout', async () => {
+  const fetchMock = vi.fn()
     .mockResolvedValueOnce(jsonResponse(user))
     .mockResolvedValueOnce(jsonResponse([]))
     .mockResolvedValueOnce(jsonResponse([]))
-    .mockResolvedValueOnce(
-      jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'login-token' }),
-    )
-    .mockResolvedValueOnce(jsonResponse({ detail: 'Invalid credentials.' }, 401))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
-  await screen.findByText('Gandalf')
   await screen.findByText('You have no decks yet.')
-
-  const form = loginForm()
-  fireEvent.change(form.getByLabelText('Email'), {
-    target: { value: 'gandalf@example.com' },
-  })
-  fireEvent.change(form.getByLabelText('Password'), {
-    target: { value: 'wrong password' },
-  })
-  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
-
-  expect(await screen.findByText('Invalid credentials.')).toBeInTheDocument()
-  expect(screen.getByText('Gandalf')).toBeInTheDocument()
-  expect(screen.getByText(/Signed in as/)).toBeInTheDocument()
-  expect(screen.queryByText('Not signed in.')).not.toBeInTheDocument()
+  expect(screen.getByText(user.username)).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Create an account' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Log out' })).toBeEnabled()
+  expect(fetchMock).toHaveBeenCalledTimes(3)
 })
 
 test('does not preserve a previous identity when post-login CSRF refresh fails', async () => {
@@ -273,6 +265,8 @@ test('does not preserve a previous identity when post-login CSRF refresh fails',
     .mockResolvedValueOnce(jsonResponse(user))
     .mockResolvedValueOnce(jsonResponse([]))
     .mockResolvedValueOnce(jsonResponse([]))
+    .mockResolvedValueOnce(jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'logout-token' }))
+    .mockResolvedValueOnce(new Response(null, { status: 204 }))
     .mockResolvedValueOnce(
       jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'login-token' }),
     )
@@ -288,6 +282,7 @@ test('does not preserve a previous identity when post-login CSRF refresh fails',
   await screen.findByText('Gandalf')
   await screen.findByText('You have no decks yet.')
 
+  await logOutBeforeLogin()
   const form = loginForm()
   fireEvent.change(form.getByLabelText('Email'), {
     target: { value: 'saruman@example.com' },
@@ -359,7 +354,7 @@ test.each(['request', 'csrf'])('a group 401 during %s expires the session and cl
   await screen.findByText('Your session expired. Sign in again.')
   expect(screen.queryByRole('heading', { name: 'My groups' })).not.toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'My decks' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Log out' })).not.toBeInTheDocument()
   if (source === 'csrf') expect(fetchMock.mock.calls.some(([path]) => path === '/api/groups/join')).toBe(false)
 })
 
@@ -404,6 +399,7 @@ test.each(['same user', 'different user'])('a confirmed login for %s discards ol
     if (path === '/api/groups' && init?.method === 'POST') return pendingCreate
     if (path === '/api/groups') return Promise.resolve(jsonResponse(reloggedIn ? [] : [group]))
     if (path === '/api/csrf') return Promise.resolve(jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'login-token' }))
+    if (path === '/api/session' && init?.method === 'DELETE') return Promise.resolve(new Response(null, { status: 204 }))
     if (path === '/api/session') {
       reloggedIn = true
       currentUser = nextUser
@@ -416,6 +412,8 @@ test.each(['same user', 'different user'])('a confirmed login for %s discards ol
   await screen.findByRole('button', { name: 'Old private group (OWNER)' })
   fireEvent.change(screen.getByLabelText('Group name'), { target: { value: 'Unconfirmed old group' } })
   fireEvent.click(screen.getByRole('button', { name: 'Create group' }))
+  await act(async () => {})
+  await logOutBeforeLogin()
   const form = loginForm()
   fireEvent.change(form.getByLabelText('Email'), { target: { value: 'saruman@example.com' } })
   fireEvent.change(form.getByLabelText('Password'), { target: { value: password } })
@@ -445,6 +443,7 @@ for (const identity of ['same user', 'different user']) {
       const fetchMock = vi.fn((path: string, init?: RequestInit) => {
         if (path === '/api/me') return Promise.resolve(jsonResponse(confirmedLogin ? nextUser : user))
         if (path === '/api/csrf') return Promise.resolve(jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'token' }))
+        if (path === '/api/session' && init?.method === 'DELETE') return Promise.resolve(new Response(null, { status: 204 }))
         if (path === '/api/session') {
           confirmedLogin = true
           return Promise.resolve(jsonResponse(nextUser))
@@ -474,11 +473,13 @@ for (const identity of ['same user', 'different user']) {
           fireEvent.click(screen.getByRole('button', { name: 'Save deck' }))
         } else {
           fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+          fireEvent.click(screen.getByRole('button', { name: 'Confirm deletion' }))
         }
       }
       // Flush CSRF and start the business request before replacing its session.
       await act(async () => {})
       expect(oldRequestStarted).toBe(true)
+      await logOutBeforeLogin()
       const form = loginForm()
       fireEvent.change(form.getByLabelText('Email'), { target: { value: 'wizard@example.com' } })
       fireEvent.change(form.getByLabelText('Password'), { target: { value: password } })
@@ -510,6 +511,7 @@ for (const identity of ['same user', 'different user']) {
 test.each(['request', 'csrf'])('a current deck %s 401 after re-login still expires the active session', async (source) => {
   let rejectDeck = false
   const fetchMock = vi.fn((path: string, init?: RequestInit) => {
+    if (path === '/api/session' && init?.method === 'DELETE') return Promise.resolve(new Response(null, { status: 204 }))
     if (path === '/api/me' || path === '/api/session') return Promise.resolve(jsonResponse(user))
     if (path === '/api/groups') return Promise.resolve(jsonResponse([]))
     if (path === '/api/decks') return Promise.resolve(jsonResponse(init?.method ? {} : [], init?.method ? 401 : 200))
@@ -520,6 +522,7 @@ test.each(['request', 'csrf'])('a current deck %s 401 after re-login still expir
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
   await screen.findByText('You have no decks yet.')
+  await logOutBeforeLogin()
   const form = loginForm()
   fireEvent.change(form.getByLabelText('Email'), { target: { value: 'gandalf@example.com' } })
   fireEvent.change(form.getByLabelText('Password'), { target: { value: password } })
