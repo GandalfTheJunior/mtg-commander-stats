@@ -37,11 +37,20 @@ public class ManageDecks {
 
     @Transactional
     public void delete(UUID ownerId, UUID deckId) {
-        decks.delete(ownedDeck(ownerId, deckId));
+        Deck deck = ownedDeck(ownerId, deckId);
+        deck.requireDeletable();
+        decks.delete(deck);
+    }
+
+    @Transactional
+    public Deck archive(UUID ownerId, UUID deckId) {
+        Deck deck = ownedDeck(ownerId, deckId);
+        deck.archive();
+        return deck;
     }
 
     private Deck ownedDeck(UUID ownerId, UUID deckId) {
-        Deck deck = decks.findById(deckId).orElseThrow(DeckNotFoundException::new);
+        Deck deck = decks.findByIdForUpdate(deckId).orElseThrow(DeckNotFoundException::new);
         if (!deck.getOwnerId().equals(ownerId)) {
             throw new DeckAccessDeniedException();
         }

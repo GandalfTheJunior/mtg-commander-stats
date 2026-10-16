@@ -29,6 +29,12 @@ public class Deck {
     @Column(name = "color_identity", nullable = false, columnDefinition = "text")
     private ColorIdentity colorIdentity;
 
+    @Column(name = "ever_used", nullable = false)
+    private boolean everUsed;
+
+    @Column(nullable = false)
+    private boolean archived;
+
     protected Deck() {
     }
 
@@ -45,9 +51,37 @@ public class Deck {
         if (colorIdentity == null) {
             throw new InvalidColorIdentityException();
         }
-        this.name = new DisplayText(name).value();
-        this.commander = new DisplayText(commander).value();
+        String canonicalName = new DisplayText(name).value();
+        String canonicalCommander = new DisplayText(commander).value();
+        if (everUsed && (!this.commander.equals(canonicalCommander)
+                || !this.colorIdentity.canonicalValue().equals(colorIdentity.canonicalValue()))) {
+            throw new DeckLifecycleConflictException();
+        }
+        this.name = canonicalName;
+        this.commander = canonicalCommander;
         this.colorIdentity = colorIdentity;
+    }
+
+    public void markUsed() {
+        everUsed = true;
+    }
+
+    public void archive() {
+        archived = true;
+    }
+
+    public void requireDeletable() {
+        if (everUsed) {
+            throw new DeckLifecycleConflictException();
+        }
+    }
+
+    public boolean isEverUsed() {
+        return everUsed;
+    }
+
+    public boolean isArchived() {
+        return archived;
     }
 
     public UUID getId() {

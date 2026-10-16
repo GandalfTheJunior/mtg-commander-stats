@@ -3,7 +3,9 @@
 A Commander statistics application and a learning project for AI-assisted
 software engineering. The application supports user registration, session
 authentication, authenticated deck management, and browser play-group management
-with join-code membership. Profiles, games, and statistics remain planned.
+with join-code membership. The backend also records Commander games and enforces
+permanent deck usage and explicit archival. Browser game recording, profiles,
+and statistics remain planned.
 
 ## Agent entry point
 
@@ -159,6 +161,8 @@ Tests terminate without watch mode. GitHub Actions runs separate `backend` and
 
 - [MVP scope](docs/product/mvp-scope.md)
 - [Play groups API](docs/product/groups-api.md)
+- [Commander games API](docs/product/games-api.md)
+- [Deck lifecycle API](docs/product/decks-api.md)
 - [Architecture and ADRs](docs/architecture/overview.md)
 - [Development workflow](docs/development/workflow.md)
 - [Java coding conventions](docs/development/java-conventions.md)
