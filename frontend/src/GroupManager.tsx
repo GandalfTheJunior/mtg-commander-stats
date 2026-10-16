@@ -29,12 +29,14 @@ export default function GroupManager({ onUnauthorized, currentUser, deckRevision
   const [selected, setSelected] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<Notice>(null)
+  const request = useRef<AbortController | null>(null)
   const active = useRef(false)
   const pending = useRef(false)
 
   useEffect(() => {
     active.current = true
-    return () => { active.current = false }
+    request.current = new AbortController()
+    return () => { active.current = false; request.current?.abort() }
   }, [])
 
   const handleError = useCallback((error: unknown) => {
@@ -49,7 +51,8 @@ export default function GroupManager({ onUnauthorized, currentUser, deckRevision
 
   useEffect(() => {
     let current = true
-    listGroups().then((loaded) => {
+    const controller = new AbortController()
+    listGroups(controller.signal).then((loaded) => {
       if (!current) return
       setGroups(loaded)
       setStatus('loaded')
@@ -58,7 +61,7 @@ export default function GroupManager({ onUnauthorized, currentUser, deckRevision
       setStatus('error')
       handleError(error)
     })
-    return () => { current = false }
+    return () => { current = false; controller.abort() }
   }, [revision, handleError])
 
   function refreshGroups() {
@@ -78,8 +81,8 @@ export default function GroupManager({ onUnauthorized, currentUser, deckRevision
     setNotice(null)
     try {
       const group = operation === 'create'
-        ? await createGroup(String(data.get('name')))
-        : await joinGroup(String(data.get('code')))
+        ? await createGroup(String(data.get('name')), request.current!.signal)
+        : await joinGroup(String(data.get('code')), request.current!.signal)
       if (!active.current) return
       setGroups((previous) => [...previous.filter((item) => item.id !== group.id), group])
       // Reopening after a join always obtains fresh active members and role.
@@ -171,6 +174,7 @@ function GroupView({ id, busy, setBusy, onUnauthorized, onAccessLost, onLeft, on
   const [code, setCode] = useState<string | null>(null)
   const [confirmation, setConfirmation] = useState<'leave' | 'regenerate' | null>(null)
   const [notice, setNotice] = useState<Notice>(null)
+  const request = useRef<AbortController | null>(null)
   const active = useRef(false)
   const pending = useRef(false)
   // Use current callbacks without making a parent's render restart a request.
@@ -190,17 +194,19 @@ function GroupView({ id, busy, setBusy, onUnauthorized, onAccessLost, onLeft, on
 
   useEffect(() => {
     active.current = true
-    return () => { active.current = false }
+    request.current = new AbortController()
+    return () => { active.current = false; request.current?.abort() }
   }, [])
 
   useEffect(() => {
     let current = true
-    getGroup(id).then((group) => {
+    const controller = new AbortController()
+    getGroup(id, controller.signal).then((group) => {
       if (current) setDetails(group)
     }).catch((error: unknown) => {
       if (current) handleError(error)
     }).finally(() => { if (current) setLoading(false) })
-    return () => { current = false }
+    return () => { current = false; controller.abort() }
   }, [id, revision, handleError])
 
   function refresh() {
@@ -227,7 +233,7 @@ function GroupView({ id, busy, setBusy, onUnauthorized, onAccessLost, onLeft, on
     setCode(null)
     setNotice({ kind: 'error', message: 'The action was denied (authorization or CSRF). Checking group access…' })
     try {
-      const group = await getGroup(id)
+      const group = await getGroup(id, request.current!.signal)
       if (!active.current) return
       setDetails(group)
       if (group.role === 'OWNER') setCode(code)
@@ -245,7 +251,7 @@ function GroupView({ id, busy, setBusy, onUnauthorized, onAccessLost, onLeft, on
     setConfirmation(null)
     try {
       if (operation === 'leave') {
-        await leaveGroup(id)
+        await leaveGroup(id, request.current!.signal)
         if (active.current) onLeft()
       } else if (operation === 'copy') {
         try {
@@ -255,7 +261,7 @@ function GroupView({ id, busy, setBusy, onUnauthorized, onAccessLost, onLeft, on
           if (active.current) setNotice({ kind: 'error', message: 'Could not copy the code. Select and copy the visible code manually.' })
         }
       } else {
-        const returned = await getJoinCode(id, operation === 'regenerate')
+        const returned = await getJoinCode(id, operation === 'regenerate', request.current!.signal)
         if (active.current) {
           setCode(returned)
           if (operation === 'regenerate') setNotice({ kind: 'success', message: 'Invitation code regenerated. The old code no longer works.' })
@@ -265,8 +271,7 @@ function GroupView({ id, busy, setBusy, onUnauthorized, onAccessLost, onLeft, on
       await handleActionError(error)
     } finally {
       // The parent may have removed this view after a successful leave/denial.
-      if (active.current) pending.current = false
-      setBusy(false)
+      if (active.current) { pending.current = false; setBusy(false) }
     }
   }
 

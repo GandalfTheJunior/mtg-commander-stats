@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App'
+import { renderApp, goTo } from './test/renderApp'
 import GameManager from './GameManager'
 import { deferred, gameApi, group, recorded, response, uid, deckFor } from './test/gameFixtures'
 import { statistics } from './test/statisticsFixtures'
@@ -40,6 +41,7 @@ function appSetup() {
   return { ...api, session, other }
 }
 async function open(name = group.name) {
+  await goTo('Playgroups')
   fireEvent.click(await screen.findByRole('button', { name: `${name} (OWNER)` }))
 }
 async function signIn() {
@@ -177,7 +179,7 @@ test('a failed game write fabricates no statistics and explicit game refresh rel
 })
 
 test('loads statistics only after a confirmed session and opened group, and current 401 expires the session', async () => {
-  const api = appSetup(); render(<App />)
+  const api = appSetup(); renderApp(<App />, '/playgroups')
   await screen.findByRole('button', { name: `${group.name} (OWNER)` })
   expect(statsCalls(api)).toHaveLength(0)
   api.next(path, () => response({}, 401))
@@ -187,7 +189,7 @@ test('loads statistics only after a confirmed session and opened group, and curr
 })
 
 test.each([403, 404])('statistics %s hides all protected details during a safe recheck, then permits retry on confirmed membership', async status => {
-  const api = appSetup(); render(<App />); await open()
+  const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
   await screen.findByRole('table', { name: 'Player statistics' })
   const checking = deferred()
   api.next(path, () => response({}, status))
@@ -205,7 +207,7 @@ test.each([403, 404])('statistics %s hides all protected details during a safe r
 })
 
 test.each([403, 404, 401, 500])('statistics denial followed by access-check %s never restores protected statistics', async status => {
-  const api = appSetup(); render(<App />); await open()
+  const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
   await screen.findByRole('table', { name: 'Player statistics' })
   api.next(path, () => response({}, 403))
   api.next(`/api/groups/${group.id}`, () => response({}, status))
@@ -218,7 +220,7 @@ test.each([403, 404, 401, 500])('statistics denial followed by access-check %s n
 })
 
 test.each(['switch', 'close', 'members', 'games'].flatMap(action => [200, 401].map(status => ({ action, status }))))('retiring statistics on $action aborts requests and ignores late status $status', async ({ action, status }) => {
-  const api = appSetup(); render(<App />); await open()
+  const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
   await screen.findByRole('table', { name: 'Player statistics' })
   const late = deferred()
   api.next(path, () => late.promise)
@@ -243,7 +245,7 @@ test.each(['switch', 'close', 'members', 'games'].flatMap(action => [200, 401].m
 })
 
 test.each([200, 401, 403])('logout hides statistics immediately and late status %s cannot restore them or expire the new identity', async status => {
-  const api = appSetup(); render(<App />); await open()
+  const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
   await screen.findByRole('table', { name: 'Player statistics' })
   const late = deferred()
   api.next(path, () => late.promise)
@@ -264,7 +266,7 @@ test.each([200, 401, 403])('logout hides statistics immediately and late status 
 })
 
 test('switching a loaded group hides its statistics while the next group details are still pending', async () => {
-  const api = appSetup(); render(<App />); await open()
+  const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
   await screen.findByRole('table', { name: 'Player statistics' })
   const details = deferred()
   // The second group's details use the App fixture's branch, so intercept that request here.
@@ -280,7 +282,7 @@ test('switching a loaded group hides its statistics while the next group details
 })
 
 test('logout immediately removes loaded statistics even while logout acknowledgment is pending', async () => {
-  const api = appSetup(); render(<App />); await open()
+  const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
   await screen.findByRole('table', { name: 'Player statistics' })
   const logout = deferred()
   api.session.logout = () => logout.promise
@@ -408,7 +410,7 @@ test('an acknowledged game write retains the chosen sort and applies it to newly
 })
 
 test.each(['close', 'switch', 'session'] as const)('%s discards previous sort choices along with protected statistics', async action => {
-  const api = appSetup(); render(<App />); await open()
+  const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
   await screen.findByRole('table', { name: 'Player statistics' })
   fireEvent.click(within(playerTable()).getByRole('button', { name: 'Win rate' }))
   fireEvent.click(within(deckTable()).getByRole('button', { name: 'Wins' }))

@@ -310,3 +310,17 @@ input[readonly], fieldset:disabled, select:disabled {
 .statistics-sort:hover {
   background: #f2f4f1;
 }
+
+/* Preserve native panels inside the dark shell until their own migrations. */
+.legacy-view {
+  color: #20262e;
+  min-width: 0;
+}
+
+.legacy-view .forms {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+}
+
+.legacy-view :where(section, form, fieldset) {
+  min-width: 0;
+}

@@ -51,7 +51,7 @@ test('archival is explicit, cancel restores focus without writing, and confirmed
   expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /unarchive/i })).not.toBeInTheDocument()
   expect(api.mock.calls[2][0]).toBe(`/api/decks/${used.id}/archive`)
-  expect(api.mock.calls[2][1]).toEqual({ credentials: 'same-origin', method: 'POST', headers: { 'X-CSRF-TOKEN': 'lifecycle-token' } })
+  expect(api.mock.calls[2][1]).toEqual({ credentials: 'same-origin', signal: expect.any(AbortSignal), method: 'POST', headers: { 'X-CSRF-TOKEN': 'lifecycle-token' } })
   expect(changed).toHaveBeenCalledOnce()
 })
 

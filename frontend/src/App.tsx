@@ -6,24 +6,25 @@ import {
   restoreSession,
   type CurrentUser,
 } from './api'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
+import { AppShell } from './AppShell'
 import DeckManager from './DeckManager'
 import GroupManager from './GroupManager'
 
-type Notice = { kind: 'success' | 'error'; message: string } | null
+export type Notice = { kind: 'success' | 'error'; message: string } | null
 type SessionStatus = 'checking' | 'signed-out' | 'authenticated' | 'unverified' | 'logging-out'
+const topLevelPaths = ['/dashboard', '/playgroups', '/decks']
 
 function messageFrom(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
 }
 
 export default function App() {
+  const location = useLocation()
+  const navigate = useNavigate()
   // Session transitions retire protected state even when the user UUID is unchanged.
   const sessionVersionRef = useRef(0)
   const [sessionVersion, setSessionVersion] = useState(0)
-  const [deckRevision, setDeckRevision] = useState(0)
-  const [groupDeckRevision, setGroupDeckRevision] = useState(0)
-  const gamesChanged = useCallback(() => setDeckRevision((value) => value + 1), [])
-  const decksChanged = useCallback(() => setGroupDeckRevision((value) => value + 1), [])
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('checking')
   const [registrationNotice, setRegistrationNotice] = useState<Notice>(null)
@@ -87,6 +88,8 @@ export default function App() {
     event.preventDefault()
     if (loggingIn || sessionStatus === 'checking' || sessionStatus === 'logging-out') return
     let version = sessionVersionRef.current
+    const destination = topLevelPaths.includes(location.pathname)
+      ? location.pathname : '/dashboard'
     const submittedForm = event.currentTarget
     setLoggingIn(true)
     setSessionNotice(null)
@@ -110,6 +113,7 @@ export default function App() {
       setSessionStatus('authenticated')
       setRegistrationNotice(null)
       setSessionNotice({ kind: 'success', message: 'Login successful.' })
+      void navigate(destination, { replace: true })
       submittedForm.reset()
     } catch (error) {
       if (version !== sessionVersionRef.current) return
@@ -128,6 +132,9 @@ export default function App() {
     const version = ++sessionVersionRef.current
     setSessionVersion(version)
     setSessionStatus('logging-out')
+    setCurrentUser(null)
+    // Explicit logout discards the former destination, including during recovery.
+    void navigate('/', { replace: true })
     setSessionNotice(null)
     setRegistrationNotice(null)
     try {
@@ -136,12 +143,14 @@ export default function App() {
       setCurrentUser(null)
       setSessionStatus('signed-out')
       setSessionNotice({ kind: 'success', message: 'Logged out.' })
+      void navigate('/', { replace: true })
     } catch {
       try {
         const user = await restoreSession()
         if (version !== sessionVersionRef.current) return
         setCurrentUser(user)
         setSessionStatus(user ? 'authenticated' : 'signed-out')
+        void navigate(user ? '/dashboard' : '/', { replace: true })
         setSessionNotice({
           kind: 'error',
           message: user
@@ -185,8 +194,35 @@ export default function App() {
     setSessionNotice({ kind: 'error', message: 'Your session expired. Sign in again.' })
   }, [sessionVersion])
 
+  if (sessionStatus === 'authenticated' && currentUser) {
+    return (
+      <AppShell user={currentUser} notice={sessionNotice} onLogout={logOut}>
+        {topLevelPaths.includes(location.pathname) ? <Routes>
+          <Route path="/dashboard" element={
+            <section aria-labelledby="dashboard-heading">
+              <h2 id="dashboard-heading">Dashboard</h2>
+              <p>Welcome to your Commander companion.</p>
+              <p>Open Playgroups to record games and view statistics, or Decks to manage your collection.</p>
+            </section>
+          } />
+          <Route path="/decks" element={
+            <div className="legacy-view">
+              <DeckManager key={`decks-${sessionVersion}`} onUnauthorized={sessionExpired} />
+            </div>
+          } />
+          <Route path="/playgroups" element={
+            <div className="legacy-view">
+              <GroupManager key={`groups-${sessionVersion}`} onUnauthorized={sessionExpired} currentUser={currentUser} />
+            </div>
+          } />
+        </Routes> : <Navigate to="/dashboard" replace />}
+      </AppShell>
+    )
+  }
+
   return (
     <main>
+      {location.pathname !== '/' && !topLevelPaths.includes(location.pathname) && <Navigate to="/" replace />}
       <header>
         <p className="eyebrow">Commander game tracker</p>
         <h1>MTG Commander Stats</h1>
@@ -199,17 +235,10 @@ export default function App() {
           <p>Logging out…</p>
         ) : sessionStatus === 'checking' ? (
           <p>Checking your session…</p>
-        ) : sessionStatus === 'authenticated' && currentUser ? (
-          <p>
-            Signed in as <strong>{currentUser.username}</strong>.
-          </p>
         ) : sessionStatus === 'unverified' ? (
           <p>Your session identity could not be confirmed.</p>
         ) : (
           <p>Not signed in.</p>
-        )}
-        {sessionStatus === 'authenticated' && (
-          <button type="button" onClick={logOut}>Log out</button>
         )}
         {sessionStatus === 'unverified' && (
           <button type="button" disabled={loggingIn} onClick={checkSession}>Check session</button>
@@ -219,7 +248,7 @@ export default function App() {
         )}
       </section>
 
-      {sessionStatus !== 'authenticated' && sessionStatus !== 'logging-out' && (
+      {sessionStatus !== 'logging-out' && (
         <div className="forms">
           <section>
             <h2>Create an account</h2>
@@ -277,13 +306,6 @@ export default function App() {
         </div>
       )}
 
-      {sessionStatus === 'authenticated' && currentUser && (
-        <>
-          <DeckManager key={`decks-${sessionVersion}-${deckRevision}`} onUnauthorized={sessionExpired} onChanged={decksChanged} />
-          <GroupManager key={`groups-${sessionVersion}`} onUnauthorized={sessionExpired} currentUser={currentUser}
-            deckRevision={groupDeckRevision} onGamesChanged={gamesChanged} />
-        </>
-      )}
     </main>
   )
 }
