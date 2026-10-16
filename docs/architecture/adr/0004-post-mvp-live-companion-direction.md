@@ -5,9 +5,10 @@
 **Proposed for post-MVP exploration.** This ADR captures the architectural
 direction discussed, not approval to implement the companion. The current
 [MVP scope](../../product/mvp-scope.md) and accepted architecture remain
-unchanged. ADR 0003 (the post-MVP UI strategy) is proposed separately in
-[PR #54](https://github.com/GandalfTheJunior/mtg-commander-stats/pull/54);
-this ADR does not require that PR's changes.
+unchanged. The post-MVP UI strategy is already recorded in accepted
+[ADR 0003](0003-defer-ui-framework-until-after-mvp.md), merged via
+[PR #54](https://github.com/GandalfTheJunior/mtg-commander-stats/pull/54).
+This proposed companion direction leaves that decision unchanged.
 
 ## Context
 
