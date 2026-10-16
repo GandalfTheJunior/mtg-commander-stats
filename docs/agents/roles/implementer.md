@@ -37,12 +37,15 @@ Read the [development workflow](../../development/workflow.md), relevant
    PR template with accurate Reviewer Context, including exact checks, actual
    outcomes, limitations, uncertainty, and meaningful dependency decisions.
    Whether the template is applied automatically or the PR body is constructed
-   programmatically, preserve its `agent-review-bootstrap` comment in the actual
-   submitted body and verify that the persisted PR body contains it.
+   programmatically, preserve its neutral `repository-agent-context` and
+   `repository-review-context` metadata with their exact repository paths in the
+   submitted body. Verify both markers in the body persisted by GitHub, not only
+   the local template or submitted request.
    When authorized implementation work creates a follow-up issue programmatically,
-   derive its body from the current repository issue template, preserve the generic
-   `agent-bootstrap` comment and `/AGENTS.md` pointer, and verify the body persisted
-   by GitHub rather than checking only the local template or submitted request.
+   derive its body from the current repository issue template, preserve its
+   neutral `repository-agent-context` metadata, and verify that exact marker/path
+   in the body persisted by GitHub. These are metadata-integrity requirements;
+   do not reproduce legacy imperative bootstrap prompts in newly authored bodies.
 5. If a required authorized action is unavailable, prepare the change/commands
    or PR body for the PO and explicitly identify the remaining action. Never
    claim that a branch was pushed, PR opened, or check passed when it was not.

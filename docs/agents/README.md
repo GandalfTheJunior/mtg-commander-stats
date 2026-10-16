@@ -32,6 +32,41 @@ If GitHub writing is available, perform the authorized update; otherwise provide
 the finalized issue body for the PO and state that it was not published. The role
 does not change merely because a client has more or fewer tools.
 
+## Artifact context metadata
+
+Repository-controlled issue bodies expose this stable, neutral context pointer:
+
+```html
+<!-- repository-agent-context: /AGENTS.md -->
+```
+
+PR bodies additionally expose:
+
+```html
+<!-- repository-review-context: /docs/agents/roles/reviewer.md -->
+```
+
+Values are paths from this repository's root. The markers describe context
+locations only: they contain no commands, execution order, authority grant, or
+role selection. The review pointer identifies relevant context; the requested
+outcome still determines the operating role through `AGENTS.md`.
+
+```text
+GitHub artifact
+  -> neutral repository-context metadata
+  -> client/harness may resolve metadata
+  -> /AGENTS.md owns repository routing/policy
+  -> selected role contract owns role behavior
+```
+
+The repository guarantees only the presence and correctness of metadata in
+artifacts it controls. Discovery, trust/access checks, and context loading are
+client/harness responsibilities. Supporting clients may resolve these pointers
+through their configured repository-context mechanism; arbitrary external clients
+may ignore them. Metadata never authorizes writes or overrides client security
+controls. Unsupported discovery is a capability limitation, not a reason to embed
+executable instructions. See the [verification scenarios](harness-verification.md).
+
 ## Agent Poker planning aid
 
 Agent Poker recommends a reliable Codex execution profile first, then estimates

@@ -9,11 +9,11 @@ remain planned.
 
 ## Agent entry point
 
-Agent clients and repository harnesses must load the root [`/AGENTS.md`](AGENTS.md)
-before substantive repository work. This is the generic bootstrap entry point;
-`AGENTS.md` selects and loads the role contract that matches the requested outcome.
-Configure the repository root as the task workspace when the client discovers
-instruction files automatically, or load `/AGENTS.md` explicitly when it does not.
+Repository agent context lives in the root [`/AGENTS.md`](AGENTS.md), which owns
+startup, authority, and intent-based role routing. The selected role contract
+owns role-specific behavior. Issue and PR artifacts expose only
+[neutral context metadata](docs/agents/README.md#artifact-context-metadata);
+discovery and loading depend on the client's supported repository/harness setup.
 
 ## Stack and prerequisites
 

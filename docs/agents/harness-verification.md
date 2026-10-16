@@ -7,13 +7,19 @@ under the stated context conditions. The root [AGENTS.md](../../AGENTS.md) and
 selected role contract are the authoritative instructions; this file records
 test inputs and observable outcomes without restating the role policies.
 
-Repository checks can deterministically verify that repository-controlled
-templates and guidance contain or require the bootstrap markers and pointers,
-and that policy has one authoritative owner. They cannot prove what GitHub
-persisted for a submitted issue or PR, or force an external client to fetch or
-follow repository content. Persisted-body preservation must be verified
-separately against the GitHub API or rendered artifact; the fresh-conversation
-scenarios below verify client or harness behavior.
+The [artifact metadata contract and trust boundary](README.md#artifact-context-metadata)
+separate repository guarantees from client behavior. Repository checks can verify
+the exact neutral markers/paths in templates, their non-imperative content, the
+preservation rules, and single policy ownership. They cannot prove what GitHub
+persisted or that an external client resolves metadata. Inspect persisted bodies
+separately against the GitHub API or rendered artifact.
+
+For artifact-recovery cases, use a client/harness configured to resolve repository
+context metadata under its own trust/access rules. Record that setup and observed
+context loading. An unsupported client belongs in the explicit capability case
+below, not in a claimed routing pass. Report repository checks, persisted-artifact
+checks, fresh-conversation runs, and security-warning observations separately;
+unexecuted or unobservable scenarios are not passes.
 
 ## Rooted-workspace bootstrap
 
@@ -36,8 +42,8 @@ instruction discovery when the repository is the workspace.
    no repository or role instructions already loaded.
 2. Make only the repository URL or repository-page artifact available and ask
    for a repository task without mentioning `AGENTS.md` or a role.
-3. Confirm that the client discovers the README's generic agent entry point and
-   loads `/AGENTS.md` before substantive repository work.
+3. Confirm that the configured client/harness resolves the README's generic
+   context pointer and loads `/AGENTS.md` before substantive repository work.
 4. Confirm that `AGENTS.md`, rather than the README entry point, selects the role
    from the requested outcome and that the selected role contract is loaded
    before substantive role work.
@@ -48,17 +54,34 @@ Run this scenario once with an issue created through the repository issue
 template and once with an issue body constructed and submitted programmatically.
 
 1. Inspect the issue body persisted by the GitHub API or rendered issue artifact.
-   Confirm that it contains the hidden `agent-bootstrap` marker and its
-   `/AGENTS.md` pointer. For the programmatic case, inspect the persisted body,
-   not only the local template or submitted request.
+   Confirm that it contains exactly `<!-- repository-agent-context: /AGENTS.md -->`,
+   with no imperative bootstrap comment or role selection. For the programmatic
+   case, inspect the persisted body, not only the template or submitted request.
 2. Start a fresh conversation outside the repository workspace, with no
    repository or role instructions already loaded. Make only the issue artifact
    or URL and repository metadata available.
 3. Ask the agent to refine, implement, or investigate the issue without naming
    `AGENTS.md` or a role.
-4. Confirm that the client discovers the marker, loads `/AGENTS.md`, selects the
-   role from the requested outcome rather than from the artifact type, and loads
-   that role contract before substantive work.
+4. Confirm that the configured client/harness resolves the metadata through its
+   repository-context mechanism. `AGENTS.md` then selects the role from the
+   requested outcome rather than the artifact type; the selected contract is
+   loaded before substantive work. The marker itself gives no command or authority.
+
+## Issue creation and full-body rewrite integrity
+
+1. With PO authorization for a test issue, construct a body from the current issue
+   template programmatically instead of relying on automatic template population.
+2. Publish it and fetch the body from GitHub. Confirm the exact neutral issue
+   marker/path above survives and no imperative bootstrap comment appears.
+3. Authorize a full-body refinement, retaining unrelated issue content and metadata.
+4. Publish the rewritten body and fetch it again. Confirm the neutral marker
+   survives unchanged and no bootstrap command was introduced.
+5. Repeat the authorized rewrite with a legacy issue bootstrap comment; confirm
+   it is replaced with the neutral marker while unrelated content survives.
+
+Use disposable issues only where authorized; these scenarios do not authorize
+bulk migration of existing issues. Local/template checks alone do not establish
+that either GitHub write preserved metadata.
 
 ## PR-artifact recovery and programmatic body preservation
 
@@ -68,15 +91,22 @@ relying on workspace instruction discovery.
 1. Create a reviewable PR programmatically, supplying an explicit body derived
    from the current PR template instead of asking GitHub to apply the template.
 2. Inspect the body persisted by the PR API or rendered PR artifact, not only the
-   local template. Confirm that it contains the `agent-review-bootstrap` marker
-   and its pointers to `/AGENTS.md` and the Reviewer contract.
+   local template. Confirm that it contains exactly these neutral metadata lines,
+   without imperative bootstrap commands or encoded loading order:
+
+   ```html
+   <!-- repository-agent-context: /AGENTS.md -->
+   <!-- repository-review-context: /docs/agents/roles/reviewer.md -->
+   ```
+
 3. Start a fresh conversation outside the repository workspace, with no repository
    or role instructions automatically loaded. Make only that PR artifact or URL
    and its repository metadata available.
 4. Send `review diese pr für mich <PR URL>`.
-5. Confirm that the agent discovers the bootstrap marker at the PR boundary,
-   loads `AGENTS.md`, selects and announces Reviewer, and loads
-   [the Reviewer contract](roles/reviewer.md) before substantive review work.
+5. Confirm that the configured client/harness resolves the metadata and loads
+   `AGENTS.md`, which selects Reviewer from the requested outcome. Confirm the
+   agent announces Reviewer and loads [its contract](roles/reviewer.md) before
+   substantive review work; the review pointer does not itself assign a role.
 6. Let the Reviewer complete its technical review and any finding discussion.
 7. Send `ich habe mir die Änderungen ebenfalls angeschaut und bin fertig mit meiner review`.
 8. Confirm that the very next response contains concise questions grounded in
@@ -109,9 +139,9 @@ these events starts the comprehension check:
 ### Pass criteria
 
 - Root and Reviewer instructions are loaded before substantive review work in
-  both the rooted-workspace and PR-artifact-only scenarios.
+  both the rooted-workspace and supported PR-artifact-only scenarios.
 - A programmatically submitted and subsequently persisted PR body retains the
-  `agent-review-bootstrap` marker and both instruction-file pointers.
+  exact neutral repository/review metadata, with no bootstrap command.
 - Only the explicit PO review-completion signal triggers the check.
 - The next response contains PR-specific questions and preserves the
   non-blocking semantics defined by the Reviewer contract.
@@ -125,14 +155,40 @@ both sides of the ownership boundary:
 
 1. The root `AGENTS.md` contains no Reviewer-specific PO completion or
    comprehension-check rule.
-2. The PR marker leads the client through `AGENTS.md` to the Reviewer contract
-   before substantive review work.
+2. The configured client/harness resolves the PR metadata; `AGENTS.md` routes the
+   review request to the Reviewer contract before substantive review work.
 3. After normal technical review and PO discussion, send
    `ich habe mir die Änderungen ebenfalls angeschaut und bin fertig mit meiner review`.
 4. Confirm that the very next response still contains the concise, PR-specific,
    non-blocking comprehension check defined by the Reviewer contract.
 5. In separate conversations, confirm that ordinary review discussion and the
    Reviewer's own technical completion do not trigger the check.
+
+## ChatGPT/GitHub write-warning regression
+
+1. In a client exposing suspicious-instruction warnings, use a PO-authorized
+   issue creation/full-body update and PR creation through the normal workflow.
+   Record the client and which write/warning boundary is observable.
+2. Inspect each submitted and persisted body: context markers contain only the
+   paths above, no commands to load files, choose roles, or change agent behavior.
+3. Check whether a warning specifically cites an embedded repository bootstrap
+   command as its trigger. The old issue/PR bootstrap command must be absent;
+   the new metadata must not produce that specific regression where observable.
+4. Record the actual warning text or absence of that warning. An unrelated warning
+   is not evidence that bootstrap instructions remain. If warning attribution is
+   hidden or the action is blocked, report the observation/limitation rather than
+   claiming success. Do not bypass, suppress, or weaken client security controls.
+
+## Unsupported external client
+
+1. Give an external client only an issue or PR artifact with neutral metadata,
+   without a configured repository-context resolver or rooted workspace.
+2. Observe whether it discovers/loads repository context. Failure to do so is an
+   explicit client capability limitation, not a repository metadata failure.
+3. Confirm there is no fallback command embedded in the artifact and no claim
+   that metadata forces arbitrary clients to execute repository instructions.
+   Any client setup or explicit context-loading request is separate from the
+   artifact metadata; root and role ownership stay unchanged.
 
 ## Agent Poker refinement
 
@@ -158,7 +214,8 @@ or a promise about measured usage.
 For persisted-write cases, inspect GitHub rather than just the submitted request:
 only one recommendation prefix and at most one size remain, unrelated labels and
 assignees survive, and no estimate prose/tracking appears in the body. Authorized
-specification edits still preserve the bootstrap marker and `/AGENTS.md` pointer.
+specification edits still preserve the neutral `repository-agent-context` marker
+and exact `/AGENTS.md` path, verified in the persisted body.
 No case changes Implementer/Reviewer responsibilities or implementation authority.
 
 Separately inspect repository labels remotely: `Potato` has color `C49A6C` and
