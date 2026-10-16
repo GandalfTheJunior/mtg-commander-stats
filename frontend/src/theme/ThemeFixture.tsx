@@ -48,6 +48,12 @@ export function ThemeFixture() {
             <Typography sx={{ color: 'warning.main' }}>Warning: review this example.</Typography>
             <Typography sx={{ color: 'error.main' }}>Error: correction required.</Typography>
             <Typography sx={{ color: 'info.main' }}>Information: development only.</Typography>
+            <Stack role="group" aria-label="Inherited button colors" direction="row" useFlexGap
+              sx={{ color: 'info.light', flexWrap: 'wrap', gap: 2 }}>
+              <Button color="inherit" variant="text">Inherited text</Button>
+              <Button color="inherit" variant="outlined">Inherited outline</Button>
+              <Button color="inherit" variant="contained">Inherited contained</Button>
+            </Stack>
           </Stack>
         </Paper>
       </Stack>

@@ -53,8 +53,14 @@ provides it at the application root. Use MUI primitives directly, for example:
   heading semantics with `component` where appropriate.
 
 Buttons have hover/pressed styling, explicit keyboard outlines and disabled
-styling. Toggle buttons using these primitives must set `aria-pressed`; a selected
-button gains an inset stroke and underline. TextFields need stable IDs, visible
+styling. `Button color="inherit"` retains MUI's inherited foreground and neutral
+variant backgrounds, with the same shared size, focus and disabled treatment.
+Choose a parent color with sufficient contrast against its surrounding surface
+and MUI's neutral contained hover fill. The fixture includes all three variants
+inside a pale-blue parent. `AppThemeProvider.test.tsx` checks inherited foreground
+color for each variant. Toggle buttons using these primitives must set
+`aria-pressed`; a selected button gains an inset stroke and underline.
+TextFields need stable IDs, visible
 labels, explanatory `helperText`, and `error` for validation (color alone is
 insufficient). No product-specific wrappers are needed for this foundation.
 
@@ -99,6 +105,8 @@ claim about every possible future component or background combination.
 | Error helper text and input boundary / paper | 8.96:1 |
 | Disabled button/input text / raised disabled fill | 4.99:1 |
 | Success / warning / error / info text on raised surface | 7.98 / 8.08 / 8.13 / 8.15:1 |
+| Inherited pale-blue text/outline, normal / hover / pressed on raised surface | 10.57 / 8.43 / 8.43:1 |
+| Inherited pale-blue contained text, normal / hover / pressed | 7.70 / 4.74 / 4.74:1 |
 
 Ordinary text clears AA 4.5:1, applicable boundaries/focus indicators 3:1.
 The primary fill alone has insufficient boundary contrast against paper; its

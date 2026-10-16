@@ -85,29 +85,32 @@ export const appTheme = createTheme({
       defaultProps: { disableElevation: true, disableRipple: true },
       styleOverrides: {
         root: ({ theme, ownerState }) => {
-          const colorName = ownerState.color === 'inherit' ? 'primary' : ownerState.color ?? 'primary'
-          const color = theme.palette[colorName]
-          const foreground = colorName === 'primary' ? color.light : color.main
+          const colorName = ownerState.color ?? 'primary'
+          // Let MUI preserve its inherited foreground and neutral variant fills.
+          const color = colorName === 'inherit' ? null : theme.palette[colorName]
+          const foreground = colorName === 'primary' ? color?.light : color?.main
           const contained = ownerState.variant === 'contained'
           return {
             minHeight: 48,
             minWidth: 48,
             padding: theme.spacing(1, 2),
             overflowWrap: 'anywhere',
-            border: `1px solid ${contained ? color.light : 'transparent'}`,
-            ...(contained ? {
-              color: color.contrastText,
-              backgroundColor: color.main,
-              '&:hover': {
-                backgroundColor: colorName === 'primary'
-                  ? theme.palette.interaction.primaryHover : color.light,
-              },
-              '&:active': { backgroundColor: color.dark },
-            } : {
-              color: foreground,
-              ...(ownerState.variant === 'outlined' && { borderColor: foreground }),
-              '&:hover': { backgroundColor: theme.palette.interaction.hover, borderColor: foreground },
-              '&:active': { backgroundColor: theme.palette.interaction.pressed },
+            ...(color && {
+              border: `1px solid ${contained ? color.light : 'transparent'}`,
+              ...(contained ? {
+                color: color.contrastText,
+                backgroundColor: color.main,
+                '&:hover': {
+                  backgroundColor: colorName === 'primary'
+                    ? theme.palette.interaction.primaryHover : color.light,
+                },
+                '&:active': { backgroundColor: color.dark },
+              } : {
+                color: foreground,
+                ...(ownerState.variant === 'outlined' && { borderColor: foreground }),
+                '&:hover': { backgroundColor: theme.palette.interaction.hover, borderColor: foreground },
+                '&:active': { backgroundColor: theme.palette.interaction.pressed },
+              }),
             }),
             '&[aria-pressed="true"]': {
               boxShadow: 'inset 0 0 0 2px currentColor',
