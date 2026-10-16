@@ -164,6 +164,7 @@ Tests terminate without watch mode. GitHub Actions runs separate `backend` and
 - [Commander games API](docs/product/games-api.md)
 - [Deck lifecycle API](docs/product/decks-api.md)
 - [Architecture and ADRs](docs/architecture/overview.md)
+- [Post-MVP frontend UI strategy (ADR 0003)](docs/architecture/adr/0003-defer-ui-framework-until-after-mvp.md)
 - [Development workflow](docs/development/workflow.md)
 - [Java coding conventions](docs/development/java-conventions.md)
 - [Testing and verification](docs/development/testing.md)
