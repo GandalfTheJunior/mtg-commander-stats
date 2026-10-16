@@ -230,3 +230,38 @@ claim, and an unavailable check keeps protected content hidden until an explicit
 session check or login. Recovery and initial identity checks also respect the
 session version, so old results cannot restore retired state or invitation codes.
 No router, real-time infrastructure, or new dependencies were added.
+
+## Browser game recording and deck lifecycle
+
+`GameManager` is mounted inside confirmed group details for the current session
+identity. It loads validated history DTOs in backend order. `GameEditor` constructs
+only participants, result and winner; server identity fields and roles are never
+submitted. The winner label and historical participant/deck displays come from
+history responses, including archived decks and former members. Existing pairs
+are offered explicitly as recorded assignments. New choices come from the group's
+active-member list and read-only member deck-selection API, with independent
+loading/empty/error feedback. Backend validation and authorization remain final.
+
+The game area is keyed by selected group and deck revision within the session
+lifetime. Refreshing/closing details, membership loss or identity changes unmount
+it. AbortControllers and generation checks ignore late results and late 401s;
+unsafe game requests pass the abort signal through CSRF bootstrap and check it
+before sending the write. Refresh or recovery removes history, drafts and pending
+confirmations before any replacement data is accepted. A denied/failed game
+operation rechecks group access with the existing safe details GET. Protected
+members/code are hidden during that check. A successful check restores confirmed
+group details, with an explicit game refresh to inspect actual server state;
+403/404 from the details check establishes lost access, 401 expires the session,
+and an unavailable check keeps protected data hidden. Recovery does not retry
+writes or loop on authorization failure.
+
+Game writes use a pending guard and exact success statuses, with no optimistic
+persisted history. Edits and deletion can be canceled without requests; destructive
+confirmations identify the game and manage keyboard focus. Successful game changes
+remount/reload My decks so permanent usage is taken from the server. Successful
+own-deck changes remount the selected game area, refreshing history and eligible
+choices. My decks requires boolean lifecycle flags, shows archived state, preserves
+immutable commander/color fields in full-update payloads, and offers explicit
+confirmed archive for used decks. Failure/conflict states provide refresh without
+asserting a mutation succeeded. No backend contract, schema, router or dependency
+was added for this frontend slice.

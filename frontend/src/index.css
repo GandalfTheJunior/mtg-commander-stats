@@ -58,7 +58,7 @@ p {
 
 .deck-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
   gap: 1rem;
   padding: 0;
   list-style: none;
@@ -218,3 +218,50 @@ button.danger {
 input {
   min-width: 0;
 }
+
+select {
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid #aab3aa;
+  border-radius: 0.4rem;
+  font: inherit;
+  padding: 0.65rem 0.75rem;
+  background: #fff;
+}
+
+select:focus-visible, button:focus-visible, [tabindex='-1']:focus {
+  outline: 0.2rem solid #426b48;
+  outline-offset: 0.15rem;
+}
+
+input[readonly], fieldset:disabled, select:disabled {
+  background: #f2f4f1;
+}
+
+.games {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #d4d9d2;
+}
+
+.game-player, .game-history article {
+  min-width: 0;
+  border: 1px solid #d4d9d2;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.game-player {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.game-history {
+  list-style: none;
+  padding: 0;
+}
+
+.game-editor h4 { margin: 0; }
+.game-editor fieldset { min-width: 0; }

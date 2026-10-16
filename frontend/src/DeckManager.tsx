@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   ApiError,
+  archiveDeck,
   createDeck,
   deleteDeck,
   listDecks,
@@ -27,9 +28,9 @@ function deckInput(form: HTMLFormElement): DeckInput {
   }
 }
 
-function ColorIdentityFields({ selected = [] }: { selected?: MagicColor[] }) {
+function ColorIdentityFields({ selected = [], disabled = false }: { selected?: MagicColor[]; disabled?: boolean }) {
   return (
-    <fieldset>
+    <fieldset disabled={disabled}>
       <legend>Color identity</legend>
       <p>Select none for a colorless deck.</p>
       <div className="colors">
@@ -58,14 +59,15 @@ function DeckFields({ deck }: { deck?: Deck }) {
       </label>
       <label>
         Commander
-        <input defaultValue={deck?.commander} name="commander" required />
+        <input defaultValue={deck?.commander} name="commander" required readOnly={deck?.everUsed} />
       </label>
-      <ColorIdentityFields selected={deck?.colorIdentity} />
+      <ColorIdentityFields selected={deck?.colorIdentity} disabled={deck?.everUsed} />
+      {deck?.everUsed && <p>Used in a recorded game: commander and colors are permanently locked. You can still rename this deck.</p>}
     </>
   )
 }
 
-export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => void }) {
+export default function DeckManager({ onUnauthorized, onChanged }: { onUnauthorized: () => void; onChanged?: () => void }) {
   const active = useRef(false)
   const deleting = useRef(false)
   const deleteTrigger = useRef<HTMLButtonElement | null>(null)
@@ -76,6 +78,7 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
     return () => { active.current = false }
   }, [])
 
+  const [revision, setRevision] = useState(0)
   const [decks, setDecks] = useState<Deck[]>([])
   const [loadStatus, setLoadStatus] = useState<LoadStatus>('loading')
   const [busy, setBusy] = useState(false)
@@ -122,11 +125,12 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
     return () => {
       active = false
     }
-  }, [handleError])
+  }, [handleError, revision])
 
   async function submitCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (loadStatus !== 'loaded') return
+    if (loadStatus !== 'loaded' || busy || deleting.current) return
+    deleting.current = true
     const form = event.currentTarget
     setBusy(true)
     setNotice(null)
@@ -136,27 +140,35 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
       setDecks((current) => [...current, created])
       setNotice({ kind: 'success', message: `${created.name} created.` })
       form.reset()
+      onChanged?.()
     } catch (error) {
       handleError(error, 'Could not create the deck.')
     } finally {
+      deleting.current = false
       if (active.current) setBusy(false)
     }
   }
 
   async function submitEdit(event: FormEvent<HTMLFormElement>, id: string) {
     event.preventDefault()
-    if (loadStatus !== 'loaded') return
+    if (loadStatus !== 'loaded' || busy || deleting.current) return
+    deleting.current = true
     setBusy(true)
     setNotice(null)
     try {
-      const updated = await updateDeck(id, deckInput(event.currentTarget))
+      const deck = decks.find((candidate) => candidate.id === id)!
+      const input = deckInput(event.currentTarget)
+      const updated = await updateDeck(id, deck.everUsed
+        ? { ...input, commander: deck.commander, colorIdentity: deck.colorIdentity } : input)
       if (!active.current) return
       setDecks((current) => current.map((deck) => (deck.id === id ? updated : deck)))
       setEditingId(null)
       setNotice({ kind: 'success', message: `${updated.name} updated.` })
+      onChanged?.()
     } catch (error) {
       handleError(error, 'Could not update the deck.')
     } finally {
+      deleting.current = false
       if (active.current) setBusy(false)
     }
   }
@@ -167,11 +179,15 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
     setBusy(true)
     setNotice(null)
     try {
-      await deleteDeck(deck.id)
+      let archived: Deck | null = null
+      if (deck.everUsed) archived = await archiveDeck(deck.id)
+      else await deleteDeck(deck.id)
       if (!active.current) return
-      setDecks((current) => current.filter((candidate) => candidate.id !== deck.id))
+      setDecks((current) => archived ? current.map((candidate) => candidate.id === deck.id ? archived : candidate)
+        : current.filter((candidate) => candidate.id !== deck.id))
       setDeletingId(null)
-      setNotice({ kind: 'success', message: `${deck.name} deleted.` })
+      onChanged?.()
+      setNotice({ kind: 'success', message: `${deck.name} ${deck.everUsed ? 'archived' : 'deleted'}.` })
     } catch (error) {
       handleError(error, 'Could not delete the deck. Try again or cancel.')
     } finally {
@@ -183,6 +199,10 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
   return (
     <section className="decks">
       <h2>My decks</h2>
+      <button type="button" className="secondary" disabled={busy || loadStatus === 'loading'} onClick={() => {
+        setDecks([]); setEditingId(null); setDeletingId(null); setNotice(null); setLoadStatus('loading')
+        setRevision((value) => value + 1)
+      }}>Refresh decks</button>
       {loadStatus === 'loading' ? (
         <p>Loading your decks…</p>
       ) : loadStatus === 'error' ? (
@@ -194,7 +214,7 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
           {decks.map((deck) => (
             <li key={deck.id}>
               {editingId === deck.id ? (
-                <form onSubmit={(event) => submitEdit(event, deck.id)}>
+                <form aria-label={`Edit ${deck.name}`} onSubmit={(event) => submitEdit(event, deck.id)}>
                   <DeckFields deck={deck} />
                   <div className="actions">
                     <button disabled={busy} type="submit">Save deck</button>
@@ -211,13 +231,14 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
               ) : (
                 <>
                   <h3>{deck.name}</h3>
+                  <p>{deck.archived ? 'Archived — unavailable for new games' : deck.everUsed ? 'Used — commander and colors locked' : 'Unused'}</p>
                   <p>Commander: {deck.commander}</p>
                   <p>Color identity: {deck.colorIdentity.join('') || 'Colorless'}</p>
                   <div className="actions">
                     <button disabled={busy || deletingId !== null} onClick={() => setEditingId(deck.id)} type="button">
                       Edit
                     </button>
-                    <button
+                    {!(deck.everUsed && deck.archived) && <button
                       className="danger"
                       disabled={busy || deletingId !== null}
                       onClick={(event) => {
@@ -227,17 +248,17 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
                       }}
                       type="button"
                     >
-                      Delete
-                    </button>
+                      {deck.everUsed ? 'Archive' : 'Delete'}
+                    </button>}
                   </div>
                   {deletingId === deck.id && (
-                    <div ref={deletionConfirmation} role="group" aria-label={`Delete ${deck.name}?`} tabIndex={-1}>
-                      <p>Permanently delete {deck.name}? This cannot be undone.</p>
+                    <div ref={deletionConfirmation} role="group" aria-label={`${deck.everUsed ? 'Archive' : 'Delete'} ${deck.name}?`} tabIndex={-1}>
+                      <p>{deck.everUsed ? `Archive ${deck.name}? It will remain in history and cannot be selected for new games. Archival cannot be undone.` : `Permanently delete ${deck.name}? This cannot be undone.`}</p>
                       <button className="danger" disabled={busy} type="button" onClick={() => removeDeck(deck)}>
-                        {busy ? 'Deleting…' : 'Confirm deletion'}
+                        {busy ? (deck.everUsed ? 'Archiving…' : 'Deleting…') : deck.everUsed ? 'Confirm archival' : 'Confirm deletion'}
                       </button>
                       <button disabled={busy} type="button" onClick={() => { setDeletingId(null); setNotice(null) }}>
-                        Cancel deletion
+                        {deck.everUsed ? 'Cancel archival' : 'Cancel deletion'}
                       </button>
                     </div>
                   )}
@@ -251,7 +272,7 @@ export default function DeckManager({ onUnauthorized }: { onUnauthorized: () => 
       {loadStatus === 'loaded' && (
         <>
           <h3>Add a deck</h3>
-          <form onSubmit={submitCreate}>
+          <form aria-label="Add a deck" onSubmit={submitCreate}>
             <DeckFields />
             <button disabled={busy || deletingId !== null} type="submit">
               {busy ? 'Saving…' : 'Create deck'}

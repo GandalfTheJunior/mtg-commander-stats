@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   ApiError, createGroup, getGroup, getJoinCode, joinGroup, leaveGroup, listGroups,
-  type GroupDetails, type GroupSummary,
+  type CurrentUser, type GroupDetails, type GroupSummary,
 } from './api'
+import GameManager from './GameManager'
 
 type Notice = { kind: 'success' | 'error'; message: string } | null
 
@@ -16,7 +17,12 @@ function Feedback({ notice }: { notice: Notice }) {
 
 // This component is keyed by the confirmed session lifetime in App. Each selected group
 // is also a separate lifetime, so old requests cannot restore protected content.
-export default function GroupManager({ onUnauthorized }: { onUnauthorized: () => void }) {
+export default function GroupManager({ onUnauthorized, currentUser, deckRevision = 0, onGamesChanged }: {
+  onUnauthorized: () => void
+  currentUser?: CurrentUser
+  deckRevision?: number
+  onGamesChanged?: () => void
+}) {
   const [groups, setGroups] = useState<GroupSummary[]>([])
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading')
   const [revision, setRevision] = useState(0)
@@ -127,6 +133,7 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
       <Feedback notice={notice} />
       {selected && (
         <GroupView key={selected} id={selected} busy={busy} setBusy={setBusy}
+          currentUser={currentUser} deckRevision={deckRevision} onGamesChanged={onGamesChanged}
           onUnauthorized={onUnauthorized}
           onClose={() => setSelected(null)}
           onAccessLost={() => {
@@ -144,6 +151,9 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
 }
 
 type GroupViewProps = {
+  currentUser?: CurrentUser
+  deckRevision: number
+  onGamesChanged?: () => void
   id: string
   busy: boolean
   setBusy: (busy: boolean) => void
@@ -153,7 +163,8 @@ type GroupViewProps = {
   onClose: () => void
 }
 
-function GroupView({ id, busy, setBusy, onUnauthorized, onAccessLost, onLeft, onClose }: GroupViewProps) {
+function GroupView({ id, busy, setBusy, onUnauthorized, onAccessLost, onLeft, onClose, currentUser, deckRevision, onGamesChanged }: GroupViewProps) {
+  const [checkingGames, setCheckingGames] = useState(false)
   const [details, setDetails] = useState<GroupDetails | null>(null)
   const [loading, setLoading] = useState(true)
   const [revision, setRevision] = useState(0)
@@ -193,6 +204,7 @@ function GroupView({ id, busy, setBusy, onUnauthorized, onAccessLost, onLeft, on
   }, [id, revision, handleError])
 
   function refresh() {
+    setCheckingGames(false)
     setDetails(null)
     setCode(null)
     setConfirmation(null)
@@ -266,6 +278,7 @@ function GroupView({ id, busy, setBusy, onUnauthorized, onAccessLost, onLeft, on
       </div>
       {loading && <p role="status">Loading group details…</p>}
       {details && <>
+        {!checkingGames && <>
         <h3>{details.name}</h3>
         <p>Your role: {details.role}</p>
         <h4>Active members</h4>
@@ -297,6 +310,11 @@ function GroupView({ id, busy, setBusy, onUnauthorized, onAccessLost, onLeft, on
             <button type="button" className="secondary" disabled={busy} onClick={() => setConfirmation(null)}>Cancel</button>
           </div>
         </div>}
+        </>}
+        {currentUser && <GameManager key={`${id}-${deckRevision}`} group={details} actorId={currentUser.id}
+          onUnauthorized={onUnauthorized} onAccessLost={onAccessLost} onCheckingAccess={setCheckingGames}
+          onGroupConfirmed={(group) => { setDetails(group); if (group.role !== 'OWNER') setCode(null) }}
+          onChanged={onGamesChanged} />}
       </>}
       <Feedback notice={notice} />
     </section>

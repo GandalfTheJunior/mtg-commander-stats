@@ -4,7 +4,7 @@ import App from './App'
 import type { CurrentUser } from './api'
 
 const user = { id: 'f058bf9c-c4ce-4b88-a252-aa176a5ef539', username: 'Gandalf' }
-const deck = { id: 'deck-id', name: 'Private deck', commander: 'Atraxa', colorIdentity: [] }
+const deck = { everUsed: false, archived: false, id: 'deck-id', name: 'Private deck', commander: 'Atraxa', colorIdentity: [] }
 const group = { id: '11111111-1111-4111-8111-111111111111', name: 'Private group', role: 'OWNER' }
 const code = 'abcdefghijklmnopqrstuv'
 
@@ -39,6 +39,7 @@ function setup() {
     if (path === '/api/decks') return init?.method ? server.createDeck() : server.decks()
     if (path === '/api/groups') return init?.method ? server.createGroup() : server.groups()
     if (path === `/api/groups/${group.id}`) return Promise.resolve(json({ ...group, members: [] }))
+    if (path.endsWith('/games')) return Promise.resolve(json([]))
     if (path.endsWith('/join-code')) return server.code()
     throw new Error(`Unexpected request: ${path}`)
   })

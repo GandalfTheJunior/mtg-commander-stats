@@ -1,8 +1,9 @@
 # Commander games API
 
 The backend records free-for-all Commander games within play groups. This API
-uses the existing session authentication and CSRF semantics. Browser recording
-and statistics queries are later milestones.
+uses the existing session authentication and CSRF semantics. The selected group
+browser experience consumes this contract; see the [usage guide](../../README.md#local-development).
+Statistics queries remain a later milestone.
 
 ## Routes
 

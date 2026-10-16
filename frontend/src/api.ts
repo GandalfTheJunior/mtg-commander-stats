@@ -11,9 +11,11 @@ export type Deck = {
   name: string
   commander: string
   colorIdentity: MagicColor[]
+  everUsed: boolean
+  archived: boolean
 }
 
-export type DeckInput = Omit<Deck, 'id'>
+export type DeckInput = Pick<Deck, 'name' | 'commander' | 'colorIdentity'>
 
 export class ApiError extends Error {
   readonly status: number
@@ -86,11 +88,13 @@ function deckFrom(value: unknown): Deck {
     typeof value.name !== 'string' ||
     !('commander' in value) ||
     typeof value.commander !== 'string' ||
+    !('everUsed' in value) || typeof value.everUsed !== 'boolean' ||
+    !('archived' in value) || typeof value.archived !== 'boolean' ||
     !('colorIdentity' in value) ||
     !Array.isArray(value.colorIdentity) ||
     !value.colorIdentity.every((color) =>
       magicColors.includes(color as MagicColor),
-    )
+    ) || value.colorIdentity.join('') !== canonicalColors(value.colorIdentity)
   ) {
     throw new Error('The server returned an invalid deck response.')
   }
@@ -99,14 +103,13 @@ function deckFrom(value: unknown): Deck {
     name: value.name,
     commander: value.commander,
     colorIdentity: value.colorIdentity as MagicColor[],
+    everUsed: value.everUsed,
+    archived: value.archived,
   }
 }
 
-async function deckResponse(response: Response, fallback: string): Promise<Deck> {
-  if (!response.ok) {
-    throw new ApiError(await errorMessage(response, fallback), response.status)
-  }
-  return deckFrom(await response.json())
+async function deckResponse(response: Response, fallback: string, status: number): Promise<Deck> {
+  return deckFrom(await (await checkedResponse(response, status, fallback)).json())
 }
 
 export async function restoreSession(): Promise<CurrentUser | null> {
@@ -131,8 +134,8 @@ export async function registerUser(registration: Registration) {
   return currentUserFrom(response)
 }
 
-async function getCsrf(): Promise<CsrfToken> {
-  const response = await fetch('/api/csrf', requestDefaults)
+async function getCsrf(signal?: AbortSignal): Promise<CsrfToken> {
+  const response = await fetch('/api/csrf', { ...requestDefaults, ...(signal ? { signal } : {}) })
   if (!response.ok) {
     throw new ApiError(await errorMessage(response, 'Could not prepare login.'), response.status)
   }
@@ -150,11 +153,13 @@ async function getCsrf(): Promise<CsrfToken> {
   return { headerName: csrf.headerName, token: csrf.token }
 }
 
-async function unsafeRequest(method: 'POST' | 'PUT' | 'DELETE', path: string, input?: object) {
-  const csrf = await getCsrf()
+async function unsafeRequest(method: 'POST' | 'PUT' | 'DELETE', path: string, input?: object, signal?: AbortSignal) {
+  const csrf = await getCsrf(signal)
+  signal?.throwIfAborted()
   return fetch(path, {
     ...requestDefaults,
     method,
+    ...(signal ? { signal } : {}),
     headers: {
       ...(input ? { 'Content-Type': 'application/json' } : {}),
       [csrf.headerName]: csrf.token,
@@ -210,21 +215,21 @@ export async function listDecks(): Promise<Deck[]> {
 }
 
 export async function createDeck(input: DeckInput): Promise<Deck> {
-  return deckResponse(await unsafeRequest('POST', '/api/decks', input), 'Could not create the deck.')
+  return deckResponse(await unsafeRequest('POST', '/api/decks', input), 'Could not create the deck.', 201)
 }
 
 export async function updateDeck(id: string, input: DeckInput): Promise<Deck> {
-  return deckResponse(
-    await unsafeRequest('PUT', `/api/decks/${id}`, input),
-    'Could not update the deck.',
+  const deck = await deckResponse(
+    await unsafeRequest('PUT', `/api/decks/${encodeURIComponent(id)}`, input),
+    'Could not update the deck.', 200,
   )
+  if (deck.id !== id) throw new Error('The server returned a different deck. Refresh your decks.')
+  return deck
 }
 
 export async function deleteDeck(id: string): Promise<void> {
-  const response = await unsafeRequest('DELETE', `/api/decks/${id}`)
-  if (!response.ok) {
-    throw new ApiError(await errorMessage(response, 'Could not delete the deck.'), response.status)
-  }
+  await checkedResponse(await unsafeRequest('DELETE', `/api/decks/${encodeURIComponent(id)}`),
+    204, 'Could not delete the deck.')
 }
 
 export type GroupRole = 'OWNER' | 'MEMBER'
@@ -283,9 +288,9 @@ export async function joinGroup(code: string): Promise<GroupSummary> {
   return groupResponse(await unsafeRequest('POST', '/api/groups/join', { code }), 200, 'Could not join. Check that the invitation code is current and valid.')
 }
 
-export async function getGroup(id: string): Promise<GroupDetails> {
+export async function getGroup(id: string, signal?: AbortSignal): Promise<GroupDetails> {
   const response = await checkedResponse(
-    await fetch(`/api/groups/${encodeURIComponent(id)}`, requestDefaults), 200, 'Could not load group details.',
+    await fetch(`/api/groups/${encodeURIComponent(id)}`, { ...requestDefaults, ...(signal ? { signal } : {}) }), 200, 'Could not load group details.',
   )
   const body: unknown = await response.json()
   const group = groupFrom(body)
@@ -320,4 +325,123 @@ export async function getJoinCode(id: string, regenerate = false): Promise<strin
 
 export async function leaveGroup(id: string): Promise<void> {
   await checkedResponse(await unsafeRequest('DELETE', `/api/groups/${encodeURIComponent(id)}/membership`), 204, 'Could not leave the group.')
+}
+
+export async function archiveDeck(id: string): Promise<Deck> {
+  const response = await checkedResponse(
+    await unsafeRequest('POST', `/api/decks/${encodeURIComponent(id)}/archive`), 200, 'Could not archive the deck.',
+  )
+  const deck = deckFrom(await response.json())
+  if (deck.id !== id || !deck.archived) throw new Error('The server did not confirm deck archival. Refresh your decks.')
+  return deck
+}
+
+export type DeckSelection = Pick<Deck, 'id' | 'name' | 'commander' | 'colorIdentity'>
+export type GameParticipant = {
+  userId: string
+  username: string
+  deckId: string
+  deck: DeckSelection & { archived: boolean }
+}
+export type Game = {
+  id: string
+  groupId: string
+  creatorId: string
+  recordedAt: string
+  participants: GameParticipant[]
+  result: 'WIN' | 'DRAW'
+  winnerUserId: string | null
+}
+export type GameInput = Pick<Game, 'result' | 'winnerUserId'> & {
+  participants: { userId: string; deckId: string }[]
+}
+
+function isUuid(value: unknown): value is string {
+  return typeof value === 'string' && uuidPattern.test(value)
+}
+
+function canonicalColors(colors: unknown[]): string {
+  return magicColors.filter((color) => colors.includes(color)).join('')
+}
+
+function selectionFrom(value: unknown): DeckSelection {
+  if (!isRecord(value) || !isUuid(value.id) || typeof value.name !== 'string' || !value.name ||
+    typeof value.commander !== 'string' || !value.commander || !Array.isArray(value.colorIdentity) ||
+    value.colorIdentity.some((color) => !magicColors.includes(color as MagicColor)) ||
+    value.colorIdentity.join('') !== canonicalColors(value.colorIdentity)) {
+    throw new Error('The server returned invalid deck selection data.')
+  }
+  return { id: value.id, name: value.name, commander: value.commander, colorIdentity: value.colorIdentity as MagicColor[] }
+}
+
+function gameFrom(value: unknown, groupId: string, gameId?: string): Game {
+  if (!isRecord(value) || !isUuid(value.id) || (gameId !== undefined && value.id !== gameId) ||
+    value.groupId !== groupId || !isUuid(value.creatorId) || typeof value.recordedAt !== 'string' ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(value.recordedAt) ||
+    !Number.isFinite(Date.parse(value.recordedAt)) || !Array.isArray(value.participants) ||
+    value.participants.length < 2 || value.participants.length > 6 ||
+    (value.result !== 'WIN' && value.result !== 'DRAW')) {
+    throw new Error('The server returned invalid game data. Refresh games before continuing.')
+  }
+  const participants = value.participants.map((participant: unknown): GameParticipant => {
+    if (!isRecord(participant) || !isUuid(participant.userId) || !isUuid(participant.deckId) ||
+      typeof participant.username !== 'string' || !participant.username || !isRecord(participant.deck) ||
+      typeof participant.deck.archived !== 'boolean') {
+      throw new Error('The server returned an invalid game participant.')
+    }
+    const deck = selectionFrom(participant.deck)
+    if (deck.id !== participant.deckId) throw new Error('The server returned mismatched game deck data.')
+    return { userId: participant.userId, username: participant.username, deckId: deck.id,
+      deck: { ...deck, archived: participant.deck.archived } }
+  })
+  const userIds = participants.map((participant) => participant.userId)
+  if (new Set(userIds).size !== userIds.length ||
+    (value.result === 'WIN' && (!isUuid(value.winnerUserId) || !userIds.includes(value.winnerUserId))) ||
+    (value.result === 'DRAW' && value.winnerUserId !== null)) {
+    throw new Error('The server returned an invalid game result.')
+  }
+  return { id: value.id, groupId, creatorId: value.creatorId, recordedAt: value.recordedAt,
+    participants, result: value.result, winnerUserId: value.winnerUserId as string | null }
+}
+
+const gamesPath = (groupId: string) => `/api/groups/${encodeURIComponent(groupId)}/games`
+
+export async function listGames(groupId: string, signal?: AbortSignal): Promise<Game[]> {
+  const response = await checkedResponse(
+    await fetch(gamesPath(groupId), { ...requestDefaults, ...(signal ? { signal } : {}) }),
+    200, 'Could not load game history.',
+  )
+  const body: unknown = await response.json()
+  if (!Array.isArray(body)) throw new Error('The server returned an invalid game history.')
+  const games = body.map((game) => gameFrom(game, groupId))
+  if (new Set(games.map((game) => game.id)).size !== games.length) throw new Error('The server returned duplicate games.')
+  return games
+}
+
+export async function saveGame(groupId: string, input: GameInput, gameId?: string, signal?: AbortSignal): Promise<Game> {
+  // Construct the complete documented payload; identity and role are never writable.
+  const payload: GameInput = { participants: input.participants.map(({ userId, deckId }) => ({ userId, deckId })),
+    result: input.result, winnerUserId: input.winnerUserId }
+  const response = await checkedResponse(
+    await unsafeRequest(gameId ? 'PUT' : 'POST', gamesPath(groupId) + (gameId ? `/${encodeURIComponent(gameId)}` : ''), payload, signal),
+    gameId ? 200 : 201, 'Could not save the game.',
+  )
+  return gameFrom(await response.json(), groupId, gameId)
+}
+
+export async function deleteGame(groupId: string, gameId: string, signal?: AbortSignal): Promise<void> {
+  await checkedResponse(await unsafeRequest('DELETE', `${gamesPath(groupId)}/${encodeURIComponent(gameId)}`, undefined, signal),
+    204, 'Could not delete the game.')
+}
+
+export async function memberDecks(groupId: string, userId: string, signal?: AbortSignal): Promise<DeckSelection[]> {
+  const response = await checkedResponse(await fetch(
+    `/api/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}/decks`,
+    { ...requestDefaults, ...(signal ? { signal } : {}) },
+  ), 200, 'Could not load eligible decks.')
+  const body: unknown = await response.json()
+  if (!Array.isArray(body)) throw new Error('The server returned an invalid deck selection list.')
+  const decks = body.map(selectionFrom)
+  if (new Set(decks.map((deck) => deck.id)).size !== decks.length) throw new Error('The server returned duplicate decks.')
+  return decks
 }
