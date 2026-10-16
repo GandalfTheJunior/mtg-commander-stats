@@ -1,6 +1,13 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render as renderUI, screen, within } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App'
+import { AppThemeProvider } from './theme/AppThemeProvider'
+
+// Exercise existing native auth/session/deck/group flows under the production provider.
+function render(ui: ReactNode) {
+  return renderUI(<AppThemeProvider>{ui}</AppThemeProvider>)
+}
 
 const user = { id: 'f058bf9c-c4ce-4b88-a252-aa176a5ef539', username: 'Gandalf' }
 const password = 'correct horse battery'
