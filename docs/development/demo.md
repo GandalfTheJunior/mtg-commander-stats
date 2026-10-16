@@ -102,6 +102,23 @@ fresh sign-in, own decks, membership/role and visibility scopes,
 archived history/selection, and rejection of an archived deck in a new game.
 It submits no placements, seasons or timestamp overrides.
 
+## Check browser statistics with existing demo data
+
+Start the existing demo backend and Vite as above, sign in as Ada, then open
+**Demo Friday Table** in My groups. Under game history, **Statistics** displays
+**Player statistics** and **Deck statistics**. Check Ada **12 / 6 / 50%**,
+Dragon Engine **6 / 6 / 100%**, Patient Constructs **6 / 0 / 0%**, and Emil
+**12 / 1 / 8.33%**. Dara's Old Artifacts remains visible and labelled **Archived**.
+Only recorded players/decks appear. Use **Refresh statistics** to reload figures.
+
+Sign out and sign in as Cleo, Dara or Emil to open both Friday and Sunday; compare
+Sunday with the independent figures in
+[expected-results.json](../../tools/demo/expected-results.json). Switching or
+closing details hides the previous group's tables. An acknowledged game edit
+refreshes figures from the backend; canceling sends no change. Existing manual
+edits will naturally differ from the fixed manifest. Reuse seeded data; no reset
+or reseeding is required for this check.
+
 ## Read the statistics API with existing demo data
 
 Rebuild the backend jar after this change and start the existing seeded demo with
@@ -125,7 +142,8 @@ Patient Constructs **6/0/0%** and Emil **12/1/8.33%** to
 Dara or Emil and select `Demo Sunday Table` in the snippet to inspect independent
 Sunday figures. Ada cannot read Sunday. Results reflect any manual game edits
 already made to the demo. GET sends the existing session cookie and needs no
-CSRF token. The browser statistics area is still planned.
+CSRF token. The same figures are also visible in the opened group's browser
+**Statistics** section, below game history.
 
 ## Stop, reuse, recover, reset and return to regular development
 

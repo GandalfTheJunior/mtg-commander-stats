@@ -4,9 +4,9 @@ A Commander statistics application and a learning project for AI-assisted
 software engineering. The application supports user registration, session
 authentication, authenticated deck management, and browser play-group management
 with join-code membership. The browser records Commander games, shows group history, and handles permanent
-deck usage and explicit archival through the backend API. The backend provides
-[group statistics](docs/product/statistics-api.md); browser statistics and profiles
-remain planned.
+deck usage and explicit archival through the backend API. Opened groups show
+basic player and deck [statistics](docs/product/statistics-api.md). Profiles remain
+planned.
 
 ## Agent entry point
 
@@ -152,9 +152,26 @@ group, refreshing members, logging out, or changing identity retires old game
 requests and drafts. Game mutations reload your deck lifecycle state; deck
 mutations reload the selected game's history/selection area.
 
+Below game history, **Statistics** shows separate **Player statistics** and
+**Deck statistics** tables for the opened group: Games, Wins, and Win rate. Only
+players/decks with recorded games appear, including former members and archived
+decks; archived decks are labelled **Archived**. Current names, commanders, and
+UUIDs distinguish identical display names. Percentages come from the backend,
+with at most two decimal places, and rows retain its name-based order.
+
+**Refresh statistics** reloads those figures. Successful game creation, editing,
+and deletion also reload them; **Refresh games**, **Refresh members**, and reopening
+details obtain fresh statistics. Empty groups show **No statistics yet**.
+Loading and failed refreshes hide previous tables, with an explicit retry.
+Statistics access denials use the same group recheck as games: after confirmed
+access, **Refresh games** reloads history and statistics; unresolved checks keep
+protected data hidden. Closing/switching groups, logout, and session changes
+retire old requests and statistics immediately.
+
 The browser uses the existing session/CSRF flow and documented
 [play groups](docs/product/groups-api.md), [Commander games](docs/product/games-api.md),
-and [deck lifecycle](docs/product/decks-api.md) APIs, with no new backend endpoints.
+[deck lifecycle](docs/product/decks-api.md), and
+[group statistics](docs/product/statistics-api.md) APIs.
 
 Stop the applications with Ctrl+C and PostgreSQL with `docker compose stop`.
 The named volume preserves local data.

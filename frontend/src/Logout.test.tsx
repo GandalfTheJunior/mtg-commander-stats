@@ -39,6 +39,7 @@ function setup() {
     if (path === '/api/decks') return init?.method ? server.createDeck() : server.decks()
     if (path === '/api/groups') return init?.method ? server.createGroup() : server.groups()
     if (path === `/api/groups/${group.id}`) return Promise.resolve(json({ ...group, members: [] }))
+    if (path.endsWith('/statistics')) return Promise.resolve(json({ players: [], decks: [] }))
     if (path.endsWith('/games')) return Promise.resolve(json([]))
     if (path.endsWith('/join-code')) return server.code()
     throw new Error(`Unexpected request: ${path}`)

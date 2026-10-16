@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import type { DeckSelection, Game, GameInput, GroupDetails, GroupMember } from '../api'
+import type { DeckSelection, Game, GameInput, GroupDetails, GroupMember, GroupStatistics } from '../api'
 
 export const uid = (n: number) => `00000000-0000-4000-8000-${n.toString().padStart(12, '0')}`
 export const members: GroupMember[] = [
@@ -26,7 +26,7 @@ export function deferred() {
 }
 type Reply = (input?: RequestInit) => Response | Promise<Response>
 export function gameApi(initial: Game[] = []) {
-  const state = { history: initial }
+  const state = { history: initial, statistics: { players: [], decks: [] } as GroupStatistics }
   const replies = new Map<string, Reply[]>()
   function next(path: string, reply: Reply, method = 'GET') {
     const key = `${method} ${path}`
@@ -36,6 +36,7 @@ export function gameApi(initial: Game[] = []) {
     const method = init?.method ?? 'GET'
     const reply = replies.get(`${method} ${path}`)?.shift()
     if (reply) return reply(init)
+    if (path.endsWith('/statistics')) return response(state.statistics)
     if (path === '/api/csrf') return response({ headerName: 'X-CSRF-TOKEN', token: 'game-token' })
     if (path === `/api/groups/${group.id}`) return response(group)
     if (path === `/api/groups/${group.id}/games` && method === 'GET') return response(state.history)

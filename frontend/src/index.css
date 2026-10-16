@@ -265,3 +265,35 @@ input[readonly], fieldset:disabled, select:disabled {
 
 .game-editor h4 { margin: 0; }
 .game-editor fieldset { min-width: 0; }
+
+.statistics {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #d4d9d2;
+}
+
+.statistics-scroll {
+  overflow-x: auto;
+}
+
+.statistics table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.statistics th, .statistics td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #d4d9d2;
+  vertical-align: top;
+}
+
+.statistics td {
+  font-variant-numeric: tabular-nums;
+}
+
+.statistics small {
+  display: block;
+  font-weight: normal;
+  overflow-wrap: anywhere;
+}

@@ -281,3 +281,24 @@ immutable commander/color fields in full-update payloads, and offers explicit
 confirmed archive for used decks. Failure/conflict states provide refresh without
 asserting a mutation succeeded. No backend contract, schema, router or dependency
 was added for this frontend slice.
+
+## Browser group statistics
+
+`GroupStatistics` is mounted within the selected group's ready `GameManager`
+area, under confirmed group details and the current session lifetime. It calls
+`getGroupStatistics` in `api.ts`, which validates status, public row fields, UUIDs,
+unique IDs, positive safe-integer game counts, wins within games, and finite
+percentages within 0–100. Only documented fields are retained. The component
+renders two semantic HTML tables in backend order; it formats the returned
+percentages without computing statistics from history or membership.
+
+Game refresh/recovery unmounts statistics, aborting its request. Successful game
+writes refresh that same area; detail refresh/reopen, selected-group/session
+changes and own-deck changes also remount it. Explicit statistics refresh clears
+old tables and uses abort/generation guards to reject retired successes and
+errors. Network, server and malformed-response failures show a local retry.
+Statistics 401/403/404 responses delegate to the existing game/group recovery:
+401 expires the current session; 403/404 hides protected details while a safe
+group GET determines access. Confirmed membership permits explicit Refresh games
+to reload both areas; failed checks keep them hidden. No new backend contract,
+router, client-side counters, dependencies or UI framework were introduced.
