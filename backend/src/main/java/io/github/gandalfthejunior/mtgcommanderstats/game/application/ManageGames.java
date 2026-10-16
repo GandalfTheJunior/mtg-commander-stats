@@ -48,7 +48,17 @@ public class ManageGames {
 
     public List<GameDetails> list(UUID actorId, UUID groupId) {
         groups.lockActiveMember(groupId, actorId);
-        return games.findAllByGroupIdOrderByRecordedAtDescIdDesc(groupId).stream().map(this::details).toList();
+        List<Game> history = games.findAllByGroupIdOrderByRecordedAtDescIdDesc(groupId);
+        if (history.isEmpty()) {
+            return List.of();
+        }
+        List<GameParticipant> participants = history.stream()
+                .flatMap(game -> game.getParticipants().stream()).toList();
+        Map<UUID, PublicUser> publicUsers = users.findAll(participants.stream()
+                .map(GameParticipant::getUserId).distinct().toList());
+        Map<UUID, DeckDisplay> publicDecks = decks.display(participants.stream()
+                .map(GameParticipant::getDeckId).distinct().toList());
+        return history.stream().map(game -> details(game, publicUsers, publicDecks)).toList();
     }
 
     public GameDetails get(UUID actorId, UUID groupId, UUID gameId) {
@@ -114,7 +124,11 @@ public class ManageGames {
                 .map(GameParticipant::getUserId).toList());
         Map<UUID, DeckDisplay> publicDecks = decks.display(participants.stream()
                 .map(GameParticipant::getDeckId).toList());
-        List<ParticipantDetails> summaries = participants.stream()
+        return details(game, publicUsers, publicDecks);
+    }
+
+    private GameDetails details(Game game, Map<UUID, PublicUser> publicUsers, Map<UUID, DeckDisplay> publicDecks) {
+        List<ParticipantDetails> summaries = game.getParticipants().stream()
                 .sorted(Comparator.comparing(GameParticipant::getUserId))
                 .map(participant -> new ParticipantDetails(participant.getUserId(),
                         publicUsers.get(participant.getUserId()).username(), participant.getDeckId(),

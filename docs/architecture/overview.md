@@ -88,7 +88,14 @@ new assignments and permissions. Game identity fields are never updated.
 and the public-user directory rather than other features' repositories. Game
 writes and first-use updates share one transaction; usage is never derived from
 remaining game references or reset. History resolves stored public display data,
-including former users and archived decks. See [Games API](../product/games-api.md).
+including former users and archived decks. History listing fetches games and
+participants together through a repository entity graph, then resolves all distinct
+user and deck IDs in one call each to the existing application boundaries. It
+maps every game using those shared public display maps, avoiding per-game queries
+while retaining the existing ordering and group lock. Fresh deck display entities
+are loaded with a read-only query hint so converted color identities do not cause
+incidental dirty-checking writes; the locking deck mutation/usage queries remain
+writable. See [Games API](../product/games-api.md).
 
 Game operations (including reads and deck selection) lock the group row before
 checking current membership. Join, leave and code rotation use that same lock.

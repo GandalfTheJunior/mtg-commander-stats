@@ -44,7 +44,7 @@ public class GameDecks {
     }
 
     public Map<UUID, DeckDisplay> display(Collection<UUID> deckIds) {
-        return decks.findAllById(deckIds).stream().map(DeckDisplay::from)
+        return decks.findAllForDisplay(deckIds).stream().map(DeckDisplay::from)
                 .collect(Collectors.toMap(DeckDisplay::id, Function.identity()));
     }
 
