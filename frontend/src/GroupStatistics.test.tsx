@@ -70,7 +70,8 @@ test('shows loading then accessible server-ordered tables with demo rates, forme
   expect(decks.getByRole('row', { name: /Patient Constructs/ })).toHaveTextContent('600%')
   expect(decks.getByRole('row', { name: /Old Artifacts/ })).toHaveTextContent('Archived')
   expect(decks.getByRole('row', { name: /Old Artifacts/ })).toHaveTextContent('Former member')
-  expect(decks.queryByRole('button')).not.toBeInTheDocument()
+  expect(decks.getAllByRole('button')).toHaveLength(5)
+  expect(decks.queryByRole('button', { name: /Edit|Archive|Delete/ })).not.toBeInTheDocument()
   expect(screen.queryByText('50.00%')).not.toBeInTheDocument()
 })
 
@@ -288,4 +289,138 @@ test('logout immediately removes loaded statistics even while logout acknowledgm
   expect(screen.queryByRole('heading', { name: 'Statistics' })).not.toBeInTheDocument()
   await act(async () => logout.resolve(new Response(null, { status: 204 })))
   await screen.findByText('Logged out.')
+})
+
+
+function sortedIds(table: HTMLElement) {
+  return within(table).getAllByRole('rowheader').map(header =>
+    header.textContent!.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)![0])
+}
+
+function sortingData() {
+  const data = statistics()
+  data.players = [
+    { ...data.players[0], games: 12, wins: 6 },
+    { ...data.players[1], games: 9, wins: 1 },
+    { ...data.players[2], games: 2, wins: 0 },
+    { ...data.players[0], userId: uid(4), username: 'Zed', games: 100, wins: 100, winRatePercent: 100 },
+  ]
+  data.decks = data.players.map((row, index) => ({ ...data.decks[0], deckId: uid(101 + index),
+    games: row.games, wins: row.wins, winRatePercent: row.winRatePercent }))
+  return data
+}
+
+test.each(['players', 'decks'] as const)('every numeric %s heading sorts numbers descending then ascending, with independent accessible state', async kind => {
+  const api = gameApi(); api.state.statistics = sortingData(); show()
+  await screen.findByRole('table', { name: 'Player statistics' })
+  const table = () => kind === 'players' ? playerTable() : deckTable()
+  const other = () => kind === 'players' ? deckTable() : playerTable()
+  const base = kind === 'players' ? [uid(1), uid(2), uid(9), uid(4)] : [101, 102, 103, 104].map(uid)
+  const untouched = sortedIds(other())
+  expect(sortedIds(table())).toEqual(base)
+  expect(within(table()).getAllByRole('columnheader').every(header => !header.hasAttribute('aria-sort'))).toBe(true)
+  for (const label of ['Win rate', 'Games', 'Wins']) {
+    fireEvent.click(within(table()).getByRole('button', { name: label }))
+    expect(sortedIds(table())).toEqual([base[3], base[0], base[1], base[2]])
+    const active = within(table()).getByRole('columnheader', { name: label })
+    expect(active).toHaveAttribute('aria-sort', 'descending')
+    expect(active).toHaveTextContent('↓')
+    expect(table().querySelectorAll('th[aria-sort]')).toHaveLength(1)
+    fireEvent.click(within(table()).getByRole('button', { name: label }))
+    expect(sortedIds(table())).toEqual([base[2], base[1], base[0], base[3]])
+    expect(active).toHaveAttribute('aria-sort', 'ascending')
+    expect(active).toHaveTextContent('↑')
+    expect(sortedIds(other())).toEqual(untouched)
+  }
+  expect(statsCalls(api)).toHaveLength(1) // Presentation-only sorting never makes an API call.
+})
+
+test.each([
+  ['players', 'Player'], ['decks', 'Deck'], ['decks', 'Owner'],
+] as const)('%s %s heading sorts mixed-case text, retaining backend ID order for equal names in both directions', async (kind, label) => {
+  const api = gameApi(), data = sortingData()
+  const labels = ['beta', 'ALPHA', 'alpha', 'Zoo']
+  data.players = data.players.map((row, index) => ({ ...row, username: labels[index] }))
+  data.decks = data.decks.map((row, index) => ({ ...row, name: labels[index], ownerUsername: labels[index] }))
+  api.state.statistics = data; show()
+  await screen.findByRole('table', { name: 'Player statistics' })
+  const table = kind === 'players' ? playerTable() : deckTable()
+  const base = sortedIds(table)
+  fireEvent.click(within(table).getByRole('button', { name: label }))
+  expect(sortedIds(table)).toEqual([base[1], base[2], base[0], base[3]])
+  expect(within(table).getByRole('columnheader', { name: label })).toHaveAttribute('aria-sort', 'ascending')
+  fireEvent.click(within(table).getByRole('button', { name: label }))
+  expect(sortedIds(table)).toEqual([base[3], base[0], base[1], base[2]])
+  expect(within(table).getByRole('columnheader', { name: label })).toHaveAttribute('aria-sort', 'descending')
+})
+
+test('numeric ties use the backend order rather than the prior text sort or reversed tie order', async () => {
+  const api = gameApi(), data = statistics()
+  data.players = data.players.map(row => ({ ...row, games: 12, wins: 0, winRatePercent: 0 }))
+  api.state.statistics = data; show()
+  await screen.findByRole('table', { name: 'Player statistics' })
+  fireEvent.click(within(playerTable()).getByRole('button', { name: 'Player' }))
+  fireEvent.click(within(playerTable()).getByRole('button', { name: 'Player' }))
+  expect(sortedIds(playerTable())).toEqual([uid(9), uid(2), uid(1)])
+  fireEvent.click(within(playerTable()).getByRole('button', { name: 'Wins' }))
+  expect(sortedIds(playerTable())).toEqual([uid(1), uid(2), uid(9)])
+  fireEvent.click(within(playerTable()).getByRole('button', { name: 'Wins' }))
+  expect(sortedIds(playerTable())).toEqual([uid(1), uid(2), uid(9)])
+})
+
+test('both table choices re-sort fresh server rows on statistics and game refresh', async () => {
+  const api = gameApi(); api.state.statistics = statistics(); show()
+  await screen.findByRole('table', { name: 'Player statistics' })
+  fireEvent.click(within(playerTable()).getByRole('button', { name: 'Win rate' }))
+  fireEvent.click(within(deckTable()).getByRole('button', { name: 'Wins' }))
+  const updated = statistics()
+  updated.players[2] = { ...updated.players[2], wins: 4, winRatePercent: 100 }
+  updated.decks[2] = { ...updated.decks[2], games: 10, wins: 10, winRatePercent: 100 }
+  api.state.statistics = updated
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh statistics' }))
+  await waitFor(() => expect(sortedIds(playerTable())).toEqual([uid(9), uid(1), uid(2)]))
+  expect(sortedIds(deckTable())).toEqual([uid(109), uid(101), uid(102)])
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh games' }))
+  await waitFor(() => expect(within(playerTable()).getByRole('columnheader', { name: 'Win rate' })).toHaveAttribute('aria-sort', 'descending'))
+  expect(sortedIds(playerTable())).toEqual([uid(9), uid(1), uid(2)])
+  expect(within(deckTable()).getByRole('columnheader', { name: 'Wins' })).toHaveAttribute('aria-sort', 'descending')
+  expect(sortedIds(deckTable())).toEqual([uid(109), uid(101), uid(102)])
+})
+
+test('an acknowledged game write retains the chosen sort and applies it to newly fetched values', async () => {
+  const api = gameApi([recorded()]); api.state.statistics = statistics(); show()
+  await screen.findByRole('table', { name: 'Player statistics' })
+  fireEvent.click(within(playerTable()).getByRole('button', { name: 'Win rate' }))
+  fireEvent.click(within(deckTable()).getByRole('button', { name: 'Owner' }))
+  fireEvent.click(within(deckTable()).getByRole('button', { name: 'Owner' }))
+  const updated = statistics()
+  updated.players[2] = { ...updated.players[2], wins: 4, winRatePercent: 100 }
+  api.state.statistics = updated
+  fireEvent.click(screen.getByRole('button', { name: 'Edit game' }))
+  fireEvent.change(screen.getByLabelText('Game result'), { target: { value: 'DRAW' } })
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Save game' })).not.toBeDisabled())
+  fireEvent.click(screen.getByRole('button', { name: 'Save game' }))
+  await screen.findByText('Game updated.')
+  await waitFor(() => expect(sortedIds(playerTable())).toEqual([uid(9), uid(1), uid(2)]))
+  expect(within(playerTable()).getByRole('columnheader', { name: 'Win rate' })).toHaveAttribute('aria-sort', 'descending')
+  expect(within(deckTable()).getByRole('columnheader', { name: 'Owner' })).toHaveAttribute('aria-sort', 'descending')
+  expect(sortedIds(deckTable())).toEqual([uid(109), uid(101), uid(102)])
+})
+
+test.each(['close', 'switch', 'session'] as const)('%s discards previous sort choices along with protected statistics', async action => {
+  const api = appSetup(); render(<App />); await open()
+  await screen.findByRole('table', { name: 'Player statistics' })
+  fireEvent.click(within(playerTable()).getByRole('button', { name: 'Win rate' }))
+  fireEvent.click(within(deckTable()).getByRole('button', { name: 'Wins' }))
+  if (action === 'close') {
+    fireEvent.click(screen.getByRole('button', { name: 'Close details' })); await open()
+  } else if (action === 'switch') await open(api.other.name)
+  else {
+    fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+    await screen.findByText('Logged out.'); await signIn(); await open()
+  }
+  await screen.findByRole('table', { name: 'Player statistics' })
+  expect(sortedIds(playerTable())).toEqual([uid(1), uid(2), uid(9)])
+  expect(sortedIds(deckTable())).toEqual([uid(101), uid(102), uid(109)])
+  for (const table of [playerTable(), deckTable()]) expect(table.querySelector('th[aria-sort]')).toBeNull()
 })

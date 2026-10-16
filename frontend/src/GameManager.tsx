@@ -4,7 +4,7 @@ import {
   type Game, type GameInput, type GroupDetails,
 } from './api'
 import GameEditor from './GameEditor'
-import GroupStatistics from './GroupStatistics'
+import GroupStatistics, { type StatisticsSort } from './GroupStatistics'
 
 type Props = {
   group: GroupDetails
@@ -35,6 +35,9 @@ export default function GameManager({ group, actorId, checkingAccessOnMount = fa
   // access itself; the retired instance can no longer settle that check.
   const [revision, setRevision] = useState(checkingAccessOnMount ? 1 : 0)
   const [state, setState] = useState<{ status: 'loading' | 'ready' | 'checking' | 'error'; games?: Game[]; error?: string }>({ status: 'loading' })
+  // Kept above the ready content so game refreshes and acknowledged writes
+  // retain presentation choices while the statistics request is remounted.
+  const [statisticsSort, setStatisticsSort] = useState<StatisticsSort>({ players: null, decks: null })
   const [notice, setNotice] = useState('')
   const noticeElement = useRef<HTMLParagraphElement>(null)
   useEffect(() => {
@@ -118,7 +121,7 @@ export default function GameManager({ group, actorId, checkingAccessOnMount = fa
           callbacks.current.onChanged?.()
           refresh()
         }} />
-      <GroupStatistics groupId={id} onAccessError={recover} />
+      <GroupStatistics groupId={id} onAccessError={recover} sort={statisticsSort} onSort={setStatisticsSort} />
     </>}
   </section>
 }
