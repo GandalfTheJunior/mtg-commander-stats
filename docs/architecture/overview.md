@@ -192,8 +192,10 @@ testing guide.
 Repository code and documentation are the source of truth for project knowledge.
 Keep them aligned as features are added. See
 [ADR 0001](adr/0001-use-modular-monolith.md) for application architecture and code
-organization, and [ADR 0002](adr/0002-use-session-based-authentication.md) for the
-authentication direction.
+organization, [ADR 0002](adr/0002-use-session-based-authentication.md) for the
+authentication direction, and
+[ADR 0003](adr/0003-defer-ui-framework-until-after-mvp.md) for the post-MVP
+frontend UI strategy.
 
 ## Browser group management
 
