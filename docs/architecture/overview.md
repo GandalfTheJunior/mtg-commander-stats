@@ -196,6 +196,9 @@ organization, [ADR 0002](adr/0002-use-session-based-authentication.md) for the
 authentication direction, and
 [ADR 0003](adr/0003-defer-ui-framework-until-after-mvp.md) for the post-MVP
 frontend UI strategy.
+A separate, nonbinding post-MVP concept is captured in
+[proposed ADR 0004](adr/0004-post-mvp-live-companion-direction.md), with its
+[companion product sketch](../product/post-mvp-commander-companion.md).
 
 ## Browser group management
 
