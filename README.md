@@ -187,10 +187,13 @@ Tests terminate without watch mode. GitHub Actions runs separate `backend` and
 ## Project documentation
 
 - [MVP scope](docs/product/mvp-scope.md)
+- [Post-MVP Commander companion concept](docs/product/post-mvp-commander-companion.md)
 - [Play groups API](docs/product/groups-api.md)
 - [Commander games API](docs/product/games-api.md)
 - [Deck lifecycle API](docs/product/decks-api.md)
 - [Architecture and ADRs](docs/architecture/overview.md)
+- [Post-MVP frontend UI strategy (ADR 0003)](docs/architecture/adr/0003-defer-ui-framework-until-after-mvp.md)
+- [Proposed live companion direction (ADR 0004)](docs/architecture/adr/0004-post-mvp-live-companion-direction.md)
 - [Development workflow](docs/development/workflow.md)
 - [Java coding conventions](docs/development/java-conventions.md)
 - [Testing and verification](docs/development/testing.md)
