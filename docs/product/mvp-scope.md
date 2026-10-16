@@ -90,6 +90,10 @@ The first statistics milestone includes games, wins, and win rate per player
 within a group, and games, wins, and win rate per deck within a group. Advanced
 statistics are deferred.
 
+Play-group seasons and season-specific win-rate leaderboards are documented as a
+[post-MVP product concept](playgroup-seasons.md). This is a future feature and
+does not extend the current MVP statistics or ranking scope.
+
 ## Authentication
 
 Authentication is part of the learning scope. The web MVP uses Spring Security,
