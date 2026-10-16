@@ -3,7 +3,8 @@
 This document records the agreed product target. User registration, session
 authentication, authenticated deck management, browser play-group management,
 and browser game recording/history with permanent deck usage/archival are
-implemented. Statistics remain planned.
+implemented. The backend basic statistics API is implemented; browser statistics
+remain planned.
 
 ## Product milestone
 
@@ -86,9 +87,12 @@ deck modification rights and introduces no configurable sharing settings.
 
 ## Statistics
 
-The first statistics milestone includes games, wins, and win rate per player
-within a group, and games, wins, and win rate per deck within a group. Advanced
-statistics are deferred.
+The backend [group statistics API](statistics-api.md) provides games, wins, and
+win rate per player and deck within a group. Only entities appearing in current
+games are included; draws add games without wins. Former members and archived
+decks retain recorded results. Active membership is required to read statistics.
+Browser statistics and advanced statistics remain planned; the complete browser
+MVP is not yet finished.
 
 Play-group seasons and season-specific win-rate leaderboards are documented as a
 [post-MVP product concept](playgroup-seasons.md). This is a future feature and

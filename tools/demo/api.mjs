@@ -77,6 +77,7 @@ async function verify(base, password, {accounts, decks, tables}) {
     assert.deepEqual(memberships.map(g => g.id).sort(), groups.filter(g => g.members.includes(user.key)).map(g => tables[g.key]).sort());
     for (const group of groups.filter(g => !g.members.includes(user.key))) {
       await session.call('GET', `/groups/${tables[group.key]}/games`, undefined, 403);
+      await session.call('GET', `/groups/${tables[group.key]}/statistics`, undefined, 403);
     }
   }
   for (const group of groups) {
@@ -87,6 +88,21 @@ async function verify(base, password, {accounts, decks, tables}) {
       const eligible = await session.call('GET', `/groups/${id}/members/${accounts[member].id}/decks`);
       assert.deepEqual(eligible.map(d => d.id).sort(), users.find(u => u.key === member).decks.filter(d => d.key !== archivedDeck).map(d => decks[d.key]).sort());
     }
+    const statistics = await session.call('GET', `/groups/${id}/statistics`);
+    const expected = JSON.parse(readFileSync(new URL('./expected-results.json', import.meta.url)))
+      .groups.find(g => g.group === group.key).rows.filter(row => row.games > 0);
+    const expectedPlayers = expected.filter(row => row.kind === 'player').map(row => ({
+      userId: accounts[row.user].id, username: row.name, games: row.games, wins: row.wins, winRatePercent: row.winRatePercent,
+    }));
+    const expectedDecks = expected.filter(row => row.kind === 'deck').map(row => ({
+      deckId: decks[row.deck], ownerUserId: accounts[row.user].id, ownerUsername: users.find(u => u.key === row.user).name,
+      name: row.name, commander: users.find(u => u.key === row.user).decks.find(d => d.key === row.deck).commander,
+      archived: row.deck === archivedDeck, games: row.games, wins: row.wins, winRatePercent: row.winRatePercent,
+    }));
+    // Compare by stable IDs here; backend API tests separately enforce name/UUID ordering.
+    const byId = field => (a, b) => a[field].localeCompare(b[field]);
+    assert.deepEqual(statistics.players.toSorted(byId('userId')), expectedPlayers.toSorted(byId('userId')));
+    assert.deepEqual(statistics.decks.toSorted(byId('deckId')), expectedDecks.toSorted(byId('deckId')));
     const history = await session.call('GET', `/groups/${id}/games`);
     for (const game of history) {
       assert.equal(game.groupId, id);
