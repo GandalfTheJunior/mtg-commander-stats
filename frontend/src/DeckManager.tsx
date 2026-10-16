@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
 import {
   ApiError,
   archiveDeck,
@@ -86,17 +86,19 @@ export default function DeckManager({ onUnauthorized, onChanged }: { onUnauthori
   const [editingId, setEditingId] = useState<string | null>(null)
   const [notice, setNotice] = useState<Notice>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (deletingId !== null) {
       // The named group stays focusable while its action buttons are disabled.
       deletionConfirmation.current?.focus()
     } else if (deleteTrigger.current) {
-      // Cancel restores the trigger; successful deletion removes it.
-      if (deleteTrigger.current.isConnected) deleteTrigger.current.focus()
-      else noticeElement.current?.focus()
+      // Restore focus in the commit that enables the trigger or mounts feedback.
+      // Keep the request until that target exists; async state updates can commit separately.
+      const target = deleteTrigger.current.isConnected ? deleteTrigger.current : noticeElement.current
+      if (!target?.isConnected || (target instanceof HTMLButtonElement && target.disabled)) return
+      target.focus()
       deleteTrigger.current = null
     }
-  }, [deletingId, busy])
+  }, [deletingId, busy, notice])
 
   const handleError = useCallback((error: unknown, fallback: string) => {
     if (!active.current) return
