@@ -445,3 +445,65 @@ export async function memberDecks(groupId: string, userId: string, signal?: Abor
   if (new Set(decks.map((deck) => deck.id)).size !== decks.length) throw new Error('The server returned duplicate decks.')
   return decks
 }
+
+export type PlayerStatistics = {
+  userId: string
+  username: string
+  games: number
+  wins: number
+  winRatePercent: number
+}
+export type DeckStatistics = {
+  deckId: string
+  ownerUserId: string
+  ownerUsername: string
+  name: string
+  commander: string
+  archived: boolean
+  games: number
+  wins: number
+  winRatePercent: number
+}
+export type GroupStatistics = { players: PlayerStatistics[]; decks: DeckStatistics[] }
+
+function statisticsCounts(value: Record<string, unknown>) {
+  const { games, wins, winRatePercent } = value
+  if (typeof games !== 'number' || !Number.isSafeInteger(games) || games <= 0 ||
+    typeof wins !== 'number' || !Number.isSafeInteger(wins) || wins < 0 || wins > games ||
+    typeof winRatePercent !== 'number' || !Number.isFinite(winRatePercent) || winRatePercent < 0 || winRatePercent > 100) {
+    throw new Error('The server returned invalid statistics counts.')
+  }
+  return { games, wins, winRatePercent }
+}
+
+export async function getGroupStatistics(groupId: string, signal?: AbortSignal): Promise<GroupStatistics> {
+  const response = await checkedResponse(await fetch(
+    `/api/groups/${encodeURIComponent(groupId)}/statistics`,
+    { ...requestDefaults, ...(signal ? { signal } : {}) },
+  ), 200, 'Could not load statistics.')
+  const body: unknown = await response.json()
+  if (!isRecord(body) || !Array.isArray(body.players) || !Array.isArray(body.decks)) {
+    throw new Error('The server returned invalid group statistics.')
+  }
+  const players = body.players.map((row: unknown): PlayerStatistics => {
+    if (!isRecord(row) || !isUuid(row.userId) || typeof row.username !== 'string' || !row.username) {
+      throw new Error('The server returned invalid player statistics.')
+    }
+    return { userId: row.userId, username: row.username, ...statisticsCounts(row) }
+  })
+  const decks = body.decks.map((row: unknown): DeckStatistics => {
+    if (!isRecord(row) || !isUuid(row.deckId) || !isUuid(row.ownerUserId) ||
+      typeof row.ownerUsername !== 'string' || !row.ownerUsername ||
+      typeof row.name !== 'string' || !row.name ||
+      typeof row.commander !== 'string' || !row.commander || typeof row.archived !== 'boolean') {
+      throw new Error('The server returned invalid deck statistics.')
+    }
+    return { deckId: row.deckId, ownerUserId: row.ownerUserId, ownerUsername: row.ownerUsername,
+      name: row.name, commander: row.commander, archived: row.archived, ...statisticsCounts(row) }
+  })
+  if (new Set(players.map((row) => row.userId.toLowerCase())).size !== players.length ||
+    new Set(decks.map((row) => row.deckId.toLowerCase())).size !== decks.length) {
+    throw new Error('The server returned duplicate statistics rows.')
+  }
+  return { players, decks }
+}

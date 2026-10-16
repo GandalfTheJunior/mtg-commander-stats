@@ -4,6 +4,7 @@ import {
   type Game, type GameInput, type GroupDetails,
 } from './api'
 import GameEditor from './GameEditor'
+import GroupStatistics from './GroupStatistics'
 
 type Props = {
   group: GroupDetails
@@ -110,12 +111,15 @@ export default function GameManager({ group, actorId, checkingAccessOnMount = fa
     {state.status === 'checking' && <p role="status">Checking group access…</p>}
     {state.error && <p className="error" role="alert">{state.error}</p>}
     {notice && <p ref={noticeElement} tabIndex={-1} className="success" role="status">{notice}</p>}
-    {state.status === 'ready' && <GameContent group={group} actorId={actorId} games={state.games!}
-      onError={recover} onStart={() => setNotice('')} onSaved={(text) => {
-        setNotice(text)
-        callbacks.current.onChanged?.()
-        refresh()
-      }} />}
+    {state.status === 'ready' && <>
+      <GameContent group={group} actorId={actorId} games={state.games!}
+        onError={recover} onStart={() => setNotice('')} onSaved={(text) => {
+          setNotice(text)
+          callbacks.current.onChanged?.()
+          refresh()
+        }} />
+      <GroupStatistics groupId={id} onAccessError={recover} />
+    </>}
   </section>
 }
 
