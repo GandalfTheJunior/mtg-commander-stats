@@ -56,9 +56,13 @@ In a second terminal, from the repository root:
 
 ```powershell
 Push-Location frontend
-npm ci
-npm run dev
+npm.cmd ci
+npm.cmd run dev
 ```
+
+On macOS/Linux use `npm ci` and `npm run dev`. On Windows, the `.cmd` commands
+also work when PowerShell blocks `npm.ps1` under its execution policy; no global
+execution-policy change is needed.
 
 Open Vite's printed URL (normally http://localhost:5173). Its existing `/api`
 proxy reaches port 8080. Sign in as **ada@commander.example** with the value of
@@ -144,13 +148,16 @@ are rejected. Local tooling assumes your Docker daemon and repository are truste
 
 ## Verification
 
+Run the following commands from the **repository root**.
+
 ```powershell
 node --test tools/demo/*.test.mjs
 ```
 
 These dependency-free tests cover fixture invariants/manifest, fail-closed
 arguments and environment, target identity checks, and the HTTP cookie/CSRF
-rotation lifecycle. CI runs them with Node 24. The normal
+rotation lifecycle, Windows-style `Path` command lookup, and cooperative IPC
+shutdown. CI runs them with Node 24 on Linux and Windows. The normal
 [backend/frontend verification](../../README.md#verification) remains required.
 
 For a repeatable real API/isolation check with Docker, a freshly built jar, and
@@ -167,3 +174,22 @@ overrides, checks all other Docker volumes retain their identities, and checks
 reset removes only the demo volume. It preserves credentials; run `up`, `seed`,
 then `backend` afterwards if you want to explore the demo. If interrupted, inspect
 the status and use the documented demo-only recovery; nothing cleans up implicitly.
+
+### Native Windows verification status
+
+A full Windows PowerShell + Docker Desktop run is still **unverified**. Windows
+CI exercises the dependency-free tooling tests, including native executable lookup
+and cooperative IPC shutdown; it does not run the PostgreSQL/Java/browser demo.
+The verifier requests backend shutdown over Node IPC, waits for the wrapper to
+stop/await its Java child and release the operation lock, and still requires a
+zero exit status. It does not send `child.kill('SIGINT')` to the Node wrapper
+([Node documents forceful Windows signal termination](https://nodejs.org/docs/latest-v24.x/api/child_process.html#subprocesskillsignal)).
+Manual Ctrl+C remains handled by the interactive wrapper; its native Windows
+console behavior is part of the outstanding check.
+
+Before declaring the Windows end-to-end path verified, run the first-run steps
+in PowerShell, log in as Ada in Vite, then check Ctrl+C, stop/up reuse, refused
+reseeding and the explicit demo-only verification/reset command. Confirm the
+normal PostgreSQL on 5432 and its data are unchanged, with the demo on its own
+5433 port/volume. Record actual results in the PR; successful unit/IPC tests are
+not evidence that this complete manual path passed.

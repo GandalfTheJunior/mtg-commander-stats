@@ -2,9 +2,9 @@
 import assert from 'node:assert/strict';
 import {readFileSync, writeFileSync, unlinkSync} from 'node:fs';
 import {resolve} from 'node:path';
-import {spawn, spawnSync} from 'node:child_process';
+import {fork, spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {environment, root} from './demo.mjs';
+import {BACKEND_STOP, environment, root} from './demo.mjs';
 import {Session} from './api.mjs';
 
 if (process.argv.length !== 3 || process.argv[2] !== '--destroy-demo-data') {
@@ -31,7 +31,7 @@ function counts() {
   return docker(['exec', id, 'psql', '-U', 'mtg_commander_demo', '-d', 'mtg_commander_demo', '-Atc', 'SELECT (SELECT count(*) FROM users), (SELECT count(*) FROM decks), (SELECT count(*) FROM play_groups), (SELECT count(*) FROM games)']);
 }
 async function interactiveSignIn() {
-  const child = spawn(process.execPath, ['tools/demo/demo.mjs', 'backend'], {cwd: root, env: environment(), stdio: ['ignore', 'pipe', 'pipe']});
+  const child = fork(resolve(root, 'tools/demo/demo.mjs'), ['backend'], {cwd: root, env: environment(), stdio: ['ignore', 'pipe', 'pipe', 'ipc'], windowsHide: true});
   const exited = new Promise(resolve => { child.once('exit', resolve); child.once('error', () => resolve(-1)); });
   let timer;
   try {
@@ -54,10 +54,13 @@ async function interactiveSignIn() {
     await session.call('DELETE', '/session', undefined, 204);
   } finally {
     clearTimeout(timer);
-    child.kill('SIGINT');
+    // Use IPC on every OS so the wrapper can stop/await Java and release its lock.
+    let shutdownError = null;
+    if (child.connected) child.send({type: BACKEND_STOP}, error => { shutdownError = error; });
     const kill = setTimeout(() => child.kill('SIGKILL'), 20000);
     const status = await exited;
     clearTimeout(kill);
+    assert.equal(shutdownError, null, 'Interactive backend shutdown request failed.');
     assert.equal(status, 0, 'Interactive backend did not stop cleanly.');
   }
 }

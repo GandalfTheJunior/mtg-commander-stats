@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createServer} from 'node:http';
+import {spawn, spawnSync} from 'node:child_process';
+import {dirname} from 'node:path';
 import {users, groups, games, archivedDeck, results} from './fixture.mjs';
 import {validateCommand, environment, backendEnvironment, checkContainer, checkVolume, checkDockerHost} from './demo.mjs';
 import {Session} from './api.mjs';
@@ -66,6 +68,59 @@ test('ambient production/dev/Spring/Java/Docker configuration cannot reach child
   assert.equal(env.POSTGRES_PORT, '5433');
   assert.equal(env.POSTGRES_DB, 'mtg_commander_demo');
   assert.equal(env.POSTGRES_USER, 'mtg_commander_demo');
+});
+
+test('Windows Path is canonicalised without admitting forbidden case variants', () => {
+  const path = String.raw`C:\Program Files\Docker\Docker\resources\bin;C:\Java\bin`;
+  assert.deepEqual(environment({Path: path, SystemRoot: String.raw`C:\Windows`, ComSpec: String.raw`C:\Windows\System32\cmd.exe`, Spring_Datasource_Url: 'remote', Docker_Host: 'tcp://remote:2375', Postgres_Port: '5432', Java_Tool_Options: 'injected', NODE_OPTIONS: 'injected'}), {
+    PATH: path, SYSTEMROOT: String.raw`C:\Windows`, COMSPEC: String.raw`C:\Windows\System32\cmd.exe`,
+  });
+  assert.deepEqual(environment({PATH: 'same', Path: 'same'}), {PATH: 'same'});
+  assert.throws(() => environment({PATH: 'one', Path: 'another'}), /Conflicting case variants/);
+});
+
+test('a Windows-style Path supports native executable lookup for spawned commands', () => {
+  // Exercise the same PATH lookup used for Docker/Java without requiring either
+  // installation in this dependency-free test (including on Windows CI).
+  const source = {Path: dirname(process.execPath)};
+  if (process.env.SystemRoot) source.SystemRoot = process.env.SystemRoot;
+  const env = environment(source);
+  assert.equal(env.PATH, dirname(process.execPath));
+  const child = spawnSync('node', ['-p', '21 * 2'], {env, encoding: 'utf8', windowsHide: true});
+  assert.equal(child.error, undefined);
+  assert.equal(child.status, 0);
+  assert.equal(child.stdout.trim(), '42');
+});
+
+test('backend IPC shutdown and parent disconnect both permit child cleanup', async t => {
+  for (const mode of ['request', 'disconnect']) await t.test(mode, {timeout: 10000}, async () => {
+    const code = `
+      import {watchBackendShutdown} from ${JSON.stringify(new URL('./demo.mjs', import.meta.url).href)};
+      const timer = setInterval(() => {}, 1000);
+      const unwatch = watchBackendShutdown(() => {
+        clearInterval(timer);
+        unwatch();
+        process.stdout.write('cleanup-complete');
+        if (process.connected) process.disconnect();
+      });
+      process.send('ready');
+    `;
+    const child = spawn(process.execPath, ['--input-type=module', '-e', code], {env: environment(), stdio: ['ignore', 'pipe', 'pipe', 'ipc'], windowsHide: true});
+    const exited = new Promise((resolve, reject) => {child.once('close', (code, signal) => resolve({code, signal})); child.once('error', reject);});
+    const timeout = setTimeout(() => child.kill('SIGKILL'), 8000);
+    let output = '';
+    child.stdout.on('data', chunk => {output += chunk;}); child.stderr.resume();
+    try {
+      await Promise.race([
+        new Promise(resolve => child.once('message', value => {assert.equal(value, 'ready'); resolve();})),
+        exited.then(() => {throw new Error('IPC child exited before readiness.');}),
+      ]);
+      if (mode === 'request') child.send({type: 'stop-demo-backend'});
+      else child.disconnect();
+      assert.deepEqual(await exited, {code: 0, signal: null});
+      assert.equal(output, 'cleanup-complete');
+    } finally {clearTimeout(timeout); if (child.exitCode === null && child.signalCode === null) child.kill();}
+  });
 });
 
 const cfg = {databasePassword: 'local-test-value'};

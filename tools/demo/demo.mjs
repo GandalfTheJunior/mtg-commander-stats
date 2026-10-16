@@ -19,7 +19,17 @@ const label = 'io.mtg-commander.demo';
 // Do not inherit Spring, JDBC, Java option injection, Compose, Docker remote,
 // Maven, or regular POSTGRES settings. Keep only OS/runtime discovery variables.
 export function environment(source = process.env) {
-  return Object.fromEntries(Object.entries(source).filter(([key]) => ['PATH', 'HOME', 'USERPROFILE', 'SystemRoot', 'SYSTEMROOT', 'ComSpec', 'COMSPEC', 'TEMP', 'TMP', 'TMPDIR', 'JAVA_HOME'].includes(key)));
+  const allowed = new Set(['PATH', 'HOME', 'USERPROFILE', 'SYSTEMROOT', 'COMSPEC', 'TEMP', 'TMP', 'TMPDIR', 'JAVA_HOME']);
+  const env = {};
+  for (const [key, value] of Object.entries(source)) {
+    const normalized = key.toUpperCase();
+    if (!allowed.has(normalized)) continue;
+    // Windows names are case-insensitive. Pass exactly one canonical spelling,
+    // rejecting conflicting duplicates rather than choosing an arbitrary path.
+    if (Object.hasOwn(env, normalized) && env[normalized] !== value) throw new DemoError('Conflicting case variants of an allowed environment variable.');
+    env[normalized] = value;
+  }
+  return env;
 }
 export function validateCommand(args) {
   const [command, ...flags] = args;
@@ -76,6 +86,19 @@ function target(cfg) {
 export function backendEnvironment(cfg) {
   return {...environment(), POSTGRES_PORT: '5433', POSTGRES_DB: db, POSTGRES_USER: db, POSTGRES_PASSWORD: cfg.databasePassword};
 }
+export const BACKEND_STOP = 'stop-demo-backend';
+
+// IPC requests let the verifier stop the wrapper cooperatively on Windows too;
+// child.kill('SIGINT') would terminate it before it can clean up its Java child.
+export function watchBackendShutdown(stop) {
+  const message = value => { if (value?.type === BACKEND_STOP) stop(); };
+  process.once('SIGINT', stop); process.once('SIGTERM', stop);
+  process.on('message', message); process.once('disconnect', stop);
+  return () => {
+    process.removeListener('SIGINT', stop); process.removeListener('SIGTERM', stop);
+    process.removeListener('message', message); process.removeListener('disconnect', stop);
+  };
+}
 async function backend(cfg, action) {
   if (!existsSync(resolve(root, 'backend/target'))) throw new DemoError('Build the existing backend jar first; see demo documentation.');
   const jars = readdirSync(resolve(root, 'backend/target')).filter(f => f.endsWith('.jar'));
@@ -85,8 +108,8 @@ async function backend(cfg, action) {
   const child = spawn('java', args, {cwd: root, env: backendEnvironment(cfg), stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true});
   const exited = new Promise(resolve => {child.once('exit', code => resolve(code)); child.once('error', () => resolve(-1));});
   let stopping = false;
-  const stop = () => {stopping = true; child.kill();};
-  process.once('SIGINT', stop); process.once('SIGTERM', stop);
+  const stop = () => {if (!stopping) {stopping = true; child.kill();}};
+  const unwatch = watchBackendShutdown(stop);
   let timer;
   try {
     const port = await new Promise((resolve, reject) => {
@@ -112,7 +135,8 @@ async function backend(cfg, action) {
     clearTimeout(timer); stop();
     const killTimer = setTimeout(() => child.kill('SIGKILL'), 10000);
     await exited; clearTimeout(killTimer);
-    process.removeListener('SIGINT', stop); process.removeListener('SIGTERM', stop);
+    unwatch();
+    if (process.connected) process.disconnect();
   }
 }
 
