@@ -1,0 +1,175 @@
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, expect, test, vi } from 'vitest'
+import App from './App'
+import { deckFor, deferred, gameApi, group, recorded, response, uid } from './test/gameFixtures'
+
+function setup() {
+  const api = gameApi()
+  const base = api.fetchMock
+  const state = { identity: { id: uid(1), username: 'Owner' } as { id: string; username: string } | null,
+    deck: { ...deckFor(1), everUsed: false, archived: false } }
+  const other = { ...group, id: uid(11), name: 'Other pod' }
+  const fetchMock = vi.fn(async (path: string, init?: RequestInit) => {
+    const method = init?.method ?? 'GET'
+    if (path === '/api/me') return response(state.identity ?? {}, state.identity ? 200 : 401)
+    if (path === '/api/session' && method === 'DELETE') { state.identity = null; return new Response(null, { status: 204 }) }
+    if (path === '/api/session' && method === 'POST') { state.identity = { id: uid(4), username: 'Fourth' }; return response(state.identity) }
+    if (path === '/api/decks') return response([state.deck])
+    if (path === '/api/groups') return response([group, other])
+    if (path === `/api/groups/${other.id}`) return response(other)
+    if (path === `/api/groups/${other.id}/games`) return response([recorded({ id: uid(21), groupId: other.id })])
+    if (path === `/api/decks/${state.deck.id}/archive`) {
+      state.deck.archived = true
+      api.state.history = api.state.history.map((game) => ({ ...game, participants: game.participants.map((p) =>
+        p.deckId === state.deck.id ? { ...p, deck: { ...p.deck, archived: true } } : p) }))
+      return response(state.deck)
+    }
+    const result = await base(path, init)
+    if (path.includes('/games') && ['POST', 'PUT'].includes(method)) state.deck.everUsed = true
+    return result
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  return { ...api, fetchMock, server: state, other }
+}
+async function open(name = group.name) {
+  fireEvent.click(await screen.findByRole('button', { name: `${name} (OWNER)` }))
+}
+async function create() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Record a game' }))
+  fireEvent.change(screen.getByLabelText('Player 1'), { target: { value: uid(1) } })
+  fireEvent.change(screen.getByLabelText('Player 2'), { target: { value: uid(2) } })
+  await waitFor(() => expect(screen.getByLabelText('Deck for player 1')).not.toBeDisabled())
+  fireEvent.change(screen.getByLabelText('Deck for player 1'), { target: { value: deckFor(1).id } })
+  fireEvent.change(screen.getByLabelText('Deck for player 2'), { target: { value: deckFor(2).id } })
+  fireEvent.change(screen.getByLabelText('Winning player'), { target: { value: uid(1) } })
+  fireEvent.click(screen.getByRole('button', { name: 'Record game' }))
+  await screen.findByText('Game recorded.')
+  await screen.findByRole('article')
+}
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
+
+test.each([
+  { lateStatus: 200, role: 'OWNER' },
+  { lateStatus: 401, role: 'OWNER' },
+  { lateStatus: 403, role: 'OWNER' },
+  { lateStatus: 200, role: 'MEMBER' },
+])('deck archival during a pending game access check restores only newly confirmed details ($lateStatus, $role)', async ({ lateStatus, role }) => {
+  const api = setup(); api.state.history = [recorded()]; api.server.deck.everUsed = true
+  render(<App />); await open(); await screen.findByRole('article')
+  api.next(`/api/groups/${group.id}/join-code`, () => response({ code: 'abcdefghijklmnopqrstuv' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Show invitation code' }))
+  await screen.findByDisplayValue('abcdefghijklmnopqrstuv')
+  const checking = deferred()
+  api.next(`/api/groups/${group.id}/games/${uid(20)}`, () => response({}, 403), 'DELETE')
+  api.next(`/api/groups/${group.id}`, () => checking.promise)
+  fireEvent.click(screen.getByRole('button', { name: 'Delete game' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm game deletion' }))
+  await screen.findByText('Checking group access…')
+  expect(screen.queryByText('Active members')).not.toBeInTheDocument()
+  const replacement = deferred()
+  const checkReplacement = vi.fn(() => replacement.promise)
+  api.next(`/api/groups/${group.id}`, checkReplacement)
+  const ownDeck = within(screen.getByRole('heading', { name: 'My decks' }).closest('section')!)
+  fireEvent.click(ownDeck.getByRole('button', { name: 'Archive' }))
+  fireEvent.click(ownDeck.getByRole('button', { name: 'Confirm archival' }))
+  await screen.findByText('Archived — unavailable for new games')
+  await waitFor(() => expect(checkReplacement).toHaveBeenCalledOnce())
+  expect(screen.queryByText('Active members')).not.toBeInTheDocument()
+  expect(screen.queryByDisplayValue('abcdefghijklmnopqrstuv')).not.toBeInTheDocument()
+  expect(screen.queryByRole('article')).not.toBeInTheDocument()
+  await act(async () => checking.resolve(response(group, lateStatus)))
+  expect(screen.getByText(/Signed in as/)).toHaveTextContent('Owner')
+  expect(screen.queryByText('Active members')).not.toBeInTheDocument()
+  expect(screen.queryByDisplayValue('abcdefghijklmnopqrstuv')).not.toBeInTheDocument()
+  expect(screen.queryByRole('article')).not.toBeInTheDocument()
+  await act(async () => replacement.resolve(response({ ...group, role })))
+  await screen.findByRole('article')
+  await screen.findByText('Active members')
+  expect(screen.getByText(`Your role: ${role}`)).toBeInTheDocument()
+  if (role === 'OWNER') expect(screen.getByDisplayValue('abcdefghijklmnopqrstuv')).toBeInTheDocument()
+  else {
+    expect(screen.queryByDisplayValue('abcdefghijklmnopqrstuv')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show invitation code' })).not.toBeInTheDocument()
+  }
+  expect(screen.getByText(/Signed in as/)).toHaveTextContent('Owner')
+  expect(screen.getByText('Active members')).toBeInTheDocument()
+})
+
+test('App refreshes permanent own-deck state after games and refreshes history after archival', async () => {
+  setup(); render(<App />); await open(); await create()
+  const ownDeck = () => within(screen.getByRole('heading', { name: 'My decks' }).closest('section')!)
+  await waitFor(() => expect(ownDeck().getByRole('button', { name: 'Archive' })).toBeInTheDocument())
+  fireEvent.click(screen.getByRole('button', { name: 'Delete game' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm game deletion' }))
+  await screen.findByText('No recorded games yet.')
+  expect(ownDeck().queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
+  fireEvent.click(ownDeck().getByRole('button', { name: 'Edit' }))
+  expect(within(ownDeck().getByRole('form', { name: 'Edit Deck 1' })).getByLabelText('Commander')).toHaveAttribute('readonly')
+  fireEvent.click(ownDeck().getByRole('button', { name: 'Cancel' }))
+  await create()
+  fireEvent.click(ownDeck().getByRole('button', { name: 'Archive' }))
+  fireEvent.click(ownDeck().getByRole('button', { name: 'Confirm archival' }))
+  await screen.findByText('Archived — unavailable for new games')
+  await screen.findByText(/— Archived deck/)
+})
+
+test.each([200, 401])('late history from a previous selected group (%s) cannot restore it or expire the new view', async (status) => {
+  const api = setup(); const late = deferred()
+  api.next(`/api/groups/${group.id}/games`, () => late.promise)
+  render(<App />); await open()
+  await screen.findByText('Loading game history…')
+  await open(api.other.name)
+  await screen.findByRole('article', { name: `Game ${uid(21)}` })
+  await act(async () => late.resolve(response([recorded()], status)))
+  expect(screen.queryByRole('article', { name: `Game ${uid(20)}` })).not.toBeInTheDocument()
+  expect(screen.getByText(/Signed in as/)).toHaveTextContent('Owner')
+})
+
+test.each(['close', 'refresh'])('closing/reopening or refreshing group details retires requests (%s)', async (action) => {
+  const api = setup(); const late = deferred()
+  api.next(`/api/groups/${group.id}/games`, () => late.promise)
+  render(<App />); await open(); await screen.findByText('Loading game history…')
+  fireEvent.click(screen.getByRole('button', { name: action === 'close' ? 'Close details' : 'Refresh members' }))
+  if (action === 'close') await open()
+  await screen.findByText('No recorded games yet.')
+  await act(async () => late.resolve(response([recorded()])))
+  expect(screen.queryByRole('article')).not.toBeInTheDocument()
+})
+
+test('logout and a new identity retire pending game 401s before they can expire or restore protected state', async () => {
+  const api = setup(); const late = deferred()
+  api.next(`/api/groups/${group.id}/games`, () => late.promise)
+  render(<App />); await open(); await screen.findByText('Loading game history…')
+  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  expect(screen.queryByRole('heading', { name: 'Commander games' })).not.toBeInTheDocument()
+  await screen.findByText('Logged out.')
+  const login = within(screen.getByRole('heading', { name: 'Sign in' }).closest('section')!)
+  fireEvent.change(login.getByLabelText('Email'), { target: { value: 'fourth@example.test' } })
+  fireEvent.change(login.getByLabelText('Password'), { target: { value: 'correct horse battery' } })
+  fireEvent.click(login.getByRole('button', { name: 'Sign in' }))
+  await screen.findByText('Fourth')
+  await act(async () => late.resolve(response({}, 401)))
+  expect(screen.getByText(/Signed in as/)).toHaveTextContent('Fourth')
+  expect(screen.queryByText(/session expired/i)).not.toBeInTheDocument()
+})
+
+test('ambiguous game 403 hides group details/code during safe recheck, then restores only confirmed access', async () => {
+  const api = setup(); api.state.history = [recorded()]
+  render(<App />); await open(); await screen.findByRole('article')
+  api.next(`/api/groups/${group.id}/join-code`, () => response({ code: 'abcdefghijklmnopqrstuv' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Show invitation code' }))
+  await screen.findByDisplayValue('abcdefghijklmnopqrstuv')
+  const checking = deferred()
+  api.next(`/api/groups/${group.id}/games/${uid(20)}`, () => response({}, 403), 'DELETE')
+  api.next(`/api/groups/${group.id}`, () => checking.promise)
+  fireEvent.click(screen.getByRole('button', { name: 'Delete game' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm game deletion' }))
+  await screen.findByText('Checking group access…')
+  expect(screen.queryByDisplayValue('abcdefghijklmnopqrstuv')).not.toBeInTheDocument()
+  expect(screen.queryByText('Active members')).not.toBeInTheDocument()
+  expect(screen.queryByRole('article')).not.toBeInTheDocument()
+  await act(async () => checking.resolve(response({}, 403)))
+  await screen.findByText(/Group access is unavailable/)
+  expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
+  expect(screen.getByText(/Signed in as/)).toBeInTheDocument()
+})

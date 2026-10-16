@@ -2,8 +2,8 @@
 
 This document records the agreed product target. User registration, session
 authentication, authenticated deck management, browser play-group management,
-and backend game recording with permanent deck usage/archival are implemented.
-Browser game recording and statistics remain planned.
+and browser game recording/history with permanent deck usage/archival are
+implemented. Statistics remain planned.
 
 ## Product milestone
 
@@ -27,7 +27,10 @@ and decks, store results, and view basic player/deck statistics.
 
 Backend contracts and history/display rules are documented in the
 [Commander games API](games-api.md). Game identity, creator, group, and recording
-time remain fixed on edits. Active members can read history.
+time remain fixed on edits. Active members can read history. The selected group's
+browser game area supports recording, editing with explicit historical assignment
+preservation, and confirmed deletion. Actions appear only for the active creator
+or OWNER; server authorization remains authoritative.
 
 ## Play groups and membership
 
@@ -71,6 +74,8 @@ operations; see the [usage guide](../../README.md#local-development).
 - Decks remain used forever after their first committed game, even if all games
   referencing them are edited or deleted. Failed writes leave usage unchanged.
 - Used-deck DELETE returns a conflict; owners explicitly archive them instead.
+  The browser offers an Archive action with confirmation, visibly locks used-deck
+  commander/colors, and supports renaming archived decks without unarchiving.
 - Archived decks remain visible in historical games and statistics but cannot
   be selected for new games.
 

@@ -3,9 +3,9 @@
 A Commander statistics application and a learning project for AI-assisted
 software engineering. The application supports user registration, session
 authentication, authenticated deck management, and browser play-group management
-with join-code membership. The backend also records Commander games and enforces
-permanent deck usage and explicit archival. Browser game recording, profiles,
-and statistics remain planned.
+with join-code membership. The browser records Commander games, shows group history, and handles permanent
+deck usage and explicit archival through the backend API. Profiles and statistics
+remain planned.
 
 ## Agent entry point
 
@@ -106,7 +106,12 @@ authenticated user can list, create, edit, and delete their own manually entered
 decks in the **My decks** area. Deck changes use the existing CSRF/session flow,
 persist in PostgreSQL, and remain scoped to the authenticated user's stable UUID.
 Deleting an unused deck asks for confirmation naming that deck; canceling sends
-no deletion request. Signed-in users can **Log out**; login and registration
+no deletion request. Once a deck is used in a committed game, its commander and
+colors are permanently locked; its name remains editable. This restriction stays
+after its last game is changed or deleted. Used decks have an explicit **Archive**
+action with a separate confirmation. Archived decks remain visible in My decks
+and historical games, but cannot be selected for new games. There is no unarchive
+action. **Refresh decks** reloads current server state after conflicts or errors. Signed-in users can **Log out**; login and registration
 forms are shown again after logout. Protected deck/group content and invitation
 codes are hidden during logout. Failed attempts recheck the session and offer
 retry; an unavailable identity check keeps protected content hidden.
@@ -122,11 +127,33 @@ that the old code will stop working. If clipboard access fails, copy the visible
 code manually. A MEMBER can leave after confirming the loss of active access;
 historical membership/results remain associated with the user. Rejoin using a
 current code. Owners cannot leave. An expired session clears protected browser
-content and asks the user to sign in again. Browser sign-out remains tracked in
-[issue #37](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/37).
+content and asks the user to sign in again.
 
-The browser uses the existing session/CSRF flow and the merged
-[play groups API](docs/product/groups-api.md), with no new backend endpoints.
+Inside selected group details, **Commander games** shows history in server order.
+Choose **Record a game**, select 2–6 different active members, and select an eligible
+deck for each. A used, unarchived deck is still eligible. You need not participate.
+Select WIN and a participating winner, or DRAW with no winner. An empty deck list
+requires a different player or a new unarchived deck; peer decks are read-only.
+
+Only the current creator or group OWNER sees **Edit game** and **Delete game**.
+Editing may keep recorded participant/deck pairs even when members have left or
+decks are archived; those historical choices are explicitly marked. Changes use
+current eligible choices. Canceling an edit or deletion sends no write. Deletion
+requires confirmation identifying the game. Pending writes disable duplicate
+submission, and history/deck state updates only after server acknowledgment.
+
+**Refresh games** verifies current group access and reloads history. Failed or
+ambiguous game operations hide retired game data and recheck group details; a
+confirmed membership permits an explicit refresh before retrying. Review the
+refreshed history after a network failure because the server may have committed
+the request. A 403 alone does not assert logout or departure. Switching/closing a
+group, refreshing members, logging out, or changing identity retires old game
+requests and drafts. Game mutations reload your deck lifecycle state; deck
+mutations reload the selected game's history/selection area.
+
+The browser uses the existing session/CSRF flow and documented
+[play groups](docs/product/groups-api.md), [Commander games](docs/product/games-api.md),
+and [deck lifecycle](docs/product/decks-api.md) APIs, with no new backend endpoints.
 
 Stop the applications with Ctrl+C and PostgreSQL with `docker compose stop`.
 The named volume preserves local data.

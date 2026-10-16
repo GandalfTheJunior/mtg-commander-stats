@@ -52,6 +52,7 @@ test('restores the authenticated session and loads its decks', async () => {
     name: 'Atraxa Superfriends',
     commander: "Atraxa, Praetors' Voice",
     colorIdentity: ['W', 'U', 'B', 'G'],
+    everUsed: false, archived: false,
   }
   const fetchMock = vi
     .fn()
@@ -433,7 +434,7 @@ for (const identity of ['same user', 'different user']) {
       const nextUser = identity === 'same user' ? user : {
         id: 'e55c4c26-2d30-4ae0-8f9b-6100171ee99a', username: 'Saruman',
       }
-      const oldDeck = { id: 'old-deck', name: 'Old private deck', commander: 'Atraxa', colorIdentity: [] }
+      const oldDeck = { everUsed: false, archived: false, id: 'old-deck', name: 'Old private deck', commander: 'Atraxa', colorIdentity: [] }
       const newDeck = { ...oldDeck, id: 'new-deck', name: 'Current session deck' }
       let resolveOld!: (response: Response) => void
       let rejectOld!: (error: Error) => void

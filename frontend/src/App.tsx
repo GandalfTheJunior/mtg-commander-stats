@@ -20,6 +20,10 @@ export default function App() {
   // Session transitions retire protected state even when the user UUID is unchanged.
   const sessionVersionRef = useRef(0)
   const [sessionVersion, setSessionVersion] = useState(0)
+  const [deckRevision, setDeckRevision] = useState(0)
+  const [groupDeckRevision, setGroupDeckRevision] = useState(0)
+  const gamesChanged = useCallback(() => setDeckRevision((value) => value + 1), [])
+  const decksChanged = useCallback(() => setGroupDeckRevision((value) => value + 1), [])
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('checking')
   const [registrationNotice, setRegistrationNotice] = useState<Notice>(null)
@@ -275,8 +279,9 @@ export default function App() {
 
       {sessionStatus === 'authenticated' && currentUser && (
         <>
-          <DeckManager key={`decks-${sessionVersion}`} onUnauthorized={sessionExpired} />
-          <GroupManager key={`groups-${sessionVersion}`} onUnauthorized={sessionExpired} />
+          <DeckManager key={`decks-${sessionVersion}-${deckRevision}`} onUnauthorized={sessionExpired} onChanged={decksChanged} />
+          <GroupManager key={`groups-${sessionVersion}`} onUnauthorized={sessionExpired} currentUser={currentUser}
+            deckRevision={groupDeckRevision} onGamesChanged={gamesChanged} />
         </>
       )}
     </main>

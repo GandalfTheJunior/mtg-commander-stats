@@ -5,6 +5,7 @@ import DeckManager from './DeckManager'
 const deck = {
   id: 'd7c6daac-d72f-49b2-9c10-cb7c653ededa',
   name: 'Atraxa Superfriends',
+  everUsed: false, archived: false,
   commander: "Atraxa, Praetors' Voice",
   colorIdentity: ['W', 'U', 'B', 'G'],
 }
