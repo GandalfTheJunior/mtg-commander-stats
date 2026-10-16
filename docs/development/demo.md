@@ -111,6 +111,14 @@ Dragon Engine **6 / 6 / 100%**, Patient Constructs **6 / 0 / 0%**, and Emil
 **12 / 1 / 8.33%**. Dara's Old Artifacts remains visible and labelled **Archived**.
 Only recorded players/decks appear. Use **Refresh statistics** to reload figures.
 
+Click **Win rate** in each table: the first activation sorts percentages from
+highest to lowest, the next from lowest to highest. Friday deck results include
+**100%**, **30%**, **25%**, **20%**, **16.67%** and **0%**; Friday players include
+**50%**, **25%**, **20%**, **15%** and **8.33%**. Try **Games**, **Wins**, and the
+text headings too. Keyboard users can focus a heading button and activate it
+with Enter or Space; the arrow shows its direction. Refresh statistics and verify
+the chosen order remains; closing/reopening details returns to backend order.
+
 Sign out and sign in as Cleo, Dara or Emil to open both Friday and Sunday; compare
 Sunday with the independent figures in
 [expected-results.json](../../tools/demo/expected-results.json). Switching or

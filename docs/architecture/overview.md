@@ -289,8 +289,16 @@ area, under confirmed group details and the current session lifetime. It calls
 `getGroupStatistics` in `api.ts`, which validates status, public row fields, UUIDs,
 unique IDs, positive safe-integer game counts, wins within games, and finite
 percentages within 0–100. Only documented fields are retained. The component
-renders two semantic HTML tables in backend order; it formats the returned
-percentages without computing statistics from history or membership.
+renders two semantic HTML tables initially in backend order; it formats the
+returned percentages without computing statistics from history or membership.
+Each table has its own optional column/direction, held in `GameManager` above
+its remounted ready content. Statistics refreshes and acknowledged game writes
+therefore sort fresh arrays using the chosen settings. The existing keyed
+selected-group/session lifecycle discards previous choices when the view retires.
+Sorting copies arrays, compares raw numeric fields or English case-insensitive
+text (`Intl.Collator` with accent sensitivity), and keeps backend order for ties
+in both directions. Native heading buttons expose `aria-sort` on the active
+column header and a visible arrow. No sort preference is stored or sent to the API.
 
 Game refresh/recovery unmounts statistics, aborting its request. Successful game
 writes refresh that same area; detail refresh/reopen, selected-group/session

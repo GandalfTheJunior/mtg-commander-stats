@@ -92,8 +92,11 @@ win rate per player and deck within a group. Only entities appearing in current
 games are included; draws add games without wins. Former members and archived
 decks retain recorded results. Active membership is required to read statistics.
 Opened browser groups show separate player/deck tables with games, wins and
-percentages in the API's name-based order. Successful game changes and explicit
-refreshes reload statistics from the backend. Loading/error/empty states and
+percentages initially in the API's name-based order. Every column supports
+independent, temporary table sorting; numeric columns start descending, text
+columns ascending, and repeated activation reverses direction. Sorting is only
+client presentation, not a ranking or a change to the API counts. Successful game
+changes and explicit refreshes reload statistics from the backend. Loading/error/empty states and
 session/group access recovery keep retired statistics hidden. Advanced statistics
 remain deferred.
 

@@ -157,16 +157,22 @@ Below game history, **Statistics** shows separate **Player statistics** and
 players/decks with recorded games appear, including former members and archived
 decks; archived decks are labelled **Archived**. Current names, commanders, and
 UUIDs distinguish identical display names. Percentages come from the backend,
-with at most two decimal places, and rows retain its name-based order.
+with at most two decimal places. Tables initially retain the backend's name-based
+order. Click any column heading (or focus it and press Enter/Space) to sort:
+numeric columns start descending, text columns start ascending, and a second
+activation reverses direction. An arrow and accessible sort direction identify
+the active heading. Text sorting ignores case; equal values retain backend order.
+Player and deck sorting are independent.
 
-**Refresh statistics** reloads those figures. Successful game creation, editing,
-and deletion also reload them; **Refresh games**, **Refresh members**, and reopening
+**Refresh statistics** reloads those figures and keeps each chosen sort.
+Successful game creation, editing, and deletion also reload them; **Refresh games**, **Refresh members**, and reopening
 details obtain fresh statistics. Empty groups show **No statistics yet**.
 Loading and failed refreshes hide previous tables, with an explicit retry.
 Statistics access denials use the same group recheck as games: after confirmed
 access, **Refresh games** reloads history and statistics; unresolved checks keep
 protected data hidden. Closing/switching groups, logout, and session changes
-retire old requests and statistics immediately.
+retire old requests and statistics immediately. Closing/switching groups or
+changing sessions also discard previous sort choices; sorting is not persisted.
 
 The browser uses the existing session/CSRF flow and documented
 [play groups](docs/product/groups-api.md), [Commander games](docs/product/games-api.md),

@@ -297,3 +297,16 @@ input[readonly], fieldset:disabled, select:disabled {
   font-weight: normal;
   overflow-wrap: anywhere;
 }
+
+.statistics-sort {
+  padding: 0.25rem;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.statistics-sort:hover {
+  background: #f2f4f1;
+}
