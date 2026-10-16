@@ -187,6 +187,7 @@ Tests terminate without watch mode. GitHub Actions runs separate `backend` and
 ## Project documentation
 
 - [MVP scope](docs/product/mvp-scope.md)
+- [Post-MVP frontend redesign concept](docs/product/frontend-redesign.md)
 - [Post-MVP Commander companion concept](docs/product/post-mvp-commander-companion.md)
 - [Play groups API](docs/product/groups-api.md)
 - [Commander games API](docs/product/games-api.md)
