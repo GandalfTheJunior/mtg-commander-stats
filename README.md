@@ -229,6 +229,7 @@ Tests terminate without watch mode. GitHub Actions runs separate `backend` and
 - [Deck lifecycle API](docs/product/decks-api.md)
 - [Architecture and ADRs](docs/architecture/overview.md)
 - [Post-MVP frontend UI strategy (ADR 0003)](docs/architecture/adr/0003-defer-ui-framework-until-after-mvp.md)
+- [Frontend theme and incremental adoption](docs/development/frontend-theme.md)
 - [Proposed live companion direction (ADR 0004)](docs/architecture/adr/0004-post-mvp-live-companion-direction.md)
 - [Development workflow](docs/development/workflow.md)
 - [Java coding conventions](docs/development/java-conventions.md)
