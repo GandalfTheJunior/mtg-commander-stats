@@ -1,0 +1,112 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {users, groups, games, archivedDeck, results} from './fixture.mjs';
+
+// One cookie jar per real session. Never log responses, cookies, tokens or bodies.
+export class Session {
+  constructor(base, request = fetch) { this.base = base; this.fetch = request; this.cookies = new Map(); }
+  async call(method, path, body, expected = 200) {
+    const headers = {'Content-Type': 'application/json', Cookie: [...this.cookies].map(([k, v]) => `${k}=${v}`).join('; ')};
+    if (this.csrf && method !== 'GET') headers[this.csrf.headerName] = this.csrf.token;
+    const response = await this.fetch(`${this.base}/api${path}`, {method, headers, body: body === undefined ? undefined : JSON.stringify(body), redirect: 'error', signal: AbortSignal.timeout(15000)});
+    for (const cookie of response.headers.getSetCookie()) {
+      const pair = cookie.split(';')[0];
+      const at = pair.indexOf('=');
+      const name = pair.slice(0, at), value = pair.slice(at + 1);
+      if (value) this.cookies.set(name, value); else this.cookies.delete(name);
+    }
+    if (response.status !== expected) throw new Error(`Demo API ${method} ${path.split('/')[1] || '/'} returned ${response.status}; expected ${expected}. No automatic retry; see demo recovery instructions.`);
+    return expected === 204 || expected >= 400 ? undefined : response.json();
+  }
+  async login(email, password) {
+    this.csrf = await this.call('GET', '/csrf');
+    const user = await this.call('POST', '/session', {email, password});
+    this.csrf = undefined;
+    this.csrf = await this.call('GET', '/csrf');
+    assert.deepEqual(await this.call('GET', '/me'), user);
+    return user;
+  }
+}
+
+export async function seed(base, password) {
+  const accounts = {}, decks = {}, tables = {};
+  for (const user of users) {
+    const session = new Session(base);
+    const registered = await session.call('POST', '/users', {email: user.email, username: user.name, password}, 201);
+    const signedIn = await session.login(user.email, password);
+    assert.equal(signedIn.id, registered.id);
+    accounts[user.key] = {id: registered.id, session};
+    for (const deck of user.decks) {
+      const {name, commander, colorIdentity} = deck;
+      decks[deck.key] = (await session.call('POST', '/decks', {name, commander, colorIdentity}, 201)).id;
+    }
+  }
+  for (const group of groups) {
+    const owner = accounts[group.owner].session;
+    const created = await owner.call('POST', '/groups', {name: group.name}, 201);
+    tables[group.key] = created.id;
+    const {code} = await owner.call('GET', `/groups/${created.id}/join-code`);
+    for (const member of group.members.filter(key => key !== group.owner)) {
+      await accounts[member].session.call('POST', '/groups/join', {code});
+    }
+  }
+  for (const game of games) {
+    const group = groups.find(g => g.key === game.group);
+    await accounts[group.owner].session.call('POST', `/groups/${tables[game.group]}/games`, {
+      participants: game.participants.map(p => ({userId: accounts[p.user].id, deckId: decks[p.deck]})),
+      result: game.result, winnerUserId: game.winner ? accounts[game.winner].id : null,
+    }, 201);
+  }
+  await accounts.dara.session.call('POST', `/decks/${decks[archivedDeck]}/archive`);
+  await verify(base, password, {accounts, decks, tables});
+}
+
+async function verify(base, password, {accounts, decks, tables}) {
+  const observed = [];
+  for (const user of users) {
+    // Fresh sign-in proves the documented credentials work independently of registration.
+    const session = new Session(base);
+    assert.equal((await session.login(user.email, password)).id, accounts[user.key].id);
+    const ownDecks = await session.call('GET', '/decks');
+    assert.deepEqual(ownDecks.map(d => d.id).sort(), user.decks.map(d => decks[d.key]).sort());
+    for (const deck of ownDecks) {
+      assert.equal(deck.archived, deck.id === decks[archivedDeck]);
+      assert.equal(deck.everUsed, true);
+    }
+    const memberships = await session.call('GET', '/groups');
+    assert.deepEqual(memberships.map(g => g.id).sort(), groups.filter(g => g.members.includes(user.key)).map(g => tables[g.key]).sort());
+    for (const group of groups.filter(g => !g.members.includes(user.key))) {
+      await session.call('GET', `/groups/${tables[group.key]}/games`, undefined, 403);
+    }
+  }
+  for (const group of groups) {
+    const session = accounts[group.owner].session, id = tables[group.key];
+    const details = await session.call('GET', `/groups/${id}`);
+    assert.deepEqual(details.members.map(m => [m.userId, m.role]).sort(), group.members.map(key => [accounts[key].id, key === group.owner ? 'OWNER' : 'MEMBER']).sort());
+    for (const member of group.members) {
+      const eligible = await session.call('GET', `/groups/${id}/members/${accounts[member].id}/decks`);
+      assert.deepEqual(eligible.map(d => d.id).sort(), users.find(u => u.key === member).decks.filter(d => d.key !== archivedDeck).map(d => decks[d.key]).sort());
+    }
+    const history = await session.call('GET', `/groups/${id}/games`);
+    for (const game of history) {
+      assert.equal(game.groupId, id);
+      assert.ok(game.recordedAt);
+      const participants = game.participants.map(p => {
+        const user = users.find(u => accounts[u.key].id === p.userId);
+        const deck = user.decks.find(d => decks[d.key] === p.deckId);
+        assert.equal(p.deck.archived, deck.key === archivedDeck);
+        return {user: user.key, deck: deck.key};
+      });
+      observed.push({group: group.key, participants, result: game.result, winner: game.winnerUserId ? users.find(u => accounts[u.key].id === game.winnerUserId).key : null});
+    }
+  }
+  assert.deepEqual(results(observed), JSON.parse(readFileSync(new URL('./expected-results.json', import.meta.url))).groups);
+  // Backend must reject a new assignment of the archived used deck.
+  const game = games.find(g => g.participants.some(p => p.deck === archivedDeck));
+  const group = groups.find(g => g.key === game.group);
+  await accounts[group.owner].session.call('POST', `/groups/${tables[group.key]}/games`, {
+    participants: game.participants.map(p => ({userId: accounts[p.user].id, deckId: decks[p.deck]})), result: 'DRAW', winnerUserId: null,
+  }, 400);
+  assert.equal((await accounts[group.owner].session.call('GET', `/groups/${tables[group.key]}/games`)).length, games.filter(g => g.group === group.key).length);
+  for (const {session} of Object.values(accounts)) await session.call('DELETE', '/session', undefined, 204);
+}

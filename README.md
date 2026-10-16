@@ -158,6 +158,13 @@ and [deck lifecycle](docs/product/decks-api.md) APIs, with no new backend endpoi
 Stop the applications with Ctrl+C and PostgreSQL with `docker compose stop`.
 The named volume preserves local data.
 
+## Populated local demo
+
+For an isolated PostgreSQL demo with six fictional accounts and 36 reproducible
+Commander games, follow the [demo setup](docs/development/demo.md). It includes
+PowerShell commands, locally generated credentials, expected player/deck results,
+and an explicit demo-only reset. The regular development database is untouched.
+
 ## Verification
 
 From `backend/`:
@@ -180,6 +187,9 @@ npm run typecheck
 npm run test
 npm run build
 ```
+
+From the repository root, verify the demo tooling with `node --test tools/demo/*.test.mjs`.
+See [demo verification](docs/development/demo.md#verification) for the opt-in real API check.
 
 Tests terminate without watch mode. GitHub Actions runs separate `backend` and
 `frontend` jobs for PRs to `main` and pushes to `main`.
