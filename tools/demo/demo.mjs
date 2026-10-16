@@ -17,9 +17,10 @@ const db = 'mtg_commander_demo';
 const label = 'io.mtg-commander.demo';
 
 // Do not inherit Spring, JDBC, Java option injection, Compose, Docker remote,
-// Maven, or regular POSTGRES settings. Keep only OS/runtime discovery variables.
+// Maven, or regular POSTGRES settings. Keep only OS/runtime discovery variables,
+// including ProgramFiles for Docker Compose CLI plugin discovery on Windows.
 export function environment(source = process.env) {
-  const allowed = new Set(['PATH', 'HOME', 'USERPROFILE', 'SYSTEMROOT', 'COMSPEC', 'TEMP', 'TMP', 'TMPDIR', 'JAVA_HOME']);
+  const allowed = new Set(['PATH', 'HOME', 'USERPROFILE', 'SYSTEMROOT', 'COMSPEC', 'TEMP', 'TMP', 'TMPDIR', 'JAVA_HOME', 'PROGRAMFILES']);
   const env = {};
   for (const [key, value] of Object.entries(source)) {
     const normalized = key.toUpperCase();

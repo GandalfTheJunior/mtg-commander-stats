@@ -79,6 +79,17 @@ test('Windows Path is canonicalised without admitting forbidden case variants', 
   assert.throws(() => environment({PATH: 'one', Path: 'another'}), /Conflicting case variants/);
 });
 
+test('Windows ProgramFiles survives sanitisation for Compose plugin discovery', () => {
+  const programFiles = String.raw`C:\Program Files`;
+  for (const key of ['ProgramFiles', 'PROGRAMFILES', 'programfiles']) {
+    assert.deepEqual(environment({[key]: programFiles, Path: 'docker-and-java-path', DOCKER_HOST: 'tcp://remote:2375', DOCKER_CONFIG: 'custom-plugins-and-credentials', Docker_Config: 'case-variant', SPRING_APPLICATION_JSON: '{}', JAVA_TOOL_OPTIONS: 'injected', JDK_JAVA_OPTIONS: 'injected', POSTGRES_PORT: '5432', POSTGRES_PASSWORD: 'regular-secret', COMPOSE_FILE: 'regular-compose.yaml'}), {
+      PROGRAMFILES: programFiles, PATH: 'docker-and-java-path',
+    });
+  }
+  assert.deepEqual(environment({ProgramFiles: programFiles, PROGRAMFILES: programFiles}), {PROGRAMFILES: programFiles});
+  assert.throws(() => environment({ProgramFiles: programFiles, PROGRAMFILES: 'another-location'}), /Conflicting case variants/);
+});
+
 test('a Windows-style Path supports native executable lookup for spawned commands', () => {
   // Exercise the same PATH lookup used for Docker/Java without requiring either
   // installation in this dependency-free test (including on Windows CI).

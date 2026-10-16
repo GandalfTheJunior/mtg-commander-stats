@@ -157,8 +157,24 @@ node --test tools/demo/*.test.mjs
 These dependency-free tests cover fixture invariants/manifest, fail-closed
 arguments and environment, target identity checks, and the HTTP cookie/CSRF
 rotation lifecycle, Windows-style `Path` command lookup, and cooperative IPC
-shutdown. CI runs them with Node 24 on Linux and Windows. The normal
+shutdown. The Windows allowlist also retains `ProgramFiles` (canonical
+`PROGRAMFILES`) for Docker Compose plugin discovery while excluding
+`DOCKER_CONFIG`, remote Docker settings and application overrides. CI runs the
+tests with Node 24 on Linux and Windows. The normal
 [backend/frontend verification](../../README.md#verification) remains required.
+
+To check Docker Compose plugin discovery with the same sanitized child environment,
+without starting Docker containers, contacting a database or requiring a running
+Docker daemon:
+
+```powershell
+node tools/demo/compose-smoke.mjs
+```
+
+Windows CI also runs this smoke check. It reports an explicit **SKIP** if Docker
+or its Compose plugin is not installed/discoverable in the ordinary shell. If the
+ordinary `docker compose version` works but the sanitized invocation fails, the
+check fails. A skipped check is not proof of successful plugin discovery.
 
 For a repeatable real API/isolation check with Docker, a freshly built jar, and
 port 8080 free (stop any interactive backend first):
@@ -179,7 +195,8 @@ the status and use the documented demo-only recovery; nothing cleans up implicit
 
 A full Windows PowerShell + Docker Desktop run is still **unverified**. Windows
 CI exercises the dependency-free tooling tests, including native executable lookup
-and cooperative IPC shutdown; it does not run the PostgreSQL/Java/browser demo.
+and cooperative IPC shutdown, plus the conditional daemon-free Compose plugin
+discovery smoke check; it does not run the PostgreSQL/Java/browser demo.
 The verifier requests backend shutdown over Node IPC, waits for the wrapper to
 stop/await its Java child and release the operation lock, and still requires a
 zero exit status. It does not send `child.kill('SIGINT')` to the Node wrapper

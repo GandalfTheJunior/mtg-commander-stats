@@ -58,3 +58,5 @@ jobs:
           node-version: '24'
       - name: Verify demo environment and process guardrails
         run: node --test tools/demo/*.test.mjs
+      - name: Smoke-check Docker Compose discovery without a daemon
+        run: node tools/demo/compose-smoke.mjs
