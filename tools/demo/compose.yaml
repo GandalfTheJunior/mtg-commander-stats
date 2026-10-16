@@ -1,0 +1,22 @@
+# Used only by demo.mjs with the fixed mtg-commander-demo project.
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: mtg_commander_demo
+      POSTGRES_USER: mtg_commander_demo
+      POSTGRES_PASSWORD: ${DEMO_POSTGRES_PASSWORD:?Use node tools/demo/demo.mjs up}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - demo-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mtg_commander_demo -d mtg_commander_demo"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+volumes:
+  demo-data:
+    name: mtg-commander-demo-data
+    labels:
+      io.mtg-commander.demo: "true"

@@ -40,8 +40,23 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Verify isolated demo tooling
+        run: node --test ../tools/demo/*.test.mjs
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
+
+  demo-tooling-windows:
+    name: demo tooling (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify demo environment and process guardrails
+        run: node --test tools/demo/*.test.mjs
+      - name: Smoke-check Docker Compose discovery without a daemon
+        run: node tools/demo/compose-smoke.mjs

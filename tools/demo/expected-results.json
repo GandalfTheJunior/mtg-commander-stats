@@ -1,0 +1,255 @@
+{
+  "drawRule": "A DRAW counts as a game for each participant and deck, with no wins. Rate is wins / games * 100, rounded to two decimals; zero games => 0.",
+  "groups": [
+    {
+      "group": "friday",
+      "name": "Demo Friday Table",
+      "games": 20,
+      "draws": 2,
+      "rows": [
+        {
+          "kind": "player",
+          "user": "ada",
+          "name": "Ada",
+          "games": 12,
+          "wins": 6,
+          "winRatePercent": 50
+        },
+        {
+          "kind": "deck",
+          "user": "ada",
+          "deck": "ada-0",
+          "name": "Dragon Engine",
+          "games": 6,
+          "wins": 6,
+          "winRatePercent": 100
+        },
+        {
+          "kind": "deck",
+          "user": "ada",
+          "deck": "ada-1",
+          "name": "Patient Constructs",
+          "games": 6,
+          "wins": 0,
+          "winRatePercent": 0
+        },
+        {
+          "kind": "player",
+          "user": "bruno",
+          "name": "Bruno",
+          "games": 20,
+          "wins": 4,
+          "winRatePercent": 20
+        },
+        {
+          "kind": "deck",
+          "user": "bruno",
+          "deck": "bruno-0",
+          "name": "Goblin Workshop",
+          "games": 10,
+          "wins": 2,
+          "winRatePercent": 20
+        },
+        {
+          "kind": "deck",
+          "user": "bruno",
+          "deck": "bruno-1",
+          "name": "Forest Council",
+          "games": 10,
+          "wins": 2,
+          "winRatePercent": 20
+        },
+        {
+          "kind": "player",
+          "user": "cleo",
+          "name": "Cleo",
+          "games": 20,
+          "wins": 3,
+          "winRatePercent": 15
+        },
+        {
+          "kind": "deck",
+          "user": "cleo",
+          "deck": "cleo-0",
+          "name": "Graveyard Shift",
+          "games": 10,
+          "wins": 0,
+          "winRatePercent": 0
+        },
+        {
+          "kind": "deck",
+          "user": "cleo",
+          "deck": "cleo-1",
+          "name": "Sea Stories",
+          "games": 10,
+          "wins": 3,
+          "winRatePercent": 30
+        },
+        {
+          "kind": "player",
+          "user": "dara",
+          "name": "Dara",
+          "games": 16,
+          "wins": 4,
+          "winRatePercent": 25
+        },
+        {
+          "kind": "deck",
+          "user": "dara",
+          "deck": "dara-0",
+          "name": "Sunlit Tokens",
+          "games": 8,
+          "wins": 2,
+          "winRatePercent": 25
+        },
+        {
+          "kind": "deck",
+          "user": "dara",
+          "deck": "dara-1",
+          "name": "Old Artifacts",
+          "games": 8,
+          "wins": 2,
+          "winRatePercent": 25
+        },
+        {
+          "kind": "player",
+          "user": "emil",
+          "name": "Emil",
+          "games": 12,
+          "wins": 1,
+          "winRatePercent": 8.33
+        },
+        {
+          "kind": "deck",
+          "user": "emil",
+          "deck": "emil-0",
+          "name": "Wild Lands",
+          "games": 6,
+          "wins": 0,
+          "winRatePercent": 0
+        },
+        {
+          "kind": "deck",
+          "user": "emil",
+          "deck": "emil-1",
+          "name": "Spirit Parade",
+          "games": 6,
+          "wins": 1,
+          "winRatePercent": 16.67
+        }
+      ]
+    },
+    {
+      "group": "sunday",
+      "name": "Demo Sunday Table",
+      "games": 16,
+      "draws": 2,
+      "rows": [
+        {
+          "kind": "player",
+          "user": "cleo",
+          "name": "Cleo",
+          "games": 16,
+          "wins": 4,
+          "winRatePercent": 25
+        },
+        {
+          "kind": "deck",
+          "user": "cleo",
+          "deck": "cleo-0",
+          "name": "Graveyard Shift",
+          "games": 8,
+          "wins": 4,
+          "winRatePercent": 50
+        },
+        {
+          "kind": "deck",
+          "user": "cleo",
+          "deck": "cleo-1",
+          "name": "Sea Stories",
+          "games": 8,
+          "wins": 0,
+          "winRatePercent": 0
+        },
+        {
+          "kind": "player",
+          "user": "dara",
+          "name": "Dara",
+          "games": 16,
+          "wins": 3,
+          "winRatePercent": 18.75
+        },
+        {
+          "kind": "deck",
+          "user": "dara",
+          "deck": "dara-0",
+          "name": "Sunlit Tokens",
+          "games": 8,
+          "wins": 0,
+          "winRatePercent": 0
+        },
+        {
+          "kind": "deck",
+          "user": "dara",
+          "deck": "dara-1",
+          "name": "Old Artifacts",
+          "games": 8,
+          "wins": 3,
+          "winRatePercent": 37.5
+        },
+        {
+          "kind": "player",
+          "user": "emil",
+          "name": "Emil",
+          "games": 16,
+          "wins": 3,
+          "winRatePercent": 18.75
+        },
+        {
+          "kind": "deck",
+          "user": "emil",
+          "deck": "emil-0",
+          "name": "Wild Lands",
+          "games": 8,
+          "wins": 3,
+          "winRatePercent": 37.5
+        },
+        {
+          "kind": "deck",
+          "user": "emil",
+          "deck": "emil-1",
+          "name": "Spirit Parade",
+          "games": 8,
+          "wins": 0,
+          "winRatePercent": 0
+        },
+        {
+          "kind": "player",
+          "user": "faye",
+          "name": "Faye",
+          "games": 16,
+          "wins": 4,
+          "winRatePercent": 25
+        },
+        {
+          "kind": "deck",
+          "user": "faye",
+          "deck": "faye-0",
+          "name": "Night Court",
+          "games": 8,
+          "wins": 0,
+          "winRatePercent": 0
+        },
+        {
+          "kind": "deck",
+          "user": "faye",
+          "deck": "faye-1",
+          "name": "Spore Garden",
+          "games": 8,
+          "wins": 4,
+          "winRatePercent": 50
+        }
+      ]
+    }
+  ]
+}
