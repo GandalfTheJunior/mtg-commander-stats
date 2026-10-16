@@ -106,8 +106,11 @@ test('backend IPC shutdown and parent disconnect both permit child cleanup', asy
       process.send('ready');
     `;
     const child = spawn(process.execPath, ['--input-type=module', '-e', code], {env: environment(), stdio: ['ignore', 'pipe', 'pipe', 'ipc'], windowsHide: true});
-    const exited = new Promise((resolve, reject) => {child.once('close', (code, signal) => resolve({code, signal})); child.once('error', reject);});
+    const exited = new Promise((resolve, reject) => {child.once('exit', (code, signal) => resolve({code, signal})); child.once('error', reject);});
     const timeout = setTimeout(() => child.kill('SIGKILL'), 8000);
+    // Parent-initiated IPC disconnect may omit ChildProcess 'close'. Check
+    // process exit and stdout EOF separately so output is still fully drained.
+    const stdoutEnded = new Promise(resolve => child.stdout.once('end', resolve));
     let output = '';
     child.stdout.on('data', chunk => {output += chunk;}); child.stderr.resume();
     try {
@@ -118,6 +121,7 @@ test('backend IPC shutdown and parent disconnect both permit child cleanup', asy
       if (mode === 'request') child.send({type: 'stop-demo-backend'});
       else child.disconnect();
       assert.deepEqual(await exited, {code: 0, signal: null});
+      await stdoutEnded;
       assert.equal(output, 'cleanup-complete');
     } finally {clearTimeout(timeout); if (child.exitCode === null && child.signalCode === null) child.kill();}
   });
