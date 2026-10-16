@@ -103,8 +103,17 @@ npm run dev
 Open the local URL printed by Vite (normally http://localhost:5173). The page
 supports account registration and separate login, displays the authenticated
 username from `GET /api/me`, and restores that session after a reload. An
-authenticated user can list, create, edit, and delete their own manually entered
-decks in the **My decks** area. Deck changes use the existing CSRF/session flow,
+authenticated user lands on **Dashboard**, a concise welcome/wayfinding screen.
+The **Dashboard / Playgroups / Decks** navigation uses `/dashboard`, `/playgroups`
+and `/decks`, with a fixed bottom bar on phones and a top bar on wider screens.
+The current account and **Log out** are at the top right. A signed-out direct
+visit to one of those three URLs resumes that destination after verified login;
+generic sign-in opens Dashboard. Unsupported detail/editor URLs are not routes.
+See [browser routing](docs/development/frontend-routing.md) for session lifecycle
+and SPA fallback requirements.
+
+In **Decks**, an authenticated user can list, create, edit, and delete their own
+manually entered decks in the **My decks** area. Deck changes use the existing CSRF/session flow,
 persist in PostgreSQL, and remain scoped to the authenticated user's stable UUID.
 Deleting an unused deck asks for confirmation naming that deck; canceling sends
 no deletion request. Once a deck is used in a committed game, its commander and
@@ -117,7 +126,7 @@ forms are shown again after logout. Protected deck/group content and invitation
 codes are hidden during logout. Failed attempts recheck the session and offer
 retry; an unavailable identity check keeps protected content hidden.
 
-In **My groups**, create a named group or join/rejoin using a current invitation
+In **Playgroups → My groups**, create a named group or join/rejoin using a current invitation
 code. Select a group to see your role and active members; UUIDs distinguish users
 with the same display name. **Refresh members** or close and reopen details to see
 membership changes; **Refresh groups** retries or reloads your active memberships.
@@ -230,6 +239,7 @@ Tests terminate without watch mode. GitHub Actions runs separate `backend` and
 - [Architecture and ADRs](docs/architecture/overview.md)
 - [Post-MVP frontend UI strategy (ADR 0003)](docs/architecture/adr/0003-defer-ui-framework-until-after-mvp.md)
 - [Frontend theme and incremental adoption](docs/development/frontend-theme.md)
+- [Browser routing and authenticated shell](docs/development/frontend-routing.md)
 - [Proposed live companion direction (ADR 0004)](docs/architecture/adr/0004-post-mvp-live-companion-direction.md)
 - [Development workflow](docs/development/workflow.md)
 - [Java coding conventions](docs/development/java-conventions.md)

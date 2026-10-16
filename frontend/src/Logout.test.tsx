@@ -1,6 +1,7 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App'
+import { renderApp as render, goTo } from './test/renderApp'
 import type { CurrentUser } from './api'
 
 const user = { id: 'f058bf9c-c4ce-4b88-a252-aa176a5ef539', username: 'Gandalf' }
@@ -49,6 +50,7 @@ function setup() {
 }
 
 async function openCode() {
+  await goTo('Playgroups')
   fireEvent.click(await screen.findByRole('button', { name: 'Private group (OWNER)' }))
   fireEvent.click(await screen.findByRole('button', { name: 'Show invitation code' }))
   await screen.findByDisplayValue(code)
@@ -113,6 +115,7 @@ test.each(['403', '500', '200', 'network', 'csrf'])('failed or ambiguous logout 
   fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
   await screen.findByText('Logout could not be confirmed. You are still signed in. Try again.')
   expect(screen.getByText(user.username)).toBeInTheDocument()
+  await goTo('Decks')
   expect(await screen.findByText(deck.name)).toBeInTheDocument()
   expect(screen.queryByText('Logged out.')).not.toBeInTheDocument()
   expect(screen.queryByDisplayValue(code)).not.toBeInTheDocument()
@@ -160,6 +163,7 @@ test('failed session recheck hides protected data and can recover through an exp
   server.me = async () => json(user)
   fireEvent.click(screen.getByRole('button', { name: 'Check session' }))
   await screen.findByRole('button', { name: 'Log out' })
+  await goTo('Decks')
   expect(await screen.findByText(deck.name)).toBeInTheDocument()
   expect(screen.queryByDisplayValue(code)).not.toBeInTheDocument()
 })
@@ -175,7 +179,7 @@ for (const logoutFails of [false, true]) {
       if (resource === 'deck mutation') server.createDeck = oldRequest
       if (resource === 'group mutation') server.createGroup = oldRequest
       if (resource === 'invitation code') server.code = oldRequest
-      render(<App />)
+      render(<App />, resource.startsWith('deck') ? '/decks' : '/playgroups')
       await screen.findByRole('button', { name: 'Log out' })
       if (resource === 'deck mutation') {
         await screen.findByText(deck.name)
@@ -204,7 +208,9 @@ for (const logoutFails of [false, true]) {
         expectProtectedDataHidden()
         await signIn()
       }
+      await goTo('Decks')
       await screen.findByText('You have no decks yet.')
+      await goTo('Playgroups')
       await screen.findByText('You have no groups yet.')
       await act(async () => {
         if (outcome === 'network') pending.reject(new Error('Stale network failure'))
@@ -214,7 +220,10 @@ for (const logoutFails of [false, true]) {
         else pending.resolve(json(resource.endsWith('list') ? [group] : group, resource.endsWith('mutation') ? 201 : 200))
       })
       expect(screen.getByText(user.username)).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Create deck' })).toBeEnabled()
+      await goTo('Decks')
+      expect(await screen.findByRole('button', { name: 'Create deck' })).toBeEnabled()
+      await goTo('Playgroups')
+      await screen.findByRole('button', { name: 'Create group' })
       expect(screen.getByRole('button', { name: 'Create group' })).toBeEnabled()
       expect(screen.queryByText(deck.name)).not.toBeInTheDocument()
       expect(screen.queryByText(/Private group/)).not.toBeInTheDocument()

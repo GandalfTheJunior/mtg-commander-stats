@@ -210,8 +210,10 @@ A separate, nonbinding post-MVP concept is captured in
 
 ## Browser group management
 
-The SPA renders `GroupManager` only for a confirmed authenticated identity, next
-to `DeckManager`. It uses typed operations in `frontend/src/api.ts` against the
+The authenticated [browser shell and routing](../development/frontend-routing.md)
+mount `GroupManager` at `/playgroups` and `DeckManager` at `/decks`, one at a time.
+The managers retain their native in-view state and forms. GroupManager uses typed
+operations in `frontend/src/api.ts` against the
 [play groups API](../product/groups-api.md); unsafe operations reuse the existing
 same-origin cookies and fresh CSRF bootstrap. Group responses are validated
 before updating the UI. Failed CSRF preparation retains HTTP status information,
@@ -224,7 +226,8 @@ the previous session before refreshing CSRF and confirming identity. Deck and
 group components remount for the new session; late results from their previous
 lifetime cannot update protected state or expire the new session. Group
 details/code state is also scoped to the selected group's component lifetime.
-Request cleanup ignores late results after a group or identity change. Closing/reopening or explicitly refreshing details fetches
+Request cleanup aborts work and ignores late results after a route, group or
+identity change. Closing/reopening or explicitly refreshing details fetches
 active members again and discards any displayed invitation code. A 403 from a
 group action triggers a safe details GET to distinguish active membership from
 CSRF/authorization denial. Protected details/code are hidden during this check;
@@ -238,11 +241,11 @@ confirmation. Identity changes and session expiration unmount protected group
 content. Browser logout advances the session version and unmounts both deck and
 group content before CSRF preparation and DELETE. Only `204` confirms completion;
 other statuses or network failures recheck `/api/me`. A valid identity remounts
-fresh managers, an absent identity exposes signed-out controls without a success
+Dashboard and fresh destination views, an absent identity exposes signed-out controls without a success
 claim, and an unavailable check keeps protected content hidden until an explicit
 session check or login. Recovery and initial identity checks also respect the
 session version, so old results cannot restore retired state or invitation codes.
-No router, real-time infrastructure, or new dependencies were added.
+The shell uses React Router Declarative Mode; no real-time infrastructure is added.
 
 ## Browser game recording and deck lifecycle
 
@@ -255,16 +258,16 @@ are offered explicitly as recorded assignments. New choices come from the group'
 active-member list and read-only member deck-selection API, with independent
 loading/empty/error feedback. Backend validation and authorization remain final.
 
-The game area is keyed by selected group and deck revision within the session
-lifetime. Refreshing/closing details, membership loss or identity changes unmount
+The game area is scoped to the selected group within the route/session
+lifetime. Refreshing/closing details, membership loss, route or identity changes unmount
 it. AbortControllers and generation checks ignore late results and late 401s;
 unsafe game requests pass the abort signal through CSRF bootstrap and check it
 before sending the write. Refresh or recovery removes history, drafts and pending
 confirmations before any replacement data is accepted. A denied/failed game
 operation rechecks group access with the existing safe details GET. Protected
-members/code are hidden during that check. If a deck change remounts the game area
-during a pending check, the replacement inherits the check and confirms access
-before loading history or restoring protected group details. A successful recovery
+members/code are hidden during that check. Returning from Decks mounts fresh group
+details and game choices; a retired check cannot restore its prior details/code.
+A successful recovery
 check restores confirmed group details, with an explicit game refresh to inspect
 actual server state;
 403/404 from the details check establishes lost access, 401 expires the session,
@@ -274,13 +277,13 @@ writes or loop on authorization failure.
 Game writes use a pending guard and exact success statuses, with no optimistic
 persisted history. Edits and deletion can be canceled without requests; destructive
 confirmations identify the game and manage keyboard focus. Successful game changes
-remount/reload My decks so permanent usage is taken from the server. Successful
-own-deck changes remount the selected game area, refreshing history and eligible
-choices. My decks requires boolean lifecycle flags, shows archived state, preserves
+refresh history/statistics. Navigating to Decks reloads permanent usage from the
+server; returning to Playgroups reloads details, history and eligible choices
+after own-deck changes. My decks requires boolean lifecycle flags, shows archived state, preserves
 immutable commander/color fields in full-update payloads, and offers explicit
 confirmed archive for used decks. Failure/conflict states provide refresh without
-asserting a mutation succeeded. No backend contract, schema, router or dependency
-was added for this frontend slice.
+asserting a mutation succeeded. No backend contract or schema is changed by
+these browser controls.
 
 ## Browser group statistics
 
@@ -308,5 +311,5 @@ errors. Network, server and malformed-response failures show a local retry.
 Statistics 401/403/404 responses delegate to the existing game/group recovery:
 401 expires the current session; 403/404 hides protected details while a safe
 group GET determines access. Confirmed membership permits explicit Refresh games
-to reload both areas; failed checks keep them hidden. No new backend contract,
-router, client-side counters, dependencies or UI framework were introduced.
+to reload both areas; failed checks keep them hidden. There are no client-side
+statistics counters or new backend contracts.

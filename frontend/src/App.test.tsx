@@ -1,13 +1,7 @@
-import { act, fireEvent, render as renderUI, screen, within } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { act, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App'
-import { AppThemeProvider } from './theme/AppThemeProvider'
-
-// Exercise existing native auth/session/deck/group flows under the production provider.
-function render(ui: ReactNode) {
-  return renderUI(<AppThemeProvider>{ui}</AppThemeProvider>)
-}
+import { renderApp as render, goTo } from './test/renderApp'
 
 const user = { id: 'f058bf9c-c4ce-4b88-a252-aa176a5ef539', username: 'Gandalf' }
 const password = 'correct horse battery'
@@ -73,6 +67,7 @@ test('restores the authenticated session and loads its decks', async () => {
   expect(await screen.findByText('Atraxa Superfriends')).toBeInTheDocument()
   expect(screen.getByText(/Atraxa, Praetors' Voice/)).toBeInTheDocument()
   expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/decks', {
+    signal: expect.any(AbortSignal),
     credentials: 'same-origin',
   })
 })
@@ -96,7 +91,6 @@ test('restores and displays the current user from an existing session', async ()
   const fetchMock = vi
     .fn()
     .mockResolvedValueOnce(jsonResponse(user))
-    .mockResolvedValueOnce(jsonResponse([]))
     .mockResolvedValueOnce(jsonResponse([]))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
@@ -190,7 +184,6 @@ test('logs in with the bootstrapped CSRF token, refreshes it, and confirms ident
     )
     .mockResolvedValueOnce(jsonResponse(user))
     .mockResolvedValueOnce(jsonResponse([]))
-    .mockResolvedValueOnce(jsonResponse([]))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
   await screen.findByText('Not signed in.')
@@ -256,7 +249,6 @@ test('confirmed authentication hides credentials forms and prevents browser re-l
   const fetchMock = vi.fn()
     .mockResolvedValueOnce(jsonResponse(user))
     .mockResolvedValueOnce(jsonResponse([]))
-    .mockResolvedValueOnce(jsonResponse([]))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
   await screen.findByText('You have no decks yet.')
@@ -264,14 +256,13 @@ test('confirmed authentication hides credentials forms and prevents browser re-l
   expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Create an account' })).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Log out' })).toBeEnabled()
-  expect(fetchMock).toHaveBeenCalledTimes(3)
+  expect(fetchMock).toHaveBeenCalledTimes(2)
 })
 
 test('does not preserve a previous identity when post-login CSRF refresh fails', async () => {
   const fetchMock = vi
     .fn()
     .mockResolvedValueOnce(jsonResponse(user))
-    .mockResolvedValueOnce(jsonResponse([]))
     .mockResolvedValueOnce(jsonResponse([]))
     .mockResolvedValueOnce(jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'logout-token' }))
     .mockResolvedValueOnce(new Response(null, { status: 204 }))
@@ -351,7 +342,7 @@ test.each(['request', 'csrf'])('a group 401 during %s expires the session and cl
     return Promise.resolve(jsonResponse({}, 401))
   })
   vi.stubGlobal('fetch', fetchMock)
-  render(<App />)
+  render(<App />, '/playgroups')
   await screen.findByRole('button', { name: 'Private group (OWNER)' })
   if (source === 'request') {
     fireEvent.click(screen.getByRole('button', { name: 'Private group (OWNER)' }))
@@ -377,13 +368,17 @@ test('session expiration clears group details and ignores a late invitation-code
     if (path === '/api/groups') return Promise.resolve(jsonResponse([group]))
     if (path === `/api/groups/${group.id}`) return Promise.resolve(jsonResponse({ ...group, members: [] }))
     if (path.endsWith('/join-code')) return pendingCode
+    if (path.endsWith('/games')) return Promise.resolve(jsonResponse([]))
+    if (path.endsWith('/statistics')) return Promise.resolve(jsonResponse({ players: [], decks: [] }))
     if (path === '/api/csrf') return Promise.resolve(jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'deck-token' }))
     throw new Error(`Unexpected request: ${path}`)
   })
   vi.stubGlobal('fetch', fetchMock)
-  render(<App />)
+  render(<App />, '/playgroups')
   fireEvent.click(await screen.findByRole('button', { name: 'Private group (OWNER)' }))
   fireEvent.click(await screen.findByRole('button', { name: 'Show invitation code' }))
+  await goTo('Decks')
+  await screen.findByRole('button', { name: 'Create deck' })
   fireEvent.change(screen.getByLabelText('Deck name'), { target: { value: 'My deck' } })
   fireEvent.change(screen.getByLabelText('Commander'), { target: { value: 'Atraxa' } })
   fireEvent.click(screen.getByRole('button', { name: 'Create deck' }))
@@ -416,7 +411,7 @@ test.each(['same user', 'different user'])('a confirmed login for %s discards ol
     throw new Error(`Unexpected request: ${path}`)
   })
   vi.stubGlobal('fetch', fetchMock)
-  render(<App />)
+  render(<App />, '/playgroups')
   await screen.findByRole('button', { name: 'Old private group (OWNER)' })
   fireEvent.change(screen.getByLabelText('Group name'), { target: { value: 'Unconfirmed old group' } })
   fireEvent.click(screen.getByRole('button', { name: 'Create group' }))
@@ -427,6 +422,7 @@ test.each(['same user', 'different user'])('a confirmed login for %s discards ol
   fireEvent.change(form.getByLabelText('Password'), { target: { value: password } })
   fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
   await screen.findByText('Login successful.')
+  await goTo('Playgroups')
   await screen.findByText('You have no groups yet.')
   await act(async () => { resolveCreate(jsonResponse({ ...group, name: 'Unconfirmed old group' }, 201)) })
   expect(screen.queryByText(/Old private group/)).not.toBeInTheDocument()
@@ -493,6 +489,8 @@ for (const identity of ['same user', 'different user']) {
       fireEvent.change(form.getByLabelText('Password'), { target: { value: password } })
       fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
       await screen.findByText('Login successful.')
+      await goTo('Decks')
+      await screen.findByText(newDeck.name)
       await act(async () => {
         if (outcome === 'network') rejectOld(new Error('Stale network failure'))
         else if (outcome === '401' || outcome === '500') resolveOld(jsonResponse({ detail: 'Stale request failure' }, Number(outcome)))
@@ -536,6 +534,7 @@ test.each(['request', 'csrf'])('a current deck %s 401 after re-login still expir
   fireEvent.change(form.getByLabelText('Password'), { target: { value: password } })
   fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
   await screen.findByText('Login successful.')
+  await goTo('Decks')
   await screen.findByText('You have no decks yet.')
   rejectDeck = true
   fireEvent.change(screen.getByLabelText('Deck name'), { target: { value: 'Deck' } })

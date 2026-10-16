@@ -105,10 +105,10 @@ test('creates a deck with the selected colors and updates the visible list', asy
   expect(await screen.findByText('Atraxa Superfriends created.')).toBeInTheDocument()
   expect(screen.getByText(/Color identity: WUBG/)).toBeInTheDocument()
   expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/csrf', {
-    credentials: 'same-origin',
+    credentials: 'same-origin', signal: expect.any(AbortSignal),
   })
   expect(fetchMock).toHaveBeenNthCalledWith(3, '/api/decks', {
-    credentials: 'same-origin',
+    credentials: 'same-origin', signal: expect.any(AbortSignal),
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -168,7 +168,7 @@ test('edits a deck with CSRF and renders the server-confirmed result', async () 
   expect(screen.getByText('Atraxa Planeswalkers')).toBeInTheDocument()
   expect(screen.getByText('Color identity: WU')).toBeInTheDocument()
   expect(fetchMock).toHaveBeenNthCalledWith(3, `/api/decks/${deck.id}`, {
-    credentials: 'same-origin',
+    credentials: 'same-origin', signal: expect.any(AbortSignal),
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -207,7 +207,7 @@ test.each([false, true])('deletes a deck with CSRF and focuses success feedback 
   if (hasSurvivor) expect(screen.getByText(other.name)).toBeInTheDocument()
   else expect(screen.getByText('You have no decks yet.')).toBeInTheDocument()
   expect(fetchMock).toHaveBeenNthCalledWith(3, `/api/decks/${deck.id}`, {
-    credentials: 'same-origin',
+    credentials: 'same-origin', signal: expect.any(AbortSignal),
     method: 'DELETE',
     headers: { 'X-CSRF-TOKEN': 'deck-token' },
   })
@@ -324,7 +324,7 @@ test('confirmation sends exactly one selected DELETE and retains both decks unti
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
   expect(screen.getByRole('group', { name: `Delete ${deck.name}?` })).toHaveFocus()
   expect(fetchMock).toHaveBeenLastCalledWith(`/api/decks/${deck.id}`, {
-    credentials: 'same-origin', method: 'DELETE', headers: { 'X-CSRF-TOKEN': 'deck-token' },
+    credentials: 'same-origin', signal: expect.any(AbortSignal), method: 'DELETE', headers: { 'X-CSRF-TOKEN': 'deck-token' },
   })
   expect(screen.getByText(deck.name)).toBeInTheDocument()
   expect(screen.getByText(other.name)).toBeInTheDocument()

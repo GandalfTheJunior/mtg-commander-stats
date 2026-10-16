@@ -80,7 +80,7 @@ test('creates with CSRF and the original name; joins idempotently using server s
   fireEvent.click(screen.getByRole('button', { name: 'Create group' }))
   await screen.findByText(`${owner.name} created.`)
   expect(api.fetchMock).toHaveBeenCalledWith('/api/groups', {
-    credentials: 'same-origin', method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': 'group-token' },
+    credentials: 'same-origin', signal: expect.any(AbortSignal), method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': 'group-token' },
     body: JSON.stringify({ name: '  Friday Commander  ' }),
   })
   submitJoin()
@@ -169,7 +169,7 @@ test('OWNER retrieves/copies/regenerates code only after confirmation and cannot
   expect(details().queryByRole('button', { name: 'Leave group' })).not.toBeInTheDocument()
   fireEvent.click(details().getByRole('button', { name: 'Show invitation code' }))
   expect(await screen.findByDisplayValue(oldCode)).toBeInTheDocument()
-  expect(api.fetchMock).toHaveBeenCalledWith(`/api/groups/${owner.id}/join-code`, { credentials: 'same-origin', cache: 'no-store' })
+  expect(api.fetchMock).toHaveBeenCalledWith(`/api/groups/${owner.id}/join-code`, { credentials: 'same-origin', signal: expect.any(AbortSignal), cache: 'no-store' })
   fireEvent.click(details().getByRole('button', { name: 'Copy code' }))
   await screen.findByText('Invitation code copied.')
   expect(writeText).toHaveBeenCalledWith(oldCode)
@@ -183,7 +183,7 @@ test('OWNER retrieves/copies/regenerates code only after confirmation and cannot
   expect(screen.queryByDisplayValue(oldCode)).not.toBeInTheDocument()
   expect(screen.getByDisplayValue(newCode)).toBeInTheDocument()
   expect(api.fetchMock).toHaveBeenCalledWith(`/api/groups/${owner.id}/join-code`, {
-    credentials: 'same-origin', method: 'POST', headers: { 'X-CSRF-TOKEN': 'group-token' },
+    credentials: 'same-origin', signal: expect.any(AbortSignal), method: 'POST', headers: { 'X-CSRF-TOKEN': 'group-token' },
   })
 })
 
@@ -225,7 +225,7 @@ test('MEMBER cancels or confirms leaving, clears details and can rejoin without 
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: `${member.name} (MEMBER)` })).not.toBeInTheDocument()
   expect(api.fetchMock).toHaveBeenCalledWith(`/api/groups/${member.id}/membership`, {
-    credentials: 'same-origin', method: 'DELETE', headers: { 'X-CSRF-TOKEN': 'group-token' },
+    credentials: 'same-origin', signal: expect.any(AbortSignal), method: 'DELETE', headers: { 'X-CSRF-TOKEN': 'group-token' },
   })
   submitJoin()
   await screen.findByText(`${member.name} joined.`)
@@ -436,6 +436,9 @@ test.each([403, 404])('a denied regeneration followed by details %s clears code 
   expect(screen.queryByDisplayValue(oldCode)).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: `${owner.name} (OWNER)` })).not.toBeInTheDocument()
   expect(unauthorized).not.toHaveBeenCalled()
+  expect(screen.getByRole('button', { name: 'Refresh groups' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Create group' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: `${member.name} (MEMBER)` })).toBeEnabled()
 })
 
 test.each(['expired', 'network', 'malformed', 'member'])('403 access verification handles %s without restoring protected owner content', async (outcome) => {

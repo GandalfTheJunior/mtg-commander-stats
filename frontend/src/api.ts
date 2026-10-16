@@ -202,8 +202,8 @@ export async function logout(): Promise<void> {
   }
 }
 
-export async function listDecks(): Promise<Deck[]> {
-  const response = await fetch('/api/decks', requestDefaults)
+export async function listDecks(signal?: AbortSignal): Promise<Deck[]> {
+  const response = await fetch('/api/decks', { ...requestDefaults, ...(signal ? { signal } : {}) })
   if (!response.ok) {
     throw new ApiError(await errorMessage(response, 'Could not load your decks.'), response.status)
   }
@@ -214,21 +214,21 @@ export async function listDecks(): Promise<Deck[]> {
   return body.map(deckFrom)
 }
 
-export async function createDeck(input: DeckInput): Promise<Deck> {
-  return deckResponse(await unsafeRequest('POST', '/api/decks', input), 'Could not create the deck.', 201)
+export async function createDeck(input: DeckInput, signal?: AbortSignal): Promise<Deck> {
+  return deckResponse(await unsafeRequest('POST', '/api/decks', input, signal), 'Could not create the deck.', 201)
 }
 
-export async function updateDeck(id: string, input: DeckInput): Promise<Deck> {
+export async function updateDeck(id: string, input: DeckInput, signal?: AbortSignal): Promise<Deck> {
   const deck = await deckResponse(
-    await unsafeRequest('PUT', `/api/decks/${encodeURIComponent(id)}`, input),
+    await unsafeRequest('PUT', `/api/decks/${encodeURIComponent(id)}`, input, signal),
     'Could not update the deck.', 200,
   )
   if (deck.id !== id) throw new Error('The server returned a different deck. Refresh your decks.')
   return deck
 }
 
-export async function deleteDeck(id: string): Promise<void> {
-  await checkedResponse(await unsafeRequest('DELETE', `/api/decks/${encodeURIComponent(id)}`),
+export async function deleteDeck(id: string, signal?: AbortSignal): Promise<void> {
+  await checkedResponse(await unsafeRequest('DELETE', `/api/decks/${encodeURIComponent(id)}`, undefined, signal),
     204, 'Could not delete the deck.')
 }
 
@@ -267,9 +267,9 @@ async function groupResponse(response: Response, status: number, fallback: strin
   return groupFrom(await (await checkedResponse(response, status, fallback)).json())
 }
 
-export async function listGroups(): Promise<GroupSummary[]> {
+export async function listGroups(signal?: AbortSignal): Promise<GroupSummary[]> {
   const response = await checkedResponse(
-    await fetch('/api/groups', requestDefaults), 200, 'Could not load your groups.',
+    await fetch('/api/groups', { ...requestDefaults, ...(signal ? { signal } : {}) }), 200, 'Could not load your groups.',
   )
   const body: unknown = await response.json()
   if (!Array.isArray(body)) throw new Error('The server returned an invalid group list.')
@@ -280,12 +280,12 @@ export async function listGroups(): Promise<GroupSummary[]> {
   })).values()]
 }
 
-export async function createGroup(name: string): Promise<GroupSummary> {
-  return groupResponse(await unsafeRequest('POST', '/api/groups', { name }), 201, 'Could not create the group.')
+export async function createGroup(name: string, signal?: AbortSignal): Promise<GroupSummary> {
+  return groupResponse(await unsafeRequest('POST', '/api/groups', { name }, signal), 201, 'Could not create the group.')
 }
 
-export async function joinGroup(code: string): Promise<GroupSummary> {
-  return groupResponse(await unsafeRequest('POST', '/api/groups/join', { code }), 200, 'Could not join. Check that the invitation code is current and valid.')
+export async function joinGroup(code: string, signal?: AbortSignal): Promise<GroupSummary> {
+  return groupResponse(await unsafeRequest('POST', '/api/groups/join', { code }, signal), 200, 'Could not join. Check that the invitation code is current and valid.')
 }
 
 export async function getGroup(id: string, signal?: AbortSignal): Promise<GroupDetails> {
@@ -310,10 +310,10 @@ export async function getGroup(id: string, signal?: AbortSignal): Promise<GroupD
   return { ...group, members }
 }
 
-export async function getJoinCode(id: string, regenerate = false): Promise<string> {
+export async function getJoinCode(id: string, regenerate = false, signal?: AbortSignal): Promise<string> {
   const path = `/api/groups/${encodeURIComponent(id)}/join-code`
   const response = await checkedResponse(
-    regenerate ? await unsafeRequest('POST', path) : await fetch(path, { ...requestDefaults, cache: 'no-store' }),
+    regenerate ? await unsafeRequest('POST', path, undefined, signal) : await fetch(path, { ...requestDefaults, cache: 'no-store', ...(signal ? { signal } : {}) }),
     200, regenerate ? 'Could not regenerate the invitation code.' : 'Could not load the invitation code.',
   )
   const body: unknown = await response.json()
@@ -323,13 +323,13 @@ export async function getJoinCode(id: string, regenerate = false): Promise<strin
   return body.code
 }
 
-export async function leaveGroup(id: string): Promise<void> {
-  await checkedResponse(await unsafeRequest('DELETE', `/api/groups/${encodeURIComponent(id)}/membership`), 204, 'Could not leave the group.')
+export async function leaveGroup(id: string, signal?: AbortSignal): Promise<void> {
+  await checkedResponse(await unsafeRequest('DELETE', `/api/groups/${encodeURIComponent(id)}/membership`, undefined, signal), 204, 'Could not leave the group.')
 }
 
-export async function archiveDeck(id: string): Promise<Deck> {
+export async function archiveDeck(id: string, signal?: AbortSignal): Promise<Deck> {
   const response = await checkedResponse(
-    await unsafeRequest('POST', `/api/decks/${encodeURIComponent(id)}/archive`), 200, 'Could not archive the deck.',
+    await unsafeRequest('POST', `/api/decks/${encodeURIComponent(id)}/archive`, undefined, signal), 200, 'Could not archive the deck.',
   )
   const deck = deckFrom(await response.json())
   if (deck.id !== id || !deck.archived) throw new Error('The server did not confirm deck archival. Refresh your decks.')

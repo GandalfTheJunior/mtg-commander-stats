@@ -1,7 +1,12 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App'
+import { renderApp, goTo } from './test/renderApp'
+
 import { deckFor, deferred, gameApi, group, recorded, response, uid } from './test/gameFixtures'
+
+const render = (ui: ReactNode) => renderApp(ui, '/playgroups')
 
 function setup() {
   const api = gameApi()
@@ -32,6 +37,7 @@ function setup() {
   return { ...api, fetchMock, server: state, other }
 }
 async function open(name = group.name) {
+  await goTo('Playgroups')
   fireEvent.click(await screen.findByRole('button', { name: `${name} (OWNER)` }))
 }
 async function create() {
@@ -53,7 +59,7 @@ test.each([
   { lateStatus: 401, role: 'OWNER' },
   { lateStatus: 403, role: 'OWNER' },
   { lateStatus: 200, role: 'MEMBER' },
-])('deck archival during a pending game access check restores only newly confirmed details ($lateStatus, $role)', async ({ lateStatus, role }) => {
+])('navigation and deck archival during a pending game access check restore only newly confirmed details ($lateStatus, $role)', async ({ lateStatus, role }) => {
   const api = setup(); api.state.history = [recorded()]; api.server.deck.everUsed = true
   render(<App />); await open(); await screen.findByRole('article')
   api.next(`/api/groups/${group.id}/join-code`, () => response({ code: 'abcdefghijklmnopqrstuv' }))
@@ -69,10 +75,13 @@ test.each([
   const replacement = deferred()
   const checkReplacement = vi.fn(() => replacement.promise)
   api.next(`/api/groups/${group.id}`, checkReplacement)
+  await goTo('Decks')
+  await screen.findByRole('button', { name: 'Archive' })
   const ownDeck = within(screen.getByRole('heading', { name: 'My decks' }).closest('section')!)
   fireEvent.click(ownDeck.getByRole('button', { name: 'Archive' }))
   fireEvent.click(ownDeck.getByRole('button', { name: 'Confirm archival' }))
   await screen.findByText('Archived — unavailable for new games')
+  await open()
   await waitFor(() => expect(checkReplacement).toHaveBeenCalledOnce())
   expect(screen.queryByText('Active members')).not.toBeInTheDocument()
   expect(screen.queryByDisplayValue('abcdefghijklmnopqrstuv')).not.toBeInTheDocument()
@@ -86,11 +95,9 @@ test.each([
   await screen.findByRole('article')
   await screen.findByText('Active members')
   expect(screen.getByText(`Your role: ${role}`)).toBeInTheDocument()
-  if (role === 'OWNER') expect(screen.getByDisplayValue('abcdefghijklmnopqrstuv')).toBeInTheDocument()
-  else {
-    expect(screen.queryByDisplayValue('abcdefghijklmnopqrstuv')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Show invitation code' })).not.toBeInTheDocument()
-  }
+  expect(screen.queryByDisplayValue('abcdefghijklmnopqrstuv')).not.toBeInTheDocument()
+  if (role === 'OWNER') expect(screen.getByRole('button', { name: 'Show invitation code' })).toBeEnabled()
+  else expect(screen.queryByRole('button', { name: 'Show invitation code' })).not.toBeInTheDocument()
   expect(screen.getByText(/Signed in as/)).toHaveTextContent('Owner')
   expect(screen.getByText('Active members')).toBeInTheDocument()
 })
@@ -98,18 +105,23 @@ test.each([
 test('App refreshes permanent own-deck state after games and refreshes history after archival', async () => {
   setup(); render(<App />); await open(); await create()
   const ownDeck = () => within(screen.getByRole('heading', { name: 'My decks' }).closest('section')!)
+  await goTo('Decks')
   await waitFor(() => expect(ownDeck().getByRole('button', { name: 'Archive' })).toBeInTheDocument())
+  await open(); await screen.findByRole('article')
   fireEvent.click(screen.getByRole('button', { name: 'Delete game' }))
   fireEvent.click(screen.getByRole('button', { name: 'Confirm game deletion' }))
   await screen.findByText('No recorded games yet.')
+  await goTo('Decks'); await screen.findByRole('button', { name: 'Archive' })
   expect(ownDeck().queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
   fireEvent.click(ownDeck().getByRole('button', { name: 'Edit' }))
   expect(within(ownDeck().getByRole('form', { name: 'Edit Deck 1' })).getByLabelText('Commander')).toHaveAttribute('readonly')
   fireEvent.click(ownDeck().getByRole('button', { name: 'Cancel' }))
-  await create()
+  await open(); await screen.findByText('No recorded games yet.'); await create()
+  await goTo('Decks'); await screen.findByRole('button', { name: 'Archive' })
   fireEvent.click(ownDeck().getByRole('button', { name: 'Archive' }))
   fireEvent.click(ownDeck().getByRole('button', { name: 'Confirm archival' }))
   await screen.findByText('Archived — unavailable for new games')
+  await open()
   await screen.findByText(/— Archived deck/)
 })
 

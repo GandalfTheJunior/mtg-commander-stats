@@ -69,13 +69,15 @@ function DeckFields({ deck }: { deck?: Deck }) {
 
 export default function DeckManager({ onUnauthorized, onChanged }: { onUnauthorized: () => void; onChanged?: () => void }) {
   const active = useRef(false)
+  const request = useRef<AbortController | null>(null)
   const deleting = useRef(false)
   const deleteTrigger = useRef<HTMLButtonElement | null>(null)
   const deletionConfirmation = useRef<HTMLDivElement | null>(null)
   const noticeElement = useRef<HTMLParagraphElement | null>(null)
   useEffect(() => {
     active.current = true
-    return () => { active.current = false }
+    request.current = new AbortController()
+    return () => { active.current = false; request.current?.abort() }
   }, [])
 
   const [revision, setRevision] = useState(0)
@@ -111,7 +113,8 @@ export default function DeckManager({ onUnauthorized, onChanged }: { onUnauthori
 
   useEffect(() => {
     let active = true
-    listDecks()
+    const controller = new AbortController()
+    listDecks(controller.signal)
       .then((loadedDecks) => {
         if (active) {
           setDecks(loadedDecks)
@@ -126,6 +129,7 @@ export default function DeckManager({ onUnauthorized, onChanged }: { onUnauthori
       })
     return () => {
       active = false
+      controller.abort()
     }
   }, [handleError, revision])
 
@@ -137,7 +141,7 @@ export default function DeckManager({ onUnauthorized, onChanged }: { onUnauthori
     setBusy(true)
     setNotice(null)
     try {
-      const created = await createDeck(deckInput(form))
+      const created = await createDeck(deckInput(form), request.current!.signal)
       if (!active.current) return
       setDecks((current) => [...current, created])
       setNotice({ kind: 'success', message: `${created.name} created.` })
@@ -161,7 +165,7 @@ export default function DeckManager({ onUnauthorized, onChanged }: { onUnauthori
       const deck = decks.find((candidate) => candidate.id === id)!
       const input = deckInput(event.currentTarget)
       const updated = await updateDeck(id, deck.everUsed
-        ? { ...input, commander: deck.commander, colorIdentity: deck.colorIdentity } : input)
+        ? { ...input, commander: deck.commander, colorIdentity: deck.colorIdentity } : input, request.current!.signal)
       if (!active.current) return
       setDecks((current) => current.map((deck) => (deck.id === id ? updated : deck)))
       setEditingId(null)
@@ -182,8 +186,8 @@ export default function DeckManager({ onUnauthorized, onChanged }: { onUnauthori
     setNotice(null)
     try {
       let archived: Deck | null = null
-      if (deck.everUsed) archived = await archiveDeck(deck.id)
-      else await deleteDeck(deck.id)
+      if (deck.everUsed) archived = await archiveDeck(deck.id, request.current!.signal)
+      else await deleteDeck(deck.id, request.current!.signal)
       if (!active.current) return
       setDecks((current) => archived ? current.map((candidate) => candidate.id === deck.id ? archived : candidate)
         : current.filter((candidate) => candidate.id !== deck.id))
