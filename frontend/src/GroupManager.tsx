@@ -312,6 +312,7 @@ function GroupView({ id, busy, setBusy, onUnauthorized, onAccessLost, onLeft, on
         </div>}
         </>}
         {currentUser && <GameManager key={`${id}-${deckRevision}`} group={details} actorId={currentUser.id}
+          checkingAccessOnMount={checkingGames}
           onUnauthorized={onUnauthorized} onAccessLost={onAccessLost} onCheckingAccess={setCheckingGames}
           onGroupConfirmed={(group) => { setDetails(group); if (group.role !== 'OWNER') setCode(null) }}
           onChanged={onGamesChanged} />}

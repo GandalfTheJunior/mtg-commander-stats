@@ -249,8 +249,11 @@ unsafe game requests pass the abort signal through CSRF bootstrap and check it
 before sending the write. Refresh or recovery removes history, drafts and pending
 confirmations before any replacement data is accepted. A denied/failed game
 operation rechecks group access with the existing safe details GET. Protected
-members/code are hidden during that check. A successful check restores confirmed
-group details, with an explicit game refresh to inspect actual server state;
+members/code are hidden during that check. If a deck change remounts the game area
+during a pending check, the replacement inherits the check and confirms access
+before loading history or restoring protected group details. A successful recovery
+check restores confirmed group details, with an explicit game refresh to inspect
+actual server state;
 403/404 from the details check establishes lost access, 401 expires the session,
 and an unavailable check keeps protected data hidden. Recovery does not retry
 writes or loop on authorization failure.

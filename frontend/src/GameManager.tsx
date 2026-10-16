@@ -8,6 +8,7 @@ import GameEditor from './GameEditor'
 type Props = {
   group: GroupDetails
   actorId: string
+  checkingAccessOnMount?: boolean
   onUnauthorized: () => void
   onAccessLost: () => void
   onCheckingAccess: (checking: boolean) => void
@@ -22,14 +23,16 @@ function message(error: unknown) {
 // The parent keys this area by selected group and deck revision; App keys the
 // entire group manager by confirmed session. Abort and generation checks retire
 // responses (including 401s) before they can affect a different lifetime.
-export default function GameManager({ group, actorId, ...handlers }: Props) {
+export default function GameManager({ group, actorId, checkingAccessOnMount = false, ...handlers }: Props) {
   const id = group.id
   const callbacks = useRef(handlers)
   useEffect(() => { callbacks.current = handlers })
   const alive = useRef(false)
   const generation = useRef(0)
   const request = useRef<AbortController | null>(null)
-  const [revision, setRevision] = useState(0)
+  // A keyed replacement inherits the parent's pending check and must confirm
+  // access itself; the retired instance can no longer settle that check.
+  const [revision, setRevision] = useState(checkingAccessOnMount ? 1 : 0)
   const [state, setState] = useState<{ status: 'loading' | 'ready' | 'checking' | 'error'; games?: Game[]; error?: string }>({ status: 'loading' })
   const [notice, setNotice] = useState('')
   const noticeElement = useRef<HTMLParagraphElement>(null)

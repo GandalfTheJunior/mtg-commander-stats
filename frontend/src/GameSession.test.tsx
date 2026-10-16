@@ -48,6 +48,53 @@ async function create() {
 }
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
+test.each([
+  { lateStatus: 200, role: 'OWNER' },
+  { lateStatus: 401, role: 'OWNER' },
+  { lateStatus: 403, role: 'OWNER' },
+  { lateStatus: 200, role: 'MEMBER' },
+])('deck archival during a pending game access check restores only newly confirmed details ($lateStatus, $role)', async ({ lateStatus, role }) => {
+  const api = setup(); api.state.history = [recorded()]; api.server.deck.everUsed = true
+  render(<App />); await open(); await screen.findByRole('article')
+  api.next(`/api/groups/${group.id}/join-code`, () => response({ code: 'abcdefghijklmnopqrstuv' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Show invitation code' }))
+  await screen.findByDisplayValue('abcdefghijklmnopqrstuv')
+  const checking = deferred()
+  api.next(`/api/groups/${group.id}/games/${uid(20)}`, () => response({}, 403), 'DELETE')
+  api.next(`/api/groups/${group.id}`, () => checking.promise)
+  fireEvent.click(screen.getByRole('button', { name: 'Delete game' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm game deletion' }))
+  await screen.findByText('Checking group access…')
+  expect(screen.queryByText('Active members')).not.toBeInTheDocument()
+  const replacement = deferred()
+  const checkReplacement = vi.fn(() => replacement.promise)
+  api.next(`/api/groups/${group.id}`, checkReplacement)
+  const ownDeck = within(screen.getByRole('heading', { name: 'My decks' }).closest('section')!)
+  fireEvent.click(ownDeck.getByRole('button', { name: 'Archive' }))
+  fireEvent.click(ownDeck.getByRole('button', { name: 'Confirm archival' }))
+  await screen.findByText('Archived — unavailable for new games')
+  await waitFor(() => expect(checkReplacement).toHaveBeenCalledOnce())
+  expect(screen.queryByText('Active members')).not.toBeInTheDocument()
+  expect(screen.queryByDisplayValue('abcdefghijklmnopqrstuv')).not.toBeInTheDocument()
+  expect(screen.queryByRole('article')).not.toBeInTheDocument()
+  await act(async () => checking.resolve(response(group, lateStatus)))
+  expect(screen.getByText(/Signed in as/)).toHaveTextContent('Owner')
+  expect(screen.queryByText('Active members')).not.toBeInTheDocument()
+  expect(screen.queryByDisplayValue('abcdefghijklmnopqrstuv')).not.toBeInTheDocument()
+  expect(screen.queryByRole('article')).not.toBeInTheDocument()
+  await act(async () => replacement.resolve(response({ ...group, role })))
+  await screen.findByRole('article')
+  await screen.findByText('Active members')
+  expect(screen.getByText(`Your role: ${role}`)).toBeInTheDocument()
+  if (role === 'OWNER') expect(screen.getByDisplayValue('abcdefghijklmnopqrstuv')).toBeInTheDocument()
+  else {
+    expect(screen.queryByDisplayValue('abcdefghijklmnopqrstuv')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show invitation code' })).not.toBeInTheDocument()
+  }
+  expect(screen.getByText(/Signed in as/)).toHaveTextContent('Owner')
+  expect(screen.getByText('Active members')).toBeInTheDocument()
+})
+
 test('App refreshes permanent own-deck state after games and refreshes history after archival', async () => {
   setup(); render(<App />); await open(); await create()
   const ownDeck = () => within(screen.getByRole('heading', { name: 'My decks' }).closest('section')!)
