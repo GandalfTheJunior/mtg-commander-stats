@@ -32,7 +32,7 @@ test.each(['WIN', 'DRAW'])('records %s without the actor playing, using only doc
   fireEvent.click(screen.getByRole('button', { name: 'Record game' }))
   await screen.findByText('Game recorded.')
   await screen.findByRole('article', { name: `Game ${uid(20)}` })
-  expect(screen.getByText('Game recorded.')).toHaveFocus()
+  await waitFor(() => expect(screen.getByText('Game recorded.')).toHaveFocus())
   const call = api.fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')!
   expect(call[0]).toBe(path)
   expect(call[1]).toEqual(expect.objectContaining({ credentials: 'same-origin', method: 'POST',
