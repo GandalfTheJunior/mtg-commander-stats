@@ -123,7 +123,7 @@ public class ManageGroups {
 
     @Transactional
     public void leave(UUID actorId, UUID groupId) {
-        groups.findById(groupId).orElseThrow(GroupNotFoundException::new);
+        groups.findByIdForUpdate(groupId).orElseThrow(GroupNotFoundException::new);
         activeMembership(groupId, actorId).leave();
     }
 

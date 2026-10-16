@@ -1,11 +1,21 @@
 package io.github.gandalfthejunior.mtgcommanderstats.deck.persistence;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.Deck;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface DeckRepository extends JpaRepository<Deck, UUID> {
     List<Deck> findAllByOwnerId(UUID ownerId);
+    List<Deck> findAllByOwnerIdAndArchivedFalseOrderByNameAscIdAsc(UUID ownerId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select deck from Deck deck where deck.id = :id")
+    Optional<Deck> findByIdForUpdate(@Param("id") UUID id);
 }

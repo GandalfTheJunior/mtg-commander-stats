@@ -3,6 +3,7 @@ package io.github.gandalfthejunior.mtgcommanderstats.deck.api;
 import java.util.List;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.ManageDecks;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.Deck;
 import io.github.gandalfthejunior.mtgcommanderstats.security.UserPrincipal;
@@ -50,13 +51,27 @@ public class DeckController {
         decks.delete(user.getId(), deckId);
     }
 
+    @PostMapping("/api/decks/{deckId}/archive")
+    public DeckResponse archive(@AuthenticationPrincipal UserPrincipal user, @PathVariable UUID deckId,
+            @RequestBody(required = false) ArchiveRequest request) {
+        return DeckResponse.from(decks.archive(user.getId(), deckId));
+    }
+
+    public record ArchiveRequest() {
+        @JsonAnySetter
+        public void rejectUnknownField(String field, Object value) {
+            throw new InvalidArchiveRequestException();
+        }
+    }
+
     public record DeckRequest(String name, String commander, List<String> colorIdentity) {
     }
 
-    public record DeckResponse(UUID id, String name, String commander, List<String> colorIdentity) {
+    public record DeckResponse(UUID id, String name, String commander, List<String> colorIdentity,
+            boolean everUsed, boolean archived) {
         static DeckResponse from(Deck deck) {
             return new DeckResponse(deck.getId(), deck.getName(), deck.getCommander(),
-                    deck.getColorIdentity().symbols());
+                    deck.getColorIdentity().symbols(), deck.isEverUsed(), deck.isArchived());
         }
     }
 }

@@ -100,3 +100,6 @@ The API uses RFC 9457 problem responses consistently with the existing backend.
 
 For access-controlled endpoints, `403` responses do not expose protected group
 details. A missing group is distinguished with `404` as part of this contract.
+
+Group-authorized deck selection and game history/recording are documented in the
+[Commander games API](games-api.md). Departure retains those historical games.

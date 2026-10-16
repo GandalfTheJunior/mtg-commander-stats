@@ -71,7 +71,9 @@ class DeckManagementTest {
         HttpResponse<String> firstResponse = request(alice, HttpMethod.POST, "/api/decks", firstBody);
         assertThat(firstResponse.statusCode()).isEqualTo(HttpStatus.CREATED.value());
         JsonNode first = json.readTree(firstResponse.body());
-        assertThat(first.size()).isEqualTo(4);
+        assertThat(first.size()).isEqualTo(6);
+        assertThat(first.get("everUsed").asBoolean()).isFalse();
+        assertThat(first.get("archived").asBoolean()).isFalse();
         assertThat(first.get("name").asText()).isEqualTo("Atraxa  SUPERFRIENDS");
         assertThat(first.get("commander").asText()).isEqualTo("Atraxa, Praetors' Voice");
         assertThat(first.get("colorIdentity")).isEqualTo(json.readTree("[\"W\",\"U\",\"B\",\"G\"]"));

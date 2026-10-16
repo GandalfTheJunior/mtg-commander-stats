@@ -8,8 +8,8 @@ Browser → React/TypeScript SPA → REST/JSON → Spring Boot modular monolith 
 
 The backend implements user registration in the `user` feature, session
 authentication in `security`, authenticated deck management in the `deck`
-feature, and play groups plus membership in the `group` feature, alongside
-development/test infrastructure.
+feature, play groups plus membership in the `group` feature, and Commander game
+recording in the `game` feature, alongside development/test infrastructure.
 
 ## Backend organization
 
@@ -50,9 +50,10 @@ authenticated `UserPrincipal` UUID, its domain owns display-text/color rules, an
 its repository persists internal JPA entities. Flyway creates `decks` with a
 foreign key to `users`, database nonblank checks, and a canonical constrained
 WUBRG-string representation; REST exposes color identity as a canonical symbol
-array. This slice physically deletes decks because no game can reference them yet.
-The documented game-dependent immutability and archival lifecycle remains deferred
-until game usage exists.
+array. Persisted `ever_used` and `archived` flags govern the permanent lifecycle:
+committed game use permanently locks commander/color identity; names remain
+editable. Only unused decks may be physically deleted, and archival is explicit.
+The owning API exposes both flags. See [Deck API](../product/decks-api.md).
 
 The `group` feature uses the same feature layers. `play_groups` owns the stable
 group UUID, DisplayText name, owner UUID, and unique join code;
@@ -74,6 +75,33 @@ include codes; only active OWNER-authorized, non-cacheable responses expose them
 The group application layer uses the `user` feature's public-user directory to
 resolve display usernames without exposing user persistence entities through the
 API.
+
+The `game` feature owns `games` and the `game_participants` element collection.
+Group, creator, user and deck foreign keys, a participant primary key per game/user,
+a composite deck/owner FK, and result/winner checks protect persisted references.
+A deferred winner FK requires the winning user to participate at commit, while
+allowing atomic creation, assignment replacement and hard deletion. The domain
+validates 2–6 distinct players and WIN/DRAW consistency; the application validates
+new assignments and permissions. Game identity fields are never updated.
+
+`ManageGames` coordinates the group's `GameGroupAccess`, the deck's `GameDecks`,
+and the public-user directory rather than other features' repositories. Game
+writes and first-use updates share one transaction; usage is never derived from
+remaining game references or reset. History resolves stored public display data,
+including former users and archived decks. See [Games API](../product/games-api.md).
+
+Game operations (including reads and deck selection) lock the group row before
+checking current membership. Join, leave and code rotation use that same lock.
+This deliberately serializes operations within a group, so committed departure
+cannot be bypassed by an in-flight authorization check. Deck operations acquire
+pessimistic write locks before checking lifecycle state; games acquire newly
+assigned decks in stable UUID order after the group lock. Validation and usage
+updates occur while holding those locks until commit. Concurrent commander
+changes/deletion/archival therefore happen before validation or after permanent
+usage, without stale writes clearing usage or bypassing immutability. Historical
+unchanged assignments need no renewed eligibility check. Constraint/concurrency
+conflicts are returned as controlled `409` problems. This coarse locking is a
+conscious MVP tradeoff; no distributed locks or event infrastructure are added.
 
 Required human-readable labels use the small cross-feature `DisplayText` value
 rule. It trims only the product-defined boundary-whitespace set and preserves

@@ -1,9 +1,9 @@
 # MVP scope
 
 This document records the agreed product target. User registration, session
-authentication, authenticated deck management, and browser play-group management
-with the play-group/membership API are implemented; later milestone features
-remain planned.
+authentication, authenticated deck management, browser play-group management,
+and backend game recording with permanent deck usage/archival are implemented.
+Browser game recording and statistics remain planned.
 
 ## Product milestone
 
@@ -14,14 +14,20 @@ and decks, store results, and view basic player/deck statistics.
 ## Games
 
 - Free-for-all Commander only, with 2–6 registered players.
-- Only active members of the play group may participate.
+- New participant/deck assignments require active membership and an owned,
+  unarchived deck. Edits may retain unchanged historical assignments after a
+  member leaves or a deck is archived.
 - Each participant uses one of their own decks.
 - The result is either WIN with exactly one winner or DRAW with no winner.
 - Placements and rankings are out of scope.
-- A group member creates the game. Its creator may modify or delete it while
+- An active group member creates the game and need not participate. Its creator may modify or delete it while
   they remain an active member. The group OWNER may modify or delete games in
   that group.
 - Games are hard-deleted. There is no GameEvent/event system in the MVP.
+
+Backend contracts and history/display rules are documented in the
+[Commander games API](games-api.md). Game identity, creator, group, and recording
+time remain fixed on edits. Active members can read history.
 
 ## Play groups and membership
 
@@ -62,9 +68,16 @@ operations; see the [usage guide](../../README.md#local-development).
 - The deck name remains editable.
 - Commander and color identity may change until the deck is first used in a
   recorded game; they become immutable after first use.
-- Used decks are archived rather than physically deleted.
+- Decks remain used forever after their first committed game, even if all games
+  referencing them are edited or deleted. Failed writes leave usage unchanged.
+- Used-deck DELETE returns a conflict; owners explicitly archive them instead.
 - Archived decks remain visible in historical games and statistics but cannot
   be selected for new games.
+
+Owners can see unused/used/archived state in the [Deck API](decks-api.md). Active
+group members can select all unarchived decks of other active group members,
+including unused decks, through the read-only group game API. This grants no
+deck modification rights and introduces no configurable sharing settings.
 
 ## Statistics
 
