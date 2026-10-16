@@ -8,9 +8,12 @@ player/deck statistics tables.
 
 ## Product milestone
 
-Four real Commander players can create accounts, log in, manage their profiles,
-create their decks, join and use the same play group, record games with players
-and decks, store results, and view basic player/deck statistics.
+Four real Commander players can create accounts, log in, create and manage
+their decks, join and use the same play group, record games with players and
+decks, store results, and view basic player/deck statistics.
+
+Editing account/profile details after registration (for example, changing the
+username or email address) is deferred until after the MVP.
 
 ## Games
 
