@@ -4,7 +4,8 @@ A Commander statistics application and a learning project for AI-assisted
 software engineering. The application supports user registration, session
 authentication, authenticated deck management, and browser play-group management
 with join-code membership. The browser records Commander games, shows group history, and handles permanent
-deck usage and explicit archival through the backend API. Profiles and statistics
+deck usage and explicit archival through the backend API. The backend provides
+[group statistics](docs/product/statistics-api.md); browser statistics and profiles
 remain planned.
 
 ## Agent entry point
@@ -201,6 +202,7 @@ Tests terminate without watch mode. GitHub Actions runs separate `backend` and
 - [Post-MVP Commander companion concept](docs/product/post-mvp-commander-companion.md)
 - [Play groups API](docs/product/groups-api.md)
 - [Commander games API](docs/product/games-api.md)
+- [Group statistics API](docs/product/statistics-api.md)
 - [Deck lifecycle API](docs/product/decks-api.md)
 - [Architecture and ADRs](docs/architecture/overview.md)
 - [Post-MVP frontend UI strategy (ADR 0003)](docs/architecture/adr/0003-defer-ui-framework-until-after-mvp.md)

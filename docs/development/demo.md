@@ -1,7 +1,7 @@
 # Local Commander demo
 
 This opt-in developer tool uses the existing registration, session, deck, group
-and game APIs. It does not add statistics endpoints or seed on startup. Requires
+and game APIs, plus the read-only group statistics API. It does not seed on startup. Requires
 the [normal prerequisites](../../README.md#stack-and-prerequisites), including
 Node 24, Java 25 and a running **local** Docker engine. Run all `node tools/demo/…`
 commands from the **repository root**. No npm packages are needed for the tool.
@@ -96,11 +96,36 @@ both. Group creation and code-based joining establish real OWNER/MEMBER roles.
 member and each of their decks per group**, with games, wins and win-rate percent.
 A DRAW adds one game to every participating player/deck and zero wins. The rate
 is `100 * wins / games`, rounded to two decimals (zero appearances => 0%). These
-are fixture expectations for future statistics verification, not live statistics
-API responses. The seed verifies these expectations against real game-history
-responses, plus fresh sign-in, own decks, membership/role and visibility scopes,
+are fixture expectations, not stored statistics. The seed verifies every nonzero
+row against the live statistics API as well as real game-history responses, plus
+fresh sign-in, own decks, membership/role and visibility scopes,
 archived history/selection, and rejection of an archived deck in a new game.
 It submits no placements, seasons or timestamp overrides.
+
+## Read the statistics API with existing demo data
+
+Rebuild the backend jar after this change and start the existing seeded demo with
+`node tools/demo/demo.mjs up` and `node tools/demo/demo.mjs backend`, then start
+Vite and sign in as Ada as above. Reuse the existing data; no reset or reseeding
+is needed. In the browser developer console on the Vite page, run:
+
+```javascript
+const memberships = await fetch('/api/groups').then(response => response.json());
+const friday = memberships.find(group => group.name === 'Demo Friday Table');
+const response = await fetch(`/api/groups/${friday.id}/statistics`);
+if (!response.ok) throw new Error(`Statistics returned ${response.status}`);
+const statistics = await response.json();
+console.table(statistics.players);
+console.table(statistics.decks);
+```
+
+On the unchanged fixture, compare Ada **12/6/50%**, Dragon Engine **6/6/100%**,
+Patient Constructs **6/0/0%** and Emil **12/1/8.33%** to
+[expected-results.json](../../tools/demo/expected-results.json). Sign in as Cleo,
+Dara or Emil and select `Demo Sunday Table` in the snippet to inspect independent
+Sunday figures. Ada cannot read Sunday. Results reflect any manual game edits
+already made to the demo. GET sends the existing session cookie and needs no
+CSRF token. The browser statistics area is still planned.
 
 ## Stop, reuse, recover, reset and return to regular development
 

@@ -3,7 +3,8 @@
 The backend records free-for-all Commander games within play groups. This API
 uses the existing session authentication and CSRF semantics. The selected group
 browser experience consumes this contract; see the [usage guide](../../README.md#local-development).
-Statistics queries remain a later milestone.
+The backend [group statistics API](statistics-api.md) derives current player/deck
+totals from these games; its browser area remains planned.
 
 ## Routes
 
@@ -101,7 +102,8 @@ there is no name snapshot or deck version. Stable UUIDs distinguish identical
 display names. Former users and archived decks remain identifiable. No email,
 credentials, or invitation code is exposed. The list returns all group games,
 newest `recordedAt` first, then UUID descending for ties. Participants are ordered
-by user UUID using Java UUID ordering. No pagination or statistics are introduced.
+by user UUID using Java UUID ordering. This history route has no pagination;
+statistics use the separate [group statistics endpoint](statistics-api.md).
 
 ## Read-only member deck selection
 
