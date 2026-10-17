@@ -294,7 +294,7 @@ export async function getGroup(id: string, signal?: AbortSignal): Promise<GroupD
   )
   const body: unknown = await response.json()
   const group = groupFrom(body)
-  if (!isRecord(body) || !Array.isArray(body.members) || group.id !== id) {
+  if (!isRecord(body) || !Array.isArray(body.members) || group.id.toLowerCase() !== id.toLowerCase()) {
     throw new Error('The server returned invalid group details.')
   }
   const members = body.members.map((member: unknown): GroupMember => {

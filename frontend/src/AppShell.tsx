@@ -67,7 +67,7 @@ export function AppShell({ user, notice, onLogout, children }: {
         borderBottomWidth: { xs: 0, sm: 1 }, borderColor: 'divider',
       }}>
         {destinations.map(({ path, label, icon }) => (
-          <Button key={path} component={NavLink} to={path} end color="inherit" sx={{
+          <Button key={path} component={NavLink} to={path} end={path === '/dashboard'} color="inherit" sx={{
             display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 0.5,
             flex: { xs: 1, sm: '0 1 200px' }, minWidth: 48, minHeight: { xs: 72, sm: 56 },
             px: 0.5, borderRadius: 0, fontSize: '0.875rem', color: 'text.secondary', transition: 'none',

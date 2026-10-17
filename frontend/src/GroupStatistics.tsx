@@ -45,8 +45,8 @@ function SortHeader<Column extends string>({ column, label, sort, onSort }: {
 type State = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; data: Statistics }
 const percent = new Intl.NumberFormat('en', { maximumFractionDigits: 2 })
 
-// Mounted only inside the confirmed group's ready game area. Retiring that
-// area on refresh, recovery, group or session changes also retires statistics.
+// Mounted lazily once the group's access is confirmed, independently of game
+// history. Access rechecks, refreshes, group/session changes retire this instance.
 export default function GroupStatistics({ groupId, onAccessError, sort, onSort }: Props) {
   const [state, setState] = useState<State>({ status: 'loading' })
   const [revision, setRevision] = useState(0)

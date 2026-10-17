@@ -1,3 +1,4 @@
+import { showCode } from './test/groupEntry'
 import { openNewDeck } from './test/editorEntry'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -53,7 +54,7 @@ function setup() {
 async function openCode() {
   await goTo('Playgroups')
   fireEvent.click(await screen.findByRole('button', { name: 'Private group (OWNER)' }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Show invitation code' }))
+  await showCode()
   await screen.findByDisplayValue(code)
 }
 
@@ -195,7 +196,7 @@ for (const logoutFails of [false, true]) {
       }
       if (resource === 'invitation code') {
         fireEvent.click(await screen.findByRole('button', { name: 'Private group (OWNER)' }))
-        fireEvent.click(await screen.findByRole('button', { name: 'Show invitation code' }))
+        await showCode()
       }
       await waitFor(() => expect(oldRequest).toHaveBeenCalledTimes(1))
       server.decks = async () => json([])

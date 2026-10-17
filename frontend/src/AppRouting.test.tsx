@@ -1,3 +1,4 @@
+import { showCode } from './test/groupEntry'
 import { openNewDeck } from './test/editorEntry'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { AppRouter as BrowserRouter } from './AppRouter'
@@ -73,7 +74,7 @@ afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState(null, '', '
 
 test.each([
   ['/', 'Dashboard'], ['/dashboard', 'Dashboard'], ['/decks', 'Decks'], ['/playgroups', 'Playgroups'],
-  ['/unknown', 'Dashboard'], ['/decks/123', 'Dashboard'], ['/playgroups/123', 'Dashboard'],
+  ['/unknown', 'Dashboard'], ['/decks/123', 'Dashboard'], ['/playgroups/123', 'Playgroups'],
 ] as const)('signed-out %s is safe and sign-in opens only the valid destination %s', async (path, target) => {
   const api = setup(); api.state.user = null
   show(path)
@@ -158,12 +159,13 @@ test('group access loss clears details and invitation code without logging out t
   const api = setup()
   show('/playgroups')
   fireEvent.click(await screen.findByRole('button', { name: `${group.name} (OWNER)` }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Show invitation code' }))
+  await showCode()
   await screen.findByDisplayValue(code)
   api.next(`/api/groups/${group.id}`, () => response({}, 403))
   api.next('/api/groups', () => response([]))
-  fireEvent.click(screen.getByRole('button', { name: 'Refresh members' }))
-  await screen.findByText(/Group access is unavailable/)
+  api.next(`/api/groups/${group.id}/join-code`, () => response({}, 403))
+  fireEvent.click(screen.getByRole('button', { name: 'Einladungscode anzeigen' }))
+  await screen.findByText(/Diese Playgroup ist nicht verfügbar/)
   await screen.findByText('You have no groups yet.')
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
   expect(screen.queryByDisplayValue(code)).not.toBeInTheDocument()
@@ -175,14 +177,14 @@ test('logout clears protected content and destination while pending; Back cannot
   const api = setup(), pending = deferred()
   show('/dashboard'); await destination('Dashboard'); await goTo('Playgroups')
   fireEvent.click(await screen.findByRole('button', { name: `${group.name} (OWNER)` }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Show invitation code' }))
+  await showCode()
   await screen.findByDisplayValue(code)
   api.next('/api/session', () => pending.promise, 'DELETE')
   fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
   hidden(); expect(window.location.pathname).toBe('/')
   expect(screen.getByText('Logging out…')).toBeInTheDocument()
   await act(async () => window.history.back())
-  await waitFor(() => expect(window.location.pathname).toBe('/dashboard'))
+  await waitFor(() => expect(window.location.pathname).toBe(`/playgroups/${group.id}`))
   hidden()
   api.state.user = null
   await act(async () => pending.resolve(new Response(null, { status: 204 })))
@@ -198,7 +200,7 @@ test.each([owner, { id: uid(4), username: 'Fourth' }])('re-login as $username di
   api.next(`/api/groups/${group.id}/join-code`, () => pending.promise)
   show('/playgroups'); await destination('Playgroups')
   fireEvent.click(await screen.findByRole('button', { name: `${group.name} (OWNER)` }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Show invitation code' }))
+  await showCode()
   await waitFor(() => expect(api.fetchMock.mock.calls.some(([url]) => url.endsWith('/join-code'))).toBe(true))
   fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
   await screen.findByText('Logged out.'); await signIn(); await destination('Dashboard')
