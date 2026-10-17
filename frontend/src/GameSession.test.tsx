@@ -1,3 +1,4 @@
+import { gameAction, openGameDetails } from './test/gameEntry'
 import { showCode, selectTab } from './test/groupEntry'
 import { openExistingDeck, openDeckAction } from './test/editorEntry'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
@@ -43,7 +44,7 @@ async function open(name = group.name) {
   fireEvent.click(await screen.findByRole('button', { name: `${name} (OWNER)` }))
 }
 async function create() {
-  fireEvent.click(await screen.findByRole('button', { name: 'Record a game' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Spiel erfassen' }))
   fireEvent.change(screen.getByLabelText('Player 1'), { target: { value: uid(1) } })
   fireEvent.change(screen.getByLabelText('Player 2'), { target: { value: uid(2) } })
   await waitFor(() => expect(screen.getByLabelText('Deck for player 1')).not.toBeDisabled())
@@ -69,12 +70,13 @@ test.each([
   await screen.findByDisplayValue('abcdefghijklmnopqrstuv')
   fireEvent.click(screen.getByRole('link', { name: 'Zurück zur Gruppe' }))
   await screen.findByRole('article')
+  await openGameDetails()
   const checking = deferred()
   api.next(`/api/groups/${group.id}/games/${uid(20)}`, () => response({}, 403), 'DELETE')
   api.next(`/api/groups/${group.id}`, () => checking.promise)
-  fireEvent.click(screen.getByRole('button', { name: 'Delete game' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm game deletion' }))
-  await screen.findByText('Checking group access…')
+  await gameAction('Löschen', false)
+  fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
+  await screen.findByText('Löschung und Serverstand werden geprüft…')
   expect(screen.queryByRole('heading', { name: group.name })).not.toBeInTheDocument()
   const replacement = deferred()
   const checkReplacement = vi.fn(() => replacement.promise)
@@ -116,8 +118,8 @@ test('App refreshes permanent own-deck state after games and refreshes history a
   fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   await open(); await screen.findByRole('article')
-  fireEvent.click(screen.getByRole('button', { name: 'Delete game' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm game deletion' }))
+  await gameAction('Löschen')
+  fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
   await screen.findByText('No recorded games yet.')
   await goTo('Decks'); await openExistingDeck()
   expect(screen.getByRole('textbox', { name: /Commander/ })).toHaveAttribute('readonly')
@@ -128,7 +130,8 @@ test('App refreshes permanent own-deck state after games and refreshes history a
   fireEvent.click(screen.getByRole('button', { name: 'Archivieren bestätigen' }))
   await screen.findByText('Deck 1 wurde archiviert.')
   await open()
-  await screen.findByText(/— Archived deck/)
+  await openGameDetails()
+  await screen.findByText('Archiviertes Deck')
 })
 
 test.each([200, 401])('late history from a previous selected group (%s) cannot restore it or expire the new view', async (status) => {
@@ -179,12 +182,13 @@ test('ambiguous game 403 hides group details/code during safe recheck, then rest
   await screen.findByDisplayValue('abcdefghijklmnopqrstuv')
   fireEvent.click(screen.getByRole('link', { name: 'Zurück zur Gruppe' }))
   await screen.findByRole('article')
+  await openGameDetails()
   const checking = deferred()
   api.next(`/api/groups/${group.id}/games/${uid(20)}`, () => response({}, 403), 'DELETE')
   api.next(`/api/groups/${group.id}`, () => checking.promise)
-  fireEvent.click(screen.getByRole('button', { name: 'Delete game' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm game deletion' }))
-  await screen.findByText('Checking group access…')
+  await gameAction('Löschen', false)
+  fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
+  await screen.findByText('Löschung und Serverstand werden geprüft…')
   expect(screen.queryByDisplayValue('abcdefghijklmnopqrstuv')).not.toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: group.name })).not.toBeInTheDocument()
   expect(screen.queryByRole('article')).not.toBeInTheDocument()

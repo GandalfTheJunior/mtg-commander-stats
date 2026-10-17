@@ -213,8 +213,10 @@ A separate, nonbinding post-MVP concept is captured in
 The authenticated [browser shell and routing](../development/frontend-routing.md)
 mount `GroupManager` at `/playgroups`, dedicated `GroupPage` routes for group tabs
 and OWNER code management, and `DeckManager` at `/decks`, one destination at a time.
-Group membership is reverified on route entry; game forms/history retain their
-native UI inside the Spiele panel, with drafts preserved across same-group tabs. Deck creation and
+Group membership is reverified on route entry. Spiele uses navigable MUI history
+cards and retains the existing inline game editor with drafts preserved across
+same-group tabs. Dedicated Spieldetails routes freshly verify group then game;
+see the routing guide for read recovery, one-use edit intents and deletion lifetimes. Deck creation and
 lifecycle actions use the dedicated MUI editor at `/decks/new` or
 `/decks/:deckId/edit`, with scoped drafts, origin-aware return and navigation
 protection described in the routing guide. GroupManager uses typed
@@ -270,8 +272,8 @@ lifetime. Refreshing/closing details, membership loss, route or identity changes
 it. AbortControllers and generation checks ignore late results and late 401s;
 unsafe game requests pass the abort signal through CSRF bootstrap and check it
 before sending the write. Refresh or recovery removes history, drafts and pending
-confirmations before any replacement data is accepted. A denied/failed game
-operation rechecks group access with the existing safe details GET. Protected
+confirmations before any replacement data is accepted. A denied/failed inline game
+write rechecks group access with the existing safe details GET. Protected
 members/code are hidden during that check. Returning from Decks mounts fresh group
 details and game choices; a retired check cannot restore its prior details/code.
 A successful recovery
@@ -282,7 +284,7 @@ and an unavailable check keeps protected data hidden. Recovery does not retry
 writes or loop on authorization failure.
 
 Game writes use a pending guard and exact success statuses, with no optimistic
-persisted history. Edits and deletion can be canceled without requests; destructive
+persisted history. Edits and detail-screen deletion can be canceled without requests; destructive
 confirmations identify the game and manage keyboard focus. Successful game changes
 refresh history/statistics. Navigating to Decks reloads permanent usage from the
 server; returning to Playgroups reloads details, history and eligible choices

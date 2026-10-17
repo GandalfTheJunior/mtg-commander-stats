@@ -53,6 +53,9 @@ test('zero width space and BOM are meaningful DisplayText and pass through uncha
 test.each(['/dashboard', '/decks'] as const)('save/cancel/discard use trusted calling overview %s', async origin => {
   const api = deckApi(); showDeckApp(origin)
   await screen.findByRole('heading', { name: origin === '/dashboard' ? 'Dashboard' : 'Meine Decks' })
+  // The overview heading can render before its list effect starts. Establish
+  // the initial read before asserting that entering create adds no list GET.
+  await waitFor(() => expect(api.fetchMock.mock.calls.filter(([path]) => path === '/api/decks')).toHaveLength(1))
   const overviewLists = api.fetchMock.mock.calls.filter(([path]) => path === '/api/decks').length
   await newDeck()
   expect(api.fetchMock.mock.calls.filter(([path]) => path === '/api/decks')).toHaveLength(overviewLists)

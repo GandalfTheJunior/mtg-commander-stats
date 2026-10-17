@@ -109,7 +109,7 @@ and `/decks`, with a fixed bottom bar on phones and a top bar on wider screens.
 The current account and **Log out** are at the top right. A signed-out direct
 visit to one of those three URLs resumes that destination after verified login;
 generic sign-in opens Dashboard. Supported group tabs, OWNER invitation-code and
-deck-editor URLs also resume after verification; other detail routes are unsupported.
+deck-editor and Spieldetails URLs also resume after verification; unsupported paths return safely to Dashboard.
 See [browser routing](docs/development/frontend-routing.md) for session lifecycle
 and SPA fallback requirements.
 
@@ -144,18 +144,28 @@ historical membership/results remain associated with the user. Rejoin using a
 current code. Owners cannot leave. An expired session clears protected browser
 content and asks the user to sign in again.
 
-Inside selected group details, **Commander games** shows history in server order.
-Choose **Record a game**, select 2–6 different active members, and select an eligible
-deck for each. A used, unarchived deck is still eligible. You need not participate.
-Select WIN and a participating winner, or DRAW with no winner. An empty deck list
-requires a different player or a new unarchived deck; peer decks are read-only.
+Inside the group's **Spiele** tab, **Spiel erfassen** opens the existing inline
+form. Select 2–6 different active members and an eligible deck for each. Used,
+unarchived decks remain eligible; you need not participate. Select WIN and a
+participating winner, or DRAW with no winner. Empty deck lists require a different
+player or a new unarchived deck; peer decks are read-only.
 
-Only the current creator or group OWNER sees **Edit game** and **Delete game**.
-Editing may keep recorded participant/deck pairs even when members have left or
-decks are archived; those historical choices are explicitly marked. Changes use
-current eligible choices. Canceling an edit or deletion sends no write. Deletion
-requires confirmation identifying the game. Pending writes disable duplicate
-submission, and history/deck state updates only after server acknowledgment.
+History cards follow server order and show winner plus winning deck or
+**Unentschieden**, participant count and **Erfasst am**. Each card opens
+`/playgroups/:groupId/games/:gameId` with freshly authorized **Spieldetails**.
+**Zurück zu Spiele** always returns to the group's current history. Details show
+all assignments, commander, color identity, archived decks, former members and
+the original creator, using current public names and stable IDs where needed.
+
+Only the active original creator or group OWNER sees **Bearbeiten** and **Löschen**
+in **Spielaktionen**. Bearbeiten returns to Spiele, freshly verifies the target
+and prefills the existing editor. Unchanged historical participant/deck pairs can
+remain when members have left or decks are archived. Cancel sends no write.
+An active form prevents opening a competing detail view. Lösch confirmation names
+the game and explains permanence and retained deck usage; cancel/Escape sends no
+DELETE. Only acknowledged 204 produces success. Ambiguous deletion safely reads
+current group/game state without repeating the write or claiming success.
+See [routing and state lifetimes](docs/development/frontend-routing.md#game-history-and-spieldetails).
 
 **Refresh games** verifies current group access and reloads history. Failed or
 ambiguous game operations hide retired game data and recheck group details; a
