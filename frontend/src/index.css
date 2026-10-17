@@ -277,6 +277,9 @@ input[readonly], fieldset:disabled, select:disabled {
 }
 
 .statistics table {
+  /* Keep the existing tables readable inside their horizontal scroll region.
+     Mobile statistics cards belong to the separate statistics redesign. */
+  min-width: 38rem;
   width: 100%;
   border-collapse: collapse;
   text-align: left;

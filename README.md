@@ -108,7 +108,8 @@ The **Dashboard / Playgroups / Decks** navigation uses `/dashboard`, `/playgroup
 and `/decks`, with a fixed bottom bar on phones and a top bar on wider screens.
 The current account and **Log out** are at the top right. A signed-out direct
 visit to one of those three URLs resumes that destination after verified login;
-generic sign-in opens Dashboard. Unsupported detail/editor URLs are not routes.
+generic sign-in opens Dashboard. Supported group tabs, OWNER invitation-code and
+deck-editor URLs also resume after verification; other detail routes are unsupported.
 See [browser routing](docs/development/frontend-routing.md) for session lifecycle
 and SPA fallback requirements.
 
@@ -127,14 +128,18 @@ codes are hidden during logout. Failed attempts recheck the session and offer
 retry; an unavailable identity check keeps protected content hidden.
 
 In **Playgroups → My groups**, create a named group or join/rejoin using a current invitation
-code. Select a group to see your role and active members; UUIDs distinguish users
-with the same display name. **Refresh members** or close and reopen details to see
-membership changes; **Refresh groups** retries or reloads your active memberships.
+code. Open a group from Dashboard or Playgroups to enter **Spiele**, with
+**Spiele / Statistiken / Mitglieder** tabs at `/playgroups/:groupId`. **Mitglieder**
+shows active members, German roles and **Du**; short stable ID suffixes distinguish
+duplicate display names only. **Mitglieder aktualisieren** reloads current membership; **Refresh groups** retries or reloads your active memberships.
 Memberships persist after a page reload and session restoration.
 
-An OWNER can show/copy the invitation code and regenerate it after confirming
-that the old code will stop working. If clipboard access fails, copy the visible
-code manually. A MEMBER can leave after confirming the loss of active access;
+An OWNER opens **Einladungscode verwalten** from **Gruppenaktionen**. Its dedicated
+screen fetches no code until **Einladungscode anzeigen** is selected. Code
+regeneration requires confirmation that the old code becomes invalid immediately
+and existing members remain. Failed or uncertain regeneration clears the old
+code; explicitly show it again to inspect the current server value. If clipboard access fails, copy the visible
+code manually. A MEMBER uses **Gruppenaktionen → Gruppe verlassen** after confirming loss of active access;
 historical membership/results remain associated with the user. Rejoin using a
 current code. Owners cannot leave. An expired session clears protected browser
 content and asks the user to sign in again.
@@ -161,7 +166,7 @@ group, refreshing members, logging out, or changing identity retires old game
 requests and drafts. Game mutations reload your deck lifecycle state; deck
 mutations reload the selected game's history/selection area.
 
-Below game history, **Statistics** shows separate **Player statistics** and
+Only in the **Statistiken** tab, **Statistics** shows separate **Player statistics** and
 **Deck statistics** tables for the opened group: Games, Wins, and Win rate. Only
 players/decks with recorded games appear, including former members and archived
 decks; archived decks are labelled **Archived**. Current names, commanders, and
@@ -174,8 +179,9 @@ the active heading. Text sorting ignores case; equal values retain backend order
 Player and deck sorting are independent.
 
 **Refresh statistics** reloads those figures and keeps each chosen sort.
-Successful game creation, editing, and deletion also reload them; **Refresh games**, **Refresh members**, and reopening
-details obtain fresh statistics. Empty groups show **No statistics yet**.
+Successful game creation, editing, and deletion also reload them; **Refresh games**, **Mitglieder aktualisieren**, and reopening
+a group obtain fresh statistics after the tab has been visited. Same-group tab
+switches preserve the current inline game draft and sort choices. Empty groups show **No statistics yet**.
 Loading and failed refreshes hide previous tables, with an explicit retry.
 Statistics access denials use the same group recheck as games: after confirmed
 access, **Refresh games** reloads history and statistics; unresolved checks keep

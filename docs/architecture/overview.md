@@ -211,8 +211,10 @@ A separate, nonbinding post-MVP concept is captured in
 ## Browser group management
 
 The authenticated [browser shell and routing](../development/frontend-routing.md)
-mount `GroupManager` at `/playgroups` and `DeckManager` at `/decks`, one at a time.
-Group/game management retains native in-view state and forms. Deck creation and
+mount `GroupManager` at `/playgroups`, dedicated `GroupPage` routes for group tabs
+and OWNER code management, and `DeckManager` at `/decks`, one destination at a time.
+Group membership is reverified on route entry; game forms/history retain their
+native UI inside the Spiele panel, with drafts preserved across same-group tabs. Deck creation and
 lifecycle actions use the dedicated MUI editor at `/decks/new` or
 `/decks/:deckId/edit`, with scoped drafts, origin-aware return and navigation
 protection described in the routing guide. GroupManager uses typed
@@ -234,7 +236,9 @@ identity change. Closing/reopening or explicitly refreshing details fetches
 active members again and discards any displayed invitation code. A 403 from a
 group action triggers a safe details GET to distinguish active membership from
 CSRF/authorization denial. Protected details/code are hidden during this check;
-a successful check restores details and, for an OWNER, the previous code.
+a successful check restores only freshly authorized details, never a previous code.
+The dedicated OWNER screen offers a new explicit code GET. Failed or ambiguous
+regeneration clears the old code immediately and never repeats the POST.
 A details GET returning 403/404 confirms lost access, clears details/code and
 reloads the active group list. A failed check leaves protected data hidden and
 allows an explicit refresh without asserting membership loss. Only a
@@ -290,8 +294,10 @@ these browser controls.
 
 ## Browser group statistics
 
-`GroupStatistics` is mounted within the selected group's ready `GameManager`
-area, under confirmed group details and the current session lifetime. It calls
+`GroupStatistics` mounts lazily when the Statistiken tab first opens within the
+selected group's ready `GameManager`, under confirmed group details and the current
+session lifetime. It remains hidden on other tabs, preserving sorting without
+duplicating the view or the game editor. It calls
 `getGroupStatistics` in `api.ts`, which validates status, public row fields, UUIDs,
 unique IDs, positive safe-integer game counts, wins within games, and finite
 percentages within 0–100. Only documented fields are retained. The component

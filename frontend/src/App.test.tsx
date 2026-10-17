@@ -1,3 +1,4 @@
+import { showCode } from './test/groupEntry'
 import { openNewDeck, openExistingDeck, openDeckAction } from './test/editorEntry'
 import { act, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -377,7 +378,7 @@ test('session expiration clears group details and ignores a late invitation-code
   vi.stubGlobal('fetch', fetchMock)
   render(<App />, '/playgroups')
   fireEvent.click(await screen.findByRole('button', { name: 'Private group (OWNER)' }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Show invitation code' }))
+  await showCode()
   await goTo('Decks')
   await screen.findByRole('button', { name: 'Deck erstellen' })
   fireEvent.change(await openNewDeck(), { target: { value: 'My deck' } })

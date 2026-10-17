@@ -4,12 +4,13 @@ import {
   type Game, type GameInput, type GroupDetails,
 } from './api'
 import GameEditor from './GameEditor'
+import type { GroupTab } from './groupNavigation'
 import GroupStatistics, { type StatisticsSort } from './GroupStatistics'
 
 type Props = {
   group: GroupDetails
+  tab?: GroupTab
   actorId: string
-  checkingAccessOnMount?: boolean
   onUnauthorized: () => void
   onAccessLost: () => void
   onCheckingAccess: (checking: boolean) => void
@@ -21,28 +22,29 @@ function message(error: unknown) {
   return error instanceof Error ? error.message : 'The game request failed.'
 }
 
-// The parent keys this area by selected group and deck revision; App keys the
+// The parent keys this area by selected group; App keys the
 // entire group manager by confirmed session. Abort and generation checks retire
 // responses (including 401s) before they can affect a different lifetime.
-export default function GameManager({ group, actorId, checkingAccessOnMount = false, ...handlers }: Props) {
+export default function GameManager({ group, actorId, tab = 'games', ...handlers }: Props) {
   const id = group.id
   const callbacks = useRef(handlers)
   useEffect(() => { callbacks.current = handlers })
   const alive = useRef(false)
   const generation = useRef(0)
   const request = useRef<AbortController | null>(null)
-  // A keyed replacement inherits the parent's pending check and must confirm
-  // access itself; the retired instance can no longer settle that check.
-  const [revision, setRevision] = useState(checkingAccessOnMount ? 1 : 0)
+  const [revision, setRevision] = useState(0)
   const [state, setState] = useState<{ status: 'loading' | 'ready' | 'checking' | 'error'; games?: Game[]; error?: string }>({ status: 'loading' })
   // Kept above the ready content so game refreshes and acknowledged writes
   // retain presentation choices while the statistics request is remounted.
+  // First visit mounts one statistics view; tab switches only hide its panel.
+  const [statisticsVisited, setStatisticsVisited] = useState(tab === 'statistics')
+  if (tab === 'statistics' && !statisticsVisited) setStatisticsVisited(true)
   const [statisticsSort, setStatisticsSort] = useState<StatisticsSort>({ players: null, decks: null })
   const [notice, setNotice] = useState('')
   const noticeElement = useRef<HTMLParagraphElement>(null)
   useEffect(() => {
-    if (notice && state.status === 'ready') noticeElement.current?.focus()
-  }, [notice, state.status])
+    if (notice && state.status === 'ready' && tab === 'games') noticeElement.current?.focus()
+  }, [notice, state.status, tab])
   useEffect(() => {
     alive.current = true
     return () => { alive.current = false; request.current?.abort() }
@@ -106,24 +108,32 @@ export default function GameManager({ group, actorId, checkingAccessOnMount = fa
     setRevision((value) => value + 1)
   }
 
-  return <section className="games" aria-labelledby={`games-${id}`}>
-    <h3 id={`games-${id}`}>Commander games</h3>
-    <button type="button" className="secondary" disabled={state.status === 'loading' || state.status === 'checking'}
-      onClick={() => { setNotice(''); refresh() }}>Refresh games</button>
+  return <>
+    <div role="tabpanel" id="group-panel-games" aria-labelledby="group-tab-games" hidden={tab !== 'games'} tabIndex={0}>
+      <section className="games" aria-labelledby={`games-${id}`}>
+        <h3 id={`games-${id}`}>Commander games</h3>
+        <button type="button" className="secondary" disabled={state.status === 'loading' || state.status === 'checking'}
+          onClick={() => { setNotice(''); refresh() }}>Refresh games</button>
+        {notice && <p ref={noticeElement} tabIndex={-1} className="success" role="status">{notice}</p>}
+        {state.status === 'ready' && <GameContent group={group} actorId={actorId} games={state.games!}
+          onError={recover} onStart={() => setNotice('')} onSaved={(text) => {
+            setNotice(text)
+            callbacks.current.onChanged?.()
+            refresh()
+          }} />}
+      </section>
+    </div>
     {state.status === 'loading' && <p role="status">Loading game history…</p>}
     {state.status === 'checking' && <p role="status">Checking group access…</p>}
-    {state.error && <p className="error" role="alert">{state.error}</p>}
-    {notice && <p ref={noticeElement} tabIndex={-1} className="success" role="status">{notice}</p>}
-    {state.status === 'ready' && <>
-      <GameContent group={group} actorId={actorId} games={state.games!}
-        onError={recover} onStart={() => setNotice('')} onSaved={(text) => {
-          setNotice(text)
-          callbacks.current.onChanged?.()
-          refresh()
-        }} />
-      <GroupStatistics groupId={id} onAccessError={recover} sort={statisticsSort} onSort={setStatisticsSort} />
-    </>}
-  </section>
+    {state.error && <div>
+      <p className="error" role="alert">{state.error}</p>
+      {tab !== 'games' && <button type="button" onClick={refresh}>Refresh games</button>}
+    </div>}
+    <div role="tabpanel" id="group-panel-statistics" aria-labelledby="group-tab-statistics" hidden={tab !== 'statistics'} tabIndex={0}>
+      {statisticsVisited && state.status === 'ready' &&
+        <GroupStatistics groupId={id} onAccessError={recover} sort={statisticsSort} onSort={setStatisticsSort} />}
+    </div>
+  </>
 }
 
 type ContentProps = {

@@ -8,7 +8,7 @@ import type { CurrentUser, Deck, GroupSummary } from './api'
 import { AppThemeProvider } from './theme/AppThemeProvider'
 import { deferred, group, response, uid } from './test/gameFixtures'
 import { goTo } from './test/renderApp'
-import { unavailableEntry } from './dashboardNavigation'
+import { groupUnavailable } from './groupNavigation'
 
 const owner = { id: uid(1), username: 'Owner' }
 const deck: Deck = { id: uid(101), name: 'Alpha', commander: 'Karn', colorIdentity: [], archived: false, everUsed: false }
@@ -56,6 +56,7 @@ function setup() {
     }
     const selected = state.groups.find(item => path === `/api/groups/${item.id}`)
     if (selected) return response({ ...selected, members: group.members })
+    if (/^\/api\/groups\/[^/]+$/.test(path)) return response({}, 403)
     if (path.endsWith('/games')) return response([])
     if (path.endsWith('/statistics')) return response({ players: [], decks: [] })
     throw new Error(`Unexpected request ${method} ${path}`)
@@ -145,15 +146,16 @@ test.each(['groups', 'decks'] as const)('%s failure/loading/retry does not hide 
   expect(api.fetchMock.mock.calls.filter(([path]) => path === `/api/${section === 'groups' ? 'decks' : 'groups'}`)).toHaveLength(1)
 })
 
-test.each([false, true])('group card validates a fresh list, opens its existing view and transfers focus (StrictMode: %s)', async strict => {
+test.each([false, true])('group card verifies current membership at its stable URL and transfers focus (StrictMode: %s)', async strict => {
   const api = setup(); show('/dashboard', null, strict); await loaded()
-  const fresh = deferred(); api.next('/api/groups', () => fresh.promise)
+  const fresh = deferred(); api.next(`/api/groups/${group.id}`, () => fresh.promise.then(reply => reply.clone()))
+  if (strict) api.next(`/api/groups/${group.id}`, () => fresh.promise.then(reply => reply.clone()))
   fireEvent.click(screen.getByRole('button', { name: group.name }))
-  await screen.findByText('Loading your groups…')
-  expect(window.location.pathname).toBe('/playgroups')
+  await screen.findByText('Gruppenberechtigung wird geprüft…')
+  expect(window.location.pathname).toBe(`/playgroups/${group.id}`)
   expect(window.history.state.usr).toBeNull()
-  expect(api.fetchMock.mock.calls.some(([path]) => path === `/api/groups/${group.id}`)).toBe(false)
-  await act(async () => fresh.resolve(response(api.state.groups)))
+  expect(screen.queryByRole('heading', { name: group.name })).not.toBeInTheDocument()
+  await act(async () => fresh.resolve(response(group)))
   const heading = await screen.findByRole('heading', { name: group.name })
   await waitFor(() => expect(heading).toHaveFocus())
   expect(await screen.findByRole('button', { name: 'Record a game' })).toBeInTheDocument()
@@ -184,39 +186,38 @@ test('create CTA focuses the dedicated editor heading after loading even with ma
   expect(screen.queryByRole('form', { name: /^Deck .* bearbeiten$/ })).not.toBeInTheDocument()
 })
 
-test('removed/revoked/other-account group target never opens or requests unverified details', async () => {
+test('removed/revoked/other-account group target fails fresh authorization without exposing private details', async () => {
   const api = setup(); show(); await loaded()
   api.state.groups = []
   fireEvent.click(screen.getByRole('button', { name: group.name }))
-  await screen.findByText(unavailableEntry)
+  await screen.findByText(groupUnavailable)
+  await screen.findByRole('button', { name: 'Create group' })
   expect(window.location.pathname).toBe('/playgroups')
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
   expect(screen.queryByRole('form', { name: /^Deck .* bearbeiten$/ })).not.toBeInTheDocument()
-  expect(api.fetchMock.mock.calls.some(([path]) => path.startsWith('/api/groups/'))).toBe(false)
+  expect(api.fetchMock.mock.calls.filter(([path]) => path === `/api/groups/${group.id}`)).toHaveLength(1)
   expect(window.history.state.usr).toBeNull()
 })
 
-test.each([{}, 'bad', { dashboardToken: 'replayed' }, { kind: 'group', id: group.id }])('malformed or replayed navigation state %j is cleared without opening anything', async state => {
-  setup(); show('/playgroups', state)
-  await screen.findByText(unavailableEntry)
+test.each([{}, 'bad', { dashboardToken: 'replayed' }, { kind: 'group', id: group.id }])('obsolete navigation state %j never opens a group from the list URL', async state => {
+  const api = setup(); show('/playgroups', state)
+  await screen.findByText('Create a group')
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
-  expect(window.history.state.usr).toBeNull()
+  expect(api.fetchMock.mock.calls.some(([path]) => path === `/api/groups/${group.id}`)).toBe(false)
 })
 
-test('direct group URL, Back/Forward and reload do not reopen a consumed target', async () => {
-  setup(); const view = show(); await loaded()
+test('group URL Back/Forward and reload verify and reopen the stable target', async () => {
+  const api = setup(); const view = show(); await loaded()
   fireEvent.click(screen.getByRole('button', { name: group.name }))
-  await screen.findByRole('region', { name: 'Group details' })
+  await screen.findByRole('tab', { name: 'Spiele', selected: true })
   await act(async () => window.history.back()); await loaded()
   await act(async () => window.history.forward())
-  await screen.findByRole('heading', { name: 'My groups' })
-  await screen.findByText('Create a group')
-  expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('form', { name: /^Deck .* bearbeiten$/ })).not.toBeInTheDocument()
+  await screen.findByRole('tab', { name: 'Spiele', selected: true })
+  expect(api.fetchMock.mock.calls.filter(([path]) => path === `/api/groups/${group.id}`)).toHaveLength(2)
   view.unmount(); show(window.location.pathname, window.history.state.usr)
-  await screen.findByText('Create a group')
-  expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('form', { name: /^Deck .* bearbeiten$/ })).not.toBeInTheDocument()
+  await screen.findByRole('tab', { name: 'Spiele', selected: true })
+  expect(api.fetchMock.mock.calls.filter(([path]) => path === `/api/groups/${group.id}`)).toHaveLength(3)
+  expect(screen.queryByText('Create a group')).not.toBeInTheDocument()
 })
 
 test('leaving before editor loading retires that request; Back resolves the stable target afresh', async () => {
@@ -321,16 +322,15 @@ test('reload while an editor loads resolves the stable target from a fresh list'
   await act(async () => pending.resolve(response([deck])))
 })
 
-test('a failed destination group list consumes the target before retry', async () => {
+test('a failed destination details request hides private data until an explicit fresh check', async () => {
   const api = setup(); show(); await loaded()
-  api.next('/api/groups', () => response({}, 503))
+  api.next(`/api/groups/${group.id}`, () => response({}, 503))
   fireEvent.click(screen.getByRole('button', { name: group.name }))
-  await screen.findByText(/Your group list is unavailable/)
+  await screen.findByText(/Gruppenberechtigung konnte nicht geprüft werden/)
   expect(window.history.state.usr).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: 'Refresh groups' }))
-  await screen.findByText('Create a group')
-  expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('form', { name: /^Deck .* bearbeiten$/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Gruppe erneut laden' }))
+  await screen.findByRole('tab', { name: 'Spiele', selected: true })
 })
 
 test.each([401, 200])('logout recovery (%s) rejects late Dashboard failures and refreshes confirmed data', async status => {
@@ -357,12 +357,13 @@ test('expired-session login with the same UUID cannot revive a pending target or
   const api = setup(), pending = deferred(), old = deferred()
   api.next('/api/decks', () => old.promise)
   show(); await screen.findByRole('button', { name: group.name })
-  api.next('/api/groups', () => pending.promise)
+  api.next(`/api/groups/${group.id}`, () => pending.promise)
   fireEvent.click(screen.getByRole('button', { name: group.name }))
-  await screen.findByText('Loading your groups…')
+  await screen.findByText('Gruppenberechtigung wird geprüft…')
   await act(async () => pending.resolve(response({}, 401)))
   await screen.findByText('Your session expired. Sign in again.')
-  await signIn(); await screen.findByText('Create a group')
+  await signIn(); await screen.findByRole('tab', { name: 'Spiele' })
+  await goTo('Playgroups'); await screen.findByText('Create a group')
   await act(async () => old.resolve(response({}, 401)))
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
   expect(screen.queryByText(/session expired/)).not.toBeInTheDocument()

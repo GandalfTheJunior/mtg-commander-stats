@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import type { GroupTab } from './groupNavigation'
+import { selectTab } from './test/groupEntry'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App'
@@ -11,7 +14,22 @@ afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 function show() {
   const handlers = { onUnauthorized: vi.fn(), onAccessLost: vi.fn(), onCheckingAccess: vi.fn(), onGroupConfirmed: vi.fn() }
-  return { ...render(<GameManager group={group} actorId={uid(1)} {...handlers} />), ...handlers }
+  function Harness() {
+    const [tab, setTab] = useState<GroupTab>('statistics')
+    return <><button onClick={() => setTab('games')}>Show games</button><button onClick={() => setTab('statistics')}>Show statistics</button>
+      <GameManager group={group} actorId={uid(1)} tab={tab} {...handlers} /></>
+  }
+  return { ...render(<Harness />), ...handlers }
+}
+async function games() {
+  const trigger = screen.queryByRole('button', { name: 'Show games' })
+  if (trigger) fireEvent.click(trigger)
+  else await selectTab('Spiele')
+}
+async function stats() {
+  const trigger = screen.queryByRole('button', { name: 'Show statistics' })
+  if (trigger) fireEvent.click(trigger)
+  else await selectTab('Statistiken')
 }
 const playerTable = () => screen.getByRole('table', { name: 'Player statistics' })
 const deckTable = () => screen.getByRole('table', { name: 'Deck statistics' })
@@ -43,6 +61,7 @@ function appSetup() {
 async function open(name = group.name) {
   await goTo('Playgroups')
   fireEvent.click(await screen.findByRole('button', { name: `${name} (OWNER)` }))
+  await selectTab('Statistiken')
 }
 async function signIn() {
   const form = within(screen.getByRole('heading', { name: 'Sign in' }).closest('section')!)
@@ -84,12 +103,14 @@ test('keeps duplicate display names distinct by IDs and commander, preserving ba
   data.decks = data.decks.slice(0, 2).map(row => ({ ...row, name: 'Same deck' }))
   api.state.statistics = data
   show()
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   expect(within(playerTable()).getAllByRole('rowheader')).toHaveLength(2)
   const firstIds = within(playerTable()).getAllByRole('rowheader').map(row => row.textContent)
   expect(firstIds).toEqual([`Same nameUser ID: ${uid(1)}`, `Same nameUser ID: ${uid(2)}`])
   api.state.statistics = { players: [...data.players].reverse(), decks: [...data.decks].reverse() }
   fireEvent.click(screen.getByRole('button', { name: 'Refresh statistics' }))
+  await stats()
   await waitFor(() => expect(within(playerTable()).getAllByRole('rowheader').map(row => row.textContent)).toEqual([...firstIds].reverse()))
   expect(within(deckTable()).getAllByRole('rowheader')[0]).toHaveTextContent('Karn, Silver Golem')
   expect(within(deckTable()).getAllByRole('rowheader')[1]).toHaveTextContent('The Ur-Dragon')
@@ -97,6 +118,7 @@ test('keeps duplicate display names distinct by IDs and commander, preserving ba
 
 test('empty history shows a concise empty state with no invented active-member or unused-deck rows', async () => {
   gameApi(); show()
+  await stats()
   await screen.findByText(/No statistics yet/)
   expect(screen.queryByRole('table')).not.toBeInTheDocument()
 })
@@ -114,16 +136,20 @@ test.each(['network', 'server', 'malformed', 'json'])('failed refresh (%s) hides
   expect(screen.queryByRole('table')).not.toBeInTheDocument()
   expect(await screen.findByRole('alert')).toHaveTextContent('Refresh statistics to try again.')
   fireEvent.click(screen.getByRole('button', { name: 'Refresh statistics' }))
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
 test('create, edit and delete refresh actual backend statistics only after acknowledgment; cancellations do nothing', async () => {
   const api = gameApi(); show()
+  await stats()
   await screen.findByText(/No statistics yet/)
+  await games()
   fireEvent.click(screen.getByRole('button', { name: 'Record a game' }))
   fireEvent.click(screen.getByRole('button', { name: 'Cancel game' }))
   expect(statsCalls(api)).toHaveLength(1)
+  await games()
   fireEvent.click(screen.getByRole('button', { name: 'Record a game' }))
   for (const n of [1, 2]) fireEvent.change(screen.getByLabelText(`Player ${n}`), { target: { value: uid(n + 1) } })
   await waitFor(() => expect(screen.getByLabelText('Deck for player 1')).not.toBeDisabled())
@@ -133,46 +159,59 @@ test('create, edit and delete refresh actual backend statistics only after ackno
   api.next(`/api/groups/${group.id}/games`, () => pending.promise, 'POST')
   fireEvent.click(screen.getByRole('button', { name: 'Record game' }))
   await screen.findByRole('button', { name: 'Saving game…' })
+  await stats()
   expect(statsCalls(api)).toHaveLength(1)
+  await stats()
   expect(screen.getByText(/No statistics yet/)).toBeInTheDocument()
   api.state.history = [recorded()]
   api.state.statistics = statistics()
   await act(async () => pending.resolve(response(recorded(), 201)))
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   expect(within(playerTable()).getByRole('row', { name: /Ada/ })).toHaveTextContent('12650%')
   expect(statsCalls(api)).toHaveLength(2)
+  await games()
   fireEvent.click(screen.getByRole('button', { name: 'Edit game' }))
   fireEvent.click(screen.getByRole('button', { name: 'Cancel game' }))
+  await games()
   fireEvent.click(screen.getByRole('button', { name: 'Delete game' }))
   fireEvent.click(screen.getByRole('button', { name: 'Cancel game deletion' }))
   expect(statsCalls(api)).toHaveLength(2)
+  await games()
   fireEvent.click(screen.getByRole('button', { name: 'Edit game' }))
   fireEvent.change(screen.getByLabelText('Game result'), { target: { value: 'DRAW' } })
   await waitFor(() => expect(screen.getByRole('button', { name: 'Save game' })).not.toBeDisabled())
   api.state.statistics = { ...statistics(), players: [{ ...statistics().players[0], wins: 0, winRatePercent: 0 }] }
   fireEvent.click(screen.getByRole('button', { name: 'Save game' }))
   await screen.findByText('Game updated.')
+  await stats()
   await waitFor(() => expect(within(playerTable()).getByRole('row', { name: /Ada/ })).toHaveTextContent('1200%'))
   expect(statsCalls(api)).toHaveLength(3)
   api.state.statistics = { players: [], decks: [] }
+  await games()
   fireEvent.click(screen.getByRole('button', { name: 'Delete game' }))
   fireEvent.click(screen.getByRole('button', { name: 'Confirm game deletion' }))
   await screen.findByText('Game deleted.')
+  await stats()
   await screen.findByText(/No statistics yet/)
   expect(statsCalls(api)).toHaveLength(4)
 })
 
 test('a failed game write fabricates no statistics and explicit game refresh reloads unchanged server figures', async () => {
   const api = gameApi([recorded()]); api.state.statistics = statistics(); show()
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   api.next(`/api/groups/${group.id}/games/${uid(20)}`, () => response({}, 409), 'DELETE')
+  await games()
   fireEvent.click(screen.getByRole('button', { name: 'Delete game' }))
   fireEvent.click(screen.getByRole('button', { name: 'Confirm game deletion' }))
   await screen.findByRole('alert')
   expect(screen.queryByRole('table')).not.toBeInTheDocument()
   expect(screen.queryByText('Game deleted.')).not.toBeInTheDocument()
   expect(statsCalls(api)).toHaveLength(1)
+  await games()
   fireEvent.click(screen.getByRole('button', { name: 'Refresh games' }))
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   expect(within(playerTable()).getByRole('row', { name: /Ada/ })).toHaveTextContent('12650%')
   expect(statsCalls(api)).toHaveLength(2)
@@ -190,6 +229,7 @@ test('loads statistics only after a confirmed session and opened group, and curr
 
 test.each([403, 404])('statistics %s hides all protected details during a safe recheck, then permits retry on confirmed membership', async status => {
   const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   const checking = deferred()
   api.next(path, () => response({}, status))
@@ -197,30 +237,34 @@ test.each([403, 404])('statistics %s hides all protected details during a safe r
   fireEvent.click(screen.getByRole('button', { name: 'Refresh statistics' }))
   await screen.findByText('Checking group access…')
   expect(screen.queryByRole('table')).not.toBeInTheDocument()
-  expect(screen.queryByText('Active members')).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: group.name })).not.toBeInTheDocument()
   await act(async () => checking.resolve(response(group)))
-  await screen.findByText('Active members')
+  await screen.findByRole('tab', { name: 'Mitglieder' })
   expect(screen.queryByRole('table')).not.toBeInTheDocument()
   expect(screen.getByText(/Signed in as/)).toHaveTextContent('Owner')
+  await games()
   fireEvent.click(screen.getByRole('button', { name: 'Refresh games' }))
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
 })
 
 test.each([403, 404, 401, 500])('statistics denial followed by access-check %s never restores protected statistics', async status => {
   const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   api.next(path, () => response({}, 403))
   api.next(`/api/groups/${group.id}`, () => response({}, status))
   fireEvent.click(screen.getByRole('button', { name: 'Refresh statistics' }))
   if (status === 401) await screen.findByText('Your session expired. Sign in again.')
   else if (status === 500) await screen.findByText(/Group access could not be verified/)
-  else await screen.findByText(/Group access is unavailable/)
+  else await screen.findByText(/Diese Playgroup ist nicht verfügbar/)
   expect(screen.queryByRole('table')).not.toBeInTheDocument()
-  expect(screen.queryByText('Active members')).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: group.name })).not.toBeInTheDocument()
 })
 
 test.each(['switch', 'close', 'members', 'games'].flatMap(action => [200, 401].map(status => ({ action, status }))))('retiring statistics on $action aborts requests and ignores late status $status', async ({ action, status }) => {
   const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   const late = deferred()
   api.next(path, () => late.promise)
@@ -231,12 +275,18 @@ test.each(['switch', 'close', 'members', 'games'].flatMap(action => [200, 401].m
   if (action === 'switch') {
     api.next(`/api/groups/${api.other.id}/statistics`, () => response({ players: [], decks: [] }))
     await open(api.other.name)
-  } else fireEvent.click(screen.getByRole('button', { name: action === 'close' ? 'Close details' : action === 'members' ? 'Refresh members' : 'Refresh games' }))
+  } else if (action === 'close') fireEvent.click(screen.getByRole('link', { name: 'Zurück zu Playgroups' }))
+  else if (action === 'members') {
+    await selectTab('Mitglieder')
+    fireEvent.click(screen.getByRole('button', { name: 'Mitglieder aktualisieren' }))
+    await screen.findByRole('tab', { name: 'Statistiken' }); await stats()
+  } else { await games(); fireEvent.click(screen.getByRole('button', { name: 'Refresh games' })); await stats() }
   expect(signal.aborted).toBe(true)
   if (action === 'close') {
     expect(screen.queryByRole('heading', { name: 'Statistics' })).not.toBeInTheDocument()
     await open()
   }
+  await stats()
   await screen.findByText(/No statistics yet/)
   await act(async () => late.resolve(response(statistics(), status)))
   expect(screen.queryByRole('table')).not.toBeInTheDocument()
@@ -246,6 +296,7 @@ test.each(['switch', 'close', 'members', 'games'].flatMap(action => [200, 401].m
 
 test.each([200, 401, 403])('logout hides statistics immediately and late status %s cannot restore them or expire the new identity', async status => {
   const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   const late = deferred()
   api.next(path, () => late.promise)
@@ -259,6 +310,7 @@ test.each([200, 401, 403])('logout hides statistics immediately and late status 
   await screen.findByText('Logged out.')
   await signIn()
   await open()
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   await act(async () => late.resolve(response(statistics(), status)))
   expect(screen.getByText(/Signed in as/)).toHaveTextContent('Fourth')
@@ -267,22 +319,27 @@ test.each([200, 401, 403])('logout hides statistics immediately and late status 
 
 test('switching a loaded group hides its statistics while the next group details are still pending', async () => {
   const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   const details = deferred()
   // The second group's details use the App fixture's branch, so intercept that request here.
   const previousFetch = globalThis.fetch
   vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => url === `/api/groups/${api.other.id}`
     ? details.promise : previousFetch(url, init)))
-  await open(api.other.name)
+  await goTo('Playgroups')
+  fireEvent.click(await screen.findByRole('button', { name: `${api.other.name} (OWNER)` }))
+  await screen.findByText('Gruppenberechtigung wird geprüft…')
   expect(screen.queryByRole('heading', { name: 'Statistics' })).not.toBeInTheDocument()
   expect(screen.queryByRole('table')).not.toBeInTheDocument()
   api.state.statistics = { players: [], decks: [] }
   await act(async () => details.resolve(response(api.other)))
+  await stats()
   await screen.findByText(/No statistics yet/)
 })
 
 test('logout immediately removes loaded statistics even while logout acknowledgment is pending', async () => {
   const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   const logout = deferred()
   api.session.logout = () => logout.promise
@@ -314,6 +371,7 @@ function sortingData() {
 
 test.each(['players', 'decks'] as const)('every numeric %s heading sorts numbers descending then ascending, with independent accessible state', async kind => {
   const api = gameApi(); api.state.statistics = sortingData(); show()
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   const table = () => kind === 'players' ? playerTable() : deckTable()
   const other = () => kind === 'players' ? deckTable() : playerTable()
@@ -345,6 +403,7 @@ test.each([
   data.players = data.players.map((row, index) => ({ ...row, username: labels[index] }))
   data.decks = data.decks.map((row, index) => ({ ...row, name: labels[index], ownerUsername: labels[index] }))
   api.state.statistics = data; show()
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   const table = kind === 'players' ? playerTable() : deckTable()
   const base = sortedIds(table)
@@ -360,6 +419,7 @@ test('numeric ties use the backend order rather than the prior text sort or reve
   const api = gameApi(), data = statistics()
   data.players = data.players.map(row => ({ ...row, games: 12, wins: 0, winRatePercent: 0 }))
   api.state.statistics = data; show()
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   fireEvent.click(within(playerTable()).getByRole('button', { name: 'Player' }))
   fireEvent.click(within(playerTable()).getByRole('button', { name: 'Player' }))
@@ -372,6 +432,7 @@ test('numeric ties use the backend order rather than the prior text sort or reve
 
 test('both table choices re-sort fresh server rows on statistics and game refresh', async () => {
   const api = gameApi(); api.state.statistics = statistics(); show()
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   fireEvent.click(within(playerTable()).getByRole('button', { name: 'Win rate' }))
   fireEvent.click(within(deckTable()).getByRole('button', { name: 'Wins' }))
@@ -380,9 +441,12 @@ test('both table choices re-sort fresh server rows on statistics and game refres
   updated.decks[2] = { ...updated.decks[2], games: 10, wins: 10, winRatePercent: 100 }
   api.state.statistics = updated
   fireEvent.click(screen.getByRole('button', { name: 'Refresh statistics' }))
+  await stats()
   await waitFor(() => expect(sortedIds(playerTable())).toEqual([uid(9), uid(1), uid(2)]))
   expect(sortedIds(deckTable())).toEqual([uid(109), uid(101), uid(102)])
+  await games()
   fireEvent.click(screen.getByRole('button', { name: 'Refresh games' }))
+  await stats()
   await waitFor(() => expect(within(playerTable()).getByRole('columnheader', { name: 'Win rate' })).toHaveAttribute('aria-sort', 'descending'))
   expect(sortedIds(playerTable())).toEqual([uid(9), uid(1), uid(2)])
   expect(within(deckTable()).getByRole('columnheader', { name: 'Wins' })).toHaveAttribute('aria-sort', 'descending')
@@ -391,6 +455,7 @@ test('both table choices re-sort fresh server rows on statistics and game refres
 
 test('an acknowledged game write retains the chosen sort and applies it to newly fetched values', async () => {
   const api = gameApi([recorded()]); api.state.statistics = statistics(); show()
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   fireEvent.click(within(playerTable()).getByRole('button', { name: 'Win rate' }))
   fireEvent.click(within(deckTable()).getByRole('button', { name: 'Owner' }))
@@ -398,11 +463,13 @@ test('an acknowledged game write retains the chosen sort and applies it to newly
   const updated = statistics()
   updated.players[2] = { ...updated.players[2], wins: 4, winRatePercent: 100 }
   api.state.statistics = updated
+  await games()
   fireEvent.click(screen.getByRole('button', { name: 'Edit game' }))
   fireEvent.change(screen.getByLabelText('Game result'), { target: { value: 'DRAW' } })
   await waitFor(() => expect(screen.getByRole('button', { name: 'Save game' })).not.toBeDisabled())
   fireEvent.click(screen.getByRole('button', { name: 'Save game' }))
   await screen.findByText('Game updated.')
+  await stats()
   await waitFor(() => expect(sortedIds(playerTable())).toEqual([uid(9), uid(1), uid(2)]))
   expect(within(playerTable()).getByRole('columnheader', { name: 'Win rate' })).toHaveAttribute('aria-sort', 'descending')
   expect(within(deckTable()).getByRole('columnheader', { name: 'Owner' })).toHaveAttribute('aria-sort', 'descending')
@@ -411,16 +478,18 @@ test('an acknowledged game write retains the chosen sort and applies it to newly
 
 test.each(['close', 'switch', 'session'] as const)('%s discards previous sort choices along with protected statistics', async action => {
   const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   fireEvent.click(within(playerTable()).getByRole('button', { name: 'Win rate' }))
   fireEvent.click(within(deckTable()).getByRole('button', { name: 'Wins' }))
   if (action === 'close') {
-    fireEvent.click(screen.getByRole('button', { name: 'Close details' })); await open()
+    fireEvent.click(screen.getByRole('link', { name: 'Zurück zu Playgroups' })); await open()
   } else if (action === 'switch') await open(api.other.name)
   else {
     fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
     await screen.findByText('Logged out.'); await signIn(); await open()
   }
+  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   expect(sortedIds(playerTable())).toEqual([uid(1), uid(2), uid(9)])
   expect(sortedIds(deckTable())).toEqual([uid(101), uid(102), uid(109)])

@@ -13,12 +13,13 @@ import DeckEditor, { type DeckOverview } from './DeckEditor'
 import { EditorNavigation } from './EditorNavigation'
 import GroupManager from './GroupManager'
 import Dashboard from './Dashboard'
-import type { DashboardEntry, DashboardIntent } from './dashboardNavigation'
+import GroupPage from './GroupPage'
+import type { GroupTab } from './groupNavigation'
 
 export type Notice = { kind: 'success' | 'error'; message: string } | null
 type SessionStatus = 'checking' | 'signed-out' | 'authenticated' | 'unverified' | 'logging-out'
 const topLevelPaths = ['/dashboard', '/playgroups', '/decks']
-const isSupportedPath = (path: string) => topLevelPaths.includes(path) || path === '/decks/new' || /^\/decks\/[^/]+\/edit$/.test(path)
+const isSupportedPath = (path: string) => topLevelPaths.includes(path) || path === '/decks/new' || /^\/decks\/[^/]+\/edit$/.test(path) || /^\/playgroups\/[^/]+(?:\/invitation-code)?$/.test(path)
 
 function messageFrom(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
@@ -28,9 +29,10 @@ export default function App() {
   const location = useLocation()
   const navigate = useNavigate()
   // Session transitions retire protected state even when the user UUID is unchanged.
-  const dashboardNavigation = useRef<{ token: string; version: number; intent: Extract<DashboardIntent, { kind: 'group' }> } | null>(null)
+  const codeOrigin = useRef<{ token: string; version: number; path: string; tab: GroupTab } | null>(null)
   const editorOrigin = useRef<{ token: string; version: number; path: string; overview: DeckOverview } | null>(null)
   useEffect(() => {
+    if (codeOrigin.current?.path !== location.pathname) codeOrigin.current = null
     if (editorOrigin.current?.path !== location.pathname) editorOrigin.current = null
   }, [location.pathname])
   const sessionVersionRef = useRef(0)
@@ -99,7 +101,7 @@ export default function App() {
     if (loggingIn || sessionStatus === 'checking' || sessionStatus === 'logging-out') return
     let version = sessionVersionRef.current
     const destination = isSupportedPath(location.pathname)
-      ? location.pathname : '/dashboard'
+      ? location.pathname + location.search : '/dashboard'
     const submittedForm = event.currentTarget
     setLoggingIn(true)
     setSessionNotice(null)
@@ -112,8 +114,8 @@ export default function App() {
         },
         () => {
           if (version !== sessionVersionRef.current) return
-          dashboardNavigation.current = null
           editorOrigin.current = null
+          codeOrigin.current = null
           version = ++sessionVersionRef.current
           setSessionVersion(version)
           setCurrentUser(null)
@@ -141,8 +143,8 @@ export default function App() {
   async function logOut() {
     if (sessionStatus !== 'authenticated') return
     // Retire old requests immediately, including while DELETE or its recovery GET is pending.
-    dashboardNavigation.current = null
     editorOrigin.current = null
+    codeOrigin.current = null
     const version = ++sessionVersionRef.current
     setSessionVersion(version)
     setSessionStatus('logging-out')
@@ -182,8 +184,8 @@ export default function App() {
 
   async function checkSession() {
     if (loggingIn || sessionStatus !== 'unverified') return
-    dashboardNavigation.current = null
     editorOrigin.current = null
+    codeOrigin.current = null
     const version = ++sessionVersionRef.current
     setSessionVersion(version)
     setSessionStatus('checking')
@@ -204,33 +206,18 @@ export default function App() {
   const sessionExpired = useCallback(() => {
     // Check synchronously: an old response can arrive before effect cleanup.
     if (sessionVersion !== sessionVersionRef.current) return
-    dashboardNavigation.current = null
     editorOrigin.current = null
+    codeOrigin.current = null
     setSessionVersion(++sessionVersionRef.current)
     setCurrentUser(null)
     setSessionStatus('signed-out')
     setSessionNotice({ kind: 'error', message: 'Your session expired. Sign in again.' })
   }, [sessionVersion])
 
-  function takeDashboardEntry(): DashboardEntry | undefined {
-    if (location.state == null) return undefined
-    const pending = dashboardNavigation.current
-    dashboardNavigation.current = null
-    editorOrigin.current = null
-    void navigate(location.pathname, { replace: true, state: null })
-    if (!pending || pending.version !== sessionVersionRef.current ||
-      typeof location.state !== 'object' || location.state.dashboardToken !== pending.token ||
-      location.pathname !== '/playgroups') {
-      return { kind: 'invalid' }
-    }
-    return pending.intent
-  }
-
   function openEditor(overview: DeckOverview, id?: string) {
     const path = id ? `/decks/${encodeURIComponent(id)}/edit` : '/decks/new'
     const token = crypto.randomUUID()
     editorOrigin.current = { token, version: sessionVersion, path, overview }
-    dashboardNavigation.current = null
     setSessionNotice(null)
     void navigate(path, { state: { editorToken: token } })
   }
@@ -240,10 +227,16 @@ export default function App() {
     return pending && pending.version === sessionVersion && pending.path === location.pathname &&
       editorToken === pending.token ? pending.overview : '/decks'
   }, [sessionVersion, location.pathname, editorToken])
+  const codeToken: unknown = location.state?.codeToken
+  const getCodeReturn = useCallback((): GroupTab => {
+    const origin = codeOrigin.current
+    return origin && origin.version === sessionVersion && origin.path === location.pathname && origin.token === codeToken ? origin.tab : 'games'
+  }, [sessionVersion, location.pathname, codeToken])
   const editor = <DeckEditor key={`editor-${sessionVersion}-${location.pathname}`} onUnauthorized={sessionExpired} getReturnTo={getReturnTo} onLogout={logOut}
     onFinished={(message, destination) => {
       if (sessionVersion !== sessionVersionRef.current) return
       editorOrigin.current = null
+      codeOrigin.current = null
       setSessionNotice({ kind: 'success', message })
       void navigate(destination, { replace: true, state: null })
     }} />
@@ -256,9 +249,8 @@ export default function App() {
             <Route path="/dashboard" element={
               <Dashboard key={`dashboard-${sessionVersion}`} onUnauthorized={sessionExpired} onOpen={(intent) => {
                 if (intent.kind !== 'group') { openEditor('/dashboard', intent.kind === 'deck' ? intent.id : undefined); return }
-                const token = crypto.randomUUID()
-                dashboardNavigation.current = { token, version: sessionVersion, intent }
-                void navigate('/playgroups', { state: { dashboardToken: token } })
+                setSessionNotice(null)
+                void navigate(`/playgroups/${encodeURIComponent(intent.id)}`)
               }} />
             } />
             <Route path="/decks" element={
@@ -268,9 +260,21 @@ export default function App() {
             <Route path="/decks/:deckId/edit" element={editor} />
             <Route path="/playgroups" element={
               <div className="legacy-view">
-                <GroupManager key={`groups-${sessionVersion}`} onUnauthorized={sessionExpired} currentUser={currentUser} takeDashboardEntry={takeDashboardEntry} />
+                <GroupManager key={`groups-${sessionVersion}`} onUnauthorized={sessionExpired} />
               </div>
             } />
+            {['/playgroups/:groupId', '/playgroups/:groupId/invitation-code'].map(path => <Route key={path} path={path} element={
+              <GroupPage key={`group-${sessionVersion}-${location.pathname}`} currentUser={currentUser} onUnauthorized={sessionExpired}
+                onNotice={notice => setSessionNotice(notice)}
+                getCodeReturn={getCodeReturn}
+                onOpenCode={(id, tab) => {
+                  const path = `/playgroups/${encodeURIComponent(id)}/invitation-code`
+                  const token = crypto.randomUUID()
+                  codeOrigin.current = { token, version: sessionVersion, path, tab }
+                  setSessionNotice(null)
+                  void navigate(path, { state: { codeToken: token } })
+                }} />
+            } />)}
           </Routes> : <Navigate to="/dashboard" replace />}
         </AppShell>
       </EditorNavigation>
