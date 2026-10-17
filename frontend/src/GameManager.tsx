@@ -33,6 +33,9 @@ export default function GameManager({ group, actorId, tab = 'games', ...handlers
   const generation = useRef(0)
   const request = useRef<AbortController | null>(null)
   const [revision, setRevision] = useState(0)
+  const [access, setAccess] = useState<'confirmed' | 'checking' | 'error'>('confirmed')
+  const [statisticsRevision, setStatisticsRevision] = useState(0)
+  const [statisticsBlocked, setStatisticsBlocked] = useState(false)
   const [state, setState] = useState<{ status: 'loading' | 'ready' | 'checking' | 'error'; games?: Game[]; error?: string }>({ status: 'loading' })
   // Kept above the ready content so game refreshes and acknowledged writes
   // retain presentation choices while the statistics request is remounted.
@@ -50,6 +53,15 @@ export default function GameManager({ group, actorId, tab = 'games', ...handlers
     return () => { alive.current = false; request.current?.abort() }
   }, [])
 
+  const accessFailed = useCallback((error: unknown) => {
+    if (error instanceof ApiError && error.status === 401) callbacks.current.onUnauthorized()
+    else if (error instanceof ApiError && [403, 404].includes(error.status)) callbacks.current.onAccessLost()
+    else {
+      setAccess('error')
+      setState({ status: 'error' })
+    }
+  }, [])
+
   const recover = useCallback(async (error: unknown) => {
     if (!alive.current) return
     const version = ++generation.current
@@ -57,6 +69,11 @@ export default function GameManager({ group, actorId, tab = 'games', ...handlers
     const controller = new AbortController()
     request.current = controller
     setState({ status: 'checking' })
+    setAccess('checking')
+    // Failed writes and access denials require explicit review/retry after the
+    // safe check. In particular, a persistent statistics 403 must not loop GETs.
+    setStatisticsBlocked(true)
+    setStatisticsRevision(value => value + 1)
     setNotice('')
     callbacks.current.onCheckingAccess(true)
     if (error instanceof ApiError && error.status === 401) {
@@ -68,42 +85,49 @@ export default function GameManager({ group, actorId, tab = 'games', ...handlers
       if (!alive.current || version !== generation.current) return
       callbacks.current.onGroupConfirmed(confirmed)
       callbacks.current.onCheckingAccess(false)
+      setAccess('confirmed')
       setState({ status: 'error', error: `${message(error)} Group access is confirmed. Refresh games to review server state before trying again.` })
     } catch (accessError) {
       if (!alive.current || version !== generation.current) return
-      if (accessError instanceof ApiError && accessError.status === 401) callbacks.current.onUnauthorized()
-      else if (accessError instanceof ApiError && [403, 404].includes(accessError.status)) callbacks.current.onAccessLost()
-      else setState({ status: 'error', error: 'Group access could not be verified. Refresh games or members to try again.' })
+      accessFailed(accessError)
     }
-  }, [id])
+  }, [id, accessFailed])
 
   useEffect(() => {
     const version = ++generation.current
     const controller = new AbortController()
     request.current = controller
     async function load() {
+      let checkingAccess = revision > 0
       try {
         if (revision > 0) {
           const confirmed = await getGroup(id, controller.signal)
           if (!alive.current || version !== generation.current) return
           callbacks.current.onGroupConfirmed(confirmed)
           callbacks.current.onCheckingAccess(false)
+          setAccess('confirmed')
+          checkingAccess = false
         }
         const games = await listGames(id, controller.signal)
         if (alive.current && version === generation.current) setState({ status: 'ready', games })
       } catch (error) {
         if (!alive.current || version !== generation.current) return
-        await recover(error)
+        if (checkingAccess) accessFailed(error)
+        else if (error instanceof ApiError && [401, 403, 404].includes(error.status)) await recover(error)
+        else setState({ status: 'error', error: `${message(error)} Refresh games to try again.` })
       }
     }
     void load()
     return () => { controller.abort() }
-  }, [id, revision, recover])
+  }, [id, revision, recover, accessFailed])
 
   function refresh() {
     request.current?.abort()
     generation.current++
     setState({ status: 'loading' })
+    setAccess('checking')
+    setStatisticsBlocked(false)
+    setStatisticsRevision(value => value + 1)
     callbacks.current.onCheckingAccess(true)
     setRevision((value) => value + 1)
   }
@@ -114,6 +138,8 @@ export default function GameManager({ group, actorId, tab = 'games', ...handlers
         <h3 id={`games-${id}`}>Commander games</h3>
         <button type="button" className="secondary" disabled={state.status === 'loading' || state.status === 'checking'}
           onClick={() => { setNotice(''); refresh() }}>Refresh games</button>
+        {state.status === 'loading' && <p role="status">Loading game history…</p>}
+        {state.error && <p className="error" role="alert">{state.error}</p>}
         {notice && <p ref={noticeElement} tabIndex={-1} className="success" role="status">{notice}</p>}
         {state.status === 'ready' && <GameContent group={group} actorId={actorId} games={state.games!}
           onError={recover} onStart={() => setNotice('')} onSaved={(text) => {
@@ -123,15 +149,16 @@ export default function GameManager({ group, actorId, tab = 'games', ...handlers
           }} />}
       </section>
     </div>
-    {state.status === 'loading' && <p role="status">Loading game history…</p>}
-    {state.status === 'checking' && <p role="status">Checking group access…</p>}
-    {state.error && <div>
-      <p className="error" role="alert">{state.error}</p>
-      {tab !== 'games' && <button type="button" onClick={refresh}>Refresh games</button>}
+    {access === 'checking' && <p role="status">Checking group access…</p>}
+    {access === 'error' && <div>
+      <p className="error" role="alert">Group access could not be verified. Refresh games or members to try again.</p>
+      <button type="button" onClick={refresh}>Refresh group access</button>
     </div>}
     <div role="tabpanel" id="group-panel-statistics" aria-labelledby="group-tab-statistics" hidden={tab !== 'statistics'} tabIndex={0}>
-      {statisticsVisited && state.status === 'ready' &&
-        <GroupStatistics groupId={id} onAccessError={recover} sort={statisticsSort} onSort={setStatisticsSort} />}
+      {statisticsVisited && access === 'confirmed' && (statisticsBlocked ? <div>
+        <p role="status">Group access is confirmed. Refresh statistics to review server state before trying again.</p>
+        <button type="button" className="secondary" onClick={() => setStatisticsBlocked(false)}>Refresh statistics</button>
+      </div> : <GroupStatistics key={statisticsRevision} groupId={id} onAccessError={recover} sort={statisticsSort} onSort={setStatisticsSort} />)}
     </div>
   </>
 }

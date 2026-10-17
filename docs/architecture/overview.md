@@ -295,8 +295,8 @@ these browser controls.
 ## Browser group statistics
 
 `GroupStatistics` mounts lazily when the Statistiken tab first opens within the
-selected group's ready `GameManager`, under confirmed group details and the current
-session lifetime. It remains hidden on other tabs, preserving sorting without
+selected group's `GameManager`, independently of history success and under
+confirmed group details and the current session lifetime. It remains hidden on other tabs, preserving sorting without
 duplicating the view or the game editor. It calls
 `getGroupStatistics` in `api.ts`, which validates status, public row fields, UUIDs,
 unique IDs, positive safe-integer game counts, wins within games, and finite
@@ -312,7 +312,11 @@ text (`Intl.Collator` with accent sensitivity), and keeps backend order for ties
 in both directions. Native heading buttons expose `aria-sort` on the active
 column header and a visible arrow. No sort preference is stored or sent to the API.
 
-Game refresh/recovery unmounts statistics, aborting its request. Successful game
+Game refresh/recovery unmounts statistics, aborting its request. Non-authorization
+history read failures stay local to Spiele and do not retire healthy statistics;
+a pending history GET does not prevent statistics loading. After explicit game
+refresh, successful access verification permits statistics to reload immediately,
+without waiting for replacement history. Successful game
 writes refresh that same area; detail refresh/reopen, selected-group/session
 changes and own-deck changes also remount it. Explicit statistics refresh clears
 old tables and uses abort/generation guards to reject retired successes and
@@ -320,5 +324,6 @@ errors. Network, server and malformed-response failures show a local retry.
 Statistics 401/403/404 responses delegate to the existing game/group recovery:
 401 expires the current session; 403/404 hides protected details while a safe
 group GET determines access. Confirmed membership permits explicit Refresh games
-to reload both areas; failed checks keep them hidden. There are no client-side
-statistics counters or new backend contracts.
+or Refresh statistics to reload the respective area; automatic denial retries are
+blocked to avoid request loops. Failed checks keep both areas hidden. There are
+no client-side statistics counters or new backend contracts.

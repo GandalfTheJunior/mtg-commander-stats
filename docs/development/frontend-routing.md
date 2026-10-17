@@ -21,8 +21,9 @@ new data cache, persisted navigation preferences or backend endpoint changes.
 | `/decks/:deckId/edit` | Focused editor after fresh owned-list verification | Safe auth view; login resumes this URL after verification |
 | Other paths | Replace with `/dashboard` | Replace with `/`; login opens Dashboard |
 
-Group IDs are UUIDs, never invitation codes. Invalid IDs and details GET
-400/403/404 replace the destination with `/playgroups` and generic unavailability.
+Group IDs are UUIDs, never invitation codes. Details-response IDs compare UUID
+letter case insensitively; malformed or genuinely different IDs remain rejected.
+Invalid IDs and details GET 400/403/404 replace the destination with `/playgroups` and generic unavailability.
 Unsupported/repeated `tab` values normalize with replace to a supported canonical
 URL (unknown values select Spiele). Ordinary tab changes push history entries;
 Back/Forward select the URL's tab without remounting the group's game draft.
@@ -53,6 +54,13 @@ Within a group, `GroupPage` owns fresh membership/role and URL-driven MUI tabs;
 native `hidden`, preserving the inline draft and requests without creating a second
 instance. Statistics mounts lazily on its first selection and remains in its hidden
 panel thereafter, retaining sorting and refreshing after acknowledged writes.
+Statistics depends on confirmed group access, not a successful game-history GET:
+pending, network, server or malformed history responses cannot block it. History
+loading/error/retry stays in Spiele. Explicit game refresh still revalidates access
+and retires both request lifetimes; statistics resumes after successful verification
+even if replacement history is pending. Access failures and failed writes hide
+both views for safe revalidation. After confirmed access they offer explicit retries
+for the respective tab; statistics denial never automatically retries in a loop.
 Only the selected panel is exposed to keyboard/accessibility navigation. Explicit
 tab changes and history traversals focus the selected tab; initial authorization
 focuses the group heading. Refreshing members intentionally reauthorizes details

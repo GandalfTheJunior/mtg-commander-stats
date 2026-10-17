@@ -9,6 +9,7 @@ import { deckFor, deferred, gameApi, group, recorded, response, uid } from './te
 import { goTo } from './test/renderApp'
 import { openCodeScreen, selectTab, showCode } from './test/groupEntry'
 import type { CurrentUser, GroupDetails } from './api'
+import { statistics } from './test/statisticsFixtures'
 
 const actor = { id: uid(1), username: 'Owner' }
 const other: GroupDetails = { ...group, id: uid(11), name: 'Sunday pod', role: 'MEMBER' }
@@ -640,4 +641,133 @@ test.each(['network', 'malformed', 'invalid JSON', 500])('code retrieval failure
   await screen.findByDisplayValue(oldCode)
   expect(api.calls(codePath)).toHaveLength(2)
   expect(api.calls(codePath, 'POST')).toHaveLength(0)
+})
+
+
+test.each(['pending', 'server', 'network', 'malformed'])('direct statistics load remains independent of %s game history and tab changes do not refetch statistics', async outcome => {
+  const api = setup(), history = deferred()
+  api.games.state.statistics = statistics()
+  api.next(`/api/groups/${group.id}/games`, () => {
+    if (outcome === 'pending') return history.promise
+    if (outcome === 'network') throw new Error('History offline')
+    return response(outcome === 'server' ? {} : { games: [] }, outcome === 'server' ? 500 : 200)
+  })
+  show(groupUrl(group.id, 'statistics'))
+  const table = await screen.findByRole('table', { name: 'Player statistics' })
+  expect(table).toHaveTextContent('Ada')
+  if (outcome === 'pending') expect(screen.getByText('Loading game history…')).not.toBeVisible()
+  else expect(screen.queryByText('Loading game history…')).not.toBeInTheDocument()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  expect(api.calls(detailPath)).toHaveLength(1)
+  fireEvent.click(within(table).getByRole('button', { name: 'Wins' }))
+  await selectTab('Spiele')
+  if (outcome === 'pending') await screen.findByText('Loading game history…')
+  else {
+    const gamesPanel = screen.getByRole('tabpanel', { name: 'Spiele' })
+    expect(await within(gamesPanel).findByRole('alert')).toHaveTextContent('Refresh games')
+    expect(within(gamesPanel).getByRole('button', { name: 'Refresh games' })).toBeEnabled()
+  }
+  await selectTab('Mitglieder'); await selectTab('Statistiken')
+  expect(screen.getByRole('table', { name: 'Player statistics' })).toBe(table)
+  expect(within(table).getByRole('columnheader', { name: 'Wins' })).toHaveAttribute('aria-sort', 'descending')
+  expect(api.calls(`/api/groups/${group.id}/statistics`)).toHaveLength(1)
+  expect(api.calls(`/api/groups/${group.id}/games`)).toHaveLength(1)
+})
+
+test('failed history retries independently while healthy statistics retain sorting and load before retry completes', async () => {
+  const api = setup(), retry = deferred()
+  api.games.state.statistics = statistics()
+  api.next(`/api/groups/${group.id}/games`, () => response({}, 500))
+  show(groupUrl(group.id, 'statistics'))
+  const table = await screen.findByRole('table', { name: 'Player statistics' })
+  fireEvent.click(within(table).getByRole('button', { name: 'Wins' }))
+  await selectTab('Spiele'); await screen.findByRole('alert')
+  api.next(`/api/groups/${group.id}/games`, () => retry.promise)
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh games' }))
+  await selectTab('Statistiken')
+  const refreshed = await screen.findByRole('table', { name: 'Player statistics' })
+  expect(within(refreshed).getByRole('columnheader', { name: 'Wins' })).toHaveAttribute('aria-sort', 'descending')
+  expect(screen.getByText('Loading game history…')).not.toBeVisible()
+  expect(api.calls(`/api/groups/${group.id}/statistics`)).toHaveLength(2)
+  await act(async () => retry.resolve(response([recorded()])))
+  await selectTab('Spiele')
+  await screen.findByRole('article', { name: `Game ${recorded().id}` })
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  await selectTab('Statistiken')
+  expect(api.calls(`/api/groups/${group.id}/statistics`)).toHaveLength(2)
+})
+
+const lowercaseId = 'aabbccdd-1234-4abc-8def-abcdef123456'
+test.each([lowercaseId.toUpperCase(), 'AaBbCcDd-1234-4aBc-8dEf-AbCdEf123456'])('group URL %s accepts the same server UUID in lowercase', async routeId => {
+  const api = setup(), confirmed = { ...group, id: lowercaseId, name: 'Case-insensitive group' }
+  api.next(`/api/groups/${routeId}`, () => response(confirmed))
+  api.next(`/api/groups/${lowercaseId}/games`, () => response([]))
+  show(groupUrl(routeId, 'members'))
+  await groupReady(confirmed.name)
+  expect(await screen.findByRole('list', { name: 'Aktive Mitglieder' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Gruppe erneut laden' })).not.toBeInTheDocument()
+  expect(api.calls(`/api/groups/${routeId}`)).toHaveLength(1)
+})
+
+test('mixed-case group URL still rejects a genuinely different response UUID before rendering private state', async () => {
+  const api = setup(), routeId = lowercaseId.toUpperCase()
+  api.next(`/api/groups/${routeId}`, () => response({ ...group, id: uid(99), name: 'Different private group' }))
+  show(groupUrl(routeId, 'members'))
+  await screen.findByRole('button', { name: 'Gruppe erneut laden' })
+  expect(screen.queryByText('Different private group')).not.toBeInTheDocument()
+  expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+  expect(api.calls(`/api/groups/${uid(99)}/games`)).toHaveLength(0)
+})
+
+
+test('acknowledged game save refreshes sorted statistics even while the replacement history is pending', async () => {
+  const api = setup(), history = deferred()
+  api.games.state.statistics = statistics()
+  show(groupUrl(group.id, 'statistics'))
+  const table = await screen.findByRole('table', { name: 'Player statistics' })
+  fireEvent.click(within(table).getByRole('button', { name: 'Wins' }))
+  await selectTab('Spiele')
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit game' }))
+  fireEvent.change(screen.getByLabelText('Game result'), { target: { value: 'DRAW' } })
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Save game' })).toBeEnabled())
+  api.next(`/api/groups/${group.id}/games/${recorded().id}`, () => response(recorded({ result: 'DRAW', winnerUserId: null })), 'PUT')
+  api.next(`/api/groups/${group.id}/games`, () => history.promise)
+  api.games.state.statistics = { ...statistics(), players: [{ ...statistics().players[0], wins: 0, winRatePercent: 0 }] }
+  fireEvent.click(screen.getByRole('button', { name: 'Save game' }))
+  await screen.findByText('Game updated.')
+  await selectTab('Statistiken')
+  const refreshed = await screen.findByRole('table', { name: 'Player statistics' })
+  expect(within(refreshed).getByRole('row', { name: /Ada/ })).toHaveTextContent('1200%')
+  expect(within(refreshed).getByRole('columnheader', { name: 'Wins' })).toHaveAttribute('aria-sort', 'descending')
+  expect(api.calls(`/api/groups/${group.id}/games/${recorded().id}`, 'PUT')).toHaveLength(1)
+  expect(api.calls(`/api/groups/${group.id}/statistics`)).toHaveLength(2)
+  expect(screen.getByText('Loading game history…')).not.toBeVisible()
+  await selectTab('Mitglieder'); await selectTab('Statistiken')
+  expect(api.calls(`/api/groups/${group.id}/statistics`)).toHaveLength(2)
+})
+
+test('statistics authorization denial retires pending history and requires manual retry after safe revalidation without a fetch loop', async () => {
+  const api = setup(), history = deferred(), check = deferred()
+  api.next(`/api/groups/${group.id}/games`, () => history.promise)
+  api.next(`/api/groups/${group.id}/statistics`, () => response({}, 403))
+  // Initial authorization succeeds, the subsequent access check is held open.
+  api.next(detailPath, () => response(group))
+  api.next(detailPath, () => check.promise)
+  show(groupUrl(group.id, 'statistics'))
+  await screen.findByText('Checking group access…')
+  expect(screen.queryByRole('heading', { name: group.name })).not.toBeInTheDocument()
+  expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  expect(api.calls(`/api/groups/${group.id}/games`)[0][1]!.signal!.aborted).toBe(true)
+  await act(async () => check.resolve(response(group)))
+  await screen.findByText('Group access is confirmed. Refresh statistics to review server state before trying again.')
+  await selectTab('Spiele'); await selectTab('Statistiken')
+  expect(api.calls(`/api/groups/${group.id}/statistics`)).toHaveLength(1)
+  api.next(`/api/groups/${group.id}/statistics`, () => response({}, 403))
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh statistics' }))
+  await screen.findByText('Group access is confirmed. Refresh statistics to review server state before trying again.')
+  expect(api.calls(`/api/groups/${group.id}/statistics`)).toHaveLength(2)
+  expect(api.calls(detailPath)).toHaveLength(3)
+  await act(async () => history.resolve(response({}, 401)))
+  expect(screen.queryByText(/session expired/)).not.toBeInTheDocument()
+  expect(screen.queryByRole('table')).not.toBeInTheDocument()
 })
