@@ -158,7 +158,7 @@ test.each([false, true])('group card verifies current membership at its stable U
   await act(async () => fresh.resolve(response(group)))
   const heading = await screen.findByRole('heading', { name: group.name })
   await waitFor(() => expect(heading).toHaveFocus())
-  expect(await screen.findByRole('button', { name: 'Record a game' })).toBeInTheDocument()
+  expect(await screen.findByRole('button', { name: 'Spiel erfassen' })).toBeInTheDocument()
   expect(api.fetchMock.mock.calls.some(([path]) => path.endsWith('/join-code'))).toBe(false)
 })
 

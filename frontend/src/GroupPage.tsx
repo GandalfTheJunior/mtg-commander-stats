@@ -21,14 +21,16 @@ function memberSuffix(member: GroupMember, members: GroupMember[]) {
   return member.userId.slice(-length)
 }
 
-export default function GroupPage({ currentUser, onUnauthorized, onNotice, onOpenCode, getCodeReturn }: {
+export default function GroupPage({ currentUser, onUnauthorized, onNotice, onOpenCode, getCodeReturn, getGameEdit }: {
   currentUser: CurrentUser
   onUnauthorized: () => void
   onNotice: (notice: Notice) => void
   onOpenCode: (id: string, tab: GroupTab) => void
+  getGameEdit: () => string | undefined
   getCodeReturn: () => GroupTab
 }) {
   const [codeReturn] = useState(getCodeReturn)
+  const [editId, setEditId] = useState(getGameEdit)
   const { groupId = '' } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
@@ -198,7 +200,7 @@ export default function GroupPage({ currentUser, onUnauthorized, onNotice, onOpe
           </Box>
         </>}
       </>}
-      {isCode ? <InvitationCode groupId={groupId} onFailure={codeFailure} /> : <Box className="legacy-view" sx={{ bgcolor: tab === 'members' && !checkingGames ? 'transparent' : '#fff', borderRadius: 2, px: 2, pb: tab === 'members' && !checkingGames ? 0 : 2, minWidth: 0 }}><GameManager group={details} actorId={currentUser.id} tab={tab}
+      {isCode ? <InvitationCode groupId={groupId} onFailure={codeFailure} /> : <Box sx={{ minWidth: 0 }}><GameManager initialEditId={editId} onEditConsumed={() => setEditId(undefined)} group={details} actorId={currentUser.id} tab={tab}
         onUnauthorized={() => { setDetails(null); onUnauthorized() }} onAccessLost={unavailable}
         onCheckingAccess={checking => { setCheckingGames(checking); if (checking) { setMenu(null); setConfirmLeave(false) } }}
         onGroupConfirmed={group => setDetails(group)} /></Box>}

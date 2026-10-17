@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest'
-import { archiveDeck, deleteDeck, listDecks, listGames, memberDecks, saveGame } from './api'
+import { archiveDeck, deleteDeck, getGame, listDecks, listGames, memberDecks, saveGame } from './api'
 import { deckFor, gameApi, group, recorded, response, uid } from './test/gameFixtures'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -16,6 +16,8 @@ test.each([
 ] as const)('rejects game responses with %s', async (_label, changes) => {
   vi.stubGlobal('fetch', vi.fn(async () => response([{ ...recorded(), ...changes }])))
   await expect(listGames(group.id)).rejects.toThrow()
+  vi.stubGlobal('fetch', vi.fn(async () => response({ ...recorded(), ...changes })))
+  await expect(getGame(group.id, uid(20))).rejects.toThrow()
 })
 
 test.each([{}, [recorded(), recorded()], [recorded({ groupId: uid(99) })]])('rejects malformed/cross-group history', async (body) => {
@@ -80,4 +82,19 @@ test('deck hard deletion requires the documented 204 acknowledgment', async () =
   vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(response({ headerName: 'X-CSRF-TOKEN', token: 'token' }))
     .mockResolvedValueOnce(response({}, 200)))
   await expect(deleteDeck(deckFor(2).id)).rejects.toThrow('unexpected response')
+})
+
+
+test('single-game GET validates both route IDs case-insensitively, exact status and preserves AbortSignal', async () => {
+  const groupId = 'aabbccdd-1234-4abc-8def-abcdef123456'
+  const gameId = 'aabbccdd-1234-4abc-8def-abcdef123457'
+  const signal = new AbortController().signal
+  const fetchMock = vi.fn(async () => response(recorded({ id: gameId, groupId })))
+  vi.stubGlobal('fetch', fetchMock)
+  expect((await getGame(groupId.toUpperCase(), gameId.toUpperCase(), signal)).id).toBe(gameId)
+  expect(fetchMock).toHaveBeenCalledWith(`/api/groups/${groupId.toUpperCase()}/games/${gameId.toUpperCase()}`, { credentials: 'same-origin', signal })
+  vi.stubGlobal('fetch', vi.fn(async () => response(recorded({ id: uid(99), groupId }))))
+  await expect(getGame(groupId, gameId)).rejects.toThrow()
+  vi.stubGlobal('fetch', vi.fn(async () => response(recorded({ id: gameId, groupId }), 201)))
+  await expect(getGame(groupId, gameId)).rejects.toThrow('unexpected')
 })

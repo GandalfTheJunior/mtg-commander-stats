@@ -14,12 +14,14 @@ import { EditorNavigation } from './EditorNavigation'
 import GroupManager from './GroupManager'
 import Dashboard from './Dashboard'
 import GroupPage from './GroupPage'
+import GameDetailsPage from './GameDetailsPage'
+import { groupUrl } from './groupNavigation'
 import type { GroupTab } from './groupNavigation'
 
 export type Notice = { kind: 'success' | 'error'; message: string } | null
 type SessionStatus = 'checking' | 'signed-out' | 'authenticated' | 'unverified' | 'logging-out'
 const topLevelPaths = ['/dashboard', '/playgroups', '/decks']
-const isSupportedPath = (path: string) => topLevelPaths.includes(path) || path === '/decks/new' || /^\/decks\/[^/]+\/edit$/.test(path) || /^\/playgroups\/[^/]+(?:\/invitation-code)?$/.test(path)
+const isSupportedPath = (path: string) => topLevelPaths.includes(path) || path === '/decks/new' || /^\/decks\/[^/]+\/edit$/.test(path) || /^\/playgroups\/[^/]+(?:\/invitation-code|\/games\/[^/]+)?$/.test(path)
 
 function messageFrom(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
@@ -29,6 +31,10 @@ export default function App() {
   const location = useLocation()
   const navigate = useNavigate()
   // Session transitions retire protected state even when the user UUID is unchanged.
+  const gameEdit = useRef<{ token: string; version: number; path: string; gameId: string } | null>(null)
+  // Only the render reached by this navigation can read the opaque intent.
+  // Browser history/reload cannot replay it, even for the same group/session.
+  useEffect(() => { gameEdit.current = null }, [location.key])
   const codeOrigin = useRef<{ token: string; version: number; path: string; tab: GroupTab } | null>(null)
   const editorOrigin = useRef<{ token: string; version: number; path: string; overview: DeckOverview } | null>(null)
   useEffect(() => {
@@ -114,6 +120,7 @@ export default function App() {
         },
         () => {
           if (version !== sessionVersionRef.current) return
+          gameEdit.current = null
           editorOrigin.current = null
           codeOrigin.current = null
           version = ++sessionVersionRef.current
@@ -143,6 +150,7 @@ export default function App() {
   async function logOut() {
     if (sessionStatus !== 'authenticated') return
     // Retire old requests immediately, including while DELETE or its recovery GET is pending.
+    gameEdit.current = null
     editorOrigin.current = null
     codeOrigin.current = null
     const version = ++sessionVersionRef.current
@@ -184,6 +192,7 @@ export default function App() {
 
   async function checkSession() {
     if (loggingIn || sessionStatus !== 'unverified') return
+    gameEdit.current = null
     editorOrigin.current = null
     codeOrigin.current = null
     const version = ++sessionVersionRef.current
@@ -206,6 +215,7 @@ export default function App() {
   const sessionExpired = useCallback(() => {
     // Check synchronously: an old response can arrive before effect cleanup.
     if (sessionVersion !== sessionVersionRef.current) return
+    gameEdit.current = null
     editorOrigin.current = null
     codeOrigin.current = null
     setSessionVersion(++sessionVersionRef.current)
@@ -232,9 +242,15 @@ export default function App() {
     const origin = codeOrigin.current
     return origin && origin.version === sessionVersion && origin.path === location.pathname && origin.token === codeToken ? origin.tab : 'games'
   }, [sessionVersion, location.pathname, codeToken])
+  const gameEditToken: unknown = location.state?.gameEditToken
+  const getGameEdit = useCallback(() => {
+    const intent = gameEdit.current
+    return intent && intent.version === sessionVersion && intent.path === location.pathname && intent.token === gameEditToken ? intent.gameId : undefined
+  }, [sessionVersion, location.pathname, gameEditToken])
   const editor = <DeckEditor key={`editor-${sessionVersion}-${location.pathname}`} onUnauthorized={sessionExpired} getReturnTo={getReturnTo} onLogout={logOut}
     onFinished={(message, destination) => {
       if (sessionVersion !== sessionVersionRef.current) return
+      gameEdit.current = null
       editorOrigin.current = null
       codeOrigin.current = null
       setSessionNotice({ kind: 'success', message })
@@ -263,10 +279,21 @@ export default function App() {
                 <GroupManager key={`groups-${sessionVersion}`} onUnauthorized={sessionExpired} />
               </div>
             } />
+            <Route path="/playgroups/:groupId/games/:gameId" element={
+              <GameDetailsPage key={`game-${sessionVersion}-${location.pathname}`} currentUser={currentUser} onUnauthorized={sessionExpired}
+                onNotice={setSessionNotice} onEdit={(groupId, gameId) => {
+                  if (sessionVersion !== sessionVersionRef.current) return
+                  const token = crypto.randomUUID()
+                  const path = groupUrl(groupId)
+                  gameEdit.current = { token, version: sessionVersion, path, gameId }
+                  setSessionNotice(null)
+                  void navigate(path, { state: { gameEditToken: token } })
+                }} />
+            } />
             {['/playgroups/:groupId', '/playgroups/:groupId/invitation-code'].map(path => <Route key={path} path={path} element={
               <GroupPage key={`group-${sessionVersion}-${location.pathname}`} currentUser={currentUser} onUnauthorized={sessionExpired}
                 onNotice={notice => setSessionNotice(notice)}
-                getCodeReturn={getCodeReturn}
+                getCodeReturn={getCodeReturn} getGameEdit={getGameEdit}
                 onOpenCode={(id, tab) => {
                   const path = `/playgroups/${encodeURIComponent(id)}/invitation-code`
                   const token = crypto.randomUUID()

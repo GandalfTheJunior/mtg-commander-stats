@@ -375,8 +375,8 @@ function selectionFrom(value: unknown): DeckSelection {
 }
 
 function gameFrom(value: unknown, groupId: string, gameId?: string): Game {
-  if (!isRecord(value) || !isUuid(value.id) || (gameId !== undefined && value.id !== gameId) ||
-    value.groupId !== groupId || !isUuid(value.creatorId) || typeof value.recordedAt !== 'string' ||
+  if (!isRecord(value) || !isUuid(value.id) || (gameId !== undefined && value.id.toLowerCase() !== gameId.toLowerCase()) ||
+    !isUuid(value.groupId) || value.groupId.toLowerCase() !== groupId.toLowerCase() || !isUuid(value.creatorId) || typeof value.recordedAt !== 'string' ||
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(value.recordedAt) ||
     !Number.isFinite(Date.parse(value.recordedAt)) || !Array.isArray(value.participants) ||
     value.participants.length < 2 || value.participants.length > 6 ||
@@ -405,6 +405,14 @@ function gameFrom(value: unknown, groupId: string, gameId?: string): Game {
 }
 
 const gamesPath = (groupId: string) => `/api/groups/${encodeURIComponent(groupId)}/games`
+
+export async function getGame(groupId: string, gameId: string, signal?: AbortSignal): Promise<Game> {
+  const response = await checkedResponse(
+    await fetch(`${gamesPath(groupId)}/${encodeURIComponent(gameId)}`, { ...requestDefaults, ...(signal ? { signal } : {}) }),
+    200, 'Could not load game details.',
+  )
+  return gameFrom(await response.json(), groupId, gameId)
+}
 
 export async function listGames(groupId: string, signal?: AbortSignal): Promise<Game[]> {
   const response = await checkedResponse(

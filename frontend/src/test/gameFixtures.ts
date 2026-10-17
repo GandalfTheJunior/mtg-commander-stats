@@ -51,6 +51,10 @@ export function gameApi(initial: Game[] = []) {
       state.history = [game]
       return response(game, method === 'POST' ? 201 : 200)
     }
+    if (path.startsWith(`/api/groups/${group.id}/games/`) && method === 'GET') {
+      const game = state.history.find(game => game.id.toLowerCase() === path.split('/').at(-1)?.toLowerCase())
+      return response(game ?? {}, game ? 200 : 404)
+    }
     if (path === `/api/groups/${group.id}/games/${uid(20)}` && method === 'DELETE') {
       state.history = []
       return new Response(null, { status: 204 })

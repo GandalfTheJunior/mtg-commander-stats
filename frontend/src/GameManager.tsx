@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  ApiError, deleteGame, getGroup, listGames, saveGame,
+  ApiError, getGroup, listGames, saveGame,
   type Game, type GameInput, type GroupDetails,
 } from './api'
+import { Alert, Box, Button, Card, CardActionArea, Stack, Typography } from '@mui/material'
+import { Link } from 'react-router'
+import { gameSummary, gameUrl, mayManageGame, recordedTime, sameId } from './gamePresentation'
 import GameEditor from './GameEditor'
 import type { GroupTab } from './groupNavigation'
 import GroupStatistics, { type StatisticsSort } from './GroupStatistics'
@@ -10,6 +13,8 @@ import GroupStatistics, { type StatisticsSort } from './GroupStatistics'
 type Props = {
   group: GroupDetails
   tab?: GroupTab
+  initialEditId?: string
+  onEditConsumed?: () => void
   actorId: string
   onUnauthorized: () => void
   onAccessLost: () => void
@@ -25,8 +30,11 @@ function message(error: unknown) {
 // The parent keys this area by selected group; App keys the
 // entire group manager by confirmed session. Abort and generation checks retire
 // responses (including 401s) before they can affect a different lifetime.
-export default function GameManager({ group, actorId, tab = 'games', ...handlers }: Props) {
+export default function GameManager({ group, actorId, tab = 'games', initialEditId, ...handlers }: Props) {
   const id = group.id
+  const editIntent = useRef(initialEditId)
+  const actor = useRef({ group, actorId })
+  useEffect(() => { actor.current = { group, actorId } })
   const callbacks = useRef(handlers)
   useEffect(() => { callbacks.current = handlers })
   const alive = useRef(false)
@@ -36,7 +44,7 @@ export default function GameManager({ group, actorId, tab = 'games', ...handlers
   const [access, setAccess] = useState<'confirmed' | 'checking' | 'error'>('confirmed')
   const [statisticsRevision, setStatisticsRevision] = useState(0)
   const [statisticsBlocked, setStatisticsBlocked] = useState(false)
-  const [state, setState] = useState<{ status: 'loading' | 'ready' | 'checking' | 'error'; games?: Game[]; error?: string }>({ status: 'loading' })
+  const [state, setState] = useState<{ status: 'loading' | 'ready' | 'checking' | 'error'; games?: Game[]; error?: string; editGame?: Game; editError?: string }>({ status: 'loading' })
   // Kept above the ready content so game refreshes and acknowledged writes
   // retain presentation choices while the statistics request is remounted.
   // First visit mounts one statistics view; tab switches only hide its panel.
@@ -44,7 +52,7 @@ export default function GameManager({ group, actorId, tab = 'games', ...handlers
   if (tab === 'statistics' && !statisticsVisited) setStatisticsVisited(true)
   const [statisticsSort, setStatisticsSort] = useState<StatisticsSort>({ players: null, decks: null })
   const [notice, setNotice] = useState('')
-  const noticeElement = useRef<HTMLParagraphElement>(null)
+  const noticeElement = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (notice && state.status === 'ready' && tab === 'games') noticeElement.current?.focus()
   }, [notice, state.status, tab])
@@ -100,16 +108,26 @@ export default function GameManager({ group, actorId, tab = 'games', ...handlers
     async function load() {
       let checkingAccess = revision > 0
       try {
+        let confirmedGroup = actor.current.group
         if (revision > 0) {
           const confirmed = await getGroup(id, controller.signal)
           if (!alive.current || version !== generation.current) return
+          confirmedGroup = confirmed
           callbacks.current.onGroupConfirmed(confirmed)
           callbacks.current.onCheckingAccess(false)
           setAccess('confirmed')
           checkingAccess = false
         }
         const games = await listGames(id, controller.signal)
-        if (alive.current && version === generation.current) setState({ status: 'ready', games })
+        if (alive.current && version === generation.current && !controller.signal.aborted) {
+          const target = editIntent.current
+          editIntent.current = undefined
+          if (target) callbacks.current.onEditConsumed?.()
+          const game = target ? games.find(game => sameId(game.id, target)) : undefined
+          const editable = game && mayManageGame(confirmedGroup, game, actor.current.actorId)
+          setState({ status: 'ready', games, editGame: editable ? game : undefined,
+            editError: target && !editable ? 'Das Spiel kann nicht mehr bearbeitet werden. Bitte prüfe den aktuellen Serverstand.' : undefined })
+        }
       } catch (error) {
         if (!alive.current || version !== generation.current) return
         if (checkingAccess) accessFailed(error)
@@ -134,14 +152,14 @@ export default function GameManager({ group, actorId, tab = 'games', ...handlers
 
   return <>
     <div role="tabpanel" id="group-panel-games" aria-labelledby="group-tab-games" hidden={tab !== 'games'} tabIndex={0}>
-      <section className="games" aria-labelledby={`games-${id}`}>
-        <h3 id={`games-${id}`}>Commander games</h3>
-        <button type="button" className="secondary" disabled={state.status === 'loading' || state.status === 'checking'}
-          onClick={() => { setNotice(''); refresh() }}>Refresh games</button>
+      <section aria-labelledby={`games-${id}`}>
+        <Typography component="h3" variant="h5" id={`games-${id}`} sx={{ mb: 2 }}>Spiele</Typography>
+        <Button color="secondary" disabled={state.status === 'loading' || state.status === 'checking'}
+          onClick={() => { setNotice(''); refresh() }}>Refresh games</Button>
         {state.status === 'loading' && <p role="status">Loading game history…</p>}
-        {state.error && <p className="error" role="alert">{state.error}</p>}
-        {notice && <p ref={noticeElement} tabIndex={-1} className="success" role="status">{notice}</p>}
-        {state.status === 'ready' && <GameContent group={group} actorId={actorId} games={state.games!}
+        {state.error && <Alert severity="error">{state.error}</Alert>}
+        {notice && <Alert ref={noticeElement} tabIndex={-1} severity="success" role="status">{notice}</Alert>}
+        {state.status === 'ready' && <GameContent group={group} games={state.games!} initialEditor={state.editGame} editError={state.editError}
           onError={recover} onStart={() => setNotice('')} onSaved={(text) => {
             setNotice(text)
             callbacks.current.onChanged?.()
@@ -151,66 +169,56 @@ export default function GameManager({ group, actorId, tab = 'games', ...handlers
     </div>
     {access === 'checking' && <p role="status">Checking group access…</p>}
     {access === 'error' && <div>
-      <p className="error" role="alert">Group access could not be verified. Refresh games or members to try again.</p>
+      <Alert severity="error">Group access could not be verified. Refresh games or members to try again.</Alert>
       <button type="button" onClick={refresh}>Refresh group access</button>
     </div>}
-    <div role="tabpanel" id="group-panel-statistics" aria-labelledby="group-tab-statistics" hidden={tab !== 'statistics'} tabIndex={0}>
+    <Box className="legacy-view" sx={{ bgcolor: '#fff', borderRadius: 2, px: 2, pb: 2 }} role="tabpanel" id="group-panel-statistics" aria-labelledby="group-tab-statistics" hidden={tab !== 'statistics'} tabIndex={0}>
       {statisticsVisited && access === 'confirmed' && (statisticsBlocked ? <div>
         <p role="status">Group access is confirmed. Refresh statistics to review server state before trying again.</p>
         <button type="button" className="secondary" onClick={() => setStatisticsBlocked(false)}>Refresh statistics</button>
       </div> : <GroupStatistics key={statisticsRevision} groupId={id} onAccessError={recover} sort={statisticsSort} onSort={setStatisticsSort} />)}
-    </div>
+    </Box>
   </>
 }
 
 type ContentProps = {
   group: GroupDetails
-  actorId: string
   games: Game[]
+  initialEditor?: Game
+  editError?: string
   onError: (error: unknown) => void
   onStart: () => void
   onSaved: (message: string) => void
 }
 
-function GameContent({ group, actorId, games, onError, onStart, onSaved }: ContentProps) {
-  const [editor, setEditor] = useState<Game | 'new' | null>(null)
-  const [deleting, setDeleting] = useState<Game | null>(null)
+function GameContent({ group, games, initialEditor, editError, onError, onStart, onSaved }: ContentProps) {
+  const [editor, setEditor] = useState<Game | 'new' | null>(initialEditor ?? null)
   const [busy, setBusy] = useState(false)
   const pending = useRef(false)
   const alive = useRef(false)
   const controller = useRef<AbortController | null>(null)
   const trigger = useRef<HTMLButtonElement | null>(null)
-  const confirmation = useRef<HTMLDivElement>(null)
   const restoreFocus = useRef(false)
   useEffect(() => {
     alive.current = true
     controller.current = new AbortController()
     return () => { alive.current = false; controller.current?.abort() }
   }, [])
-  useEffect(() => { if (deleting) confirmation.current?.focus() }, [deleting])
-
   useEffect(() => {
-    if (!editor && !deleting && restoreFocus.current) {
+    if (!editor && restoreFocus.current) {
       trigger.current?.focus()
       restoreFocus.current = false
     }
-  }, [editor, deleting])
+  }, [editor])
 
-  function cancel() {
-    restoreFocus.current = true
-    setEditor(null); setDeleting(null)
-  }
-
-  async function write(input?: GameInput) {
-    if (pending.current || busy) return
+  async function write(input: GameInput) {
+    if (pending.current || !editor) return
     pending.current = true
     setBusy(true)
     try {
-      if (deleting) await deleteGame(group.id, deleting.id, controller.current!.signal)
-      else if (input && editor) await saveGame(group.id, input, editor === 'new' ? undefined : editor.id, controller.current!.signal)
-      else return
+      await saveGame(group.id, input, editor === 'new' ? undefined : editor.id, controller.current!.signal)
       if (!alive.current) return
-      onSaved(deleting ? 'Game deleted.' : editor === 'new' ? 'Game recorded.' : 'Game updated.')
+      onSaved(editor === 'new' ? 'Game recorded.' : 'Game updated.')
     } catch (error) {
       if (alive.current) onError(error)
     } finally {
@@ -218,47 +226,29 @@ function GameContent({ group, actorId, games, onError, onStart, onSaved }: Conte
     }
   }
 
-  const publicNames = new Map([...group.members, ...games.flatMap((game) => game.participants)]
-    .map((person) => [person.userId, person.username]))
-  const username = (userId: string) => publicNames.get(userId) ?? 'User'
-
-  return <>
-    {!editor && !deleting && <button type="button" onClick={(event) => {
-      trigger.current = event.currentTarget; onStart(); setEditor('new')
-    }}>Record a game</button>}
-    {editor && <GameEditor group={group} game={editor === 'new' ? null : editor} busy={busy}
-      onSubmit={write} onCancel={cancel} onAccessError={onError} />}
-    {deleting && <div className="confirmation" ref={confirmation} tabIndex={-1} role="group" aria-label="Confirm game deletion">
-      <p>Delete game {deleting.id}, recorded {new Date(deleting.recordedAt).toLocaleString()}?
-        This permanently removes the game. Decks remain used.</p>
-      <button type="button" className="danger" disabled={busy} onClick={() => write()}>{busy ? 'Deleting game…' : 'Confirm game deletion'}</button>
-      <button type="button" className="secondary" disabled={busy} onClick={cancel}>Cancel game deletion</button>
-    </div>}
-    <h4>Game history</h4>
-    {games.length === 0 ? <p>No recorded games yet.</p> : <ol className="game-history" aria-label="Game history">
-      {games.map((game) => <li key={game.id}>
-        <article aria-label={`Game ${game.id}`}>
-          <h4>{game.result === 'DRAW' ? 'DRAW' : `WIN — ${game.participants.find((participant) => participant.userId === game.winnerUserId)!.username}`}</h4>
-          <p>Recorded <time dateTime={game.recordedAt}>{new Date(game.recordedAt).toLocaleString()}</time></p>
-          <p>Creator: {username(game.creatorId)} <span className="member-id">({game.creatorId})</span></p>
-          <p className="member-id">Game ID: {game.id}</p>
-          <ul>{game.participants.map((participant) => <li key={participant.userId}>
-            <strong>{participant.username}</strong> <span className="member-id">({participant.userId})</span>
-            {participant.userId === game.winnerUserId && ' — Winner'}
-            <p>{participant.deck.name} — {participant.deck.commander} — {participant.deck.colorIdentity.join('') || 'Colorless'}
-              {participant.deck.archived && ' — Archived deck'}<br />
-              <span className="member-id">Deck ID: {participant.deckId}</span></p>
-          </li>)}</ul>
-          {(group.role === 'OWNER' || game.creatorId === actorId) && <div className="actions">
-            <button type="button" disabled={busy || editor !== null || deleting !== null} onClick={(event) => {
-              trigger.current = event.currentTarget; onStart(); setEditor(game)
-            }}>Edit game</button>
-            <button type="button" className="danger" disabled={busy || editor !== null || deleting !== null} onClick={(event) => {
-              trigger.current = event.currentTarget; onStart(); setDeleting(game)
-            }}>Delete game</button>
-          </div>}
-        </article>
-      </li>)}
-    </ol>}
-  </>
+  return <Stack sx={{ gap: 2, minWidth: 0 }}>
+    {!editor && <Button variant="contained" ref={trigger} sx={{ alignSelf: 'flex-start', minHeight: 48 }} onClick={() => {
+      onStart(); setEditor('new')
+    }}>Spiel erfassen</Button>}
+    {editError && <Typography role="alert">{editError}</Typography>}
+    {editor && <Box className="legacy-view" sx={{ bgcolor: '#fff', p: 2, borderRadius: 2 }}><GameEditor group={group} game={editor === 'new' ? null : editor} busy={busy}
+      onSubmit={write} onCancel={() => { restoreFocus.current = true; setEditor(null) }} onAccessError={onError} /></Box>}
+    <Typography component="h4" variant="h6">Spielverlauf</Typography>
+    {editor && <Typography role="status">Beende oder brich das aktuelle Formular ab, bevor du Spieldetails öffnest.</Typography>}
+    {games.length === 0 ? <Typography>No recorded games yet.</Typography> : <Stack component="ol" aria-label="Game history" sx={{ listStyle: 'none', p: 0, m: 0, gap: 2, minWidth: 0 }}>
+      {games.map(game => <Box component="li" key={game.id} sx={{ minWidth: 0 }}>
+        <Card component="article" aria-label={`Game ${game.id}`} sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+          <CardActionArea component={Link} to={gameUrl(group.id, game.id)} disabled={editor !== null || busy}
+            aria-disabled={editor !== null || busy} tabIndex={editor !== null || busy ? -1 : 0}
+            onClick={event => { if (editor !== null || busy) event.preventDefault() }}
+            aria-label={`Spieldetails: ${gameSummary(game)} · ${game.participants.length} Teilnehmende · Erfasst am ${recordedTime(game)} · ${game.id}`}
+            sx={{ p: 2, minHeight: 48, display: 'block', textAlign: 'left', color: 'text.primary', textDecoration: 'none', '&.Mui-focusVisible, &:focus-visible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: -3 } }}>
+            <Typography component="h5" variant="h6" sx={{ overflowWrap: 'anywhere', fontSize: '1.125rem', lineHeight: 1.45 }}>{gameSummary(game)}</Typography>
+            <Typography sx={{ mt: 1, color: 'text.secondary' }}>{game.participants.length} Teilnehmende</Typography>
+            <Typography sx={{ color: 'text.secondary' }}>Erfasst am <time dateTime={game.recordedAt}>{recordedTime(game)}</time></Typography>
+          </CardActionArea>
+        </Card>
+      </Box>)}
+    </Stack>}
+  </Stack>
 }
