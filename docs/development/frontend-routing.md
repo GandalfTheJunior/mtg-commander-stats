@@ -86,17 +86,18 @@ consumer or inline form. The group contract and group/session flows are retained
 
 ## Focused deck editor and return context
 
-`DeckEditor.tsx` loads the existing owned deck list after authentication, matches
-an exact UUID, and only then mounts the shared create/edit form. A missing,
-foreign, malformed or deleted target exposes generic unavailability with a link
-to `/decks`; no write is possible. No details GET endpoint is introduced.
+`DeckEditor.tsx` mounts the empty create form immediately after authentication;
+creation does not depend on a deck-list request. Editing loads the existing owned
+deck list after authentication, matches an exact UUID, and only then mounts the
+shared form. A missing, foreign, malformed or deleted target exposes generic
+unavailability with a link to `/decks`; no write is possible. No details GET endpoint is introduced.
 
 Supported Dashboard/Decks entry actions retain only the calling overview plus a
 random token, target path and session epoch in App memory. History contains the
 token, not a trusted `from` URL. Only a matching pending entry may choose
 `/dashboard`; otherwise return is `/decks`. Leaving, reload, logout, expiry,
 identity recovery and same-UUID login discard origin and draft. Origin is neither
-a preference nor persistent storage. Stable editor URLs still re-fetch their
+a preference nor persistent storage. Stable edit URLs still re-fetch their
 own target on Back/Forward or reload.
 
 Acknowledged save/delete/archive replaces the editor's history entry with the
@@ -133,6 +134,9 @@ match Unicode White_Space plus U+001C–U+001F; payload text is sent unchanged s
 server owns boundary trimming. Permanently used decks show locked commander and
 colors and submit their server-confirmed values for rename. Overflow availability
 and named confirmations follow the [deck lifecycle](../product/decks-api.md).
+Archiving with an unsaved rename additionally announces that the name change will
+be discarded and requires explicit discard-and-archive confirmation; cancel
+retains the draft and restores focus without sending a write.
 
 Writes are guarded against duplicates through CSRF and the unsafe request, abort
 on retirement and ignore retired outcomes. Only exact acknowledged API statuses

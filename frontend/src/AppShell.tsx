@@ -24,7 +24,10 @@ export function AppShell({ user, notice, onLogout, children }: {
   const focusedEditor = location.pathname === '/decks/new' || /^\/decks\/[^/]+\/edit$/.test(location.pathname)
   const content = useRef<HTMLElement>(null)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
-  useEffect(() => { content.current?.focus() }, [location.pathname])
+  useEffect(() => {
+    // The create form now mounts immediately and owns its initial heading focus.
+    if (location.pathname !== '/decks/new') content.current?.focus()
+  }, [location.pathname])
   useEffect(() => {
     const viewport = window.visualViewport
     if (!viewport) return

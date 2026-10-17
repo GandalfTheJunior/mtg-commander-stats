@@ -28,6 +28,7 @@ test.each([false, true])('named destructive confirmation restores focus when can
   const action = everUsed ? 'Archivieren' : 'Löschen'
   const dialog = await menuAction(action)
   expect(dialog).toHaveAccessibleName(`${deck.name}: ${action}?`)
+  expect(dialog).not.toHaveAccessibleDescription(expect.stringContaining('ungespeicherte'))
   expect(within(dialog).getByRole('button', { name: 'Abbrechen' })).toHaveFocus()
   fireEvent.click(within(dialog).getByRole('button', { name: 'Abbrechen' }))
   await waitFor(() => expect(screen.getByRole('button', { name: 'Deckaktionen' })).toHaveFocus())
@@ -77,4 +78,54 @@ test('unused delete conflict refreshes permanent usage, preserving local name an
   fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
   await screen.findByText('My draft wurde gespeichert.')
   expect(JSON.parse(api.writes()[1][1]!.body as string)).toEqual({ name: 'My draft', commander: 'Karn', colorIdentity: ['W'] })
+})
+
+test.each(['/dashboard', '/decks'] as const)('dirty archival explicitly discards the rename and returns to fresh %s only after acknowledgement', async origin => {
+  const used = { ...deck, everUsed: true }
+  const api = deckApi([used]); showDeckApp(origin)
+  if (origin === '/dashboard') {
+    fireEvent.click(await screen.findByRole('button', { name: deck.name }))
+    await screen.findByRole('textbox', { name: /Deckname/ })
+  } else await editDeck()
+  changeDeck('Ungespeicherte Umbenennung')
+  const listCount = () => api.fetchMock.mock.calls.filter(([path, init]) => path === '/api/decks' && !init?.method).length
+  const loadedLists = listCount()
+  const dialog = await menuAction('Archivieren')
+  expect(dialog).toHaveAccessibleName(`${deck.name}: Archivieren?`)
+  expect(dialog).toHaveAccessibleDescription(expect.stringContaining('Deine ungespeicherte Änderung am Decknamen wird verworfen und nicht gespeichert.'))
+  expect(within(dialog).getByRole('button', { name: 'Änderung verwerfen und archivieren' })).toBeInTheDocument()
+  expect(within(dialog).queryByRole('button', { name: 'Archivieren bestätigen' })).not.toBeInTheDocument()
+  expect(within(dialog).getByRole('button', { name: 'Abbrechen' })).toHaveFocus()
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Abbrechen' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Deckaktionen' })).toHaveFocus())
+  expect(screen.getByRole('textbox', { name: /Deckname/ })).toHaveValue('Ungespeicherte Umbenennung')
+  expect(api.writes()).toHaveLength(0)
+
+  const pending = deferred()
+  api.next(`/api/decks/${deck.id}/archive`, () => pending.promise, 'POST')
+  await menuAction('Archivieren')
+  const confirm = screen.getByRole('button', { name: 'Änderung verwerfen und archivieren' })
+  fireEvent.click(confirm); fireEvent.click(confirm)
+  await waitFor(() => expect(api.writes()).toHaveLength(1))
+  expect(api.writes()[0]).toEqual([`/api/decks/${deck.id}/archive`, {
+    credentials: 'same-origin', signal: expect.any(AbortSignal), method: 'POST', headers: { 'X-CSRF-TOKEN': 'deck-token' },
+  }])
+  expect(window.location.pathname).toBe(`/decks/${deck.id}/edit`)
+  expect(listCount()).toBe(loadedLists)
+  expect(screen.queryByText(`${deck.name} wurde archiviert.`)).not.toBeInTheDocument()
+
+  api.state.decks = [{ ...used, archived: true }]
+  await act(async () => pending.resolve(response(api.state.decks[0])))
+  await screen.findByRole('heading', { name: origin === '/dashboard' ? 'Dashboard' : 'Meine Decks' })
+  await screen.findByText(`${deck.name} wurde archiviert.`)
+  if (origin === '/dashboard') {
+    expect(await screen.findByRole('button', { name: deck.name })).toHaveAccessibleDescription(expect.stringContaining('Archiviert'))
+  } else {
+    expect(await screen.findByRole('button', { name: `${deck.name} bearbeiten` })).toBeInTheDocument()
+    expect(screen.getByText(/Archiviert – für neue Spiele/)).toBeInTheDocument()
+  }
+  expect(window.location.pathname).toBe(origin)
+  expect(screen.queryByText('Ungespeicherte Umbenennung')).not.toBeInTheDocument()
+  expect(listCount()).toBe(loadedLists + 1)
+  expect(api.writes()).toHaveLength(1)
 })
