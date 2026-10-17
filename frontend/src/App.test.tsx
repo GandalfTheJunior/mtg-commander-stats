@@ -1,3 +1,4 @@
+import { openNewDeck, openExistingDeck, openDeckAction } from './test/editorEntry'
 import { act, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App'
@@ -43,8 +44,8 @@ test('identifies the application and shows separate auth forms', async () => {
   expect(await screen.findByText('Not signed in.')).toBeInTheDocument()
   expect(registrationForm().getByLabelText('Username')).toBeInTheDocument()
   expect(loginForm().queryByLabelText('Username')).not.toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: 'My decks' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Create deck' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Meine Decks' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Deck erstellen' })).not.toBeInTheDocument()
 })
 
 test('restores the authenticated session and loads its decks', async () => {
@@ -63,7 +64,7 @@ test('restores the authenticated session and loads its decks', async () => {
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
 
-  expect(await screen.findByRole('heading', { name: 'My decks' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Meine Decks' })).toBeInTheDocument()
   expect(await screen.findByText('Atraxa Superfriends')).toBeInTheDocument()
   expect(screen.getByText(/Atraxa, Praetors' Voice/)).toBeInTheDocument()
   expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/decks', {
@@ -83,8 +84,8 @@ test('a deck API 401 clears authenticated controls and reports an expired sessio
 
   expect(await screen.findByText('Your session expired. Sign in again.')).toBeInTheDocument()
   expect(screen.getByText('Not signed in.')).toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: 'My decks' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Create deck' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Meine Decks' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Deck erstellen' })).not.toBeInTheDocument()
 })
 
 test('restores and displays the current user from an existing session', async () => {
@@ -251,7 +252,7 @@ test('confirmed authentication hides credentials forms and prevents browser re-l
     .mockResolvedValueOnce(jsonResponse([]))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
-  await screen.findByText('You have no decks yet.')
+  await screen.findByText('Noch keine Decks.')
   expect(screen.getByText(user.username)).toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Create an account' })).not.toBeInTheDocument()
@@ -279,7 +280,7 @@ test('does not preserve a previous identity when post-login CSRF refresh fails',
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
   await screen.findByText('Gandalf')
-  await screen.findByText('You have no decks yet.')
+  await screen.findByText('Noch keine Decks.')
 
   await logOutBeforeLogin()
   const form = loginForm()
@@ -352,7 +353,7 @@ test.each(['request', 'csrf'])('a group 401 during %s expires the session and cl
   }
   await screen.findByText('Your session expired. Sign in again.')
   expect(screen.queryByRole('heading', { name: 'My groups' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: 'My decks' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Meine Decks' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Log out' })).not.toBeInTheDocument()
   if (source === 'csrf') expect(fetchMock.mock.calls.some(([path]) => path === '/api/groups/join')).toBe(false)
 })
@@ -378,10 +379,10 @@ test('session expiration clears group details and ignores a late invitation-code
   fireEvent.click(await screen.findByRole('button', { name: 'Private group (OWNER)' }))
   fireEvent.click(await screen.findByRole('button', { name: 'Show invitation code' }))
   await goTo('Decks')
-  await screen.findByRole('button', { name: 'Create deck' })
-  fireEvent.change(screen.getByLabelText('Deck name'), { target: { value: 'My deck' } })
-  fireEvent.change(screen.getByLabelText('Commander'), { target: { value: 'Atraxa' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Create deck' }))
+  await screen.findByRole('button', { name: 'Deck erstellen' })
+  fireEvent.change(await openNewDeck(), { target: { value: 'My deck' } })
+  fireEvent.change(screen.getByLabelText(/Commander/), { target: { value: 'Atraxa' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
   await screen.findByText('Your session expired. Sign in again.')
   await act(async () => { resolveCode(jsonResponse({ code: 'abcdefghijklmnopqrstuv' })) })
   expect(screen.queryByRole('heading', { name: 'My groups' })).not.toBeInTheDocument()
@@ -437,7 +438,7 @@ for (const identity of ['same user', 'different user']) {
       const nextUser = identity === 'same user' ? user : {
         id: 'e55c4c26-2d30-4ae0-8f9b-6100171ee99a', username: 'Saruman',
       }
-      const oldDeck = { everUsed: false, archived: false, id: 'old-deck', name: 'Old private deck', commander: 'Atraxa', colorIdentity: [] }
+      const oldDeck = { everUsed: false, archived: false, id: '11111111-1111-4111-8111-111111111111', name: 'Old private deck', commander: 'Atraxa', colorIdentity: [] }
       const newDeck = { ...oldDeck, id: 'new-deck', name: 'Current session deck' }
       let resolveOld!: (response: Response) => void
       let rejectOld!: (error: Error) => void
@@ -469,15 +470,15 @@ for (const identity of ['same user', 'different user']) {
       if (operation !== 'list') {
         await screen.findByText(oldDeck.name)
         if (operation === 'create') {
-          fireEvent.change(screen.getByLabelText('Deck name'), { target: { value: 'Stale created deck' } })
-          fireEvent.change(screen.getByLabelText('Commander'), { target: { value: 'Atraxa' } })
-          fireEvent.click(screen.getByRole('button', { name: 'Create deck' }))
+          fireEvent.change(await openNewDeck(), { target: { value: 'Stale created deck' } })
+          fireEvent.change(screen.getByLabelText(/Commander/), { target: { value: 'Atraxa' } })
+          fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
         } else if (operation === 'edit') {
-          fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
-          fireEvent.click(screen.getByRole('button', { name: 'Save deck' }))
+          await openExistingDeck()
+          fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
         } else {
-          fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-          fireEvent.click(screen.getByRole('button', { name: 'Confirm deletion' }))
+          await openExistingDeck(); await openDeckAction('Löschen')
+          fireEvent.click(screen.getByRole('button', { name: 'Löschen bestätigen' }))
         }
       }
       // Flush CSRF and start the business request before replacing its session.
@@ -499,16 +500,16 @@ for (const identity of ['same user', 'different user']) {
       })
       expect(screen.getByText(nextUser.username)).toBeInTheDocument()
       expect(screen.getByText(/Signed in as/)).toBeInTheDocument()
-      expect(screen.getByRole('heading', { name: 'My decks' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Create deck' })).toBeEnabled()
+      expect(screen.getByRole('heading', { name: 'Meine Decks' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Deck erstellen' })).toBeEnabled()
       expect(screen.getByText(newDeck.name)).toBeInTheDocument()
       expect(screen.queryByText(oldDeck.name)).not.toBeInTheDocument()
       expect(screen.queryByText('Stale request failure')).not.toBeInTheDocument()
       expect(screen.queryByText('Stale network failure')).not.toBeInTheDocument()
       expect(screen.queryByText('Your session expired. Sign in again.')).not.toBeInTheDocument()
-      expect(screen.queryByText(`${oldDeck.name} created.`)).not.toBeInTheDocument()
-      expect(screen.queryByText(`${oldDeck.name} updated.`)).not.toBeInTheDocument()
-      expect(screen.queryByText(`${oldDeck.name} deleted.`)).not.toBeInTheDocument()
+      expect(screen.queryByText(`${oldDeck.name} wurde erstellt.`)).not.toBeInTheDocument()
+      expect(screen.queryByText(`${oldDeck.name} wurde gespeichert.`)).not.toBeInTheDocument()
+      expect(screen.queryByText(`${oldDeck.name} wurde gelöscht.`)).not.toBeInTheDocument()
     })
   }
 }
@@ -527,7 +528,7 @@ test.each(['request', 'csrf'])('a current deck %s 401 after re-login still expir
   })
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
-  await screen.findByText('You have no decks yet.')
+  await screen.findByText('Noch keine Decks.')
   await logOutBeforeLogin()
   const form = loginForm()
   fireEvent.change(form.getByLabelText('Email'), { target: { value: 'gandalf@example.com' } })
@@ -535,14 +536,14 @@ test.each(['request', 'csrf'])('a current deck %s 401 after re-login still expir
   fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
   await screen.findByText('Login successful.')
   await goTo('Decks')
-  await screen.findByText('You have no decks yet.')
+  await screen.findByText('Noch keine Decks.')
   rejectDeck = true
-  fireEvent.change(screen.getByLabelText('Deck name'), { target: { value: 'Deck' } })
-  fireEvent.change(screen.getByLabelText('Commander'), { target: { value: 'Atraxa' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Create deck' }))
+  fireEvent.change(await openNewDeck(), { target: { value: 'Deck' } })
+  fireEvent.change(screen.getByLabelText(/Commander/), { target: { value: 'Atraxa' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
   await screen.findByText('Your session expired. Sign in again.')
   expect(screen.getByText('Not signed in.')).toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: 'My decks' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Meine Decks' })).not.toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'My groups' })).not.toBeInTheDocument()
   if (source === 'csrf') expect(fetchMock.mock.calls.some(([path, init]) => path === '/api/decks' && init?.method)).toBe(false)
 })

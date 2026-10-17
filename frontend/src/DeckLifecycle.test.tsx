@@ -1,97 +1,131 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
-import DeckManager from './DeckManager'
-import { deckFor, deferred, response } from './test/gameFixtures'
+import { changeDeck, deck, deckApi, editDeck, menuAction, showDeckApp } from './test/deckFixtures'
+import { deferred, response } from './test/gameFixtures'
 
-const used = { ...deckFor(2), everUsed: true, archived: false }
-function setup(deck = used) {
-  const fetchMock = vi.fn().mockResolvedValueOnce(response([deck]))
-  vi.stubGlobal('fetch', fetchMock)
-  return fetchMock
-}
-const csrf = () => response({ headerName: 'X-CSRF-TOKEN', token: 'lifecycle-token' })
-afterEach(() => vi.unstubAllGlobals())
-
-test('used decks permanently lock commander/colors and still send their immutable fields when renamed', async () => {
-  const api = setup()
-  api.mockResolvedValueOnce(csrf()).mockResolvedValueOnce(response({ ...used, name: 'Renamed used deck' }))
-  render(<DeckManager onUnauthorized={vi.fn()} />)
-  const card = (await screen.findByText(used.name)).closest('li')!
-  expect(within(card).queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
-  fireEvent.click(within(card).getByRole('button', { name: 'Edit' }))
-  expect(within(card).getByLabelText('Commander')).toHaveAttribute('readonly')
-  expect(within(card).getByLabelText('R')).toBeDisabled()
-  expect(within(card).getByText(/permanently locked/)).toBeInTheDocument()
-  fireEvent.change(within(card).getByLabelText('Deck name'), { target: { value: 'Renamed used deck' } })
-  fireEvent.click(within(card).getByRole('button', { name: 'Save deck' }))
-  await screen.findByText('Renamed used deck updated.')
-  expect(JSON.parse(api.mock.calls[2][1].body)).toEqual({ name: 'Renamed used deck', commander: used.commander, colorIdentity: ['R'] })
+afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState(null, '', '/') })
+test.each([
+  [false, false, 'Löschen'], [true, false, 'Archivieren'], [true, true, null], [false, true, 'Löschen'],
+] as const)('lifecycle used=%s archived=%s allows exactly %s and correct editable fields', async (everUsed, archived, action) => {
+  const api = deckApi([{ ...deck, everUsed, archived, colorIdentity: ['R'] }]); showDeckApp(); await editDeck()
+  expect(screen.getByRole('textbox', { name: /Commander/ })).toHaveProperty('readOnly', everUsed)
+  expect(screen.getByRole('button', { name: 'Rot (R)' })).toHaveProperty('disabled', everUsed)
+  expect(screen.getByRole('button', { name: 'Rot (R)' })).toHaveAttribute('aria-pressed', 'true')
+  if (!action) expect(screen.queryByRole('button', { name: 'Deckaktionen' })).not.toBeInTheDocument()
+  else {
+    fireEvent.click(screen.getByRole('button', { name: 'Deckaktionen' }))
+    expect(await screen.findAllByRole('menuitem')).toHaveLength(1)
+    expect(screen.getByRole('menuitem', { name: action })).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+  }
+  changeDeck('Renamed')
+  fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
+  await screen.findByText('Renamed wurde gespeichert.')
+  expect(JSON.parse(api.writes()[0][1]!.body as string)).toEqual({ name: 'Renamed', commander: deck.commander, colorIdentity: ['R'] })
 })
-
-test('archival is explicit, cancel restores focus without writing, and confirmed state waits for acknowledgment', async () => {
-  const api = setup()
+test.each([false, true])('named destructive confirmation restores focus when canceled and waits for acknowledgement (used=%s)', async everUsed => {
+  const api = deckApi([{ ...deck, everUsed }]); showDeckApp(); await editDeck()
+  const action = everUsed ? 'Archivieren' : 'Löschen'
+  const dialog = await menuAction(action)
+  expect(dialog).toHaveAccessibleName(`${deck.name}: ${action}?`)
+  expect(dialog).not.toHaveAccessibleDescription(expect.stringContaining('ungespeicherte'))
+  expect(within(dialog).getByRole('button', { name: 'Abbrechen' })).toHaveFocus()
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Abbrechen' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Deckaktionen' })).toHaveFocus())
+  expect(api.writes()).toHaveLength(0)
   const pending = deferred()
-  api.mockResolvedValueOnce(csrf()).mockReturnValueOnce(pending.promise)
-  const changed = vi.fn()
-  render(<DeckManager onUnauthorized={vi.fn()} onChanged={changed} />)
-  const trigger = await screen.findByRole('button', { name: 'Archive' })
-  fireEvent.click(trigger)
-  expect(screen.getByRole('group', { name: `Archive ${used.name}?` })).toHaveFocus()
-  fireEvent.click(screen.getByRole('button', { name: 'Cancel archival' }))
-  expect(trigger).toHaveFocus()
-  expect(api).toHaveBeenCalledTimes(1)
-  fireEvent.click(trigger)
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm archival' }))
-  await screen.findByRole('button', { name: 'Archiving…' })
-  expect(screen.queryByText('Archived — unavailable for new games')).not.toBeInTheDocument()
-  expect(changed).not.toHaveBeenCalled()
-  await act(async () => pending.resolve(response({ ...used, archived: true })))
-  await screen.findByText(`${used.name} archived.`)
-  expect(screen.getByText('Archived — unavailable for new games')).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: /unarchive/i })).not.toBeInTheDocument()
-  expect(api.mock.calls[2][0]).toBe(`/api/decks/${used.id}/archive`)
-  expect(api.mock.calls[2][1]).toEqual({ credentials: 'same-origin', signal: expect.any(AbortSignal), method: 'POST', headers: { 'X-CSRF-TOKEN': 'lifecycle-token' } })
-  expect(changed).toHaveBeenCalledOnce()
+  const path = `/api/decks/${deck.id}${everUsed ? '/archive' : ''}`
+  api.next(path, () => pending.promise, everUsed ? 'POST' : 'DELETE')
+  await menuAction(action)
+  const confirm = screen.getByRole('button', { name: `${action} bestätigen` })
+  fireEvent.click(confirm); fireEvent.click(confirm)
+  await waitFor(() => expect(api.writes()).toHaveLength(1))
+  expect(window.location.pathname).toBe(`/decks/${deck.id}/edit`)
+  expect(api.writes()[0]).toEqual([path, { credentials: 'same-origin', signal: expect.any(AbortSignal), method: everUsed ? 'POST' : 'DELETE', headers: { 'X-CSRF-TOKEN': 'deck-token' } }])
+  api.state.decks = everUsed ? [{ ...deck, everUsed, archived: true }] : []
+  await act(async () => pending.resolve(everUsed ? response(api.state.decks[0]) : new Response(null, { status: 204 })))
+  await screen.findByText(`${deck.name} wurde ${everUsed ? 'archiviert' : 'gelöscht'}.`)
+  expect(window.location.pathname).toBe('/decks')
+  if (everUsed) expect(await screen.findByText(/Archiviert – für neue Spiele/)).toBeInTheDocument()
+  else expect(await screen.findByText('Noch keine Decks.')).toBeInTheDocument()
+})
+test.each([403, 404, 409, 500])('archival denial %s never claims success and requires authoritative recovery', async status => {
+  const api = deckApi([{ ...deck, everUsed: true }]); showDeckApp(); await editDeck()
+  api.next(`/api/decks/${deck.id}/archive`, () => response({ detail: 'Lifecycle operation rejected.' }, status), 'POST')
+  await menuAction('Archivieren'); fireEvent.click(screen.getByRole('button', { name: 'Archivieren bestätigen' }))
+  await screen.findByText(/Lifecycle operation rejected/)
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(screen.queryByText(`${deck.name} wurde archiviert.`)).not.toBeInTheDocument()
+  expect(screen.getByText(/Signed in as/)).toBeInTheDocument()
+  if (status === 403 || status === 404) expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  if (status !== 409) fireEvent.click(screen.getByRole('button', { name: 'Serverstand erneut prüfen' }))
+  await screen.findByRole('button', { name: 'Serverstand geprüft – Entwurf weiter bearbeiten' })
+  expect(api.writes()).toHaveLength(1)
+})
+test('unused delete conflict refreshes permanent usage, preserving local name and requiring explicit review', async () => {
+  const api = deckApi(); showDeckApp(); await editDeck(); changeDeck('My draft', 'Draft commander')
+  api.next(`/api/decks/${deck.id}`, () => {
+    api.state.decks = [{ ...deck, everUsed: true, colorIdentity: ['W'] }]
+    return response({ detail: 'Deck is now used.' }, 409)
+  }, 'DELETE')
+  await menuAction('Löschen'); fireEvent.click(screen.getByRole('button', { name: 'Löschen bestätigen' }))
+  await screen.findByText(/Konflikt:/)
+  await screen.findByRole('button', { name: 'Serverstand geprüft – Entwurf weiter bearbeiten' })
+  expect(screen.getByRole('textbox', { name: /Deckname/ })).toHaveValue('My draft')
+  expect(screen.getByText(/Dein Entwurf: My draft · Draft commander/)).toBeInTheDocument()
+  expect(screen.getByRole('textbox', { name: /Commander/ })).toHaveValue('Karn')
+  fireEvent.click(screen.getByRole('button', { name: 'Serverstand geprüft – Entwurf weiter bearbeiten' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
+  await screen.findByText('My draft wurde gespeichert.')
+  expect(JSON.parse(api.writes()[1][1]!.body as string)).toEqual({ name: 'My draft', commander: 'Karn', colorIdentity: ['W'] })
 })
 
-test.each([403, 409, 500])('failed archival (%s) reports failure and offers authoritative refresh', async (status) => {
-  const api = setup()
-  api.mockResolvedValueOnce(csrf()).mockResolvedValueOnce(response({ detail: 'Lifecycle operation rejected.' }, status))
-    .mockResolvedValueOnce(response([{ ...used, archived: true }]))
-  const changed = vi.fn(); const unauthorized = vi.fn()
-  render(<DeckManager onUnauthorized={unauthorized} onChanged={changed} />)
-  fireEvent.click(await screen.findByRole('button', { name: 'Archive' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm archival' }))
-  await screen.findByText('Lifecycle operation rejected.')
-  expect(screen.queryByText(`${used.name} archived.`)).not.toBeInTheDocument()
-  expect(changed).not.toHaveBeenCalled()
-  expect(unauthorized).not.toHaveBeenCalled()
-  fireEvent.click(screen.getByRole('button', { name: 'Refresh decks' }))
-  await screen.findByText('Archived — unavailable for new games')
-})
+test.each(['/dashboard', '/decks'] as const)('dirty archival explicitly discards the rename and returns to fresh %s only after acknowledgement', async origin => {
+  const used = { ...deck, everUsed: true }
+  const api = deckApi([used]); showDeckApp(origin)
+  if (origin === '/dashboard') {
+    fireEvent.click(await screen.findByRole('button', { name: deck.name }))
+    await screen.findByRole('textbox', { name: /Deckname/ })
+  } else await editDeck()
+  changeDeck('Ungespeicherte Umbenennung')
+  const listCount = () => api.fetchMock.mock.calls.filter(([path, init]) => path === '/api/decks' && !init?.method).length
+  const loadedLists = listCount()
+  const dialog = await menuAction('Archivieren')
+  expect(dialog).toHaveAccessibleName(`${deck.name}: Archivieren?`)
+  expect(dialog).toHaveAccessibleDescription(expect.stringContaining('Deine ungespeicherte Änderung am Decknamen wird verworfen und nicht gespeichert.'))
+  expect(within(dialog).getByRole('button', { name: 'Änderung verwerfen und archivieren' })).toBeInTheDocument()
+  expect(within(dialog).queryByRole('button', { name: 'Archivieren bestätigen' })).not.toBeInTheDocument()
+  expect(within(dialog).getByRole('button', { name: 'Abbrechen' })).toHaveFocus()
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Abbrechen' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Deckaktionen' })).toHaveFocus())
+  expect(screen.getByRole('textbox', { name: /Deckname/ })).toHaveValue('Ungespeicherte Umbenennung')
+  expect(api.writes()).toHaveLength(0)
 
-test('a stale unused deck conflict refreshes to permanent used state rather than enabling forbidden edits', async () => {
-  const api = setup({ ...used, everUsed: false })
-  api.mockResolvedValueOnce(csrf()).mockResolvedValueOnce(response({ detail: 'Deck is now used.' }, 409))
-    .mockResolvedValueOnce(response([used]))
-  render(<DeckManager onUnauthorized={vi.fn()} />)
-  fireEvent.click(await screen.findByRole('button', { name: 'Delete' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm deletion' }))
-  await screen.findByText('Deck is now used.')
-  fireEvent.click(screen.getByRole('button', { name: 'Refresh decks' }))
-  await screen.findByRole('button', { name: 'Archive' })
-  expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
-})
+  const pending = deferred()
+  api.next(`/api/decks/${deck.id}/archive`, () => pending.promise, 'POST')
+  await menuAction('Archivieren')
+  const confirm = screen.getByRole('button', { name: 'Änderung verwerfen und archivieren' })
+  fireEvent.click(confirm); fireEvent.click(confirm)
+  await waitFor(() => expect(api.writes()).toHaveLength(1))
+  expect(api.writes()[0]).toEqual([`/api/decks/${deck.id}/archive`, {
+    credentials: 'same-origin', signal: expect.any(AbortSignal), method: 'POST', headers: { 'X-CSRF-TOKEN': 'deck-token' },
+  }])
+  expect(window.location.pathname).toBe(`/decks/${deck.id}/edit`)
+  expect(listCount()).toBe(loadedLists)
+  expect(screen.queryByText(`${deck.name} wurde archiviert.`)).not.toBeInTheDocument()
 
-test.each([false, true])('archival 401 expires only a still-current view (retired=%s)', async (retired) => {
-  const api = setup(); const pending = deferred(); const unauthorized = vi.fn()
-  api.mockResolvedValueOnce(csrf()).mockReturnValueOnce(pending.promise)
-  const view = render(<DeckManager onUnauthorized={unauthorized} />)
-  fireEvent.click(await screen.findByRole('button', { name: 'Archive' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm archival' }))
-  await waitFor(() => expect(api).toHaveBeenCalledTimes(3))
-  if (retired) view.unmount()
-  await act(async () => pending.resolve(response({}, 401)))
-  expect(unauthorized).toHaveBeenCalledTimes(retired ? 0 : 1)
+  api.state.decks = [{ ...used, archived: true }]
+  await act(async () => pending.resolve(response(api.state.decks[0])))
+  await screen.findByRole('heading', { name: origin === '/dashboard' ? 'Dashboard' : 'Meine Decks' })
+  await screen.findByText(`${deck.name} wurde archiviert.`)
+  if (origin === '/dashboard') {
+    expect(await screen.findByRole('button', { name: deck.name })).toHaveAccessibleDescription(expect.stringContaining('Archiviert'))
+  } else {
+    expect(await screen.findByRole('button', { name: `${deck.name} bearbeiten` })).toBeInTheDocument()
+    expect(screen.getByText(/Archiviert – für neue Spiele/)).toBeInTheDocument()
+  }
+  expect(window.location.pathname).toBe(origin)
+  expect(screen.queryByText('Ungespeicherte Umbenennung')).not.toBeInTheDocument()
+  expect(listCount()).toBe(loadedLists + 1)
+  expect(api.writes()).toHaveLength(1)
 })

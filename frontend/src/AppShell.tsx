@@ -21,9 +21,13 @@ export function AppShell({ user, notice, onLogout, children }: {
   children: ReactNode
 }) {
   const location = useLocation()
+  const focusedEditor = location.pathname === '/decks/new' || /^\/decks\/[^/]+\/edit$/.test(location.pathname)
   const content = useRef<HTMLElement>(null)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
-  useEffect(() => { content.current?.focus() }, [location.pathname])
+  useEffect(() => {
+    // The create form now mounts immediately and owns its initial heading focus.
+    if (location.pathname !== '/decks/new') content.current?.focus()
+  }, [location.pathname])
   useEffect(() => {
     const viewport = window.visualViewport
     if (!viewport) return
@@ -55,7 +59,7 @@ export function AppShell({ user, notice, onLogout, children }: {
         </Stack>
       </Box>
       <Box component="nav" aria-label="Main navigation" sx={{
-        display: { xs: keyboardOpen ? 'none' : 'flex', sm: 'flex' },
+        display: { xs: keyboardOpen || focusedEditor ? 'none' : 'flex', sm: 'flex' },
         position: { xs: 'fixed', sm: 'static' }, bottom: 0, left: 0, right: 0, zIndex: 2,
         justifyContent: 'center', bgcolor: 'background.paper', px: 1,
         pb: { xs: 'env(safe-area-inset-bottom, 0px)', sm: 0 },
@@ -76,7 +80,7 @@ export function AppShell({ user, notice, onLogout, children }: {
       </Box>
       <Box component="main" id="app-content" ref={content} tabIndex={-1} sx={{
         boxSizing: 'border-box', width: '100%', maxWidth: 1056, mx: 'auto', my: 0, px: 2, pt: 3,
-        pb: { xs: 'calc(104px + env(safe-area-inset-bottom, 0px))', sm: 4 },
+        pb: { xs: focusedEditor ? 'calc(32px + env(safe-area-inset-bottom, 0px))' : 'calc(104px + env(safe-area-inset-bottom, 0px))', sm: 4 },
         overflowWrap: 'anywhere', '&:focus': { outline: 'none' },
       }}>
         {notice && <Typography role="status" sx={{ mb: 2, color: notice.kind === 'error' ? 'error.main' : 'success.main' }}>{notice.message}</Typography>}

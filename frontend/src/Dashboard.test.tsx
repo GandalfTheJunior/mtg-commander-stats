@@ -1,8 +1,9 @@
 import { StrictMode } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { BrowserRouter } from 'react-router'
+import { AppRouter as BrowserRouter } from './AppRouter'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App'
+import { openDeckAction } from './test/editorEntry'
 import type { CurrentUser, Deck, GroupSummary } from './api'
 import { AppThemeProvider } from './theme/AppThemeProvider'
 import { deferred, group, response, uid } from './test/gameFixtures'
@@ -159,37 +160,38 @@ test.each([false, true])('group card validates a fresh list, opens its existing 
   expect(api.fetchMock.mock.calls.some(([path]) => path.endsWith('/join-code'))).toBe(false)
 })
 
-test.each([false, true])('deck card opens the exact inline edit form including archived decks (%s)', async archived => {
+test.each([false, true])('deck card opens the exact routed edit form including archived decks (%s)', async archived => {
   const api = setup(); api.state.decks = [{ ...deck, archived, everUsed: archived }, { ...deck, id: uid(102), name: 'Other deck' }]
   show(); await loaded()
   fireEvent.click(screen.getByRole('button', { name: deck.name }))
-  const form = await screen.findByRole('form', { name: `Edit ${deck.name}` })
-  expect(window.location.pathname).toBe('/decks')
-  expect(window.history.state.usr).toBeNull()
-  expect(within(form).getByLabelText('Deck name')).toHaveValue(deck.name)
-  expect(within(form).getByLabelText('Commander')).toHaveProperty('readOnly', archived)
-  expect(screen.queryByRole('form', { name: 'Edit Other deck' })).not.toBeInTheDocument()
-  expect(within(form).getByRole('heading')).toHaveFocus()
+  const form = await screen.findByRole('form', { name: `Deck ${deck.name} bearbeiten` })
+  expect(window.location.pathname).toBe(`/decks/${deck.id}/edit`)
+  expect(window.history.state.usr).toEqual({ editorToken: expect.any(String) })
+  expect(within(form).getByLabelText(/Deckname/)).toHaveValue(deck.name)
+  expect(within(form).getByLabelText(/Commander/)).toHaveProperty('readOnly', archived)
+  expect(screen.queryByRole('form', { name: 'Deck Other deck bearbeiten' })).not.toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Deck bearbeiten' })).toHaveFocus()
   expect(api.fetchMock.mock.calls.filter(([path]) => path === '/api/decks')).toHaveLength(2)
 })
 
-test('create CTA focuses the existing Add a deck form after loading even with many decks', async () => {
+test('create CTA focuses the dedicated editor heading after loading even with many decks', async () => {
   const api = setup(); api.state.decks = Array.from({ length: 25 }, (_, index) => ({ ...deck, id: uid(100 + index), name: `Deck ${index}` }))
   show(); await screen.findByRole('list', { name: 'Deine Decks' })
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
-  const form = await screen.findByRole('form', { name: 'Add a deck' })
-  expect(within(form).getByLabelText('Deck name')).toHaveFocus()
-  expect(screen.queryByRole('form', { name: /^Edit / })).not.toBeInTheDocument()
+  const form = await screen.findByRole('form', { name: 'Deck erstellen' })
+  expect(screen.getByRole('heading', { name: 'Deck erstellen' })).toHaveFocus()
+  expect(within(form).getByLabelText(/Deckname/)).toHaveValue('')
+  expect(screen.queryByRole('form', { name: /^Deck .* bearbeiten$/ })).not.toBeInTheDocument()
 })
 
-test.each(['groups', 'decks'] as const)('removed/revoked/other-account %s target never opens or requests unverified details', async section => {
+test('removed/revoked/other-account group target never opens or requests unverified details', async () => {
   const api = setup(); show(); await loaded()
-  api.state[section] = []
-  fireEvent.click(screen.getByRole('button', { name: section === 'groups' ? group.name : deck.name }))
+  api.state.groups = []
+  fireEvent.click(screen.getByRole('button', { name: group.name }))
   await screen.findByText(unavailableEntry)
-  expect(window.location.pathname).toBe(section === 'groups' ? '/playgroups' : '/decks')
+  expect(window.location.pathname).toBe('/playgroups')
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('form', { name: /^Edit / })).not.toBeInTheDocument()
+  expect(screen.queryByRole('form', { name: /^Deck .* bearbeiten$/ })).not.toBeInTheDocument()
   expect(api.fetchMock.mock.calls.some(([path]) => path.startsWith('/api/groups/'))).toBe(false)
   expect(window.history.state.usr).toBeNull()
 })
@@ -201,32 +203,32 @@ test.each([{}, 'bad', { dashboardToken: 'replayed' }, { kind: 'group', id: group
   expect(window.history.state.usr).toBeNull()
 })
 
-test.each(['groups', 'decks'] as const)('direct %s URL, Back/Forward and reload do not reopen a consumed target', async section => {
+test('direct group URL, Back/Forward and reload do not reopen a consumed target', async () => {
   setup(); const view = show(); await loaded()
-  fireEvent.click(screen.getByRole('button', { name: section === 'groups' ? group.name : deck.name }))
-  await screen.findByRole(section === 'groups' ? 'region' : 'form', { name: section === 'groups' ? 'Group details' : `Edit ${deck.name}` })
+  fireEvent.click(screen.getByRole('button', { name: group.name }))
+  await screen.findByRole('region', { name: 'Group details' })
   await act(async () => window.history.back()); await loaded()
   await act(async () => window.history.forward())
-  await screen.findByRole('heading', { name: section === 'groups' ? 'My groups' : 'My decks' })
-  await screen.findByText(section === 'groups' ? 'Create a group' : 'Add a deck')
+  await screen.findByRole('heading', { name: 'My groups' })
+  await screen.findByText('Create a group')
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('form', { name: /^Edit / })).not.toBeInTheDocument()
+  expect(screen.queryByRole('form', { name: /^Deck .* bearbeiten$/ })).not.toBeInTheDocument()
   view.unmount(); show(window.location.pathname, window.history.state.usr)
-  await screen.findByText(section === 'groups' ? 'Create a group' : 'Add a deck')
+  await screen.findByText('Create a group')
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('form', { name: /^Edit / })).not.toBeInTheDocument()
+  expect(screen.queryByRole('form', { name: /^Deck .* bearbeiten$/ })).not.toBeInTheDocument()
 })
 
-test('leaving before destination loading completes discards its pending target', async () => {
+test('leaving before editor loading retires that request; Back resolves the stable target afresh', async () => {
   const api = setup(), pending = deferred(); show(); await loaded()
   api.next('/api/decks', () => pending.promise)
   fireEvent.click(screen.getByRole('button', { name: deck.name }))
-  await screen.findByText('Loading your decks…')
+  await screen.findByText('Deck wird geladen…')
   await goTo('Playgroups'); await screen.findByText('Create a group')
   await act(async () => window.history.back())
-  await screen.findByText('Add a deck')
+  await screen.findByRole('form', { name: `Deck ${deck.name} bearbeiten` })
   await act(async () => pending.resolve(response([deck])))
-  expect(screen.queryByRole('form', { name: /^Edit / })).not.toBeInTheDocument()
+  expect(screen.getByRole('textbox', { name: /Deckname/ })).toHaveValue(deck.name)
 })
 
 test.each(['groups', 'decks'] as const)('a current Dashboard %s 401 expires the session', async section => {
@@ -288,19 +290,18 @@ test.each(['create', 'rename', 'archive', 'delete'])('Dashboard reloads all deck
   if (operation === 'archive') api.state.decks = [{ ...deck, everUsed: true }]
   show(); await loaded()
   fireEvent.click(screen.getByRole('button', { name: operation === 'create' ? 'Deck erstellen' : deck.name }))
-  const form = await screen.findByRole('form', { name: operation === 'create' ? 'Add a deck' : `Edit ${deck.name}` })
+  const form = await screen.findByRole('form', { name: operation === 'create' ? 'Deck erstellen' : `Deck ${deck.name} bearbeiten` })
   if (operation === 'create' || operation === 'rename') {
-    fireEvent.change(within(form).getByLabelText('Deck name'), { target: { value: 'New deck' } })
-    if (operation === 'create') fireEvent.change(within(form).getByLabelText('Commander'), { target: { value: 'Karn' } })
+    fireEvent.change(within(form).getByLabelText(/Deckname/), { target: { value: 'New deck' } })
+    if (operation === 'create') fireEvent.change(within(form).getByLabelText(/Commander/), { target: { value: 'Karn' } })
     fireEvent.submit(form)
-    await screen.findByText(`New deck ${operation === 'create' ? 'created' : 'updated'}.`)
+    await screen.findByText(`New deck wurde ${operation === 'create' ? 'erstellt' : 'gespeichert'}.`)
   } else {
-    fireEvent.click(within(form).getByRole('button', { name: 'Cancel' }))
-    fireEvent.click(screen.getByRole('button', { name: operation === 'archive' ? 'Archive' : 'Delete' }))
-    fireEvent.click(screen.getByRole('button', { name: operation === 'archive' ? 'Confirm archival' : 'Confirm deletion' }))
-    await screen.findByText(`Alpha ${operation === 'archive' ? 'archived' : 'deleted'}.`)
+    await openDeckAction(operation === 'archive' ? 'Archivieren' : 'Löschen')
+    fireEvent.click(screen.getByRole('button', { name: operation === 'archive' ? 'Archivieren bestätigen' : 'Löschen bestätigen' }))
+    await screen.findByText(`Alpha wurde ${operation === 'archive' ? 'archiviert' : 'gelöscht'}.`)
   }
-  await goTo('Dashboard')
+  await screen.findByRole('heading', { name: 'Dashboard' })
   if (operation === 'delete') await screen.findByText(/Noch keine Decks/)
   else {
     const card = await screen.findByRole('button', { name: operation === 'archive' ? deck.name : 'New deck' })
@@ -308,28 +309,28 @@ test.each(['create', 'rename', 'archive', 'delete'])('Dashboard reloads all deck
   }
 })
 
-test('reload while a destination is loading cannot recover the in-memory target', async () => {
+test('reload while an editor loads resolves the stable target from a fresh list', async () => {
   const api = setup(), pending = deferred(); const view = show(); await loaded()
   api.next('/api/decks', () => pending.promise)
   fireEvent.click(screen.getByRole('button', { name: deck.name }))
-  await screen.findByText('Loading your decks…')
+  await screen.findByText('Deck wird geladen…')
   const path = window.location.pathname, state = window.history.state.usr
   view.unmount(); show(path, state)
-  await screen.findByText('Add a deck')
-  expect(screen.queryByRole('form', { name: /^Edit / })).not.toBeInTheDocument()
+  await screen.findByRole('form', { name: `Deck ${deck.name} bearbeiten` })
+  expect(screen.getByRole('textbox', { name: /Deckname/ })).toHaveValue(deck.name)
   await act(async () => pending.resolve(response([deck])))
 })
 
-test.each(['groups', 'decks'] as const)('a failed destination %s list consumes the target before retry', async section => {
+test('a failed destination group list consumes the target before retry', async () => {
   const api = setup(); show(); await loaded()
-  api.next(`/api/${section}`, () => response({}, 503))
-  fireEvent.click(screen.getByRole('button', { name: section === 'groups' ? group.name : deck.name }))
-  await screen.findByText(section === 'groups' ? /Your group list is unavailable/ : /Your deck list is unavailable/)
+  api.next('/api/groups', () => response({}, 503))
+  fireEvent.click(screen.getByRole('button', { name: group.name }))
+  await screen.findByText(/Your group list is unavailable/)
   expect(window.history.state.usr).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: section === 'groups' ? 'Refresh groups' : 'Refresh decks' }))
-  await screen.findByText(section === 'groups' ? 'Create a group' : 'Add a deck')
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh groups' }))
+  await screen.findByText('Create a group')
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('form', { name: /^Edit / })).not.toBeInTheDocument()
+  expect(screen.queryByRole('form', { name: /^Deck .* bearbeiten$/ })).not.toBeInTheDocument()
 })
 
 test.each([401, 200])('logout recovery (%s) rejects late Dashboard failures and refreshes confirmed data', async status => {
@@ -380,12 +381,12 @@ test.each([owner, { id: uid(4), username: 'Fourth' }])('pending deck entry is re
   const api = setup(), pending = deferred(); show(); await loaded()
   api.next('/api/decks', () => pending.promise)
   fireEvent.click(screen.getByRole('button', { name: deck.name }))
-  await screen.findByText('Loading your decks…')
+  await screen.findByText('Deck wird geladen…')
   api.state.loginUser = loginUser
   fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
   await screen.findByText('Logged out.'); await signIn(); await loaded()
-  await goTo('Decks'); await screen.findByText('Add a deck')
+  await goTo('Decks'); await screen.findByRole('heading', { name: 'Meine Decks' })
   await act(async () => pending.resolve(response([deck])))
-  expect(screen.queryByRole('form', { name: /^Edit / })).not.toBeInTheDocument()
+  expect(screen.queryByRole('form', { name: /^Deck .* bearbeiten$/ })).not.toBeInTheDocument()
   expect(screen.getByText(/Signed in as/)).toHaveTextContent(loginUser.username)
 })

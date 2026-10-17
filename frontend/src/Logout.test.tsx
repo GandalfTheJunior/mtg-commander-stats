@@ -1,3 +1,4 @@
+import { openNewDeck } from './test/editorEntry'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App'
@@ -65,7 +66,7 @@ async function signIn() {
 }
 
 function expectProtectedDataHidden() {
-  expect(screen.queryByRole('heading', { name: 'My decks' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Meine Decks' })).not.toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'My groups' })).not.toBeInTheDocument()
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
   expect(screen.queryByDisplayValue(code)).not.toBeInTheDocument()
@@ -183,9 +184,9 @@ for (const logoutFails of [false, true]) {
       await screen.findByRole('button', { name: 'Log out' })
       if (resource === 'deck mutation') {
         await screen.findByText(deck.name)
-        fireEvent.change(screen.getByLabelText('Deck name'), { target: { value: deck.name } })
-        fireEvent.change(screen.getByLabelText('Commander'), { target: { value: deck.commander } })
-        fireEvent.click(screen.getByRole('button', { name: 'Create deck' }))
+        fireEvent.change(await openNewDeck(), { target: { value: deck.name } })
+        fireEvent.change(screen.getByLabelText(/Commander/), { target: { value: deck.commander } })
+        fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
       }
       if (resource === 'group mutation') {
         await screen.findByRole('button', { name: 'Create group' })
@@ -209,7 +210,7 @@ for (const logoutFails of [false, true]) {
         await signIn()
       }
       await goTo('Decks')
-      await screen.findByText('You have no decks yet.')
+      await screen.findByText('Noch keine Decks.')
       await goTo('Playgroups')
       await screen.findByText('You have no groups yet.')
       await act(async () => {
@@ -221,7 +222,7 @@ for (const logoutFails of [false, true]) {
       })
       expect(screen.getByText(user.username)).toBeInTheDocument()
       await goTo('Decks')
-      expect(await screen.findByRole('button', { name: 'Create deck' })).toBeEnabled()
+      expect(await screen.findByRole('button', { name: 'Deck erstellen' })).toBeEnabled()
       await goTo('Playgroups')
       await screen.findByRole('button', { name: 'Create group' })
       expect(screen.getByRole('button', { name: 'Create group' })).toBeEnabled()

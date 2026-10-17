@@ -9,6 +9,8 @@ import {
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { AppShell } from './AppShell'
 import DeckManager from './DeckManager'
+import DeckEditor, { type DeckOverview } from './DeckEditor'
+import { EditorNavigation } from './EditorNavigation'
 import GroupManager from './GroupManager'
 import Dashboard from './Dashboard'
 import type { DashboardEntry, DashboardIntent } from './dashboardNavigation'
@@ -16,6 +18,7 @@ import type { DashboardEntry, DashboardIntent } from './dashboardNavigation'
 export type Notice = { kind: 'success' | 'error'; message: string } | null
 type SessionStatus = 'checking' | 'signed-out' | 'authenticated' | 'unverified' | 'logging-out'
 const topLevelPaths = ['/dashboard', '/playgroups', '/decks']
+const isSupportedPath = (path: string) => topLevelPaths.includes(path) || path === '/decks/new' || /^\/decks\/[^/]+\/edit$/.test(path)
 
 function messageFrom(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
@@ -25,7 +28,11 @@ export default function App() {
   const location = useLocation()
   const navigate = useNavigate()
   // Session transitions retire protected state even when the user UUID is unchanged.
-  const dashboardNavigation = useRef<{ token: string; version: number; intent: DashboardIntent } | null>(null)
+  const dashboardNavigation = useRef<{ token: string; version: number; intent: Extract<DashboardIntent, { kind: 'group' }> } | null>(null)
+  const editorOrigin = useRef<{ token: string; version: number; path: string; overview: DeckOverview } | null>(null)
+  useEffect(() => {
+    if (editorOrigin.current?.path !== location.pathname) editorOrigin.current = null
+  }, [location.pathname])
   const sessionVersionRef = useRef(0)
   const [sessionVersion, setSessionVersion] = useState(0)
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
@@ -91,7 +98,7 @@ export default function App() {
     event.preventDefault()
     if (loggingIn || sessionStatus === 'checking' || sessionStatus === 'logging-out') return
     let version = sessionVersionRef.current
-    const destination = topLevelPaths.includes(location.pathname)
+    const destination = isSupportedPath(location.pathname)
       ? location.pathname : '/dashboard'
     const submittedForm = event.currentTarget
     setLoggingIn(true)
@@ -106,6 +113,7 @@ export default function App() {
         () => {
           if (version !== sessionVersionRef.current) return
           dashboardNavigation.current = null
+          editorOrigin.current = null
           version = ++sessionVersionRef.current
           setSessionVersion(version)
           setCurrentUser(null)
@@ -134,6 +142,7 @@ export default function App() {
     if (sessionStatus !== 'authenticated') return
     // Retire old requests immediately, including while DELETE or its recovery GET is pending.
     dashboardNavigation.current = null
+    editorOrigin.current = null
     const version = ++sessionVersionRef.current
     setSessionVersion(version)
     setSessionStatus('logging-out')
@@ -174,6 +183,7 @@ export default function App() {
   async function checkSession() {
     if (loggingIn || sessionStatus !== 'unverified') return
     dashboardNavigation.current = null
+    editorOrigin.current = null
     const version = ++sessionVersionRef.current
     setSessionVersion(version)
     setSessionStatus('checking')
@@ -195,6 +205,7 @@ export default function App() {
     // Check synchronously: an old response can arrive before effect cleanup.
     if (sessionVersion !== sessionVersionRef.current) return
     dashboardNavigation.current = null
+    editorOrigin.current = null
     setSessionVersion(++sessionVersionRef.current)
     setCurrentUser(null)
     setSessionStatus('signed-out')
@@ -205,44 +216,70 @@ export default function App() {
     if (location.state == null) return undefined
     const pending = dashboardNavigation.current
     dashboardNavigation.current = null
+    editorOrigin.current = null
     void navigate(location.pathname, { replace: true, state: null })
     if (!pending || pending.version !== sessionVersionRef.current ||
       typeof location.state !== 'object' || location.state.dashboardToken !== pending.token ||
-      (location.pathname === '/playgroups' ? pending.intent.kind !== 'group' : pending.intent.kind === 'group')) {
+      location.pathname !== '/playgroups') {
       return { kind: 'invalid' }
     }
     return pending.intent
   }
 
+  function openEditor(overview: DeckOverview, id?: string) {
+    const path = id ? `/decks/${encodeURIComponent(id)}/edit` : '/decks/new'
+    const token = crypto.randomUUID()
+    editorOrigin.current = { token, version: sessionVersion, path, overview }
+    dashboardNavigation.current = null
+    setSessionNotice(null)
+    void navigate(path, { state: { editorToken: token } })
+  }
+  const editorToken: unknown = location.state?.editorToken
+  const getReturnTo = useCallback((): DeckOverview => {
+    const pending = editorOrigin.current
+    return pending && pending.version === sessionVersion && pending.path === location.pathname &&
+      editorToken === pending.token ? pending.overview : '/decks'
+  }, [sessionVersion, location.pathname, editorToken])
+  const editor = <DeckEditor key={`editor-${sessionVersion}-${location.pathname}`} onUnauthorized={sessionExpired} getReturnTo={getReturnTo} onLogout={logOut}
+    onFinished={(message, destination) => {
+      if (sessionVersion !== sessionVersionRef.current) return
+      editorOrigin.current = null
+      setSessionNotice({ kind: 'success', message })
+      void navigate(destination, { replace: true, state: null })
+    }} />
+
   if (sessionStatus === 'authenticated' && currentUser) {
     return (
-      <AppShell user={currentUser} notice={sessionNotice} onLogout={logOut}>
-        {topLevelPaths.includes(location.pathname) ? <Routes>
-          <Route path="/dashboard" element={
-            <Dashboard key={`dashboard-${sessionVersion}`} onUnauthorized={sessionExpired} onOpen={(intent) => {
-              const token = crypto.randomUUID()
-              dashboardNavigation.current = { token, version: sessionVersion, intent }
-              void navigate(intent.kind === 'group' ? '/playgroups' : '/decks', { state: { dashboardToken: token } })
-            }} />
-          } />
-          <Route path="/decks" element={
-            <div className="legacy-view">
-              <DeckManager key={`decks-${sessionVersion}`} onUnauthorized={sessionExpired} takeDashboardEntry={takeDashboardEntry} />
-            </div>
-          } />
-          <Route path="/playgroups" element={
-            <div className="legacy-view">
-              <GroupManager key={`groups-${sessionVersion}`} onUnauthorized={sessionExpired} currentUser={currentUser} takeDashboardEntry={takeDashboardEntry} />
-            </div>
-          } />
-        </Routes> : <Navigate to="/dashboard" replace />}
-      </AppShell>
+      <EditorNavigation key={`navigation-${sessionVersion}`} onLogout={logOut}>
+        <AppShell user={currentUser} notice={sessionNotice} onLogout={logOut}>
+          {isSupportedPath(location.pathname) ? <Routes>
+            <Route path="/dashboard" element={
+              <Dashboard key={`dashboard-${sessionVersion}`} onUnauthorized={sessionExpired} onOpen={(intent) => {
+                if (intent.kind !== 'group') { openEditor('/dashboard', intent.kind === 'deck' ? intent.id : undefined); return }
+                const token = crypto.randomUUID()
+                dashboardNavigation.current = { token, version: sessionVersion, intent }
+                void navigate('/playgroups', { state: { dashboardToken: token } })
+              }} />
+            } />
+            <Route path="/decks" element={
+              <DeckManager key={`decks-${sessionVersion}`} onUnauthorized={sessionExpired} onOpen={id => openEditor('/decks', id)} />
+            } />
+            <Route path="/decks/new" element={editor} />
+            <Route path="/decks/:deckId/edit" element={editor} />
+            <Route path="/playgroups" element={
+              <div className="legacy-view">
+                <GroupManager key={`groups-${sessionVersion}`} onUnauthorized={sessionExpired} currentUser={currentUser} takeDashboardEntry={takeDashboardEntry} />
+              </div>
+            } />
+          </Routes> : <Navigate to="/dashboard" replace />}
+        </AppShell>
+      </EditorNavigation>
     )
   }
 
   return (
     <main>
-      {location.pathname !== '/' && !topLevelPaths.includes(location.pathname) && <Navigate to="/" replace />}
+      {location.pathname !== '/' && !isSupportedPath(location.pathname) && <Navigate to="/" replace />}
       <header>
         <p className="eyebrow">Commander game tracker</p>
         <h1>MTG Commander Stats</h1>

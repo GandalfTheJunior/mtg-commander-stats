@@ -1,328 +1,49 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
-import {
-  ApiError,
-  archiveDeck,
-  createDeck,
-  deleteDeck,
-  listDecks,
-  magicColors,
-  updateDeck,
-  type Deck,
-  type DeckInput,
-  type MagicColor,
-} from './api'
+import { useEffect, useState } from 'react'
+import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
+import Card from '@mui/material/Card'
+import Stack from '@mui/material/Stack'
+import Typography from '@mui/material/Typography'
+import { ApiError, listDecks, type Deck } from './api'
+import { colorNames } from './deckColors'
 
-import { unavailableEntry, type DashboardEntry, type DashboardEntryProps } from './dashboardNavigation'
-
-type Notice = { kind: 'success' | 'error'; message: string } | null
-type LoadStatus = 'loading' | 'loaded' | 'error'
-
-function messageFrom(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback
-}
-
-function deckInput(form: HTMLFormElement): DeckInput {
-  const data = new FormData(form)
-  return {
-    name: String(data.get('name')),
-    commander: String(data.get('commander')),
-    colorIdentity: data.getAll('colorIdentity').map(String) as MagicColor[],
-  }
-}
-
-function ColorIdentityFields({ selected = [], disabled = false }: { selected?: MagicColor[]; disabled?: boolean }) {
-  return (
-    <fieldset disabled={disabled}>
-      <legend>Color identity</legend>
-      <p>Select none for a colorless deck.</p>
-      <div className="colors">
-        {magicColors.map((color) => (
-          <label key={color}>
-            <input
-              defaultChecked={selected.includes(color)}
-              name="colorIdentity"
-              type="checkbox"
-              value={color}
-            />
-            {color}
-          </label>
-        ))}
-      </div>
-    </fieldset>
-  )
-}
-
-function DeckFields({ deck }: { deck?: Deck }) {
-  return (
-    <>
-      <label>
-        Deck name
-        <input defaultValue={deck?.name} name="name" required />
-      </label>
-      <label>
-        Commander
-        <input defaultValue={deck?.commander} name="commander" required readOnly={deck?.everUsed} />
-      </label>
-      <ColorIdentityFields selected={deck?.colorIdentity} disabled={deck?.everUsed} />
-      {deck?.everUsed && <p>Used in a recorded game: commander and colors are permanently locked. You can still rename this deck.</p>}
-    </>
-  )
-}
-
-export default function DeckManager({ onUnauthorized, onChanged, takeDashboardEntry }: { onUnauthorized: () => void; onChanged?: () => void } & DashboardEntryProps) {
-  const entryRequest = useRef(takeDashboardEntry)
-  const pendingEntry = useRef<DashboardEntry | undefined>(undefined)
-  useEffect(() => {
-    // Consume history state immediately, retaining the payload only for this mount.
-    // StrictMode's repeated setup must not take/clear the same intent twice.
-    pendingEntry.current = entryRequest.current?.() ?? pendingEntry.current
-    entryRequest.current = undefined
-  }, [])
-  const entryFocus = useRef<'create' | 'edit' | null>(null)
-  const editHeading = useRef<HTMLHeadingElement>(null)
-  const createForm = useRef<HTMLFormElement>(null)
-  const active = useRef(false)
-  const request = useRef<AbortController | null>(null)
-  const deleting = useRef(false)
-  const deleteTrigger = useRef<HTMLButtonElement | null>(null)
-  const deletionConfirmation = useRef<HTMLDivElement | null>(null)
-  const noticeElement = useRef<HTMLParagraphElement | null>(null)
-  useEffect(() => {
-    active.current = true
-    request.current = new AbortController()
-    return () => { active.current = false; request.current?.abort() }
-  }, [])
-
+export default function DeckManager({ onUnauthorized, onOpen }: {
+  onUnauthorized: () => void; onOpen: (id?: string) => void
+}) {
+  const [state, setState] = useState<{ status: 'loading' | 'loaded' | 'error'; decks: Deck[] }>({ status: 'loading', decks: [] })
   const [revision, setRevision] = useState(0)
-  const [decks, setDecks] = useState<Deck[]>([])
-  const [loadStatus, setLoadStatus] = useState<LoadStatus>('loading')
-  const [busy, setBusy] = useState(false)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [notice, setNotice] = useState<Notice>(null)
-
-  useLayoutEffect(() => {
-    if (deletingId !== null) {
-      // The named group stays focusable while its action buttons are disabled.
-      deletionConfirmation.current?.focus()
-    } else if (deleteTrigger.current) {
-      // Restore focus in the commit that enables the trigger or mounts feedback.
-      // Keep the request until that target exists; async state updates can commit separately.
-      const target = deleteTrigger.current.isConnected ? deleteTrigger.current : noticeElement.current
-      if (!target?.isConnected || (target instanceof HTMLButtonElement && target.disabled)) return
-      target.focus()
-      deleteTrigger.current = null
-    }
-  }, [deletingId, busy, notice])
-
-  useLayoutEffect(() => {
-    const target = entryFocus.current === 'create' ? createForm.current?.querySelector('input')
-      : entryFocus.current === 'edit' ? editHeading.current : null
-    if (target) {
-      entryFocus.current = null
-      target.focus()
-      target.scrollIntoView?.({ block: 'center' })
-    }
-  }, [editingId, loadStatus])
-
-  const handleError = useCallback((error: unknown, fallback: string) => {
-    if (!active.current) return
-    if (error instanceof ApiError && error.status === 401) {
-      onUnauthorized()
-      return
-    }
-    setNotice({ kind: 'error', message: messageFrom(error, fallback) })
-  }, [onUnauthorized])
-
   useEffect(() => {
     let active = true
     const controller = new AbortController()
-    listDecks(controller.signal)
-      .then((loadedDecks) => {
-        if (active) {
-          setDecks(loadedDecks)
-          setLoadStatus('loaded')
-          const entry = pendingEntry.current
-          pendingEntry.current = undefined
-          if (entry?.kind === 'create-deck') entryFocus.current = 'create'
-          else if (entry?.kind === 'deck' && loadedDecks.some(deck => deck.id === entry.id)) {
-            entryFocus.current = 'edit'
-            setEditingId(entry.id)
-          } else if (entry) setNotice({ kind: 'error', message: unavailableEntry })
-        }
-      })
-      .catch((error: unknown) => {
-        if (active) {
-          pendingEntry.current = undefined
-          setLoadStatus('error')
-          handleError(error, 'Could not load your decks.')
-        }
-      })
-    return () => {
-      active = false
-      controller.abort()
-    }
-  }, [handleError, revision])
-
-  async function submitCreate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (loadStatus !== 'loaded' || busy || deleting.current) return
-    deleting.current = true
-    const form = event.currentTarget
-    setBusy(true)
-    setNotice(null)
-    try {
-      const created = await createDeck(deckInput(form), request.current!.signal)
-      if (!active.current) return
-      setDecks((current) => [...current, created])
-      setNotice({ kind: 'success', message: `${created.name} created.` })
-      form.reset()
-      onChanged?.()
-    } catch (error) {
-      handleError(error, 'Could not create the deck.')
-    } finally {
-      deleting.current = false
-      if (active.current) setBusy(false)
-    }
-  }
-
-  async function submitEdit(event: FormEvent<HTMLFormElement>, id: string) {
-    event.preventDefault()
-    if (loadStatus !== 'loaded' || busy || deleting.current) return
-    deleting.current = true
-    setBusy(true)
-    setNotice(null)
-    try {
-      const deck = decks.find((candidate) => candidate.id === id)!
-      const input = deckInput(event.currentTarget)
-      const updated = await updateDeck(id, deck.everUsed
-        ? { ...input, commander: deck.commander, colorIdentity: deck.colorIdentity } : input, request.current!.signal)
-      if (!active.current) return
-      setDecks((current) => current.map((deck) => (deck.id === id ? updated : deck)))
-      setEditingId(null)
-      setNotice({ kind: 'success', message: `${updated.name} updated.` })
-      onChanged?.()
-    } catch (error) {
-      handleError(error, 'Could not update the deck.')
-    } finally {
-      deleting.current = false
-      if (active.current) setBusy(false)
-    }
-  }
-
-  async function removeDeck(deck: Deck) {
-    if (loadStatus !== 'loaded' || deleting.current) return
-    deleting.current = true
-    setBusy(true)
-    setNotice(null)
-    try {
-      let archived: Deck | null = null
-      if (deck.everUsed) archived = await archiveDeck(deck.id, request.current!.signal)
-      else await deleteDeck(deck.id, request.current!.signal)
-      if (!active.current) return
-      setDecks((current) => archived ? current.map((candidate) => candidate.id === deck.id ? archived : candidate)
-        : current.filter((candidate) => candidate.id !== deck.id))
-      setDeletingId(null)
-      onChanged?.()
-      setNotice({ kind: 'success', message: `${deck.name} ${deck.everUsed ? 'archived' : 'deleted'}.` })
-    } catch (error) {
-      handleError(error, 'Could not delete the deck. Try again or cancel.')
-    } finally {
-      deleting.current = false
-      if (active.current) setBusy(false)
-    }
-  }
-
-  return (
-    <section className="decks">
-      <h2>My decks</h2>
-      <button type="button" className="secondary" disabled={busy || loadStatus === 'loading'} onClick={() => {
-        setDecks([]); setEditingId(null); setDeletingId(null); setNotice(null); setLoadStatus('loading')
-        setRevision((value) => value + 1)
-      }}>Refresh decks</button>
-      {loadStatus === 'loading' ? (
-        <p>Loading your decks…</p>
-      ) : loadStatus === 'error' ? (
-        <p>Your deck list is unavailable. Reload the page to try again.</p>
-      ) : decks.length === 0 ? (
-        <p>You have no decks yet.</p>
-      ) : (
-        <ul className="deck-list">
-          {decks.map((deck) => (
-            <li key={deck.id}>
-              {editingId === deck.id ? (
-                <form aria-label={`Edit ${deck.name}`} onSubmit={(event) => submitEdit(event, deck.id)}>
-                  <h3 ref={editHeading} tabIndex={-1}>Edit {deck.name}</h3>
-                  <DeckFields deck={deck} />
-                  <div className="actions">
-                    <button disabled={busy} type="submit">Save deck</button>
-                    <button
-                      className="secondary"
-                      disabled={busy}
-                      onClick={() => setEditingId(null)}
-                      type="button"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <>
-                  <h3>{deck.name}</h3>
-                  <p>{deck.archived ? 'Archived — unavailable for new games' : deck.everUsed ? 'Used — commander and colors locked' : 'Unused'}</p>
-                  <p>Commander: {deck.commander}</p>
-                  <p>Color identity: {deck.colorIdentity.join('') || 'Colorless'}</p>
-                  <div className="actions">
-                    <button disabled={busy || deletingId !== null} onClick={() => setEditingId(deck.id)} type="button">
-                      Edit
-                    </button>
-                    {!(deck.everUsed && deck.archived) && <button
-                      className="danger"
-                      disabled={busy || deletingId !== null}
-                      onClick={(event) => {
-                        deleteTrigger.current = event.currentTarget
-                        setNotice(null)
-                        setDeletingId(deck.id)
-                      }}
-                      type="button"
-                    >
-                      {deck.everUsed ? 'Archive' : 'Delete'}
-                    </button>}
-                  </div>
-                  {deletingId === deck.id && (
-                    <div ref={deletionConfirmation} role="group" aria-label={`${deck.everUsed ? 'Archive' : 'Delete'} ${deck.name}?`} tabIndex={-1}>
-                      <p>{deck.everUsed ? `Archive ${deck.name}? It will remain in history and cannot be selected for new games. Archival cannot be undone.` : `Permanently delete ${deck.name}? This cannot be undone.`}</p>
-                      <button className="danger" disabled={busy} type="button" onClick={() => removeDeck(deck)}>
-                        {busy ? (deck.everUsed ? 'Archiving…' : 'Deleting…') : deck.everUsed ? 'Confirm archival' : 'Confirm deletion'}
-                      </button>
-                      <button disabled={busy} type="button" onClick={() => { setDeletingId(null); setNotice(null) }}>
-                        {deck.everUsed ? 'Cancel archival' : 'Cancel deletion'}
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {loadStatus === 'loaded' && (
-        <>
-          <h3>Add a deck</h3>
-          <form ref={createForm} aria-label="Add a deck" onSubmit={submitCreate}>
-            <DeckFields />
-            <button disabled={busy || deletingId !== null} type="submit">
-              {busy ? 'Saving…' : 'Create deck'}
-            </button>
-          </form>
-        </>
-      )}
-      {notice && (
-        <p ref={noticeElement} className={notice.kind} role="status" tabIndex={-1}>
-          {notice.message}
-        </p>
-      )}
-    </section>
-  )
+    listDecks(controller.signal).then(decks => {
+      if (active) setState({ status: 'loaded', decks })
+    }).catch((error: unknown) => {
+      if (!active) return
+      if (error instanceof ApiError && error.status === 401) onUnauthorized()
+      else setState({ status: 'error', decks: [] })
+    })
+    return () => { active = false; controller.abort() }
+  }, [onUnauthorized, revision])
+  return <Stack component="section" aria-labelledby="decks-heading" sx={{ gap: 2, minWidth: 0 }}>
+    <Typography component="h2" variant="h4" id="decks-heading">Meine Decks</Typography>
+    <Stack direction="row" useFlexGap sx={{ gap: 1, flexWrap: 'wrap' }}>
+      <Button variant="contained" onClick={() => onOpen()}>Deck erstellen</Button>
+      <Button color="secondary" disabled={state.status === 'loading'} onClick={() => {
+        setState({ status: 'loading', decks: [] }); setRevision(value => value + 1)
+      }}>Decks aktualisieren</Button>
+    </Stack>
+    {state.status === 'loading' && <Typography role="status">Decks werden geladen…</Typography>}
+    {state.status === 'error' && <Typography role="alert">Deine Deckliste ist nicht verfügbar. Bitte erneut aktualisieren.</Typography>}
+    {state.status === 'loaded' && (state.decks.length === 0 ? <Typography>Noch keine Decks.</Typography> :
+      <Stack component="ul" sx={{ p: 0, m: 0, listStyle: 'none', gap: 2 }}>
+        {state.decks.map(deck => <Card component="li" key={deck.id} sx={{ p: 2 }}>
+          <Typography component="h3" variant="h6">{deck.name}</Typography>
+          <Typography>Commander: {deck.commander}</Typography>
+          <Typography sx={{ color: 'text.secondary' }}>Farbidentität: {deck.colorIdentity.map(color => `${colorNames[color]} (${color})`).join(' · ') || 'Farblos'}</Typography>
+          <Typography sx={{ color: 'text.secondary' }}>{deck.archived ? 'Archiviert – für neue Spiele nicht verfügbar' : deck.everUsed ? 'Verwendet – Commander und Farben gesperrt' : 'Unbenutzt'}</Typography>
+          <Box sx={{ mt: 1 }}><Button color="secondary" onClick={() => onOpen(deck.id)} aria-label={`${deck.name} bearbeiten`}>Bearbeiten</Button></Box>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>Deck-ID: {deck.id}</Typography>
+        </Card>)}
+      </Stack>)}
+  </Stack>
 }

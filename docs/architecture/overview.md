@@ -212,7 +212,10 @@ A separate, nonbinding post-MVP concept is captured in
 
 The authenticated [browser shell and routing](../development/frontend-routing.md)
 mount `GroupManager` at `/playgroups` and `DeckManager` at `/decks`, one at a time.
-The managers retain their native in-view state and forms. GroupManager uses typed
+Group/game management retains native in-view state and forms. Deck creation and
+lifecycle actions use the dedicated MUI editor at `/decks/new` or
+`/decks/:deckId/edit`, with scoped drafts, origin-aware return and navigation
+protection described in the routing guide. GroupManager uses typed
 operations in `frontend/src/api.ts` against the
 [play groups API](../product/groups-api.md); unsafe operations reuse the existing
 same-origin cookies and fresh CSRF bootstrap. Group responses are validated

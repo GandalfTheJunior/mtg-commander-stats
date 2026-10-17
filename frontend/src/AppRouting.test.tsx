@@ -1,5 +1,6 @@
+import { openNewDeck } from './test/editorEntry'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { BrowserRouter } from 'react-router'
+import { AppRouter as BrowserRouter } from './AppRouter'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App'
 import { AppThemeProvider } from './theme/AppThemeProvider'
@@ -93,7 +94,7 @@ test.each([
 
 test.each([
   ['/', 'Dashboard'], ['/dashboard', 'Dashboard'], ['/decks', 'Decks'], ['/playgroups', 'Playgroups'],
-  ['/missing', 'Dashboard'], ['/decks/id/edit', 'Dashboard'], ['/playgroups/id/games', 'Dashboard'],
+  ['/missing', 'Dashboard'], ['/playgroups/id/games', 'Dashboard'],
 ] as const)('restores %s only after confirming the session, canonicalizing with replace', async (path, target) => {
   const api = setup(), checking = deferred()
   api.next('/api/me', () => checking.promise)
@@ -112,7 +113,7 @@ test('Back and Forward follow the URL and remount only the destination manager w
   await goTo('Decks'); await screen.findByText(deck.name)
   expect(screen.queryByRole('heading', { name: 'My groups' })).not.toBeInTheDocument()
   await goTo('Playgroups'); await screen.findByRole('button', { name: `${group.name} (OWNER)` })
-  expect(screen.queryByRole('heading', { name: 'My decks' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Meine Decks' })).not.toBeInTheDocument()
   api.state.decks = [{ ...deck, name: 'Refreshed deck' }]
   await act(async () => window.history.back())
   await destination('Decks'); await screen.findByText('Refreshed deck')
@@ -241,7 +242,7 @@ test.each([200, 401])('a retired deck list (%s) cannot overwrite the reopened ma
   const api = setup(), pending = deferred()
   api.next('/api/decks', () => pending.promise)
   show('/decks'); await destination('Decks')
-  await screen.findByText('Loading your decks…')
+  await screen.findByText('Decks werden geladen…')
   const signal = api.fetchMock.mock.calls.find(([url]) => url === '/api/decks')![1]!.signal!
   await goTo('Playgroups'); await destination('Playgroups')
   expect(signal.aborted).toBe(true)
@@ -258,16 +259,20 @@ test.each(['Decks', 'Playgroups'] as const)('leaving %s during CSRF preparation 
   show(`/${name.toLowerCase()}`); await destination(name)
   if (name === 'Decks') {
     await screen.findByText(deck.name)
-    fireEvent.change(screen.getByLabelText('Deck name'), { target: { value: 'Retired write' } })
-    fireEvent.change(screen.getByLabelText('Commander'), { target: { value: 'Karn' } })
+    fireEvent.change(await openNewDeck(), { target: { value: 'Retired write' } })
+    fireEvent.change(screen.getByLabelText(/Commander/), { target: { value: 'Karn' } })
   } else {
     await screen.findByRole('button', { name: 'Create group' })
     fireEvent.change(screen.getByLabelText('Group name'), { target: { value: 'Retired write' } })
   }
   api.next('/api/csrf', () => csrf.promise)
-  fireEvent.click(screen.getByRole('button', { name: name === 'Decks' ? 'Create deck' : 'Create group' }))
+  fireEvent.click(screen.getByRole('button', { name: name === 'Decks' ? 'Deck erstellen' : 'Create group' }))
   await waitFor(() => expect(api.fetchMock.mock.calls.some(([url]) => url === '/api/csrf')).toBe(true))
-  await goTo('Dashboard'); await destination('Dashboard')
+  await goTo('Dashboard')
+  if (name === 'Decks') {
+    fireEvent.click(await screen.findByRole('button', { name: 'Verwerfen und verlassen' }))
+  }
+  await destination('Dashboard')
   fireEvent.click(screen.getByRole('button', { name: 'Log out' })); await screen.findByText('Logged out.')
   api.state.loginUser = { id: uid(4), username: 'Fourth' }
   await signIn()
