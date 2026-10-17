@@ -24,7 +24,11 @@ new data cache, persisted navigation preferences or backend endpoint changes.
 
 Group IDs are UUIDs, never invitation codes. Details-response IDs compare UUID
 letter case insensitively; malformed or genuinely different IDs remain rejected.
-Invalid IDs and details GET 400/403/404 replace the destination with `/playgroups` and generic unavailability.
+Invalid **group** IDs and group-details GET 400/403/404 replace the destination
+with `/playgroups` and generic group-unavailable feedback. Invalid **game** IDs
+return to the canonical group Spiele URL. Game-details GET 403/404 first rechecks
+group access; the resulting recovery paths are specified in
+[Game history and Spieldetails](#game-history-and-spieldetails).
 Unsupported/repeated `tab` values normalize with replace to a supported canonical
 URL (unknown values select Spiele). Ordinary tab changes push history entries;
 Back/Forward select the URL's tab without remounting the group's game draft.
