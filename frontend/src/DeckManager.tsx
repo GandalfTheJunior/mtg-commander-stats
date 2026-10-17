@@ -12,6 +12,8 @@ import {
   type MagicColor,
 } from './api'
 
+import { unavailableEntry, type DashboardEntry, type DashboardEntryProps } from './dashboardNavigation'
+
 type Notice = { kind: 'success' | 'error'; message: string } | null
 type LoadStatus = 'loading' | 'loaded' | 'error'
 
@@ -67,7 +69,18 @@ function DeckFields({ deck }: { deck?: Deck }) {
   )
 }
 
-export default function DeckManager({ onUnauthorized, onChanged }: { onUnauthorized: () => void; onChanged?: () => void }) {
+export default function DeckManager({ onUnauthorized, onChanged, takeDashboardEntry }: { onUnauthorized: () => void; onChanged?: () => void } & DashboardEntryProps) {
+  const entryRequest = useRef(takeDashboardEntry)
+  const pendingEntry = useRef<DashboardEntry | undefined>(undefined)
+  useEffect(() => {
+    // Consume history state immediately, retaining the payload only for this mount.
+    // StrictMode's repeated setup must not take/clear the same intent twice.
+    pendingEntry.current = entryRequest.current?.() ?? pendingEntry.current
+    entryRequest.current = undefined
+  }, [])
+  const entryFocus = useRef<'create' | 'edit' | null>(null)
+  const editHeading = useRef<HTMLHeadingElement>(null)
+  const createForm = useRef<HTMLFormElement>(null)
   const active = useRef(false)
   const request = useRef<AbortController | null>(null)
   const deleting = useRef(false)
@@ -102,6 +115,16 @@ export default function DeckManager({ onUnauthorized, onChanged }: { onUnauthori
     }
   }, [deletingId, busy, notice])
 
+  useLayoutEffect(() => {
+    const target = entryFocus.current === 'create' ? createForm.current?.querySelector('input')
+      : entryFocus.current === 'edit' ? editHeading.current : null
+    if (target) {
+      entryFocus.current = null
+      target.focus()
+      target.scrollIntoView?.({ block: 'center' })
+    }
+  }, [editingId, loadStatus])
+
   const handleError = useCallback((error: unknown, fallback: string) => {
     if (!active.current) return
     if (error instanceof ApiError && error.status === 401) {
@@ -119,10 +142,18 @@ export default function DeckManager({ onUnauthorized, onChanged }: { onUnauthori
         if (active) {
           setDecks(loadedDecks)
           setLoadStatus('loaded')
+          const entry = pendingEntry.current
+          pendingEntry.current = undefined
+          if (entry?.kind === 'create-deck') entryFocus.current = 'create'
+          else if (entry?.kind === 'deck' && loadedDecks.some(deck => deck.id === entry.id)) {
+            entryFocus.current = 'edit'
+            setEditingId(entry.id)
+          } else if (entry) setNotice({ kind: 'error', message: unavailableEntry })
         }
       })
       .catch((error: unknown) => {
         if (active) {
+          pendingEntry.current = undefined
           setLoadStatus('error')
           handleError(error, 'Could not load your decks.')
         }
@@ -221,6 +252,7 @@ export default function DeckManager({ onUnauthorized, onChanged }: { onUnauthori
             <li key={deck.id}>
               {editingId === deck.id ? (
                 <form aria-label={`Edit ${deck.name}`} onSubmit={(event) => submitEdit(event, deck.id)}>
+                  <h3 ref={editHeading} tabIndex={-1}>Edit {deck.name}</h3>
                   <DeckFields deck={deck} />
                   <div className="actions">
                     <button disabled={busy} type="submit">Save deck</button>
@@ -278,7 +310,7 @@ export default function DeckManager({ onUnauthorized, onChanged }: { onUnauthori
       {loadStatus === 'loaded' && (
         <>
           <h3>Add a deck</h3>
-          <form aria-label="Add a deck" onSubmit={submitCreate}>
+          <form ref={createForm} aria-label="Add a deck" onSubmit={submitCreate}>
             <DeckFields />
             <button disabled={busy || deletingId !== null} type="submit">
               {busy ? 'Saving…' : 'Create deck'}

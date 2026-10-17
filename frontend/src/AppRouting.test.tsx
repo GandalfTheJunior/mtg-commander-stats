@@ -85,7 +85,9 @@ test.each([
   else if (target === 'Playgroups') await screen.findByRole('button', { name: `${group.name} (OWNER)` })
   else {
     expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
-    expect(api.fetchMock.mock.calls.some(([url]) => url === '/api/decks' || url === '/api/groups')).toBe(false)
+    await screen.findByRole('button', { name: deck.name })
+    expect(api.fetchMock.mock.calls.some(([url]) => url === '/api/decks')).toBe(true)
+    expect(api.fetchMock.mock.calls.some(([url]) => url === '/api/groups')).toBe(true)
   }
 })
 
@@ -117,8 +119,9 @@ test('Back and Forward follow the URL and remount only the destination manager w
   await act(async () => window.history.forward())
   await destination('Playgroups')
   expect(screen.queryByText('Refreshed deck')).not.toBeInTheDocument()
-  expect(api.fetchMock.mock.calls.filter(([url]) => url === '/api/decks')).toHaveLength(2)
-  expect(api.fetchMock.mock.calls.filter(([url]) => url === '/api/groups')).toHaveLength(2)
+  // The Dashboard now also loads both lists once before the manager visits.
+  expect(api.fetchMock.mock.calls.filter(([url]) => url === '/api/decks')).toHaveLength(3)
+  expect(api.fetchMock.mock.calls.filter(([url]) => url === '/api/groups')).toHaveLength(3)
 })
 
 test('a current route 401 retires the session; Back still shows only safe authentication', async () => {

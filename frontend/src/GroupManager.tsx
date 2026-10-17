@@ -4,6 +4,7 @@ import {
   type CurrentUser, type GroupDetails, type GroupSummary,
 } from './api'
 import GameManager from './GameManager'
+import { unavailableEntry, type DashboardEntry, type DashboardEntryProps } from './dashboardNavigation'
 
 type Notice = { kind: 'success' | 'error'; message: string } | null
 
@@ -17,12 +18,21 @@ function Feedback({ notice }: { notice: Notice }) {
 
 // This component is keyed by the confirmed session lifetime in App. Each selected group
 // is also a separate lifetime, so old requests cannot restore protected content.
-export default function GroupManager({ onUnauthorized, currentUser, deckRevision = 0, onGamesChanged }: {
+export default function GroupManager({ onUnauthorized, currentUser, deckRevision = 0, onGamesChanged, takeDashboardEntry }: {
   onUnauthorized: () => void
   currentUser?: CurrentUser
   deckRevision?: number
   onGamesChanged?: () => void
-}) {
+} & DashboardEntryProps) {
+  const entryRequest = useRef(takeDashboardEntry)
+  const pendingEntry = useRef<DashboardEntry | undefined>(undefined)
+  useEffect(() => {
+    // Consume history state immediately, retaining the payload only for this mount.
+    // StrictMode's repeated setup must not take/clear the same intent twice.
+    pendingEntry.current = entryRequest.current?.() ?? pendingEntry.current
+    entryRequest.current = undefined
+  }, [])
+  const [focusEntry, setFocusEntry] = useState(false)
   const [groups, setGroups] = useState<GroupSummary[]>([])
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading')
   const [revision, setRevision] = useState(0)
@@ -56,8 +66,15 @@ export default function GroupManager({ onUnauthorized, currentUser, deckRevision
       if (!current) return
       setGroups(loaded)
       setStatus('loaded')
+      const entry = pendingEntry.current
+      pendingEntry.current = undefined
+      if (entry?.kind === 'group' && loaded.some(group => group.id === entry.id)) {
+        setFocusEntry(true)
+        setSelected(entry.id)
+      } else if (entry) setNotice({ kind: 'error', message: unavailableEntry })
     }).catch((error: unknown) => {
       if (!current) return
+      pendingEntry.current = undefined
       setStatus('error')
       handleError(error)
     })
@@ -108,7 +125,7 @@ export default function GroupManager({ onUnauthorized, currentUser, deckRevision
         <ul className="group-list" aria-label="Your groups">
           {groups.map((group) => (
             <li key={group.id}>
-              <button type="button" disabled={busy} aria-pressed={selected === group.id} onClick={() => setSelected(group.id)}>
+              <button type="button" disabled={busy} aria-pressed={selected === group.id} onClick={() => { setFocusEntry(false); setSelected(group.id) }}>
                 {group.name} ({group.role})
               </button>
             </li>
@@ -135,7 +152,7 @@ export default function GroupManager({ onUnauthorized, currentUser, deckRevision
       {busy && <p role="status">Working on your group…</p>}
       <Feedback notice={notice} />
       {selected && (
-        <GroupView key={selected} id={selected} busy={busy} setBusy={setBusy}
+        <GroupView key={selected} id={selected} focusOnOpen={focusEntry} busy={busy} setBusy={setBusy}
           currentUser={currentUser} deckRevision={deckRevision} onGamesChanged={onGamesChanged}
           onUnauthorized={onUnauthorized}
           onClose={() => setSelected(null)}
@@ -154,6 +171,7 @@ export default function GroupManager({ onUnauthorized, currentUser, deckRevision
 }
 
 type GroupViewProps = {
+  focusOnOpen: boolean
   currentUser?: CurrentUser
   deckRevision: number
   onGamesChanged?: () => void
@@ -166,7 +184,9 @@ type GroupViewProps = {
   onClose: () => void
 }
 
-function GroupView({ id, busy, setBusy, onUnauthorized, onAccessLost, onLeft, onClose, currentUser, deckRevision, onGamesChanged }: GroupViewProps) {
+function GroupView({ focusOnOpen, id, busy, setBusy, onUnauthorized, onAccessLost, onLeft, onClose, currentUser, deckRevision, onGamesChanged }: GroupViewProps) {
+  const focusEntry = useRef(focusOnOpen)
+  const heading = useRef<HTMLHeadingElement>(null)
   const [checkingGames, setCheckingGames] = useState(false)
   const [details, setDetails] = useState<GroupDetails | null>(null)
   const [loading, setLoading] = useState(true)
@@ -208,6 +228,14 @@ function GroupView({ id, busy, setBusy, onUnauthorized, onAccessLost, onLeft, on
     }).finally(() => { if (current) setLoading(false) })
     return () => { current = false; controller.abort() }
   }, [id, revision, handleError])
+
+  useEffect(() => {
+    if (details && focusEntry.current && heading.current) {
+      focusEntry.current = false
+      heading.current.focus()
+      heading.current.scrollIntoView?.({ block: 'center' })
+    }
+  }, [details])
 
   function refresh() {
     setCheckingGames(false)
@@ -284,7 +312,7 @@ function GroupView({ id, busy, setBusy, onUnauthorized, onAccessLost, onLeft, on
       {loading && <p role="status">Loading group details…</p>}
       {details && <>
         {!checkingGames && <>
-        <h3>{details.name}</h3>
+        <h3 ref={heading} tabIndex={-1}>{details.name}</h3>
         <p>Your role: {details.role}</p>
         <h4>Active members</h4>
         <ul>
