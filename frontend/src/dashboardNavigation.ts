@@ -1,10 +1,11 @@
-/** In-memory payload; browser history carries only an opaque, single-use token. */
+/** Dashboard actions. Only group entry uses the opaque single-use manager token;
+ * deck actions open stable URLs with a separate session-scoped return context. */
 export type DashboardIntent =
   | { kind: 'group'; id: string }
   | { kind: 'deck'; id: string }
   | { kind: 'create-deck' }
 
-export type DashboardEntry = DashboardIntent | { kind: 'invalid' }
+export type DashboardEntry = Extract<DashboardIntent, { kind: 'group' }> | { kind: 'invalid' }
 export type DashboardEntryProps = {
   takeDashboardEntry?: () => DashboardEntry | undefined
 }

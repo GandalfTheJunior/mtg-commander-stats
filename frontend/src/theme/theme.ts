@@ -6,6 +6,7 @@ declare module '@mui/material/styles' {
     raised: string
   }
   interface Palette {
+    mana: Record<'W' | 'U' | 'B' | 'R' | 'G', string>
     interaction: {
       border: string
       focus: string
@@ -15,6 +16,7 @@ declare module '@mui/material/styles' {
     }
   }
   interface PaletteOptions {
+    mana?: Palette['mana']
     interaction?: Palette['interaction']
   }
   interface TypographyVariants {
@@ -38,6 +40,7 @@ declare module '@mui/material/Typography' {
 export const appTheme = createTheme({
   palette: {
     mode: 'dark',
+    mana: { W: '#F4EBDF', U: '#8DBBFF', B: '#19171B', R: '#FF9C90', G: '#A6CFAB' },
     contrastThreshold: 4.5,
     background: { default: '#19171B', paper: '#29242A', raised: '#342A31' },
     primary: { main: '#854358', light: '#C98C9F', dark: '#71364A', contrastText: '#F4EBDF' },
@@ -71,6 +74,15 @@ export const appTheme = createTheme({
   components: {
     MuiTypography: {
       defaultProps: { variantMapping: { wordmark: 'span', numeric: 'span' } },
+    },
+    MuiDialog: {
+      defaultProps: { scroll: 'body' },
+      styleOverrides: {
+        paper: ({ theme }) => ({
+          overflowWrap: 'anywhere',
+          '&:focus': { outline: `2px solid ${theme.palette.interaction.focus}`, outlineOffset: 2 },
+        }),
+      },
     },
     MuiPaper: {
       styleOverrides: {

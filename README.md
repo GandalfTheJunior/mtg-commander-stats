@@ -198,6 +198,11 @@ Commander games, follow the [demo setup](docs/development/demo.md). It includes
 PowerShell commands, locally generated credentials, expected player/deck results,
 and an explicit demo-only reset. The regular development database is untouched.
 
+Deck creation and management use `/decks/new` and `/decks/:deckId/edit`.
+Dashboard and Decks actions return to their calling overview after a confirmed
+write or explicit cancel/discard. Direct links/reloads return to Decks. See the
+[routing and draft-safety guide](docs/development/frontend-routing.md#focused-deck-editor-and-return-context).
+
 ## Verification
 
 From `backend/`:
