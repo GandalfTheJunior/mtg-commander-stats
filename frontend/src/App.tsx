@@ -7,6 +7,13 @@ import {
   type CurrentUser,
 } from './api'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
+import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
+import Card from '@mui/material/Card'
+import Container from '@mui/material/Container'
+import Stack from '@mui/material/Stack'
+import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
 import { AppShell } from './AppShell'
 import DeckManager from './DeckManager'
 import DeckEditor, { type DeckOverview } from './DeckEditor'
@@ -50,6 +57,9 @@ export default function App() {
   const [sessionNotice, setSessionNotice] = useState<Notice>(null)
   const [registering, setRegistering] = useState(false)
   const [loggingIn, setLoggingIn] = useState(false)
+  const registrationPending = useRef(false)
+  const loginPending = useRef(false)
+  const [rechecking, setRechecking] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -78,6 +88,8 @@ export default function App() {
 
   async function submitRegistration(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (registrationPending.current) return
+    registrationPending.current = true
     const submittedForm = event.currentTarget
     setRegistering(true)
     setRegistrationNotice(null)
@@ -99,13 +111,15 @@ export default function App() {
         message: messageFrom(error, 'Registration failed.'),
       })
     } finally {
+      registrationPending.current = false
       setRegistering(false)
     }
   }
 
   async function submitLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (loggingIn || sessionStatus === 'checking' || sessionStatus === 'logging-out') return
+    if (loginPending.current || sessionStatus === 'checking' || sessionStatus === 'logging-out') return
+    loginPending.current = true
     let version = sessionVersionRef.current
     const destination = isSupportedPath(location.pathname)
       ? location.pathname + location.search : '/dashboard'
@@ -144,6 +158,7 @@ export default function App() {
         message: messageFrom(error, 'Login failed.'),
       })
     } finally {
+      loginPending.current = false
       if (version === sessionVersionRef.current) setLoggingIn(false)
     }
   }
@@ -199,6 +214,7 @@ export default function App() {
     const version = ++sessionVersionRef.current
     setSessionVersion(version)
     setSessionStatus('checking')
+    setRechecking(true)
     setSessionNotice(null)
     try {
       const user = await restoreSession()
@@ -210,6 +226,8 @@ export default function App() {
       setCurrentUser(null)
       setSessionStatus('unverified')
       setSessionNotice({ kind: 'error', message: 'Could not check your session. Try again or reload.' })
+    } finally {
+      if (version === sessionVersionRef.current) setRechecking(false)
     }
   }
 
@@ -310,91 +328,104 @@ export default function App() {
   }
 
   return (
-    <main>
+    <Box component="main" sx={{
+      bgcolor: 'background.default', color: 'text.primary', colorScheme: 'dark',
+      fontFamily: theme => theme.typography.fontFamily,
+      boxSizing: 'border-box', width: '100%', maxWidth: 'none', m: 0,
+      minHeight: '100vh', '@supports (min-height: 100dvh)': { minHeight: '100dvh' },
+      pl: 'max(16px, env(safe-area-inset-left, 0px))',
+      pr: 'max(16px, env(safe-area-inset-right, 0px))',
+      pt: 'max(32px, env(safe-area-inset-top, 0px))',
+      pb: 'calc(32px + env(safe-area-inset-bottom, 0px))',
+      overflowWrap: 'anywhere',
+      '& input': { scrollMarginBlock: '24px' },
+      // MUI's default dark autofill uses a blue fill; keep auth on our semantic palette.
+      '& input:-webkit-autofill': theme => ({
+        WebkitBoxShadow: `0 0 0 100px ${theme.palette.background.paper} inset`,
+        WebkitTextFillColor: theme.palette.text.primary,
+        caretColor: theme.palette.text.primary,
+      }),
+    }}>
       {location.pathname !== '/' && !isSupportedPath(location.pathname) && <Navigate to="/" replace />}
-      <header>
-        <p className="eyebrow">Commander game tracker</p>
-        <h1>MTG Commander Stats</h1>
-        <p>A home for your Commander play group’s game statistics.</p>
-      </header>
+      <Container maxWidth="md" disableGutters>
+        <Stack spacing={3}>
+          <Box component="header" sx={{ m: 0 }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
+              Commander game tracker
+            </Typography>
+            <Typography component="h1" variant="wordmark" sx={{ mb: 2 }}>
+              MTG Commander Stats
+            </Typography>
+            <Typography sx={{ color: 'text.secondary' }}>
+              A home for your Commander play group’s game statistics.
+            </Typography>
+          </Box>
 
-      <section className="session" aria-live="polite">
-        <h2>Your session</h2>
-        {sessionStatus === 'logging-out' ? (
-          <p>Logging out…</p>
-        ) : sessionStatus === 'checking' ? (
-          <p>Checking your session…</p>
-        ) : sessionStatus === 'unverified' ? (
-          <p>Your session identity could not be confirmed.</p>
-        ) : (
-          <p>Not signed in.</p>
-        )}
-        {sessionStatus === 'unverified' && (
-          <button type="button" disabled={loggingIn} onClick={checkSession}>Check session</button>
-        )}
-        {sessionNotice && (
-          <p className={sessionNotice.kind} role="status">{sessionNotice.message}</p>
-        )}
-      </section>
+          <Card component="section" aria-labelledby="auth-session-heading" sx={{ p: { xs: 2, sm: 3 }, minWidth: 0 }}>
+            <Stack spacing={2}>
+              <Typography id="auth-session-heading" component="h2" variant="h6">Your session</Typography>
+              <Typography role="status">
+                {sessionStatus === 'logging-out' ? 'Logging out…'
+                  : sessionStatus === 'checking' ? 'Checking your session…'
+                    : sessionStatus === 'unverified' ? 'Your session identity could not be confirmed.'
+                      : 'Not signed in.'}
+              </Typography>
+              {(sessionStatus === 'unverified' || rechecking) && (
+                <Button type="button" variant="outlined" disabled={loggingIn}
+                  aria-disabled={rechecking} onClick={checkSession} sx={{ alignSelf: 'flex-start' }}>
+                  Check session
+                </Button>
+              )}
+              {sessionNotice && (
+                <Typography id="auth-session-notice" role={sessionNotice.kind === 'error' ? 'alert' : 'status'}
+                  sx={{ color: sessionNotice.kind === 'error' ? 'error.main' : 'success.main' }}>
+                  {sessionNotice.message}
+                </Typography>
+              )}
+            </Stack>
+          </Card>
 
-      {sessionStatus !== 'logging-out' && (
-        <div className="forms">
-          <section>
-            <h2>Create an account</h2>
-            <p>Registration creates your account. You will sign in afterward.</p>
-            <form onSubmit={submitRegistration}>
-              <label>
-                Email
-                <input name="email" type="email" autoComplete="email" required />
-              </label>
-              <label>
-                Username
-                <input name="username" autoComplete="username" required />
-              </label>
-              <label>
-                Password
-                <input
-                  name="password"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                />
-              </label>
-              <button disabled={registering} type="submit">
-                {registering ? 'Creating account…' : 'Create account'}
-              </button>
-            </form>
-            {registrationNotice && (
-              <p className={registrationNotice.kind} role="status">
-                {registrationNotice.message}
-              </p>
-            )}
-          </section>
+          {sessionStatus !== 'logging-out' && (
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(2, minmax(0, 1fr))' }, gap: 3, alignItems: 'start' }}>
+              <Card component="section" aria-labelledby="auth-register-heading" sx={{ p: { xs: 2, sm: 3 }, minWidth: 0 }}>
+                <Typography id="auth-register-heading" component="h2" variant="h6" sx={{ mb: 1 }}>Create an account</Typography>
+                <Typography sx={{ color: 'text.secondary' }}>
+                  Registration creates your account. You will sign in afterward.
+                </Typography>
+                <Stack component="form" onSubmit={submitRegistration} spacing={3} useFlexGap sx={{ mt: 3 }}
+                  aria-describedby={registrationNotice ? 'auth-register-notice' : undefined}>
+                  <TextField id="auth-register-email" label="Email" name="email" type="email" autoComplete="email" required fullWidth slotProps={{ inputLabel: { required: false } }} />
+                  <TextField id="auth-register-username" label="Username" name="username" autoComplete="username" required fullWidth slotProps={{ inputLabel: { required: false } }} />
+                  <TextField id="auth-register-password" label="Password" name="password" type="password" autoComplete="new-password" required fullWidth slotProps={{ inputLabel: { required: false } }} />
+                  <Button disabled={registering} type="submit" variant="contained" fullWidth>
+                    {registering ? 'Creating account…' : 'Create account'}
+                  </Button>
+                </Stack>
+                <Typography role="status" sx={{ mt: registering ? 2 : 0 }}>{registering ? 'Creating account…' : ''}</Typography>
+                {registrationNotice && (
+                  <Typography id="auth-register-notice" role={registrationNotice.kind === 'error' ? 'alert' : 'status'}
+                    sx={{ mt: 2, color: registrationNotice.kind === 'error' ? 'error.main' : 'success.main' }}>
+                    {registrationNotice.message}
+                  </Typography>
+                )}
+              </Card>
 
-          <section>
-            <h2>Sign in</h2>
-            <form onSubmit={submitLogin}>
-              <label>
-                Email
-                <input name="email" type="email" autoComplete="email" required />
-              </label>
-              <label>
-                Password
-                <input
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                />
-              </label>
-              <button disabled={loggingIn || sessionStatus === 'checking'} type="submit">
-                {loggingIn ? 'Signing in…' : 'Sign in'}
-              </button>
-            </form>
-          </section>
-        </div>
-      )}
-
-    </main>
+              <Card component="section" aria-labelledby="auth-login-heading" sx={{ p: { xs: 2, sm: 3 }, minWidth: 0 }}>
+                <Typography id="auth-login-heading" component="h2" variant="h6">Sign in</Typography>
+                <Stack component="form" onSubmit={submitLogin} spacing={3} useFlexGap sx={{ mt: 3 }}
+                  aria-describedby={sessionNotice ? 'auth-session-notice' : undefined}>
+                  <TextField id="auth-login-email" label="Email" name="email" type="email" autoComplete="email" required fullWidth slotProps={{ inputLabel: { required: false } }} />
+                  <TextField id="auth-login-password" label="Password" name="password" type="password" autoComplete="current-password" required fullWidth slotProps={{ inputLabel: { required: false } }} />
+                  <Button disabled={loggingIn || sessionStatus === 'checking'} type="submit" variant="contained" fullWidth>
+                    {loggingIn ? 'Signing in…' : 'Sign in'}
+                  </Button>
+                </Stack>
+                <Typography role="status" sx={{ mt: loggingIn ? 2 : 0 }}>{loggingIn ? 'Signing in…' : ''}</Typography>
+              </Card>
+            </Box>
+          )}
+        </Stack>
+      </Container>
+    </Box>
   )
 }
