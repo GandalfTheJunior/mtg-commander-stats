@@ -73,6 +73,111 @@ password; each is 32 ASCII/Unicode code points, exceeding the 12-code-point rule
 Other emails are bruno, cleo, dara, emil and faye at `commander.example` (a reserved
 example domain). This is local demo convenience, not a deployed account scheme.
 
+## Opt-in iPhone verification over local WLAN HTTP
+
+Start the isolated demo backend as above; it stays on **127.0.0.1:8080**, with
+PostgreSQL on **127.0.0.1:5433**. In a second terminal, opt in to exposing only
+Vite to a **trusted private WLAN**:
+
+```powershell
+Push-Location frontend
+npm.cmd ci
+npm.cmd run dev -- --host 0.0.0.0 --port 5173 --strictPort
+```
+
+On macOS/Linux use `npm ci` and
+`npm run dev -- --host 0.0.0.0 --port 5173 --strictPort` in `frontend/`.
+Find the PC's WLAN IPv4 address with Windows `ipconfig` (the active Wi-Fi
+adapter), or the host's network settings. On a trusted iPhone in the **same WLAN**,
+open **`http://<PC-LAN-IP>:5173`** in Safari. Keep the existing `/api` Vite proxy;
+do not expose the backend or database. If Windows asks for firewall access, allow
+Vite's TCP 5173 only on the trusted private network. Do not configure port
+forwarding, public tunnels, public deployment, or globally disable the firewall.
+If unreachable, check the actual adapter/IP, private firewall rule and WLAN
+client isolation first. Stop Vite with Ctrl+C when done; ordinary `npm run dev`
+returns to loopback-only startup.
+
+Sign in as Ada with the private demo password described above. Localhost on the
+PC is a trustworthy origin; plain IPv4 LAN HTTP on iPhone is an insecure context.
+Navigation tokens use 128 random bits from Web Crypto `getRandomValues`, which
+[the Web Crypto interface](https://w3c.github.io/webcrypto/#crypto-interface)
+exposes without the `SecureContext` restriction on `randomUUID`. These tokens
+associate in-memory navigation only; they never authorize an API request.
+The only other restricted API in these flows is Clipboard `writeText`. If absent
+or rejected, **Kopieren** retains the read-only code and explains manual copying:
+long-press inside **Aktueller Einladungscode**, choose **Select All / Alles
+auswählen**, then **Copy / Kopieren**. Do not paste the secret into logs or a PR.
+
+### Real-device checklist and evidence record for #89
+
+**Implementer status: NOT EXECUTED on a physical iPhone. Pending PO verification
+before final acceptance.** Automated restricted-API tests and desktop browser
+checks do not satisfy this physical-device criterion. The PO performs or arranges
+the following checks on the PR revision and records actual observations in the PR:
+
+| Evidence | Actual value / result |
+| --- | --- |
+| PR commit SHA, date and tester | Pending PO verification |
+| iPhone model | Not available to implementer; not executed |
+| iOS version and Safari version/build | Pending PO verification |
+| Actual LAN URL (`http://<actual-PC-IP>:5173`) | Pending PO verification; placeholder is not evidence |
+| Desktop browser/version at `http://localhost:5173` | Record the comparison run |
+| Each step below, observed URL/result and any console exception | Not executed on physical iPhone |
+
+1. At **Dashboard** and again at **Decks**, tap **Deck erstellen**. Confirm
+   `/decks/new`, enter a name and commander, save, and confirm return to the
+   originating overview with the saved deck. Open an existing deck from each
+   overview (Dashboard card; Decks **Bearbeiten**), edit/save, and check the URL
+   `/decks/<id>/edit` and correct return. Repeat with cancel.
+2. Change a deck draft, try Back/global navigation, choose **Im Editor bleiben**
+   and verify intact input; repeat with **Verwerfen und verlassen**. Back/Forward
+   and reload must load fresh authorized data without restoring discarded input
+   or a stale Dashboard origin. Logout/login (same account and another account)
+   must retire drafts and private data.
+3. As Ada, open **Demo Friday Table → Gruppenaktionen → Einladungscode verwalten**.
+   Confirm `/playgroups/<id>/invitation-code`, with no code until
+   **Einladungscode anzeigen**. Retrieve the code; try **Kopieren**. If unavailable
+   or rejected, confirm manual guidance, selectable read-only text and no
+   **Einladungscode kopiert.** success claim. Actually select/copy using Safari's
+   text menu. If programmatic copying works, verify its content privately.
+4. Open **Code regenerieren**, cancel once, then reopen and confirm explicitly.
+   Only acknowledged regeneration shows a new code and invalidates the old one;
+   existing memberships remain. Return to the originating group tab. Leave the
+   screen and traverse Back/Forward or reload: no prior code should reappear
+   without a new explicit fetch. Do not record either secret in the evidence.
+5. Sign in as Bruno (MEMBER): the overflow offers **Gruppe verlassen**, not OWNER
+   code actions. Try a direct invitation-code URL: no code/control access. Cancel
+   departure once, then confirm in the demo if desired; verify loss of active
+   access and retained history. Ada cannot leave her owned group.
+6. On a game created by the signed-in account, and on another player's game as
+   Ada/OWNER, open **Spieldetails → Spielaktionen → Bearbeiten**. Confirm canonical
+   group Spiele URL and prefilled editor. Change result, switch group tabs and
+   Back/Forward between them: preserve the draft. Cancel/discard once, then edit
+   again and save; confirm refreshed history. Back/Forward/reload cannot replay
+   an already consumed edit intent. An unrelated MEMBER has no edit actions.
+7. Repeat deck create/edit, code retrieval/copy/regeneration confirmation and
+   authorized game editing on desktop `http://localhost:5173`; record results.
+
+Where a Mac with Safari Web Inspector is available, enable the iPhone's Safari
+Web Inspector (Settings → Apps → Safari → Advanced, depending on iOS), trust the
+connection and inspect the LAN tab from the Mac's Develop menu. Before each
+scenario, observe the console and record exceptions without secrets. This
+capability-only console expression is safe to record:
+
+```javascript
+({ secureContext: window.isSecureContext,
+   randomUUID: typeof window.crypto?.randomUUID,
+   getRandomValues: typeof window.crypto?.getRandomValues,
+   clipboardWrite: typeof navigator.clipboard?.writeText })
+```
+
+Expected on LAN HTTP: insecure context, no `randomUUID`, available
+`getRandomValues`; clipboard may be unavailable. If Web Inspector is unavailable,
+record that limitation alongside actual visible device outcomes. The automated
+reproduction confirms the pre-fix exception `crypto.randomUUID is not a function`
+before deck navigation; it is **not** a captured trace from the PO's iPhone and
+cannot rule out additional device-specific defects before the checklist is run.
+
 ## Fixed scenario and expected results
 
 [fixture.mjs](../../tools/demo/fixture.mjs) defines stable logical identities,

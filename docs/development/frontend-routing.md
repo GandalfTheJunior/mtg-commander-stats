@@ -5,6 +5,17 @@
 logout and epoch fencing. Routing uses Declarative Mode only: no route loaders,
 new data cache, persisted navigation preferences or backend endpoint changes.
 
+Navigation-origin and game-edit tokens are opaque 128-bit values generated with
+Web Crypto `getRandomValues`, including on local LAN HTTP where `randomUUID` is
+not exposed. They remain in history state plus session/path-scoped memory, never
+URLs or application storage; token equality associates intent and confers no
+permission. Fresh server reads and existing lifetime checks still govern access
+and consumption. The code screen already retains selectable read-only text and
+manual-copy guidance when Clipboard `writeText` is missing/rejected; success is
+announced only after that promise resolves. See the
+[LAN iPhone verification recipe](demo.md#opt-in-iphone-verification-over-local-wlan-http)
+for startup and the required physical-device acceptance record.
+
 ## URLs and session lifecycle
 
 | URL | Confirmed identity | Signed out / unverified |

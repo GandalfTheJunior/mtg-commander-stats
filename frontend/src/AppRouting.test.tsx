@@ -1,8 +1,9 @@
+import { stubLanHttpCrypto } from './test/lanHttp'
 import { showCode } from './test/groupEntry'
 import { openNewDeck } from './test/editorEntry'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { AppRouter as BrowserRouter } from './AppRouter'
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App'
 import { AppThemeProvider } from './theme/AppThemeProvider'
 import { deferred, group, recorded, response, uid } from './test/gameFixtures'
@@ -69,6 +70,9 @@ async function destination(name: 'Dashboard' | 'Playgroups' | 'Decks') {
   expect(within(navigation).getAllByRole('link')).toHaveLength(3)
   expect(within(navigation).getAllByRole('link', { current: 'page' })).toHaveLength(1)
 }
+
+// Exercise navigation, guards and retirement with the capabilities of LAN HTTP.
+beforeEach(stubLanHttpCrypto)
 
 afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState(null, '', '/') })
 
