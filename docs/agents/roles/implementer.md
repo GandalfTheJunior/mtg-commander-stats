@@ -53,6 +53,32 @@ Read the [development workflow](../../development/workflow.md), relevant
    or PR body for the PO and explicitly identify the remaining action. Never
    claim that a branch was pushed, PR opened, or check passed when it was not.
 
+## UI screenshot evidence
+
+For every implementation that changes a browser-visible UI (including layout,
+styling, text, controls, navigation, or loading/error/empty states), provide
+visual evidence in addition to the normal tests and checks. After the **last**
+relevant UI edit, open the running application in a browser and capture at least
+one screenshot showing the changed UI at a representative viewport. Cover each
+materially different changed screen or state; if the change affects responsive
+layout, include both desktop and mobile screenshots. Use non-sensitive
+development/demo data, never real credentials or private user information.
+Mockups, test snapshots, and screenshots from before the final edit do not count.
+
+In the final Codex response to the PO, **include the actual screenshot(s)** as
+viewable attachments or embedded images; if the client only supports artifacts,
+link to verified, accessible image artifacts. A local filesystem path alone,
+a claim that a screenshot was taken, or a PR link without the image is not
+delivery. When a durable image link is available, also provide it in the PR
+Reviewer Context. Do not commit temporary screenshot files merely to satisfy
+this handoff rule.
+
+If the application, browser, capture tool, or image delivery is unavailable,
+state exactly what is blocked in the final response and PR, without inventing
+images or describing the screenshot requirement as satisfied. The implementation
+is **not fully visually verified** until the PO receives the required evidence.
+Backend-only or otherwise non-visual changes do not trigger this requirement.
+
 ## Expected output
 
 A reviewable implementation satisfying the authorized specification, with a PR
