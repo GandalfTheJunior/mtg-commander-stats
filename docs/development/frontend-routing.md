@@ -70,7 +70,28 @@ Only the selected panel is exposed to keyboard/accessibility navigation. Explici
 tab changes and history traversals focus the selected tab; initial authorization
 focuses the group heading. Refreshing members intentionally reauthorizes details
 and retires the game/statistics area. These are navigation foundations for #76–#78;
-the game editor and statistics tables retain their API contracts.
+the game editor and statistics views retain their API contracts.
+
+### Responsive group statistics
+
+`GameManager` owns separate player/deck sorts and the selected statistics subview
+(initially Spieler) above the keyed `GroupStatistics` request instance. Refresh and
+acknowledged writes re-sort fresh API arrays without discarding either choice.
+Group/session retirement resets them; the switch adds no URL or storage state.
+`GroupStatistics` uses the shared theme's `md` media query (900px): phones mount a
+semantic card list and labelled native Sortieren nach selector/direction button;
+wider viewports mount only the selected semantic table with header buttons and
+`aria-sort`. Both offer Standardreihenfolge. Breakpoint changes make no API calls.
+Inactive variants are unmounted, and outer panels use native `hidden`.
+
+Per-row disclosure state and element IDs use group/dataset/stable UUID identity,
+so sorting and responsive changes cannot associate an identifier with another row.
+Only requested disclosures mount complete player/deck/owner ID text; contextual
+button names distinguish namesakes without permanently announcing raw UUIDs.
+The refresh button stays focusable with guarded `aria-disabled` during loading;
+access recovery focuses explicit retry and its replacement refresh control.
+Removing a focused responsive control returns focus to the persistent refresh.
+
 
 Deck/group API functions accept optional AbortSignals without changing HTTP
 contracts. Each mounted manager/detail view aborts its work on retirement;
@@ -454,10 +475,71 @@ long/unbroken group/member names, duplicate-name suffixes, real tab keyboard
 navigation, Back/Forward, an intact inline game draft, direct OWNER/MEMBER code
 URLs, no eager code GET, copy failure, code regeneration cancellation/confirmation,
 reload/fallback return, member departure and focus return. No page errors or
-horizontal page overflow were observed. Existing statistics tables keep their
-scroll regions with a minimum readable table width; mobile cards remain #78.
+horizontal page overflow were observed. At the time of the #75 checks, statistics still used legacy scrollable tables;
+#78 replaces them with the responsive presentation described above.
 Screenshots of games, statistics, members, code and both dialogs were visually
 inspected. The read-only code field uses cream on the theme paper surface
 (12.89:1); tabs/indicators and explicit focus use the theme gold (9.51:1 on the
 app background, 8.13:1 on paper). These are frontend fixture checks, not a live
 backend, physical phone/software-keyboard or screen-reader acceptance claim.
+
+### Statistics browser evidence
+
+Chrome against the production build with intercepted API fixtures checked 320,
+390, 900 and 1280px. Both datasets, long/unbroken names, duplicate names, full
+identifier/owner disclosures, archived decks, sorting, refresh, outer-tab
+Back/Forward and safe 403 access recovery passed. Inactive variants and hidden
+panels exposed no active controls; no horizontal page overflow or page errors
+were observed. Screenshots were visually inspected. The initial 640px viewport
+check covered the reflow equivalent of 200% zoom on a 1280px window. The native
+zoom follow-up below closes that original zoom-verification limitation.
+
+Computed cream/secondary text on cards (#29242A) measured 12.89:1 / 8.48:1;
+the desktop table inherits #19171B and measured 15.08:1 / 9.92:1. The keyboard
+focus outline was the shared #DBB977 (8.13:1 on cards, 9.51:1 on page).
+These fixture measurements supplement the controlled-media-query RTL coverage;
+jsdom alone does not establish responsive CSS behavior.
+
+#### PR #88 review follow-up
+
+The independent review of implementation commit `d89e58f` reported no confirmed
+blocking code findings. The requested native zoom and breakpoint checks were
+completed against the same production assets in a native Brave window on macOS, using a local read-only
+fixture server with generated group/statistics data. Test-only instrumentation
+reported viewport width, document scroll width, pixel ratio and mounted statistics
+variants; it did not change the application bundle or its responsive behavior.
+
+| Browser state | Viewport / document width (CSS px) | Device pixel ratio | Mounted statistics variant |
+| --- | --- | --- | --- |
+| Native browser 100% zoom | 1728 / 1728 | 2 | One deck table, no statistics card list |
+| Native browser 200% zoom | 864 / 864 | 4 | One deck card list, no table |
+| Responsive mode immediately below `md` | 899 / 899 | 2 | One deck card list, no table |
+| Responsive mode at `md` | 900 / 900 | 2 | One deck table, no statistics card list |
+
+The browser's own zoom control explicitly showed **200%** during the native zoom
+check; this was separate from responsive viewport emulation. The selected Decks
+view survived the change. An unbroken archived-deck name, its commander, owner,
+Archiviert marker and requested full deck/owner UUIDs were visually inspected in
+both cards and the table. Text and identifiers wrapped without truncation or
+horizontal page overflow. The open disclosure remained associated with the same
+deck when crossing 899 to 900px. The native browser was restored to 100% afterward.
+
+The PO initially deferred the nonblocking VoiceOver step, then explicitly
+requested a real macOS VoiceOver verification attempt on 2026-10-18. Safari loaded
+the unchanged production build through a loopback-only read-only fixture server
+using synthetic data. Safari's accessibility tree showed the initial Spieler
+selection, but this is not evidence of actual VoiceOver announcements. VoiceOver's
+Quickstart/training could be opened; afterward the main VoiceOver process was not
+running, and no reliable speech or caption output could be observed even after a
+controlled restart. VoiceOver was confirmed off afterward; no macOS security
+settings were changed.
+
+**VoiceOver result: NOT TESTED**, not PASS or an application FAIL. The intended
+checks for Spieler/Decks switching, all sort controls, UUID disclosures, keyboard
+focus/recovery and spoken statistics/states remain unverified in both desktop and
+narrow-viewport Safari. No application defect was established by the attempt.
+Repeat the manual test with functioning VoiceOver before merge if possible; see
+[PR #88's VoiceOver verification attempt](https://github.com/GandalfTheJunior/mtg-commander-stats/pull/88)
+for the reproduction, test steps and limitations. Physical-phone/software
+keyboard and live-backend acceptance remain untested; the local fixture checks
+do not substitute for those environments.

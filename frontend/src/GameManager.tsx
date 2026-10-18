@@ -8,7 +8,7 @@ import { Link } from 'react-router'
 import { gameSummary, gameUrl, mayManageGame, recordedTime, sameId } from './gamePresentation'
 import GameEditor from './GameEditor'
 import type { GroupTab } from './groupNavigation'
-import GroupStatistics, { type StatisticsSort } from './GroupStatistics'
+import GroupStatistics, { type StatisticsSort, type StatisticsView } from './GroupStatistics'
 import { EditorLeave } from './editorGuard'
 
 type Props = {
@@ -52,6 +52,16 @@ export default function GameManager({ group, actorId, tab = 'games', initialEdit
   // First visit mounts one statistics view; tab switches only hide its panel.
   const [statisticsVisited, setStatisticsVisited] = useState(tab === 'statistics')
   if (tab === 'statistics' && !statisticsVisited) setStatisticsVisited(true)
+  const [statisticsView, setStatisticsView] = useState<StatisticsView>('players')
+  const [focusStatistics, setFocusStatistics] = useState(false)
+  const statisticsRetry = useRef<HTMLButtonElement>(null)
+  const focusStatisticsRetry = useRef(false)
+  useEffect(() => {
+    if (statisticsBlocked && access === 'confirmed' && focusStatisticsRetry.current) {
+      focusStatisticsRetry.current = false
+      if (tab === 'statistics') statisticsRetry.current?.focus()
+    }
+  }, [statisticsBlocked, access, tab])
   const [statisticsSort, setStatisticsSort] = useState<StatisticsSort>({ players: null, decks: null })
   const [notice, setNotice] = useState('')
   const [recoveryMessage, setRecoveryMessage] = useState('')
@@ -90,6 +100,7 @@ export default function GameManager({ group, actorId, tab = 'games', initialEdit
     setAccess('checking')
     // Failed writes and access denials require explicit review/retry after the
     // safe check. In particular, a persistent statistics 403 must not loop GETs.
+    focusStatisticsRetry.current = true
     setStatisticsBlocked(true)
     setStatisticsRevision(value => value + 1)
     setNotice('')
@@ -184,11 +195,12 @@ export default function GameManager({ group, actorId, tab = 'games', initialEdit
       <Alert severity="error">Group access could not be verified. Refresh games or members to try again.</Alert>
       <button type="button" onClick={() => leave(refresh)}>Refresh group access</button>
     </div>}
-    <Box className="legacy-view" sx={{ bgcolor: '#fff', borderRadius: 2, px: 2, pb: 2 }} role="tabpanel" id="group-panel-statistics" aria-labelledby="group-tab-statistics" hidden={tab !== 'statistics'} tabIndex={0}>
+    <Box sx={{ color: 'text.primary', bgcolor: 'background.default', minWidth: 0 }} role="tabpanel" id="group-panel-statistics" aria-labelledby="group-tab-statistics" hidden={tab !== 'statistics'} tabIndex={0}>
       {statisticsVisited && access === 'confirmed' && (statisticsBlocked ? <div>
-        <p role="status">Group access is confirmed. Refresh statistics to review server state before trying again.</p>
-        <button type="button" className="secondary" onClick={() => setStatisticsBlocked(false)}>Refresh statistics</button>
-      </div> : <GroupStatistics key={statisticsRevision} groupId={id} onAccessError={recover} sort={statisticsSort} onSort={setStatisticsSort} />)}
+        <p role="status">Gruppenzugriff bestätigt. Bitte Statistiken aktualisieren, um den Serverstand zu prüfen.</p>
+        <Button ref={statisticsRetry} color="secondary" onClick={() => { setFocusStatistics(true); setStatisticsBlocked(false) }}>Statistiken aktualisieren</Button>
+      </div> : <GroupStatistics key={statisticsRevision} groupId={id} onAccessError={recover} sort={statisticsSort} onSort={setStatisticsSort}
+        view={statisticsView} onView={setStatisticsView} focusRefresh={focusStatistics && tab === 'statistics'} onRefreshFocused={() => setFocusStatistics(false)} />)}
     </Box>
   </>
 }

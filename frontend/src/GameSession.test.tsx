@@ -203,12 +203,20 @@ test('game recording waits for the second member’s independently delayed deck 
   const api = setup(), secondDecks = deferred()
   api.next(`/api/groups/${group.id}/members/${uid(2)}/decks`, () => secondDecks.promise)
   render(<App />); await open()
-  const recording = create()
-  await screen.findByRole('button', { name: 'Spieler 1 bearbeiten' })
+  // Drive each observable step here rather than racing a detached create()
+  // flow against a second one-second findBy query on slower CI runners.
+  fireEvent.click(await screen.findByRole('button', { name: 'Spiel erfassen' }))
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 1' }), { target: { value: uid(1) } })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 2' }), { target: { value: uid(2) } })
+  await selectGameDeck(1, deckFor(1))
   expect(screen.getByRole('combobox', { name: 'Deck für Spieler 2' })).toBeDisabled()
   expect(api.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0)
   await act(async () => secondDecks.resolve(response([deckFor(2)])))
-  await recording
+  await selectGameDeck(2, deckFor(2))
+  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(1) } })
+  fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
+  await screen.findByText('Game recorded.')
+  await screen.findByRole('article')
   const writes = api.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')
   expect(writes).toHaveLength(1)
   expect(JSON.parse(writes[0][1]!.body as string)).toEqual({

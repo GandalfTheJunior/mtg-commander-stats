@@ -118,8 +118,12 @@ test('Back and Forward follow the URL and remount only the destination manager w
   api.state.decks = [{ ...deck, name: 'Refreshed deck' }]
   await act(async () => window.history.back())
   await destination('Decks'); await screen.findByText('Refreshed deck')
+  api.state.groups = [{ ...group, name: 'Refreshed group' }]
   await act(async () => window.history.forward())
   await destination('Playgroups')
+  // Route selection can commit before the remounted manager's request effect.
+  // Wait for fresh response content before checking exact request counts.
+  await screen.findByRole('button', { name: 'Refreshed group (OWNER)' })
   expect(screen.queryByText('Refreshed deck')).not.toBeInTheDocument()
   // The Dashboard now also loads both lists once before the manager visits.
   expect(api.fetchMock.mock.calls.filter(([url]) => url === '/api/decks')).toHaveLength(3)
