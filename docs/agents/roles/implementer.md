@@ -43,7 +43,13 @@ Read the [development workflow](../../development/workflow.md), relevant
    derive its body from the current repository issue template, preserve the generic
    `agent-bootstrap` comment and `/AGENTS.md` pointer, and verify the body persisted
    by GitHub rather than checking only the local template or submitted request.
-5. If a required authorized action is unavailable, prepare the change/commands
+5. After PR creation and every new push, follow the
+   [CI completion and handoff rules](../../development/workflow.md#verification-and-handoff):
+   wait for the required `backend` and `frontend` checks on the current PR
+   revision, investigate failures and reverify corrections. Never call the
+   implementation verified or finished while required CI is running, missing,
+   or failing; report unavailable CI confirmation as an open blocker.
+6. If a required authorized action is unavailable, prepare the change/commands
    or PR body for the PO and explicitly identify the remaining action. Never
    claim that a branch was pushed, PR opened, or check passed when it was not.
 
