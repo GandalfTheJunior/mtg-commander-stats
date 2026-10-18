@@ -524,7 +524,22 @@ both cards and the table. Text and identifiers wrapped without truncation or
 horizontal page overflow. The open disclosure remained associated with the same
 deck when crossing 899 to 900px. The native browser was restored to 100% afterward.
 
-The PO explicitly requested omission of the nonblocking VoiceOver step. No actual
-screen-reader announcement/navigation pass is claimed. Physical-phone/software
-keyboard and live-backend acceptance remain untested; the local fixture checks do
-not substitute for those environments.
+The PO initially deferred the nonblocking VoiceOver step, then explicitly
+requested a real macOS VoiceOver verification attempt on 2026-10-18. Safari loaded
+the unchanged production build through a loopback-only read-only fixture server
+using synthetic data. Safari's accessibility tree showed the initial Spieler
+selection, but this is not evidence of actual VoiceOver announcements. VoiceOver's
+Quickstart/training could be opened; afterward the main VoiceOver process was not
+running, and no reliable speech or caption output could be observed even after a
+controlled restart. VoiceOver was confirmed off afterward; no macOS security
+settings were changed.
+
+**VoiceOver result: NOT TESTED**, not PASS or an application FAIL. The intended
+checks for Spieler/Decks switching, all sort controls, UUID disclosures, keyboard
+focus/recovery and spoken statistics/states remain unverified in both desktop and
+narrow-viewport Safari. No application defect was established by the attempt.
+Repeat the manual test with functioning VoiceOver before merge if possible; see
+[PR #88's VoiceOver verification attempt](https://github.com/GandalfTheJunior/mtg-commander-stats/pull/88)
+for the reproduction, test steps and limitations. Physical-phone/software
+keyboard and live-backend acceptance remain untested; the local fixture checks
+do not substitute for those environments.
