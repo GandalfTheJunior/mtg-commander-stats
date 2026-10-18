@@ -45,13 +45,13 @@ async function open(name = group.name) {
 }
 async function create() {
   fireEvent.click(await screen.findByRole('button', { name: 'Spiel erfassen' }))
-  fireEvent.change(screen.getByLabelText('Player 1'), { target: { value: uid(1) } })
-  fireEvent.change(screen.getByLabelText('Player 2'), { target: { value: uid(2) } })
-  await waitFor(() => expect(screen.getByLabelText('Deck for player 1')).not.toBeDisabled())
-  fireEvent.change(screen.getByLabelText('Deck for player 1'), { target: { value: deckFor(1).id } })
-  fireEvent.change(screen.getByLabelText('Deck for player 2'), { target: { value: deckFor(2).id } })
-  fireEvent.change(screen.getByLabelText('Winning player'), { target: { value: uid(1) } })
-  fireEvent.click(screen.getByRole('button', { name: 'Record game' }))
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 1' }), { target: { value: uid(1) } })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 2' }), { target: { value: uid(2) } })
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Deck für Spieler 1' })).not.toBeDisabled())
+  fireEvent.change(screen.getByRole('combobox', { name: 'Deck für Spieler 1' }), { target: { value: deckFor(1).id } })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Deck für Spieler 2' }), { target: { value: deckFor(2).id } })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(1) } })
+  fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
   await screen.findByText('Game recorded.')
   await screen.findByRole('article')
 }

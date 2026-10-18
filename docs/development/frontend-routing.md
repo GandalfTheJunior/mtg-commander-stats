@@ -56,7 +56,7 @@ remain local to their dedicated editor.
 
 Within a group, `GroupPage` owns fresh membership/role and URL-driven MUI tabs;
 `GameManager` stays mounted across tab changes. Its Spiele panel is hidden with
-native `hidden`, preserving the inline draft and requests without creating a second
+native `hidden`, preserving the game draft and requests without creating a second
 instance. Statistics mounts lazily on its first selection and remains in its hidden
 panel thereafter, retaining sorting and refreshing after acknowledged writes.
 Statistics depends on confirmed group access, not a successful game-history GET:
@@ -70,7 +70,7 @@ Only the selected panel is exposed to keyboard/accessibility navigation. Explici
 tab changes and history traversals focus the selected tab; initial authorization
 focuses the group heading. Refreshing members intentionally reauthorizes details
 and retires the game/statistics area. These are navigation foundations for #76–#78;
-the existing inline game form and statistics tables retain their contracts.
+the game editor and statistics tables retain their API contracts.
 
 Deck/group API functions accept optional AbortSignals without changing HTTP
 contracts. Each mounted manager/detail view aborts its work on retirement;
@@ -87,9 +87,9 @@ History cards keep the exact API order and expose current winner plus winning
 deck (or Unentschieden), participant count and **Erfasst am**. The timestamp is
 `recordedAt`, never a played-at date; its original precision remains in the time
 element. One full-card link pushes `/playgroups/:groupId/games/:gameId`. While
-an inline editor/write is active, cards cannot navigate and explain how to return
-to history. The existing editor still accepts 2–6 participants and preserves its
-draft across same-group tabs; #77 owns broader navigation protection.
+the focused editor/write is active, the interactive history is replaced by the
+form. Canceling returns to the history; only an acknowledged save refreshes it
+with success feedback. The editor retains the 2–6-participant API contract.
 
 `GameDetailsPage` is a separate, session/path-keyed lifetime. App confirms `/api/me`
 before it mounts; it validates both hyphenated UUIDs, gets fresh group membership,
@@ -136,6 +136,75 @@ Spiele** always targets the canonical group URL, even for a direct/reloaded visi
 Leaving details retires its data; there is no shared game cache. Sorting remains
 local to the current group manager lifetime and is retained across its tabs and
 acknowledged inline writes, but a new route lifetime starts with API sorting.
+
+## Focused Commander game editor
+
+`GameEditor` replaces history inside the existing Spiele panel, without adding
+an editor URL or mounting another manager. New games start with four blank cards;
+edits use exactly the saved ordered assignments and result. Stable slot keys keep
+card state and focus through insertion/removal. Visible slots are bounded at 2–6,
+while completely blank slots are omitted from the payload. Partial slots block
+saving and retain input, with an error summary, field messages and first-error
+focus. Completed assignments collapse to public player/deck/commander/color
+summaries; Bearbeiten restores field focus. Duplicate public names get sufficient
+ID suffixes, never emails. Changing any winning assignment clears its winner;
+Sieg requires an explicit complete participant, Unentschieden sends null.
+
+Each selected active member has an independent abortable deck-selection lifetime
+and loading/error/retry state. A failed or malformed list is never an empty list.
+Changing the member clears the deck. Only that member's eligible response decks
+can form a new assignment. An exact pair from the currently edited saved game
+remains retainable without fresh eligibility, including former members and
+archived decks; former members never gain another deck choice. A later edit uses
+only the then-current saved pairs. Backend validation remains final.
+
+**Variant A:** Spiele, Statistiken and Mitglieder stay visible and usable while
+editing. Tab pushes and native Back/Forward between the same group's tab URLs
+bypass discard protection and preserve the entire form: selections, expanded
+cards, result/winner and visible validation. Native hidden panels keep inactive
+controls out of keyboard/accessibility navigation. No tab change remounts or
+copies the editor. Leaving the group, opening its code screen, global navigation,
+Cancel, game/member refresh and departure all use `EditorNavigation`/
+`useEditorGuard`. The guard compares actual persisted values (including partial
+input), ignoring untouched blank slot changes and card expansion. Reverting all
+values makes it clean. Stay restores focus; discard closes the editor and aborts
+its requests. Reload/tab close use the browser's native beforeunload wording.
+Logout and session/access retirement continue to retire protected drafts directly.
+
+One pending guard covers CSRF and POST/PUT. Only exact, validated 201/200 responses
+return success and refresh history plus visited statistics; Decks reloads usage
+on its next mount. HTTP 400 keeps the editable draft with a distinct server
+validation error. HTTP 401 expires the current session. Conflicts, denied/missing
+resources and ambiguous outcomes retire the draft and private presentation, then
+safely recheck group access. Confirmed access offers explicit fresh history and
+statistics inspection before starting another editor. Unacknowledged writes warn
+that they may already have committed, including a pending write discarded by the
+user. A failed check leaves private data hidden. No write retries automatically;
+abort/session lifetimes ignore late acknowledgments and late 401s.
+
+`GameEditor.test.tsx`, `GameManager.test.tsx` and the group/routing/session suites
+cover blank/partial/full cards, 2/3/4/6 assignments, historical exceptions,
+independent selection failures and stale responses, focus, results, exact writes,
+dirty/reverted/pending exits, same-group POPs, access recovery and replacement
+sessions (including same-UUID login).
+
+### Game editor browser evidence
+
+Headless Chrome with intercepted API fixtures checked 320, 390 and 1280px with
+long/unbroken and duplicate names, all five colors and Farblos. No horizontal
+page overflow, nested editor scrolling or page errors were observed. Actual
+Tab/Enter, automatic summary focus, reopen focus, validation focus, hidden-panel
+keyboard exclusion, same-group Back/Forward, dirty global Forward with stay and
+discard, and acknowledged save returning to fresh history passed. A real Chrome
+beforeunload dialog was dismissed at 320px and retained the full draft. Screenshots
+of initial and validation states were visually inspected. These checks use
+frontend fixtures, not a live backend, physical phone/software keyboard or actual
+screen-reader acceptance.
+
+Computed active select text was #F4EBDF on #29242A (12.89:1); disabled select text
+was #AA96A1 on #342A31 (4.99:1). The focused field's 2px gold outline (#DBB977)
+measures 8.13:1 against the card. The editor scopes native-select disabled/focus
+styles so legacy pale backgrounds do not override the themed fields.
 
 ## Dashboard and group entry
 

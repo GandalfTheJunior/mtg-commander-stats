@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import {
   ApiError, getGroup, listGames, saveGame,
   type Game, type GameInput, type GroupDetails,
@@ -9,6 +9,7 @@ import { gameSummary, gameUrl, mayManageGame, recordedTime, sameId } from './gam
 import GameEditor from './GameEditor'
 import type { GroupTab } from './groupNavigation'
 import GroupStatistics, { type StatisticsSort } from './GroupStatistics'
+import { EditorLeave } from './editorGuard'
 
 type Props = {
   group: GroupDetails
@@ -31,6 +32,7 @@ function message(error: unknown) {
 // entire group manager by confirmed session. Abort and generation checks retire
 // responses (including 401s) before they can affect a different lifetime.
 export default function GameManager({ group, actorId, tab = 'games', initialEditId, ...handlers }: Props) {
+  const leave = useContext(EditorLeave)
   const id = group.id
   const editIntent = useRef(initialEditId)
   const actor = useRef({ group, actorId })
@@ -52,6 +54,7 @@ export default function GameManager({ group, actorId, tab = 'games', initialEdit
   if (tab === 'statistics' && !statisticsVisited) setStatisticsVisited(true)
   const [statisticsSort, setStatisticsSort] = useState<StatisticsSort>({ players: null, decks: null })
   const [notice, setNotice] = useState('')
+  const [recoveryMessage, setRecoveryMessage] = useState('')
   const noticeElement = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (notice && state.status === 'ready' && tab === 'games') noticeElement.current?.focus()
@@ -76,6 +79,13 @@ export default function GameManager({ group, actorId, tab = 'games', initialEdit
     request.current?.abort()
     const controller = new AbortController()
     request.current = controller
+    const ambiguous = !(error instanceof ApiError) || ![400, 401, 403, 404, 409].includes(error.status)
+    const explanation = ambiguous
+      ? 'Der Speichervorgang wurde nicht bestätigt und könnte bereits gespeichert worden sein. Nicht erneut speichern, bevor du den Serverstand geprüft hast.'
+      : error instanceof ApiError && error.status === 409
+        ? 'Konflikt: Bitte den aktuellen Spielverlauf prüfen und eine neue Bearbeitung bewusst starten.'
+        : 'Die Anfrage wurde abgelehnt. Bitte den aktuellen Spielverlauf und deine Berechtigung prüfen.'
+    setRecoveryMessage(explanation)
     setState({ status: 'checking' })
     setAccess('checking')
     // Failed writes and access denials require explicit review/retry after the
@@ -94,7 +104,7 @@ export default function GameManager({ group, actorId, tab = 'games', initialEdit
       callbacks.current.onGroupConfirmed(confirmed)
       callbacks.current.onCheckingAccess(false)
       setAccess('confirmed')
-      setState({ status: 'error', error: `${message(error)} Group access is confirmed. Refresh games to review server state before trying again.` })
+      setState({ status: 'error', error: `${explanation} ${message(error)} Group access is confirmed. Refresh games to review server state before trying again.` })
     } catch (accessError) {
       if (!alive.current || version !== generation.current) return
       accessFailed(accessError)
@@ -140,6 +150,7 @@ export default function GameManager({ group, actorId, tab = 'games', initialEdit
   }, [id, revision, recover, accessFailed])
 
   function refresh() {
+    setRecoveryMessage('')
     request.current?.abort()
     generation.current++
     setState({ status: 'loading' })
@@ -151,11 +162,12 @@ export default function GameManager({ group, actorId, tab = 'games', initialEdit
   }
 
   return <>
+    {recoveryMessage && access !== 'confirmed' && <Alert severity="error">{recoveryMessage}</Alert>}
     <div role="tabpanel" id="group-panel-games" aria-labelledby="group-tab-games" hidden={tab !== 'games'} tabIndex={0}>
       <section aria-labelledby={`games-${id}`}>
         <Typography component="h3" variant="h5" id={`games-${id}`} sx={{ mb: 2 }}>Spiele</Typography>
         <Button color="secondary" disabled={state.status === 'loading' || state.status === 'checking'}
-          onClick={() => { setNotice(''); refresh() }}>Refresh games</Button>
+          onClick={() => leave(() => { setNotice(''); refresh() })}>Refresh games</Button>
         {state.status === 'loading' && <p role="status">Loading game history…</p>}
         {state.error && <Alert severity="error">{state.error}</Alert>}
         {notice && <Alert ref={noticeElement} tabIndex={-1} severity="success" role="status">{notice}</Alert>}
@@ -170,7 +182,7 @@ export default function GameManager({ group, actorId, tab = 'games', initialEdit
     {access === 'checking' && <p role="status">Checking group access…</p>}
     {access === 'error' && <div>
       <Alert severity="error">Group access could not be verified. Refresh games or members to try again.</Alert>
-      <button type="button" onClick={refresh}>Refresh group access</button>
+      <button type="button" onClick={() => leave(refresh)}>Refresh group access</button>
     </div>}
     <Box className="legacy-view" sx={{ bgcolor: '#fff', borderRadius: 2, px: 2, pb: 2 }} role="tabpanel" id="group-panel-statistics" aria-labelledby="group-tab-statistics" hidden={tab !== 'statistics'} tabIndex={0}>
       {statisticsVisited && access === 'confirmed' && (statisticsBlocked ? <div>
@@ -194,16 +206,21 @@ type ContentProps = {
 function GameContent({ group, games, initialEditor, editError, onError, onStart, onSaved }: ContentProps) {
   const [editor, setEditor] = useState<Game | 'new' | null>(initialEditor ?? null)
   const [busy, setBusy] = useState(false)
+  const [writeError, setWriteError] = useState('')
   const pending = useRef(false)
+  const closing = useRef(false)
   const alive = useRef(false)
   const controller = useRef<AbortController | null>(null)
   const trigger = useRef<HTMLButtonElement | null>(null)
   const restoreFocus = useRef(false)
   useEffect(() => {
     alive.current = true
-    controller.current = new AbortController()
     return () => { alive.current = false; controller.current?.abort() }
   }, [])
+  useEffect(() => {
+    controller.current = new AbortController()
+    return () => { controller.current?.abort() }
+  }, [editor])
   useEffect(() => {
     if (!editor && restoreFocus.current) {
       trigger.current?.focus()
@@ -215,32 +232,42 @@ function GameContent({ group, games, initialEditor, editError, onError, onStart,
     if (pending.current || !editor) return
     pending.current = true
     setBusy(true)
+    setWriteError('')
+    const signal = controller.current!.signal
     try {
-      await saveGame(group.id, input, editor === 'new' ? undefined : editor.id, controller.current!.signal)
-      if (!alive.current) return
+      await saveGame(group.id, input, editor === 'new' ? undefined : editor.id, signal)
+      if (!alive.current || signal.aborted) return
       onSaved(editor === 'new' ? 'Game recorded.' : 'Game updated.')
     } catch (error) {
-      if (alive.current) onError(error)
+      if (!alive.current || signal.aborted) return
+      if (error instanceof ApiError && error.status === 400) {
+        setWriteError(`Der Server hat die Angaben abgelehnt. Bitte Spieler, Decks und Ergebnis prüfen und korrigieren. ${message(error)}`)
+      } else onError(error)
     } finally {
-      if (alive.current) { pending.current = false; setBusy(false) }
+      if (alive.current && !signal.aborted) { pending.current = false; setBusy(false) }
     }
   }
 
   return <Stack sx={{ gap: 2, minWidth: 0 }}>
     {!editor && <Button variant="contained" ref={trigger} sx={{ alignSelf: 'flex-start', minHeight: 48 }} onClick={() => {
-      onStart(); setEditor('new')
+      onStart(); closing.current = false; setWriteError(''); setEditor('new')
     }}>Spiel erfassen</Button>}
     {editError && <Typography role="alert">{editError}</Typography>}
-    {editor && <Box className="legacy-view" sx={{ bgcolor: '#fff', p: 2, borderRadius: 2 }}><GameEditor group={group} game={editor === 'new' ? null : editor} busy={busy}
-      onSubmit={write} onCancel={() => { restoreFocus.current = true; setEditor(null) }} onAccessError={onError} /></Box>}
+    {editor && <GameEditor group={group} game={editor === 'new' ? null : editor} busy={busy} writeError={writeError}
+      onSubmit={write} onCancel={() => {
+        if (closing.current) return
+        closing.current = true
+        const wasPending = pending.current
+        controller.current?.abort(); pending.current = false; setBusy(false)
+        restoreFocus.current = true; setWriteError(''); setEditor(null)
+        if (wasPending) onError(new Error('Der abgebrochene Speichervorgang könnte den Server bereits erreicht haben. Bitte den aktuellen Spielverlauf prüfen.'))
+      }} onAccessError={onError} />}
+    {!editor && <>
     <Typography component="h4" variant="h6">Spielverlauf</Typography>
-    {editor && <Typography role="status">Beende oder brich das aktuelle Formular ab, bevor du Spieldetails öffnest.</Typography>}
     {games.length === 0 ? <Typography>No recorded games yet.</Typography> : <Stack component="ol" aria-label="Game history" sx={{ listStyle: 'none', p: 0, m: 0, gap: 2, minWidth: 0 }}>
       {games.map(game => <Box component="li" key={game.id} sx={{ minWidth: 0 }}>
         <Card component="article" aria-label={`Game ${game.id}`} sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
-          <CardActionArea component={Link} to={gameUrl(group.id, game.id)} disabled={editor !== null || busy}
-            aria-disabled={editor !== null || busy} tabIndex={editor !== null || busy ? -1 : 0}
-            onClick={event => { if (editor !== null || busy) event.preventDefault() }}
+          <CardActionArea component={Link} to={gameUrl(group.id, game.id)}
             aria-label={`Spieldetails: ${gameSummary(game)} · ${game.participants.length} Teilnehmende · Erfasst am ${recordedTime(game)} · ${game.id}`}
             sx={{ p: 2, minHeight: 48, display: 'block', textAlign: 'left', color: 'text.primary', textDecoration: 'none', '&.Mui-focusVisible, &:focus-visible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: -3 } }}>
             <Typography component="h5" variant="h6" sx={{ overflowWrap: 'anywhere', fontSize: '1.125rem', lineHeight: 1.45 }}>{gameSummary(game)}</Typography>
@@ -250,5 +277,6 @@ function GameContent({ group, games, initialEditor, editError, onError, onStart,
         </Card>
       </Box>)}
     </Stack>}
+    </>}
   </Stack>
 }

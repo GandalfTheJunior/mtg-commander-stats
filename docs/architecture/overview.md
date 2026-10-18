@@ -214,8 +214,8 @@ The authenticated [browser shell and routing](../development/frontend-routing.md
 mount `GroupManager` at `/playgroups`, dedicated `GroupPage` routes for group tabs
 and OWNER code management, and `DeckManager` at `/decks`, one destination at a time.
 Group membership is reverified on route entry. Spiele uses navigable MUI history
-cards and retains the existing inline game editor with drafts preserved across
-same-group tabs. Dedicated Spieldetails routes freshly verify group then game;
+cards and uses the focused game editor with drafts preserved across
+same-group tabs and guarded exits. Dedicated Spieldetails routes freshly verify group then game;
 see the routing guide for read recovery, one-use edit intents and deletion lifetimes. Deck creation and
 lifecycle actions use the dedicated MUI editor at `/decks/new` or
 `/decks/:deckId/edit`, with scoped drafts, origin-aware return and navigation
@@ -272,8 +272,9 @@ lifetime. Refreshing/closing details, membership loss, route or identity changes
 it. AbortControllers and generation checks ignore late results and late 401s;
 unsafe game requests pass the abort signal through CSRF bootstrap and check it
 before sending the write. Refresh or recovery removes history, drafts and pending
-confirmations before any replacement data is accepted. A denied/failed inline game
-write rechecks group access with the existing safe details GET. Protected
+confirmations before any replacement data is accepted. A validation rejection
+keeps the editable game draft; a denied, conflicting or unacknowledged write
+retires it and rechecks group access with the existing safe details GET. Protected
 members/code are hidden during that check. Returning from Decks mounts fresh group
 details and game choices; a retired check cannot restore its prior details/code.
 A successful recovery

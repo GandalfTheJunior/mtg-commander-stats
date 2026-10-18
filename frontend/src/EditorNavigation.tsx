@@ -7,7 +7,7 @@ import DialogContent from '@mui/material/DialogContent'
 import DialogContentText from '@mui/material/DialogContentText'
 import DialogTitle from '@mui/material/DialogTitle'
 
-import { EditorGuard, EditorPopSubscription } from './editorGuard'
+import { EditorGuard, EditorLeave, EditorPopSubscription, type EditorGuardOptions } from './editorGuard'
 
 /** Scoped Declarative Mode guard. Router push/replace/go and native POP are distinct paths. */
 export function EditorNavigation({ children, onLogout }: { children: ReactNode; onLogout: () => void }) {
@@ -15,6 +15,7 @@ export function EditorNavigation({ children, onLogout }: { children: ReactNode; 
   const parent = useContext(UNSAFE_NavigationContext)
   const location = useLocation()
   const blocked = useRef(false)
+  const guardOptions = useRef<EditorGuardOptions | undefined>(undefined)
   const requestPending = useRef(false)
   const stayButton = useRef<HTMLButtonElement>(null)
   const [writePending, setWritePending] = useState(false)
@@ -33,15 +34,21 @@ export function EditorNavigation({ children, onLogout }: { children: ReactNode; 
     setWritePending(requestPending.current)
     setConfirming(true)
   }, [])
-  const register = useCallback((value: boolean, pending = false) => {
+  const register = useCallback((value: boolean, pending = false, options?: EditorGuardOptions) => {
     requestPending.current = pending
     blocked.current = value
-    return () => { blocked.current = false }
+    guardOptions.current = options
+    return () => { blocked.current = false; guardOptions.current = undefined }
   }, [])
+  function navigateTo(to: Parameters<typeof parent.navigator.push>[0], leave: () => void) {
+    const href = typeof to === 'string' ? to : `${to.pathname ?? location.pathname}${to.search ?? ''}${to.hash ?? ''}`
+    if (guardOptions.current?.allows?.(new URL(href, window.location.href))) leave()
+    else ask(leave)
+  }
   const navigator = {
     ...parent.navigator,
-    push: (...args: Parameters<typeof parent.navigator.push>) => ask(() => parent.navigator.push(...args)),
-    replace: (...args: Parameters<typeof parent.navigator.replace>) => ask(() => parent.navigator.replace(...args)),
+    push: (...args: Parameters<typeof parent.navigator.push>) => navigateTo(args[0], () => parent.navigator.push(...args)),
+    replace: (...args: Parameters<typeof parent.navigator.replace>) => navigateTo(args[0], () => parent.navigator.replace(...args)),
     go: (delta: number) => ask(() => parent.navigator.go(delta)),
   }
 
@@ -62,6 +69,7 @@ export function EditorNavigation({ children, onLogout }: { children: ReactNode; 
         return
       }
       if (allowingPop.current) { allowingPop.current = false; return }
+      if (!pending.current && guardOptions.current?.allows?.(new URL(window.location.href))) return
       if (!blocked.current || typeof next !== 'number' || index.current === undefined) return
       const delta = next - index.current
       if (!delta) return
@@ -86,6 +94,7 @@ export function EditorNavigation({ children, onLogout }: { children: ReactNode; 
       if (!(anchor instanceof HTMLAnchorElement) || anchor.target === '_blank' || anchor.hasAttribute('download') ||
         event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
       const url = new URL(anchor.href)
+      if (guardOptions.current?.allows?.(url)) return
       if (url.origin === window.location.origin && url.pathname === window.location.pathname && url.search === window.location.search) return
       // Router links use the wrapped navigator; native links need their own fence.
       if (anchor.hasAttribute('data-discover') || !blocked.current) return
@@ -104,6 +113,7 @@ export function EditorNavigation({ children, onLogout }: { children: ReactNode; 
   }, [ask, subscribePop])
   function stay() { pending.current = null; setConfirming(false) }
   return <EditorGuard.Provider value={register}>
+    <EditorLeave.Provider value={ask}>
     <UNSAFE_NavigationContext.Provider value={{ ...parent, navigator }}>
       {children}
       <Dialog open={confirming} onClose={stay} aria-labelledby="discard-title" aria-describedby="discard-description"
@@ -119,11 +129,13 @@ export function EditorNavigation({ children, onLogout }: { children: ReactNode; 
             const leave = pending.current
             pending.current = null
             blocked.current = false
+            guardOptions.current?.onDiscard?.()
             setConfirming(false)
             leave?.()
           }}>Verwerfen und verlassen</Button>
         </DialogActions>
       </Dialog>
     </UNSAFE_NavigationContext.Provider>
+    </EditorLeave.Provider>
   </EditorGuard.Provider>
 }

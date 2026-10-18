@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import { MemoryRouter } from 'react-router'
 import type { GroupTab } from './groupNavigation'
 import { gameAction } from './test/gameEntry'
 import { selectTab } from './test/groupEntry'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App'
 import { renderApp, goTo } from './test/renderApp'
@@ -21,7 +20,7 @@ function show() {
     return <><button onClick={() => setTab('games')}>Show games</button><button onClick={() => setTab('statistics')}>Show statistics</button>
       <GameManager group={group} actorId={uid(1)} tab={tab} {...handlers} /></>
   }
-  return { ...render(<MemoryRouter><Harness /></MemoryRouter>), ...handlers }
+  return { ...renderApp(<Harness />), ...handlers }
 }
 async function games() {
   const trigger = screen.queryByRole('button', { name: 'Show games' })
@@ -149,18 +148,18 @@ test('create, edit and delete refresh actual backend statistics only after ackno
   await screen.findByText(/No statistics yet/)
   await games()
   fireEvent.click(screen.getByRole('button', { name: 'Spiel erfassen' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Cancel game' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
   expect(statsCalls(api)).toHaveLength(1)
   await games()
   fireEvent.click(screen.getByRole('button', { name: 'Spiel erfassen' }))
-  for (const n of [1, 2]) fireEvent.change(screen.getByLabelText(`Player ${n}`), { target: { value: uid(n + 1) } })
-  await waitFor(() => expect(screen.getByLabelText('Deck for player 1')).not.toBeDisabled())
-  for (const n of [1, 2]) fireEvent.change(screen.getByLabelText(`Deck for player ${n}`), { target: { value: deckFor(n + 1).id } })
-  fireEvent.change(screen.getByLabelText('Winning player'), { target: { value: uid(2) } })
+  for (const n of [1, 2]) fireEvent.change(screen.getByRole('combobox', { name: `Spieler ${n}` }), { target: { value: uid(n + 1) } })
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Deck für Spieler 1' })).not.toBeDisabled())
+  for (const n of [1, 2]) fireEvent.change(screen.getByRole('combobox', { name: `Deck für Spieler ${n}` }), { target: { value: deckFor(n + 1).id } })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(2) } })
   const pending = deferred()
   api.next(`/api/groups/${group.id}/games`, () => pending.promise, 'POST')
-  fireEvent.click(screen.getByRole('button', { name: 'Record game' }))
-  await screen.findByRole('button', { name: 'Saving game…' })
+  fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
+  await screen.findByRole('button', { name: 'Spiel wird gespeichert…' })
   await stats()
   expect(statsCalls(api)).toHaveLength(1)
   await stats()
@@ -174,8 +173,8 @@ test('create, edit and delete refresh actual backend statistics only after ackno
   expect(statsCalls(api)).toHaveLength(2)
   await games()
   await gameAction('Bearbeiten')
-  await screen.findByRole('form', { name: 'Edit game' })
-  fireEvent.click(screen.getByRole('button', { name: 'Cancel game' }))
+  await screen.findByRole('form', { name: 'Spiel bearbeiten' })
+  fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
   await games()
   await gameAction('Löschen')
   fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
@@ -183,11 +182,11 @@ test('create, edit and delete refresh actual backend statistics only after ackno
   expect(statsCalls(api)).toHaveLength(2)
   await games()
   await gameAction('Bearbeiten')
-  await screen.findByRole('form', { name: 'Edit game' })
-  fireEvent.change(screen.getByLabelText('Game result'), { target: { value: 'DRAW' } })
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Save game' })).not.toBeDisabled())
+  await screen.findByRole('form', { name: 'Spiel bearbeiten' })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Spiel speichern' })).not.toBeDisabled())
   api.state.statistics = { ...statistics(), players: [{ ...statistics().players[0], wins: 0, winRatePercent: 0 }] }
-  fireEvent.click(screen.getByRole('button', { name: 'Save game' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
   await screen.findByText('Game updated.')
   await stats()
   await waitFor(() => expect(within(playerTable()).getByRole('row', { name: /Ada/ })).toHaveTextContent('1200%'))
@@ -471,12 +470,12 @@ test('an acknowledged game write retains the chosen sort and applies it to newly
   api.state.statistics = updated
   await games()
   fireEvent.click(await screen.findByRole('button', { name: 'Spiel erfassen' }))
-  for (const n of [1, 2]) fireEvent.change(screen.getByLabelText(`Player ${n}`), { target: { value: uid(n + 1) } })
-  await waitFor(() => expect(screen.getByLabelText('Deck for player 1')).not.toBeDisabled())
-  for (const n of [1, 2]) fireEvent.change(screen.getByLabelText(`Deck for player ${n}`), { target: { value: deckFor(n + 1).id } })
-  fireEvent.change(screen.getByLabelText('Game result'), { target: { value: 'DRAW' } })
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Record game' })).not.toBeDisabled())
-  fireEvent.click(screen.getByRole('button', { name: 'Record game' }))
+  for (const n of [1, 2]) fireEvent.change(screen.getByRole('combobox', { name: `Spieler ${n}` }), { target: { value: uid(n + 1) } })
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Deck für Spieler 1' })).not.toBeDisabled())
+  for (const n of [1, 2]) fireEvent.change(screen.getByRole('combobox', { name: `Deck für Spieler ${n}` }), { target: { value: deckFor(n + 1).id } })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Spiel speichern' })).not.toBeDisabled())
+  fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
   await screen.findByText('Game recorded.')
   await stats()
   await waitFor(() => expect(sortedIds(playerTable())).toEqual([uid(9), uid(1), uid(2)]))

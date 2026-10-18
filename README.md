@@ -144,11 +144,18 @@ historical membership/results remain associated with the user. Rejoin using a
 current code. Owners cannot leave. An expired session clears protected browser
 content and asks the user to sign in again.
 
-Inside the group's **Spiele** tab, **Spiel erfassen** opens the existing inline
-form. Select 2–6 different active members and an eligible deck for each. Used,
-unarchived decks remain eligible; you need not participate. Select WIN and a
-participating winner, or DRAW with no winner. Empty deck lists require a different
-player or a new unarchived deck; peer decks are read-only.
+Inside the group's **Spiele** tab, **Spiel erfassen** opens a focused editor with
+four empty player/deck cards. Select 2–6 different active members and an eligible
+owned deck for each. Untouched blank cards are omitted; partial cards must be
+completed or cleared. Completed cards collapse to readable summaries and reopen
+with **Bearbeiten**. Used, unarchived decks remain eligible; you need not
+participate. Select **Sieg** and an explicit participating winner, or
+**Unentschieden** with no winner, then **Spiel speichern**. Deck selection failures
+have an explicit retry; empty lists require a different player or a new
+unarchived deck. Peer decks remain read-only. Group tabs and same-group browser
+Back/Forward preserve the full draft without warning; changed drafts prompt
+before cancellation, leaving the group or refreshing data. See the
+[game-editor guide](docs/development/frontend-routing.md#focused-commander-game-editor).
 
 History cards follow server order and show winner plus winning deck or
 **Unentschieden**, participant count and **Erfasst am**. Each card opens
@@ -169,7 +176,8 @@ See [routing and state lifetimes](docs/development/frontend-routing.md#game-hist
 
 **Refresh games** verifies current group access and reloads history. Failed or
 ambiguous game operations hide retired game data and recheck group details; a
-confirmed membership permits an explicit refresh before retrying. Review the
+confirmed membership permits an explicit refresh before retrying. A 400 validation
+rejection keeps the editable draft for correction. Review the
 refreshed history after a network failure because the server may have committed
 the request. A 403 alone does not assert logout or departure. Switching/closing a
 group, refreshing members, logging out, or changing identity retires old game
