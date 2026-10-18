@@ -11,6 +11,7 @@ approved task specification
 → implementation
 → deterministic checks
 → Pull Request
+→ required CI checks complete successfully on the current PR revision
 → independent Senior Reviewer + Product Owner review
 → accepted findings returned to the implementer if necessary
 → Product Owner decides whether to merge
@@ -78,6 +79,24 @@ Complete every section of the [PR template](../../.github/pull_request_template.
 with factual Reviewer Context, following [reviewing guidance](reviewing.md).
 If a required check cannot run, disclose the blocker; an unexecuted check is not
 a pass and does not satisfy the completion standard.
+
+After opening a PR, and after every subsequent push, the Implementer must check
+GitHub Actions for the **current PR revision** and wait for the required
+`backend` and `frontend` CI jobs to reach a terminal, successful result before
+claiming verified implementation completion or handing off as CI-verified.
+A queued, pending, in-progress, missing, skipped, cancelled, timed-out, or failed
+required check is **not** a pass. Successful local checks or green checks for an
+earlier commit cannot substitute for current PR CI evidence.
+
+If a required CI check fails, inspect its logs, investigate the cause, make
+authorized in-scope corrections without weakening tests, rerun relevant local
+checks, push the correction and check the new revision's CI again. Escalate
+out-of-scope or unresolved blockers to the PO instead of silently bypassing
+checks. If CI cannot be observed to completion due to unavailable tooling,
+permissions, or execution limits, explicitly report the PR as **awaiting CI
+verification** (or **CI failing**, as appropriate), with the observed statuses
+and remaining action. Do not describe it as completed, CI-verified, or ready to
+merge. The PO retains the final merge decision.
 
 Before handing the work to review, verify that acceptance criteria are satisfied,
 scope has not expanded unnecessarily, relevant tests exist and local checks pass,
