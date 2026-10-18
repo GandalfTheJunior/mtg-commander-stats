@@ -184,28 +184,35 @@ group, refreshing members, logging out, or changing identity retires old game
 requests and drafts. Game mutations reload your deck lifecycle state; deck
 mutations reload the selected game's history/selection area.
 
-Only in the **Statistiken** tab, **Statistics** shows separate **Player statistics** and
-**Deck statistics** tables for the opened group: Games, Wins, and Win rate. Only
-players/decks with recorded games appear, including former members and archived
-decks; archived decks are labelled **Archived**. Current names, commanders, and
-UUIDs distinguish identical display names. Percentages come from the backend,
-with at most two decimal places. Tables initially retain the backend's name-based
-order. Click any column heading (or focus it and press Enter/Space) to sort:
-numeric columns start descending, text columns start ascending, and a second
-activation reverses direction. An arrow and accessible sort direction identify
-the active heading. Text sorting ignores case; equal values retain backend order.
-Player and deck sorting are independent.
+The **Statistiken** tab opens on **Spieler** and switches to **Decks** without
+changing the URL. Phones show one card per API row; at the shared MUI `md`
+breakpoint (900px), only the selected dataset appears as a sortable table.
+Players show Spiele, Siege and Siegrate; decks also show commander, owner and
+**Archiviert**. Only recorded players/decks appear, including former members and
+archived decks. **Kennung anzeigen / Kennung verbergen** reveals full player or
+deck identifiers (plus deck owner ID) on request to distinguish identical names.
+Percentages come directly from the backend, with at most two decimal places.
 
-**Refresh statistics** reloads those figures and keeps each chosen sort.
-Successful game creation, editing, and deletion also reload them; **Refresh games**, **Mitglieder aktualisieren**, and reopening
-a group obtain fresh statistics after the tab has been visited. Same-group tab
-switches preserve the current inline game draft and sort choices. Empty groups show **No statistics yet**.
-Loading and failed refreshes hide previous tables, with an explicit retry.
-Statistics access denials use the same group recheck as games: after confirmed
-access, **Refresh games** reloads history and statistics; unresolved checks keep
-protected data hidden. Closing/switching groups, logout, and session changes
-retire old requests and statistics immediately. Closing/switching groups or
-changing sessions also discard previous sort choices; sorting is not persisted.
+Initially, **Standardreihenfolge** retains the received API order: players by
+username/user ID, decks by owner/deck name/deck ID. Mobile **Sortieren nach** and
+the separate **Aufsteigend / Absteigend** button offer every existing sort field.
+Desktop column buttons expose their active direction; **Standardreihenfolge**
+resets sorting. Numeric columns start descending, text columns ascending; repeated
+header activation reverses direction. Case-insensitive, accent-sensitive text
+comparison and stable ties preserve the existing contract. Each dataset retains
+its own temporary sort and the chosen subview survives same-group tab changes,
+refresh and acknowledged game writes. No ranking is implied.
+
+**Statistiken aktualisieren** reloads figures and immediately hides old rows.
+Acknowledged game creation, editing and deletion also reload them; **Refresh games**,
+**Mitglieder aktualisieren** and reopening a visited group retain their existing
+refresh behavior. Each subview has its own empty feedback; the switch remains
+available. Loading and failed refreshes hide previous rows, with explicit retry.
+Statistics denials use the same safe group recheck as games. Confirmed access
+offers **Statistiken aktualisieren** without an automatic retry loop; unresolved
+checks keep protected data hidden. Closing/switching groups, logout and session
+changes retire requests, rows, chosen subview and sorts. No presentation choice
+is persisted to browser storage or the API.
 
 The browser uses the existing session/CSRF flow and documented
 [play groups](docs/product/groups-api.md), [Commander games](docs/product/games-api.md),

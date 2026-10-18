@@ -4,7 +4,7 @@ This document records the agreed product target. User registration, session
 authentication, authenticated deck management, browser play-group management,
 and browser game recording/history with permanent deck usage/archival are
 implemented, along with the group-specific basic statistics API and browser
-player/deck statistics tables.
+responsive player/deck statistics views.
 
 ## Product milestone
 
@@ -94,13 +94,17 @@ The backend [group statistics API](statistics-api.md) provides games, wins, and
 win rate per player and deck within a group. Only entities appearing in current
 games are included; draws add games without wins. Former members and archived
 decks retain recorded results. Active membership is required to read statistics.
-Opened browser groups show separate player/deck tables with games, wins and
-percentages initially in the API's name-based order. Every column supports
-independent, temporary table sorting; numeric columns start descending, text
-columns ascending, and repeated activation reverses direction. Sorting is only
-client presentation, not a ranking or a change to the API counts. Successful game
-changes and explicit refreshes reload statistics from the backend. Loading/error/empty states and
-session/group access recovery keep retired statistics hidden. Advanced statistics
+Opened browser groups start on Spieler and offer a Spieler/Decks switch: one
+card per returned row on phones and one sortable table for the selected dataset
+on desktop. All existing player/deck sort fields and both directions are available;
+numeric fields start descending and text fields ascending. Standardreihenfolge
+restores received API order, with independent temporary sort choices and stable
+ties. Full stable player/deck/owner IDs are disclosed only on request. The subview
+and sorts survive same-group navigation, refresh and acknowledged writes, then
+reset with the group/session lifetime. These are presentation choices, not
+rankings or changes to API counts. Successful game changes and explicit refresh
+reload server statistics. Loading, local error/retry, subview-specific empty states
+and group/session access recovery keep retired rows hidden. Advanced statistics
 remain deferred.
 
 Play-group seasons and season-specific win-rate leaderboards are documented as a

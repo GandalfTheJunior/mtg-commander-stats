@@ -70,7 +70,28 @@ Only the selected panel is exposed to keyboard/accessibility navigation. Explici
 tab changes and history traversals focus the selected tab; initial authorization
 focuses the group heading. Refreshing members intentionally reauthorizes details
 and retires the game/statistics area. These are navigation foundations for #76–#78;
-the game editor and statistics tables retain their API contracts.
+the game editor and statistics views retain their API contracts.
+
+### Responsive group statistics
+
+`GameManager` owns separate player/deck sorts and the selected statistics subview
+(initially Spieler) above the keyed `GroupStatistics` request instance. Refresh and
+acknowledged writes re-sort fresh API arrays without discarding either choice.
+Group/session retirement resets them; the switch adds no URL or storage state.
+`GroupStatistics` uses the shared theme's `md` media query (900px): phones mount a
+semantic card list and labelled native Sortieren nach selector/direction button;
+wider viewports mount only the selected semantic table with header buttons and
+`aria-sort`. Both offer Standardreihenfolge. Breakpoint changes make no API calls.
+Inactive variants are unmounted, and outer panels use native `hidden`.
+
+Per-row disclosure state and element IDs use group/dataset/stable UUID identity,
+so sorting and responsive changes cannot associate an identifier with another row.
+Only requested disclosures mount complete player/deck/owner ID text; contextual
+button names distinguish namesakes without permanently announcing raw UUIDs.
+The refresh button stays focusable with guarded `aria-disabled` during loading;
+access recovery focuses explicit retry and its replacement refresh control.
+Removing a focused responsive control returns focus to the persistent refresh.
+
 
 Deck/group API functions accept optional AbortSignals without changing HTTP
 contracts. Each mounted manager/detail view aborts its work on retirement;
@@ -454,10 +475,27 @@ long/unbroken group/member names, duplicate-name suffixes, real tab keyboard
 navigation, Back/Forward, an intact inline game draft, direct OWNER/MEMBER code
 URLs, no eager code GET, copy failure, code regeneration cancellation/confirmation,
 reload/fallback return, member departure and focus return. No page errors or
-horizontal page overflow were observed. Existing statistics tables keep their
-scroll regions with a minimum readable table width; mobile cards remain #78.
+horizontal page overflow were observed. At the time of the #75 checks, statistics still used legacy scrollable tables;
+#78 replaces them with the responsive presentation described above.
 Screenshots of games, statistics, members, code and both dialogs were visually
 inspected. The read-only code field uses cream on the theme paper surface
 (12.89:1); tabs/indicators and explicit focus use the theme gold (9.51:1 on the
 app background, 8.13:1 on paper). These are frontend fixture checks, not a live
 backend, physical phone/software-keyboard or screen-reader acceptance claim.
+
+### Statistics browser evidence
+
+Chrome against the production build with intercepted API fixtures checked 320,
+390, 900 and 1280px. Both datasets, long/unbroken names, duplicate names, full
+identifier/owner disclosures, archived decks, sorting, refresh, outer-tab
+Back/Forward and safe 403 access recovery passed. Inactive variants and hidden
+panels exposed no active controls; no horizontal page overflow or page errors
+were observed. Screenshots were visually inspected. A 640px viewport checked the
+reflow equivalent of 200% zoom on a 1280px window; native browser zoom, physical
+devices, live-backend and screen-reader acceptance were not exercised.
+
+Computed cream/secondary text on cards (#29242A) measured 12.89:1 / 8.48:1;
+the desktop table inherits #19171B and measured 15.08:1 / 9.92:1. The keyboard
+focus outline was the shared #DBB977 (8.13:1 on cards, 9.51:1 on page).
+These fixture measurements supplement the controlled-media-query RTL coverage;
+jsdom alone does not establish responsive CSS behavior.

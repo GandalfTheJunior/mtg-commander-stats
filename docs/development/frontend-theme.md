@@ -70,8 +70,9 @@ There is deliberately **no CssBaseline or global theme reset**. Emotion retains
 its default insertion order after `index.css`; do not add `injectFirst` while
 legacy type selectors coexist. MUI-specific overrides neutralize the legacy
 input focus outline and button disabled opacity only on the corresponding MUI
-components. Native registration/login, decks, groups, games and statistics keep
-their existing CSS, API and state handling. New global resets require a separate
+components. Remaining native authentication/legacy panels keep their existing CSS. Migrated
+statistics consume the theme directly and no longer use the light `.legacy-view`
+wrapper or legacy statistics selectors; API and request lifetimes are preserved. New global resets require a separate
 review of native forms; do not assume ThemeProvider scopes global CSS.
 
 Run `npm run dev` in `frontend/`, then open `/dev/theme.html`. This separate
