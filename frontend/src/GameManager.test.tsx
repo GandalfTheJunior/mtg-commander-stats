@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App'
 import { renderApp } from './test/renderApp'
-import { gameAction } from './test/gameEntry'
+import { gameAction, selectGameDeck } from './test/gameEntry'
 import type { GroupDetails } from './api'
 import { deckFor, deferred, gameApi, group, members, recorded, response, uid } from './test/gameFixtures'
 
@@ -23,9 +23,8 @@ async function start() {
 async function selectPlayers(first = 2, second = 3) {
   fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 1' }), { target: { value: uid(first) } })
   fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 2' }), { target: { value: uid(second) } })
-  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Deck für Spieler 1' })).not.toBeDisabled())
-  fireEvent.change(screen.getByRole('combobox', { name: 'Deck für Spieler 1' }), { target: { value: deckFor(first).id } })
-  fireEvent.change(screen.getByRole('combobox', { name: 'Deck für Spieler 2' }), { target: { value: deckFor(second).id } })
+  await selectGameDeck(1, deckFor(first))
+  await selectGameDeck(2, deckFor(second))
 }
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 

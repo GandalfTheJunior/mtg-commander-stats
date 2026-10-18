@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { GroupTab } from './groupNavigation'
-import { gameAction } from './test/gameEntry'
+import { gameAction, selectGameDeck } from './test/gameEntry'
 import { selectTab } from './test/groupEntry'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -142,7 +142,7 @@ test.each(['network', 'server', 'malformed', 'json'])('failed refresh (%s) hides
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
-test('create, edit and delete refresh actual backend statistics only after acknowledgment; cancellations do nothing', async () => {
+test('only acknowledged game creation refreshes visited statistics; canceled creation does nothing', async () => {
   const api = appSetup(); api.state.history = []; api.state.statistics = { players: [], decks: [] }; renderApp(<App />, `/playgroups/${group.id}`)
   await stats()
   await screen.findByText(/No statistics yet/)
@@ -150,11 +150,10 @@ test('create, edit and delete refresh actual backend statistics only after ackno
   fireEvent.click(screen.getByRole('button', { name: 'Spiel erfassen' }))
   fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
   expect(statsCalls(api)).toHaveLength(1)
-  await games()
+  expect(api.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0)
   fireEvent.click(screen.getByRole('button', { name: 'Spiel erfassen' }))
   for (const n of [1, 2]) fireEvent.change(screen.getByRole('combobox', { name: `Spieler ${n}` }), { target: { value: uid(n + 1) } })
-  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Deck für Spieler 1' })).not.toBeDisabled())
-  for (const n of [1, 2]) fireEvent.change(screen.getByRole('combobox', { name: `Deck für Spieler ${n}` }), { target: { value: deckFor(n + 1).id } })
+  for (const n of [1, 2]) await selectGameDeck(n, deckFor(n + 1))
   fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(2) } })
   const pending = deferred()
   api.next(`/api/groups/${group.id}/games`, () => pending.promise, 'POST')
@@ -162,43 +161,79 @@ test('create, edit and delete refresh actual backend statistics only after ackno
   await screen.findByRole('button', { name: 'Spiel wird gespeichert…' })
   await stats()
   expect(statsCalls(api)).toHaveLength(1)
-  await stats()
   expect(screen.getByText(/No statistics yet/)).toBeInTheDocument()
+  expect(screen.queryByText('Game recorded.')).not.toBeInTheDocument()
   api.state.history = [recorded()]
   api.state.statistics = statistics()
   await act(async () => pending.resolve(response(recorded(), 201)))
-  await stats()
   await screen.findByRole('table', { name: 'Player statistics' })
   expect(within(playerTable()).getByRole('row', { name: /Ada/ })).toHaveTextContent('12650%')
   expect(statsCalls(api)).toHaveLength(2)
-  await games()
+  expect(api.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
+})
+
+test('only acknowledged game edits refresh visited statistics; canceled edits do nothing', async () => {
+  const api = appSetup(); renderApp(<App />, `/playgroups/${group.id}`)
   await gameAction('Bearbeiten')
   await screen.findByRole('form', { name: 'Spiel bearbeiten' })
+  await stats()
+  await screen.findByRole('table', { name: 'Player statistics' })
+  await games()
   fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+  expect(statsCalls(api)).toHaveLength(1)
+  expect(api.fetchMock.mock.calls.filter(([, init]) => init?.method === 'PUT')).toHaveLength(0)
+  await gameAction('Bearbeiten')
+  await screen.findByRole('form', { name: 'Spiel bearbeiten' })
+  await stats()
+  await screen.findByRole('table', { name: 'Player statistics' })
+  expect(within(playerTable()).getByRole('row', { name: /Ada/ })).toHaveTextContent('12650%')
+  await games()
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
+  const pending = deferred()
+  api.next(`/api/groups/${group.id}/games/${uid(20)}`, () => pending.promise, 'PUT')
+  fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
+  await screen.findByRole('button', { name: 'Spiel wird gespeichert…' })
+  await stats()
+  expect(statsCalls(api)).toHaveLength(2)
+  expect(within(playerTable()).getByRole('row', { name: /Ada/ })).toHaveTextContent('12650%')
+  expect(screen.queryByText('Game updated.')).not.toBeInTheDocument()
+  api.state.history = [recorded({ result: 'DRAW', winnerUserId: null })]
+  api.state.statistics = { ...statistics(), players: [{ ...statistics().players[0], wins: 0, winRatePercent: 0 }] }
+  await act(async () => pending.resolve(response(api.state.history[0])))
+  await waitFor(() => expect(within(playerTable()).getByRole('row', { name: /Ada/ })).toHaveTextContent('1200%'))
+  expect(statsCalls(api)).toHaveLength(3)
+  expect(api.fetchMock.mock.calls.filter(([, init]) => init?.method === 'PUT')).toHaveLength(1)
+})
+
+test('acknowledged game deletion reloads server statistics; canceled deletion sends no write', async () => {
+  const api = appSetup(); renderApp(<App />, `/playgroups/${group.id}`)
+  await stats()
+  await screen.findByRole('table', { name: 'Player statistics' })
   await games()
   await gameAction('Löschen')
   fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
   fireEvent.click(await screen.findByRole('link', { name: 'Zurück zu Spiele' }))
-  expect(statsCalls(api)).toHaveLength(2)
-  await games()
-  await gameAction('Bearbeiten')
-  await screen.findByRole('form', { name: 'Spiel bearbeiten' })
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Spiel speichern' })).not.toBeDisabled())
-  api.state.statistics = { ...statistics(), players: [{ ...statistics().players[0], wins: 0, winRatePercent: 0 }] }
-  fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
-  await screen.findByText('Game updated.')
+  expect(statsCalls(api)).toHaveLength(1)
+  expect(api.fetchMock.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(0)
   await stats()
-  await waitFor(() => expect(within(playerTable()).getByRole('row', { name: /Ada/ })).toHaveTextContent('1200%'))
-  expect(statsCalls(api)).toHaveLength(3)
-  api.state.statistics = { players: [], decks: [] }
+  await screen.findByRole('table', { name: 'Player statistics' })
+  expect(within(playerTable()).getByRole('row', { name: /Ada/ })).toHaveTextContent('12650%')
   await games()
   await gameAction('Löschen')
+  const pending = deferred()
+  api.next(`/api/groups/${group.id}/games/${uid(20)}`, () => pending.promise, 'DELETE')
   fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
+  await screen.findByText('Löschung und Serverstand werden geprüft…')
+  expect(statsCalls(api)).toHaveLength(2)
+  expect(screen.queryByText('Spiel gelöscht. Die bisherige Decknutzung bleibt erhalten.')).not.toBeInTheDocument()
+  api.state.history = []
+  api.state.statistics = { players: [], decks: [] }
+  await act(async () => pending.resolve(new Response(null, { status: 204 })))
   await screen.findByText('Spiel gelöscht. Die bisherige Decknutzung bleibt erhalten.')
   await stats()
   await screen.findByText(/No statistics yet/)
-  expect(statsCalls(api)).toHaveLength(4)
+  expect(statsCalls(api)).toHaveLength(3)
+  expect(api.fetchMock.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(1)
 })
 
 test('a failed game write fabricates no statistics and explicit game refresh reloads unchanged server figures', async () => {
@@ -471,8 +506,7 @@ test('an acknowledged game write retains the chosen sort and applies it to newly
   await games()
   fireEvent.click(await screen.findByRole('button', { name: 'Spiel erfassen' }))
   for (const n of [1, 2]) fireEvent.change(screen.getByRole('combobox', { name: `Spieler ${n}` }), { target: { value: uid(n + 1) } })
-  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Deck für Spieler 1' })).not.toBeDisabled())
-  for (const n of [1, 2]) fireEvent.change(screen.getByRole('combobox', { name: `Deck für Spieler ${n}` }), { target: { value: deckFor(n + 1).id } })
+  for (const n of [1, 2]) await selectGameDeck(n, deckFor(n + 1))
   fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
   await waitFor(() => expect(screen.getByRole('button', { name: 'Spiel speichern' })).not.toBeDisabled())
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))

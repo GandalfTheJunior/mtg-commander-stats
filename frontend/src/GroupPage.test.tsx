@@ -7,6 +7,7 @@ import { AppThemeProvider } from './theme/AppThemeProvider'
 import { groupUnavailable, groupUrl } from './groupNavigation'
 import { deckFor, deferred, gameApi, group, recorded, response, uid } from './test/gameFixtures'
 import { goTo } from './test/renderApp'
+import { selectGameDeck } from './test/gameEntry'
 import { openCodeScreen, selectTab, showCode } from './test/groupEntry'
 import type { CurrentUser, GroupDetails } from './api'
 import { statistics } from './test/statisticsFixtures'
@@ -732,8 +733,7 @@ test('acknowledged game save refreshes sorted statistics even while the replacem
   await selectTab('Spiele')
   fireEvent.click(await screen.findByRole('button', { name: 'Spiel erfassen' }))
   for (const n of [1, 2]) fireEvent.change(screen.getByRole('combobox', { name: `Spieler ${n}` }), { target: { value: uid(n + 1) } })
-  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Deck für Spieler 1' })).not.toBeDisabled())
-  for (const n of [1, 2]) fireEvent.change(screen.getByRole('combobox', { name: `Deck für Spieler ${n}` }), { target: { value: deckFor(n + 1).id } })
+  for (const n of [1, 2]) await selectGameDeck(n, deckFor(n + 1))
   fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
   await waitFor(() => expect(screen.getByRole('button', { name: 'Spiel speichern' })).toBeEnabled())
   api.next(`/api/groups/${group.id}/games`, () => response(recorded({ result: 'DRAW', winnerUserId: null }), 201), 'POST')

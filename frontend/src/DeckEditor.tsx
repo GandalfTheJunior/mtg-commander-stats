@@ -86,12 +86,13 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
   const recheckVersion = useRef(0)
   const dirty = !equal(draft, baseline)
   const releaseGuard = useEditorGuard(!completed && (dirty || busy), busy)
-  useLayoutEffect(() => { heading.current?.focus() }, [])
-  useEffect(() => {
+  // Install the request lifetime before focus exposes the form to interaction.
+  useLayoutEffect(() => {
     const controller = new AbortController()
     operation.current = controller
     return () => { controller.abort() }
   }, [])
+  useLayoutEffect(() => { heading.current?.focus() }, [])
   useLayoutEffect(() => { if (notice) noticeElement.current?.focus() }, [notice, recovery])
 
   async function recheck(signal: AbortSignal) {
