@@ -1,9 +1,15 @@
 import { createContext, useContext, useLayoutEffect } from 'react'
 
-export const EditorGuard = createContext<(blocked: boolean, pending?: boolean) => () => void>(() => () => {})
-export function useEditorGuard(blocked: boolean, pending = false) {
+export type EditorGuardOptions = {
+  allows?: (destination: URL) => boolean
+  onDiscard?: () => void
+}
+export const EditorGuard = createContext<(blocked: boolean, pending?: boolean, options?: EditorGuardOptions) => () => void>(() => () => {})
+// Local actions (cancel, refresh) retire a draft without changing the URL.
+export const EditorLeave = createContext<(leave: () => void) => void>(leave => leave())
+export function useEditorGuard(blocked: boolean, pending = false, options?: EditorGuardOptions) {
   const register = useContext(EditorGuard)
-  useLayoutEffect(() => register(blocked, pending), [register, blocked, pending])
+  useLayoutEffect(() => register(blocked, pending, options), [register, blocked, pending, options])
   return () => register(false)
 }
 

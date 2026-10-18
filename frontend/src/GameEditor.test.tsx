@@ -1,0 +1,211 @@
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, expect, test, vi } from 'vitest'
+import GameEditor from './GameEditor'
+import { renderApp } from './test/renderApp'
+import { deckFor, deferred, gameApi, group, recorded, response, uid } from './test/gameFixtures'
+import type { Game, GroupDetails } from './api'
+
+const player = (n: number) => screen.getByRole('combobox', { name: `Spieler ${n}` })
+const deck = (n: number) => screen.getByRole('combobox', { name: `Deck für Spieler ${n}` })
+const reopen = (n: number) => fireEvent.click(screen.getByRole('button', { name: `Spieler ${n} bearbeiten` }))
+function show(game: Game | null = null, details: GroupDetails = group) {
+  const onSubmit = vi.fn(), onAccessError = vi.fn()
+  const view = renderApp(<GameEditor group={details} game={game} busy={false} onSubmit={onSubmit} onCancel={vi.fn()} onAccessError={onAccessError} />)
+  return { ...view, onSubmit, onAccessError }
+}
+async function fill(slot: number, user: number) {
+  fireEvent.change(player(slot), { target: { value: uid(user) } })
+  await waitFor(() => expect(deck(slot)).toBeEnabled())
+  fireEvent.change(deck(slot), { target: { value: deckFor(user).id } })
+}
+const save = () => fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
+
+test.each([2, 3, 4, 6])('%s participants submit in visible order while untouched blank slots are omitted', async count => {
+  const api = gameApi()
+  const details = { ...group, members: [...group.members, ...[5, 6].map(n => ({ userId: uid(n), username: `Player ${n}`, role: 'MEMBER' as const }))] }
+  for (const n of [5, 6]) api.next(`/api/groups/${group.id}/members/${uid(n)}/decks`, () => response([deckFor(n)]))
+  const { onSubmit } = show(null, details)
+  expect(screen.getAllByRole('combobox', { name: /^Spieler \d$/ })).toHaveLength(4)
+  expect(player(1)).toHaveValue('')
+  expect(screen.getByRole('combobox', { name: 'Gewinner' })).toHaveValue('')
+  while (screen.getAllByRole('heading', { name: /^Spieler \d$/ }).length < count) fireEvent.click(screen.getByRole('button', { name: 'Spieler hinzufügen' }))
+  for (let n = 1; n <= count; n++) await fill(n, n)
+  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(count) } })
+  save()
+  expect(onSubmit).toHaveBeenCalledExactlyOnceWith({ participants: Array.from({ length: count }, (_, i) => ({ userId: uid(i + 1), deckId: deckFor(i + 1).id })), result: 'WIN', winnerUserId: uid(count) })
+})
+
+test('completed summaries announce player, deck, commander, colors; collapsing and reopening move focus deliberately', async () => {
+  const api = gameApi()
+  api.next(`/api/groups/${group.id}/members/${uid(2)}/decks`, () => response([{ ...deckFor(2), colorIdentity: [] }]))
+  show()
+  await fill(1, 2)
+  expect(screen.queryByRole('combobox', { name: 'Spieler 1' })).not.toBeInTheDocument()
+  const summary = within(screen.getByRole('region', { name: 'Spieler 1' }))
+  expect(summary.getByText('Same name (…0002)')).toBeInTheDocument()
+  expect(summary.getByText('Deck 2')).toBeInTheDocument()
+  expect(summary.getByText('Commander: Commander 2')).toBeInTheDocument()
+  expect(summary.getByText('Farbidentität: Farblos')).toBeInTheDocument()
+  expect(summary.getByRole('button', { name: 'Spieler 1 bearbeiten' })).toHaveFocus()
+  reopen(1)
+  expect(player(1)).toHaveFocus()
+  expect(deck(1)).toHaveValue(deckFor(2).id)
+})
+
+test('partial slots retain input, block save with field feedback and focus, and clearing back to blank permits saving', async () => {
+  gameApi(); const { onSubmit } = show()
+  await fill(1, 2); await fill(2, 3)
+  fireEvent.change(player(3), { target: { value: uid(4) } })
+  await waitFor(() => expect(deck(3)).toBeEnabled())
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
+  save()
+  expect(onSubmit).not.toHaveBeenCalled()
+  expect(deck(3)).toHaveFocus()
+  expect(deck(3)).toHaveAttribute('aria-invalid', 'true')
+  expect(player(3)).toHaveValue(uid(4))
+  expect(screen.getByRole('alert')).toHaveTextContent('Spieler 3: Bitte ein Deck auswählen')
+  fireEvent.click(screen.getByRole('button', { name: 'Spieler 3 leeren' }))
+  expect(player(3)).toHaveFocus()
+  save()
+  expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ participants: [2, 3].map(n => ({ userId: uid(n), deckId: deckFor(n).id })), winnerUserId: null }))
+})
+
+test('winner is explicit, complete and cleared when a deck, member, slot or result changes', async () => {
+  gameApi(); const { onSubmit } = show()
+  await fill(1, 2); await fill(2, 3)
+  save()
+  expect(onSubmit).not.toHaveBeenCalled()
+  expect(screen.getByRole('combobox', { name: 'Gewinner' })).toHaveFocus()
+  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(2) } })
+  reopen(1)
+  fireEvent.change(deck(1), { target: { value: '' } })
+  expect(screen.getByRole('combobox', { name: 'Gewinner' })).toHaveValue('')
+  expect(within(screen.getByRole('combobox', { name: 'Gewinner' })).queryByRole('option', { name: /0002/ })).not.toBeInTheDocument()
+  fireEvent.change(deck(1), { target: { value: deckFor(2).id } })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(2) } })
+  fireEvent.click(screen.getByRole('button', { name: 'Spieler 1 entfernen' }))
+  expect(screen.getByRole('combobox', { name: 'Gewinner' })).toHaveValue('')
+  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(3) } })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
+  expect(screen.queryByRole('combobox', { name: 'Gewinner' })).not.toBeInTheDocument()
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'WIN' } })
+  expect(screen.getByRole('combobox', { name: 'Gewinner' })).toHaveValue('')
+})
+
+test('only the selected member’s decks are offered; member change resets the deck and fences old success/401', async () => {
+  const api = gameApi(), late = deferred()
+  api.next(`/api/groups/${group.id}/members/${uid(2)}/decks`, () => late.promise)
+  const { onAccessError } = show()
+  fireEvent.change(player(1), { target: { value: uid(2) } })
+  expect(deck(1)).toBeDisabled()
+  fireEvent.change(player(1), { target: { value: uid(4) } })
+  await waitFor(() => expect(deck(1)).toBeEnabled())
+  await act(async () => late.resolve(response({}, 401)))
+  expect(onAccessError).not.toHaveBeenCalled()
+  expect(deck(1)).toHaveValue('')
+  expect(within(deck(1)).queryByRole('option', { name: /Deck 2/ })).not.toBeInTheDocument()
+  expect(within(deck(1)).getByRole('option', { name: /Deck 4/ })).toBeInTheDocument()
+  fireEvent.change(deck(1), { target: { value: deckFor(4).id } })
+  reopen(1)
+  fireEvent.change(player(1), { target: { value: uid(3) } })
+  expect(deck(1)).toHaveValue('')
+})
+
+test('loading is per card, failed/malformed responses are errors with retry, never empty lists', async () => {
+  const api = gameApi(), late = deferred()
+  api.next(`/api/groups/${group.id}/members/${uid(2)}/decks`, () => late.promise)
+  api.next(`/api/groups/${group.id}/members/${uid(3)}/decks`, () => response({ invalid: [] }))
+  const { onSubmit } = show()
+  fireEvent.change(player(1), { target: { value: uid(2) } })
+  fireEvent.change(player(2), { target: { value: uid(3) } })
+  await screen.findByText(/Deckauswahl fehlgeschlagen/)
+  expect(screen.queryByText(/Keine aktuellen Decks/)).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Spiel speichern' })).toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: 'Decks für Spieler 2 erneut laden' }))
+  await waitFor(() => expect(deck(2)).toBeEnabled())
+  fireEvent.change(deck(2), { target: { value: deckFor(3).id } })
+  expect(screen.getByRole('button', { name: 'Spieler 2 bearbeiten' })).toBeInTheDocument()
+  expect(deck(1)).toBeDisabled()
+  await act(async () => late.resolve(response([])))
+  await screen.findByText(/Keine aktuellen Decks/)
+  save()
+  expect(onSubmit).not.toHaveBeenCalled()
+})
+
+test.each(['WIN', 'DRAW'] as const)('edit starts with exactly saved assignments and %s result, retaining historical pairs only', async result => {
+  const api = gameApi()
+  const saved = recorded({ result, winnerUserId: result === 'WIN' ? uid(2) : null })
+  saved.participants[0].deck.archived = true
+  const details = { ...group, members: group.members.filter(member => member.userId !== uid(2)) }
+  const { onSubmit } = show(saved, details)
+  expect(screen.getAllByRole('heading', { name: /^Spieler \d$/ })).toHaveLength(2)
+  expect(screen.getAllByRole('button', { name: /Spieler \d bearbeiten/ })).toHaveLength(2)
+  expect(screen.getByText(/Ehemaliges Mitglied:/)).toBeInTheDocument()
+  expect(screen.getByText('Archiviertes Deck · nur erfasste Zuordnung')).toBeInTheDocument()
+  expect(screen.getByRole('combobox', { name: 'Spielergebnis' })).toHaveValue(result)
+  if (result === 'WIN') expect(screen.getByRole('combobox', { name: 'Gewinner' })).toHaveValue(uid(2))
+  save()
+  expect(onSubmit).toHaveBeenCalledWith({ participants: saved.participants.map(({ userId, deckId }) => ({ userId, deckId })), result, winnerUserId: saved.winnerUserId })
+  reopen(1)
+  expect(within(deck(1)).getAllByRole('option')).toHaveLength(2)
+  expect(within(deck(1)).getByRole('option', { name: /nur erfasste Zuordnung.*Archiviertes Deck/ })).toBeInTheDocument()
+  expect(api.fetchMock.mock.calls.some(([url]) => url.includes(`/members/${uid(2)}/`))).toBe(false)
+  fireEvent.change(player(1), { target: { value: uid(4) } })
+  await waitFor(() => expect(deck(1)).toBeEnabled())
+  expect(within(deck(1)).queryByRole('option', { name: /Deck 2/ })).not.toBeInTheDocument()
+})
+
+test('active historical players can keep their archived deck or select a fresh eligible deck, while duplicate players are blocked', async () => {
+  gameApi()
+  const saved = recorded(); saved.participants[0].deck.archived = true
+  show(saved)
+  reopen(1)
+  await screen.findByRole('option', { name: /Deck 2.*nur erfasste Zuordnung.*Archiviertes Deck/ })
+  reopen(2)
+  expect(within(player(2)).getByRole('option', { name: /0002.*bereits gewählt/ })).toBeDisabled()
+  // A synthetic selection of the disabled duplicate is still rejected on submit.
+  fireEvent.change(player(2), { target: { value: uid(2) } })
+  await waitFor(() => expect(deck(2)).toBeEnabled())
+  fireEvent.change(deck(2), { target: { value: deckFor(2).id } })
+  save()
+  expect(screen.getByRole('alert')).toHaveTextContent('bereits ausgewählt')
+  expect(player(1)).toHaveAttribute('aria-invalid', 'true')
+})
+
+test('an active historical player may replace the archived original with a current own deck; a later saved edit no longer grants the removed pair', async () => {
+  const api = gameApi(), saved = recorded({ result: 'DRAW', winnerUserId: null })
+  saved.participants[0].deck.archived = true
+  const current = { ...deckFor(9), name: 'Current own deck' }
+  api.next(`/api/groups/${group.id}/members/${uid(2)}/decks`, () => response([current]))
+  const view = show(saved)
+  reopen(1)
+  await screen.findByRole('option', { name: /Current own deck/ })
+  expect(within(deck(1)).getByRole('option', { name: /Archiviertes Deck/ })).toBeInTheDocument()
+  fireEvent.change(deck(1), { target: { value: current.id } })
+  save()
+  expect(view.onSubmit).toHaveBeenCalledWith({ participants: [{ userId: uid(2), deckId: current.id }, { userId: uid(3), deckId: deckFor(3).id }], result: 'DRAW', winnerUserId: null })
+  view.unmount()
+  const replacement = { ...saved, participants: [{ ...saved.participants[0], deckId: current.id, deck: { ...current, archived: false } }, saved.participants[1]] }
+  api.next(`/api/groups/${group.id}/members/${uid(2)}/decks`, () => response([current]))
+  show(replacement)
+  reopen(1)
+  await screen.findByRole('option', { name: /Current own deck/ })
+  expect(within(deck(1)).queryByRole('option', { name: /Deck 2/ })).not.toBeInTheDocument()
+})
+
+test('a forged deck outside the member’s eligible choices cannot be submitted as another owner or archived assignment', async () => {
+  gameApi(); const { onSubmit } = show()
+  await fill(1, 2); await fill(2, 3)
+  reopen(1)
+  const forged = document.createElement('option')
+  forged.value = deckFor(4).id; forged.textContent = 'Ineligible foreign deck'
+  deck(1).append(forged)
+  fireEvent.change(deck(1), { target: { value: deckFor(4).id } })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
+  save()
+  expect(onSubmit).not.toHaveBeenCalled()
+  expect(deck(1)).toHaveAttribute('aria-invalid', 'true')
+  expect(deck(1)).toHaveFocus()
+  expect(screen.getByRole('alert')).toHaveTextContent('Dieses Deck ist nicht verfügbar')
+})

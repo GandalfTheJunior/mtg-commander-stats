@@ -334,3 +334,23 @@ test('reloading create resets draft and trusted Dashboard return without loading
   expect(window.location.pathname).toBe('/decks')
   expect(listRequests()).toHaveLength(2)
 })
+
+test('the freshly focused edit form can save before passive effects run', async () => {
+  const api = deckApi()
+  const submitOnEntry = (event: FocusEvent) => {
+    if (!(event.target instanceof HTMLElement) || event.target.id !== 'deck-editor-heading') return
+    document.removeEventListener('focusin', submitOnEntry)
+    const save = screen.getByRole('button', { name: 'Änderungen speichern' })
+    if (save instanceof HTMLButtonElement) save.click()
+  }
+  document.addEventListener('focusin', submitOnEntry)
+  try {
+    showDeckApp(`/decks/${deck.id}/edit`)
+    await screen.findByText(`${deck.name} wurde gespeichert.`)
+    await screen.findByRole('heading', { name: 'Meine Decks' })
+    expect(api.writes()).toHaveLength(1)
+    expect(api.writes()[0][1]?.signal?.aborted).toBe(true)
+  } finally {
+    document.removeEventListener('focusin', submitOnEntry)
+  }
+})

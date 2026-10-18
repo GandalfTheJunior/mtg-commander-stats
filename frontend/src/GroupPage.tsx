@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Alert, Box, Button, Card, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, Menu, MenuItem, Stack, Tab, Tabs, TextField, Typography } from '@mui/material'
 import { ApiError, getGroup, getJoinCode, leaveGroup, type CurrentUser, type GroupDetails, type GroupMember } from './api'
 import GameManager from './GameManager'
+import { EditorLeave } from './editorGuard'
 import type { Notice } from './App'
 
 import { groupUrl, groupUnavailable, type GroupTab } from './groupNavigation'
@@ -30,6 +31,7 @@ export default function GroupPage({ currentUser, onUnauthorized, onNotice, onOpe
   getCodeReturn: () => GroupTab
 }) {
   const [codeReturn] = useState(getCodeReturn)
+  const leaveEditor = useContext(EditorLeave)
   const [editId, setEditId] = useState(getGameEdit)
   const { groupId = '' } = useParams()
   const location = useLocation()
@@ -176,7 +178,7 @@ export default function GroupPage({ currentUser, onUnauthorized, onNotice, onOpe
           <Menu id="group-actions" anchorEl={menu} open={Boolean(menu)} onClose={() => setMenu(null)} slotProps={{ list: { 'aria-label': 'Gruppenaktionen', sx: { '& .MuiMenuItem-root': { minHeight: 48, whiteSpace: 'normal' }, '& .MuiMenuItem-root.Mui-focusVisible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: -3 } } } }}>
             {details.role === 'OWNER' ? <MenuItem onClick={() => {
               setMenu(null)
-              onOpenCode(groupId, tab)
+              leaveEditor(() => onOpenCode(groupId, tab))
             }}>Einladungscode verwalten</MenuItem> : <MenuItem onClick={() => { setMenu(null); setConfirmLeave(true) }}>Gruppe verlassen</MenuItem>}
           </Menu>
           <Tabs value={tab} variant="fullWidth" textColor="secondary" indicatorColor="secondary" aria-label="Playgroup-Bereiche" onChange={(_event, value: GroupTab) => {
@@ -186,7 +188,7 @@ export default function GroupPage({ currentUser, onUnauthorized, onNotice, onOpe
               aria-controls={`group-panel-${value}`} label={['Spiele', 'Statistiken', 'Mitglieder'][index]} />)}
           </Tabs>
           <Box role="tabpanel" id="group-panel-members" aria-labelledby="group-tab-members" hidden={tab !== 'members'} tabIndex={0}>
-            <Button color="secondary" onClick={() => recheck()} disabled={busy}>Mitglieder aktualisieren</Button>
+            <Button color="secondary" onClick={() => leaveEditor(() => recheck())} disabled={busy}>Mitglieder aktualisieren</Button>
             <Stack component="ul" aria-label="Aktive Mitglieder" sx={{ listStyle: 'none', p: 0, m: 0, mt: 2, gap: 1 }}>
               {details.members.map(member => {
                 const suffix = memberSuffix(member, details.members)
@@ -212,7 +214,7 @@ export default function GroupPage({ currentUser, onUnauthorized, onNotice, onOpe
         Zum erneuten Beitreten brauchst du den aktuellen gültigen Einladungscode.</DialogContentText></DialogContent>
       <DialogActions sx={{ flexWrap: 'wrap' }}>
         <Button ref={cancelLeave} autoFocus onClick={() => setConfirmLeave(false)}>Abbrechen</Button>
-        <Button color="error" disabled={busy} onClick={() => { void depart() }}>Verlassen bestätigen</Button>
+        <Button color="error" disabled={busy} onClick={() => leaveEditor(() => { void depart() })}>Verlassen bestätigen</Button>
       </DialogActions>
     </Dialog>
   </Stack>

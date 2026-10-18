@@ -1,4 +1,4 @@
-import { gameAction, openGameDetails } from './test/gameEntry'
+import { gameAction, openGameDetails, selectGameDeck } from './test/gameEntry'
 import { showCode, selectTab } from './test/groupEntry'
 import { openExistingDeck, openDeckAction } from './test/editorEntry'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
@@ -45,13 +45,12 @@ async function open(name = group.name) {
 }
 async function create() {
   fireEvent.click(await screen.findByRole('button', { name: 'Spiel erfassen' }))
-  fireEvent.change(screen.getByLabelText('Player 1'), { target: { value: uid(1) } })
-  fireEvent.change(screen.getByLabelText('Player 2'), { target: { value: uid(2) } })
-  await waitFor(() => expect(screen.getByLabelText('Deck for player 1')).not.toBeDisabled())
-  fireEvent.change(screen.getByLabelText('Deck for player 1'), { target: { value: deckFor(1).id } })
-  fireEvent.change(screen.getByLabelText('Deck for player 2'), { target: { value: deckFor(2).id } })
-  fireEvent.change(screen.getByLabelText('Winning player'), { target: { value: uid(1) } })
-  fireEvent.click(screen.getByRole('button', { name: 'Record game' }))
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 1' }), { target: { value: uid(1) } })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 2' }), { target: { value: uid(2) } })
+  await selectGameDeck(1, deckFor(1))
+  await selectGameDeck(2, deckFor(2))
+  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(1) } })
+  fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
   await screen.findByText('Game recorded.')
   await screen.findByRole('article')
 }
@@ -110,7 +109,7 @@ test.each([
   expect(screen.getByRole('heading', { name: group.name })).toBeInTheDocument()
 })
 
-test('App refreshes permanent own-deck state after games and refreshes history after archival', async () => {
+test('App refreshes permanent own-deck usage after recording and retains it after game deletion', async () => {
   setup(); render(<App />); await open(); await create()
   await goTo('Decks'); await openExistingDeck()
   await openDeckAction('Archivieren')
@@ -124,8 +123,10 @@ test('App refreshes permanent own-deck state after games and refreshes history a
   await goTo('Decks'); await openExistingDeck()
   expect(screen.getByRole('textbox', { name: /Commander/ })).toHaveAttribute('readonly')
   expect(screen.getByRole('button', { name: 'Rot (R)' })).toBeDisabled()
-  fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
-  await open(); await screen.findByText('No recorded games yet.'); await create()
+})
+
+test('App refreshes history after own-deck archival', async () => {
+  setup(); render(<App />); await open(); await create()
   await goTo('Decks'); await openExistingDeck(); await openDeckAction('Archivieren')
   fireEvent.click(screen.getByRole('button', { name: 'Archivieren bestätigen' }))
   await screen.findByText('Deck 1 wurde archiviert.')
@@ -196,4 +197,22 @@ test('ambiguous game 403 hides group details/code during safe recheck, then rest
   await screen.findByText(/Diese Playgroup ist nicht verfügbar/)
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
   expect(screen.getByText(/Signed in as/)).toBeInTheDocument()
+})
+
+test('game recording waits for the second member’s independently delayed deck choice', async () => {
+  const api = setup(), secondDecks = deferred()
+  api.next(`/api/groups/${group.id}/members/${uid(2)}/decks`, () => secondDecks.promise)
+  render(<App />); await open()
+  const recording = create()
+  await screen.findByRole('button', { name: 'Spieler 1 bearbeiten' })
+  expect(screen.getByRole('combobox', { name: 'Deck für Spieler 2' })).toBeDisabled()
+  expect(api.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0)
+  await act(async () => secondDecks.resolve(response([deckFor(2)])))
+  await recording
+  const writes = api.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')
+  expect(writes).toHaveLength(1)
+  expect(JSON.parse(writes[0][1]!.body as string)).toEqual({
+    participants: [1, 2].map(n => ({ userId: uid(n), deckId: deckFor(n).id })),
+    result: 'WIN', winnerUserId: uid(1),
+  })
 })
