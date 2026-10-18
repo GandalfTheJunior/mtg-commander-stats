@@ -1,13 +1,17 @@
+import { stubLanHttpCrypto } from './test/lanHttp'
 import { StrictMode } from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { AppRouter as BrowserRouter } from './AppRouter'
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App'
 import type { MagicColor } from './api'
 import { AppThemeProvider } from './theme/AppThemeProvider'
 import { changeDeck, deck, deckApi, editDeck, menuAction, newDeck, owner, showDeckApp, signInDeck } from './test/deckFixtures'
 import { deferred, response, uid } from './test/gameFixtures'
 import { goTo } from './test/renderApp'
+
+// Exercise navigation, guards and retirement with the capabilities of LAN HTTP.
+beforeEach(stubLanHttpCrypto)
 
 afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState(null, '', '/') })
 const field = () => screen.getByRole('textbox', { name: /Deckname/ })
@@ -353,4 +357,23 @@ test('the freshly focused edit form can save before passive effects run', async 
   } finally {
     document.removeEventListener('focusin', submitOnEntry)
   }
+})
+
+test.each(['/dashboard', '/decks'] as const)('LAN HTTP creates and edits from %s with functional saves and trusted return', async origin => {
+  const api = deckApi(); showDeckApp(origin)
+  await newDeck()
+  expect(window.location.pathname).toBe('/decks/new')
+  changeDeck('LAN deck', 'Karn')
+  fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
+  await screen.findByText('LAN deck wurde erstellt.')
+  expect(window.location.pathname).toBe(origin)
+  if (origin === '/dashboard') fireEvent.click(await screen.findByRole('button', { name: deck.name }))
+  else await editDeck()
+  expect(await screen.findByRole('textbox', { name: /Deckname/ })).toHaveValue(deck.name)
+  expect(window.location.pathname).toBe(`/decks/${deck.id}/edit`)
+  changeDeck('LAN edit')
+  fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
+  await screen.findByText('LAN edit wurde gespeichert.')
+  expect(window.location.pathname).toBe(origin)
+  expect(api.writes().map(([, init]) => init?.method)).toEqual(['POST', 'PUT'])
 })

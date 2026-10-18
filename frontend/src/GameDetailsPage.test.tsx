@@ -1,6 +1,7 @@
+import { stubLanHttpCrypto } from './test/lanHttp'
 import { StrictMode } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App'
 import { AppRouter } from './AppRouter'
 import { AppThemeProvider } from './theme/AppThemeProvider'
@@ -57,6 +58,9 @@ async function back() {
   act(() => window.history.back())
   await waitFor(() => expect(window.location.pathname).toBe(groupUrl(group.id)))
 }
+// Exercise navigation, guards and retirement with the capabilities of LAN HTTP.
+beforeEach(stubLanHttpCrypto)
+
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 test.each([false, true])('direct details verify session, group and game in order before exposing private fields (StrictMode %s)', async strict => {
@@ -431,4 +435,41 @@ test('handed-off edit preserves its draft across tabs and refreshes visited sort
   expect(within(updated).getByRole('row', { name: /Ada/ })).toHaveTextContent('1200%')
   expect(screen.getByText('Loading game history…')).not.toBeVisible()
   expect(api.calls(`${groupPath}/statistics`)).toHaveLength(2)
+})
+
+test.each([['OWNER', 1], ['MEMBER', 2]] as const)('LAN HTTP hands off %s game edits with fresh authorization, then prevents Forward replay', async (role, actor) => {
+  const api = setup()
+  api.server.user = { id: uid(actor), username: role === 'OWNER' ? 'Owner' : 'Creator' }
+  api.server.details = { ...group, role }
+  show(); await gameAction('Bearbeiten', false)
+  await screen.findByRole('form', { name: 'Spiel bearbeiten' })
+  expect(window.location.pathname).toBe(groupUrl(group.id))
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
+  await screen.findByText('Game updated.')
+  expect(api.calls(gamePath, 'PUT')).toHaveLength(1)
+  expect(JSON.parse(api.calls(gamePath, 'PUT')[0][1]!.body as string)).toMatchObject({ result: 'DRAW', winnerUserId: null })
+  act(() => window.history.back())
+  await screen.findByRole('heading', { name: 'Spieldetails' })
+  act(() => window.history.forward())
+  await screen.findByRole('button', { name: 'Spiel erfassen' })
+  expect(screen.queryByRole('form', { name: 'Spiel bearbeiten' })).not.toBeInTheDocument()
+})
+
+test.each([1, 4])('LAN HTTP logout and login as %s retire a game draft and its history token', async actor => {
+  const api = setup()
+  show(); await gameAction('Bearbeiten', false)
+  await screen.findByRole('form', { name: 'Spiel bearbeiten' })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
+  // Keep the original token-bearing Spiele entry behind the tab entry that logout replaces.
+  await selectTab('Mitglieder')
+  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  await screen.findByText('Logged out.')
+  api.server.loginUser = { id: uid(actor), username: 'Replacement' }
+  await login()
+  await screen.findByRole('heading', { name: 'Dashboard' })
+  act(() => window.history.back())
+  await screen.findByRole('button', { name: 'Spiel erfassen' })
+  expect(screen.queryByRole('form', { name: 'Spiel bearbeiten' })).not.toBeInTheDocument()
+  expect(api.calls(gamePath, 'PUT')).toHaveLength(0)
 })

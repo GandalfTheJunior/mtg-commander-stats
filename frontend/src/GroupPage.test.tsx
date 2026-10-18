@@ -1,6 +1,7 @@
+import { stubLanHttpCrypto } from './test/lanHttp'
 import { StrictMode } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App'
 import { AppRouter } from './AppRouter'
 import { AppThemeProvider } from './theme/AppThemeProvider'
@@ -85,6 +86,9 @@ async function signIn() {
   fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
   await screen.findByText('Login successful.')
 }
+// Exercise navigation, guards and retirement with the capabilities of LAN HTTP.
+beforeEach(stubLanHttpCrypto)
+
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); window.history.replaceState(null, '', '/') })
 
 test.each([['', 'Spiele'], ['?tab=statistics', 'Statistiken'], ['?tab=members', 'Mitglieder']] as const)('direct group URL %s confirms membership and exposes only its selected tab', async (query, label) => {
@@ -276,14 +280,36 @@ test('direct invitation screen verifies OWNER without eager code GET; selectable
   expect(screen.queryByText('Einladungscode kopiert.')).not.toBeInTheDocument()
 })
 
-test.each([true, false])('clipboard %s reports only actual success, unavailable clipboard offers manual copy', async available => {
+test.each(['success', 'missing', 'rejected', 'missing writeText'] as const)('clipboard %s keeps selectable manual copy and reports only actual success', async outcome => {
   setup(); show(); await showCode(); await screen.findByDisplayValue(oldCode)
-  const writeText = vi.fn().mockResolvedValue(undefined)
-  vi.stubGlobal('navigator', available ? { clipboard: { writeText } } : {})
+  const writeText = outcome === 'rejected' ? vi.fn().mockRejectedValue(new Error('Denied')) : vi.fn().mockResolvedValue(undefined)
+  vi.stubGlobal('navigator', outcome === 'missing' ? {} : { clipboard: outcome === 'missing writeText' ? {} : { writeText } })
   fireEvent.click(screen.getByRole('button', { name: 'Kopieren' }))
-  await screen.findByText(available ? 'Einladungscode kopiert.' : /manuell kopieren/)
-  if (available) expect(writeText).toHaveBeenCalledWith(oldCode)
-  else expect(screen.getByDisplayValue(oldCode)).toBeInTheDocument()
+  await screen.findByText(outcome === 'success' ? 'Einladungscode kopiert.' : /sichtbaren Code im Feld auswählen und manuell kopieren/)
+  if (outcome === 'success' || outcome === 'rejected') expect(writeText).toHaveBeenCalledWith(oldCode)
+  else expect(writeText).not.toHaveBeenCalled()
+  const field = screen.getByLabelText<HTMLInputElement>('Aktueller Einladungscode')
+  expect(field).toHaveValue(oldCode)
+  expect(field).toHaveAttribute('readonly')
+  expect(field).toBeEnabled()
+  field.focus(); field.select()
+  expect(field.selectionStart).toBe(0)
+  expect(field.selectionEnd).toBe(oldCode.length)
+  if (outcome !== 'success') expect(screen.queryByText('Einladungscode kopiert.')).not.toBeInTheDocument()
+})
+
+test('copy success is announced only after writeText resolves and a subsequent rejection clears success', async () => {
+  setup(); show(); await showCode(); await screen.findByDisplayValue(oldCode)
+  const pending = deferred()
+  const writeText = vi.fn().mockImplementationOnce(() => pending.promise).mockRejectedValue(new Error('Denied'))
+  vi.stubGlobal('navigator', { clipboard: { writeText } })
+  fireEvent.click(screen.getByRole('button', { name: 'Kopieren' }))
+  expect(screen.queryByText('Einladungscode kopiert.')).not.toBeInTheDocument()
+  await act(async () => pending.resolve(new Response()))
+  await screen.findByText('Einladungscode kopiert.')
+  fireEvent.click(screen.getByRole('button', { name: 'Kopieren' }))
+  await screen.findByText(/manuell kopieren/)
+  expect(screen.queryByText('Einladungscode kopiert.')).not.toBeInTheDocument()
 })
 
 test('code return is limited to a session-confirmed originating tab; reload or forged state falls back to Spiele', async () => {

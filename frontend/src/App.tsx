@@ -17,6 +17,7 @@ import GroupPage from './GroupPage'
 import GameDetailsPage from './GameDetailsPage'
 import { groupUrl } from './groupNavigation'
 import type { GroupTab } from './groupNavigation'
+import { navigationToken } from './navigationToken'
 
 export type Notice = { kind: 'success' | 'error'; message: string } | null
 type SessionStatus = 'checking' | 'signed-out' | 'authenticated' | 'unverified' | 'logging-out'
@@ -226,7 +227,7 @@ export default function App() {
 
   function openEditor(overview: DeckOverview, id?: string) {
     const path = id ? `/decks/${encodeURIComponent(id)}/edit` : '/decks/new'
-    const token = crypto.randomUUID()
+    const token = navigationToken()
     editorOrigin.current = { token, version: sessionVersion, path, overview }
     setSessionNotice(null)
     void navigate(path, { state: { editorToken: token } })
@@ -283,7 +284,7 @@ export default function App() {
               <GameDetailsPage key={`game-${sessionVersion}-${location.pathname}`} currentUser={currentUser} onUnauthorized={sessionExpired}
                 onNotice={setSessionNotice} onEdit={(groupId, gameId) => {
                   if (sessionVersion !== sessionVersionRef.current) return
-                  const token = crypto.randomUUID()
+                  const token = navigationToken()
                   const path = groupUrl(groupId)
                   gameEdit.current = { token, version: sessionVersion, path, gameId }
                   setSessionNotice(null)
@@ -296,7 +297,7 @@ export default function App() {
                 getCodeReturn={getCodeReturn} getGameEdit={getGameEdit}
                 onOpenCode={(id, tab) => {
                   const path = `/playgroups/${encodeURIComponent(id)}/invitation-code`
-                  const token = crypto.randomUUID()
+                  const token = navigationToken()
                   codeOrigin.current = { token, version: sessionVersion, path, tab }
                   setSessionNotice(null)
                   void navigate(path, { state: { codeToken: token } })
