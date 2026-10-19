@@ -1,0 +1,27 @@
+{
+  "name": "MTG Commander Stats iPhone preview",
+  "image": "mcr.microsoft.com/devcontainers/java:25-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/node:2": {
+      "version": "24"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:4": {}
+  },
+  "remoteUser": "vscode",
+  "forwardPorts": [5173],
+  "portsAttributes": {
+    "5173": {
+      "label": "MTG Commander Stats (iPhone)",
+      "onAutoForward": "notify",
+      "protocol": "https"
+    },
+    "8080": {
+      "onAutoForward": "ignore"
+    },
+    "5432": {
+      "onAutoForward": "ignore"
+    }
+  },
+  "postCreateCommand": "npm ci --prefix frontend",
+  "postStartCommand": "bash .devcontainer/start.sh"
+}
