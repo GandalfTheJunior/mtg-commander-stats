@@ -70,7 +70,10 @@ There is deliberately **no CssBaseline or global theme reset**. Emotion retains
 its default insertion order after `index.css`; do not add `injectFirst` while
 legacy type selectors coexist. MUI-specific overrides neutralize the legacy
 input focus outline and button disabled opacity only on the corresponding MUI
-components. Remaining native authentication/legacy panels keep their existing CSS. Migrated
+components. Remaining native legacy panels keep their existing CSS. Authentication and session
+recovery use MUI with auth-local `sx`, including a full-viewport dark background,
+flowing forms and safe-area padding; they do not reuse `.session`, `.forms`,
+`.success` or `.error`, whose legacy specificity can override MUI styles. Migrated
 statistics consume the theme directly and no longer use the light `.legacy-view`
 wrapper or legacy statistics selectors; API and request lifetimes are preserved. New global resets require a separate
 review of native forms; do not assume ThemeProvider scopes global CSS.
