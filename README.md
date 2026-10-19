@@ -279,6 +279,7 @@ Tests terminate without watch mode. GitHub Actions runs separate `backend` and
 - [Proposed live companion direction (ADR 0004)](docs/architecture/adr/0004-post-mvp-live-companion-direction.md)
 - [Development workflow](docs/development/workflow.md)
 - [Java coding conventions](docs/development/java-conventions.md)
+- [iPhone preview via GitHub Codespaces](docs/development/codespaces.md)
 - [Testing and verification](docs/development/testing.md)
 - [Reviewing principles](docs/development/reviewing.md)
 - [Agent bootstrap](AGENTS.md) and [role registry](docs/agents/README.md)
