@@ -63,7 +63,7 @@ function appSetup() {
 }
 async function open(name = group.name) {
   await goTo('Playgroups')
-  fireEvent.click(await screen.findByRole('button', { name: `${name} (OWNER)` }))
+  fireEvent.click(await screen.findByRole('button', { name }))
   await selectTab('Statistiken')
 }
 async function signIn() {
@@ -271,7 +271,7 @@ test('a failed game write fabricates no statistics and explicit game refresh rel
 
 test('loads statistics only after a confirmed session and opened group, and current 401 expires the session', async () => {
   const api = appSetup(); renderApp(<App />, '/playgroups')
-  await screen.findByRole('button', { name: `${group.name} (OWNER)` })
+  await screen.findByRole('button', { name: group.name })
   expect(statsCalls(api)).toHaveLength(0)
   api.next(path, () => response({}, 401))
   await open()
@@ -379,7 +379,7 @@ test('switching a loaded group hides its statistics while the next group details
   vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => url === `/api/groups/${api.other.id}`
     ? details.promise : previousFetch(url, init)))
   await goTo('Playgroups')
-  fireEvent.click(await screen.findByRole('button', { name: `${api.other.name} (OWNER)` }))
+  fireEvent.click(await screen.findByRole('button', { name: api.other.name }))
   await screen.findByText('Gruppenberechtigung wird geprüft…')
   expect(screen.queryByRole('heading', { name: 'Statistiken' })).not.toBeInTheDocument()
   expect(screen.queryByRole('table')).not.toBeInTheDocument()

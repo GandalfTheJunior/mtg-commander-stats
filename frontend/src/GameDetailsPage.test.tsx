@@ -378,7 +378,7 @@ test.each([1, 4])('logout and same/different UUID login (%s) retire old game GET
   await act(async () => late.resolve(response({}, 401)))
   expect(screen.getByText(/Signed in as/)).toHaveTextContent('New session')
   fireEvent.click(screen.getByRole('link', { name: 'Playgroups' }))
-  fireEvent.click(await screen.findByRole('button', { name: `${group.name} (OWNER)` }))
+  fireEvent.click(await screen.findByRole('button', { name: group.name }))
   await gameAction('Löschen')
   const csrf = deferred()
   api.next('/api/csrf', () => csrf.promise)

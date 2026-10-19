@@ -132,7 +132,7 @@ test('a no-op draft is clean, dirty exits stay with intact input/focus, and befo
   expect(field()).toHaveValue('Changed')
   await waitFor(() => expect(field()).toHaveFocus())
   await goTo('Playgroups'); await discard()
-  await screen.findByRole('heading', { name: 'My groups' })
+  await screen.findByRole('heading', { name: 'Playgroups' })
   expect(warning()).toBe(false)
 })
 test('actual BrowserRouter Back/Forward preserves dirty editor, stay restores URL, discard replays intended traversal', async () => {

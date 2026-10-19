@@ -53,7 +53,7 @@ function setup() {
 
 async function openCode() {
   await goTo('Playgroups')
-  fireEvent.click(await screen.findByRole('button', { name: 'Private group (OWNER)' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Private group' }))
   await showCode()
   await screen.findByDisplayValue(code)
 }
@@ -68,7 +68,7 @@ async function signIn() {
 
 function expectProtectedDataHidden() {
   expect(screen.queryByRole('heading', { name: 'Meine Decks' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: 'My groups' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Playgroups' })).not.toBeInTheDocument()
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
   expect(screen.queryByDisplayValue(code)).not.toBeInTheDocument()
 }
@@ -190,12 +190,12 @@ for (const logoutFails of [false, true]) {
         fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
       }
       if (resource === 'group mutation') {
-        await screen.findByRole('button', { name: 'Create group' })
-        fireEvent.change(screen.getByLabelText('Group name'), { target: { value: group.name } })
-        fireEvent.click(screen.getByRole('button', { name: 'Create group' }))
+        await screen.findByRole('button', { name: 'Gruppe erstellen' })
+        fireEvent.change(screen.getByLabelText(/Gruppenname/), { target: { value: group.name } })
+        fireEvent.click(screen.getByRole('button', { name: 'Gruppe erstellen' }))
       }
       if (resource === 'invitation code') {
-        fireEvent.click(await screen.findByRole('button', { name: 'Private group (OWNER)' }))
+        fireEvent.click(await screen.findByRole('button', { name: 'Private group' }))
         await showCode()
       }
       await waitFor(() => expect(oldRequest).toHaveBeenCalledTimes(1))
@@ -213,7 +213,7 @@ for (const logoutFails of [false, true]) {
       await goTo('Decks')
       await screen.findByText('Noch keine Decks.')
       await goTo('Playgroups')
-      await screen.findByText('You have no groups yet.')
+      await screen.findByText('Noch keine Playgroups. Erstelle eine Gruppe oder tritt mit einem aktuellen Einladungscode bei.')
       await act(async () => {
         if (outcome === 'network') pending.reject(new Error('Stale network failure'))
         else if (outcome !== 'success') pending.resolve(json({ detail: 'Stale failure' }, Number(outcome)))
@@ -225,8 +225,8 @@ for (const logoutFails of [false, true]) {
       await goTo('Decks')
       expect(await screen.findByRole('button', { name: 'Deck erstellen' })).toBeEnabled()
       await goTo('Playgroups')
-      await screen.findByRole('button', { name: 'Create group' })
-      expect(screen.getByRole('button', { name: 'Create group' })).toBeEnabled()
+      await screen.findByRole('button', { name: 'Gruppe erstellen' })
+      expect(screen.getByRole('button', { name: 'Gruppe erstellen' })).toBeEnabled()
       expect(screen.queryByText(deck.name)).not.toBeInTheDocument()
       expect(screen.queryByText(/Private group/)).not.toBeInTheDocument()
       expect(screen.queryByDisplayValue(code)).not.toBeInTheDocument()

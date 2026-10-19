@@ -41,7 +41,7 @@ function setup() {
 }
 async function open(name = group.name) {
   await goTo('Playgroups')
-  fireEvent.click(await screen.findByRole('button', { name: `${name} (OWNER)` }))
+  fireEvent.click(await screen.findByRole('button', { name }))
 }
 async function create() {
   fireEvent.click(await screen.findByRole('button', { name: 'Spiel erfassen' }))

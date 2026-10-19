@@ -127,11 +127,13 @@ forms are shown again after logout. Protected deck/group content and invitation
 codes are hidden during logout. Failed attempts recheck the session and offer
 retry; an unavailable identity check keeps protected content hidden.
 
-In **Playgroups → My groups**, create a named group or join/rejoin using a current invitation
-code. Open a group from Dashboard or Playgroups to enter **Spiele**, with
+In **Playgroups**, use **Gruppe erstellen** or **Gruppe beitreten** to create a named group
+or join/rejoin using a current invitation code. All memberships appear in API order
+as themed cards with **Gruppenersteller/Mitglied** roles. Identical group names show
+short distinguishing ID prefixes. Open a group from Dashboard or Playgroups to enter **Spiele**, with
 **Spiele / Statistiken / Mitglieder** tabs at `/playgroups/:groupId`. **Mitglieder**
 shows active members, German roles and **Du**; short stable ID suffixes distinguish
-duplicate display names only. **Mitglieder aktualisieren** reloads current membership; **Refresh groups** retries or reloads your active memberships.
+duplicate display names only. **Mitglieder aktualisieren** reloads current membership; **Playgroups aktualisieren** retries or reloads your active memberships.
 Memberships persist after a page reload and session restoration.
 
 An OWNER opens **Einladungscode verwalten** from **Gruppenaktionen**. Its dedicated
