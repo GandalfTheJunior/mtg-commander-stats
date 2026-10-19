@@ -8,20 +8,27 @@
     "ghcr.io/devcontainers/features/docker-in-docker:4": {}
   },
   "remoteUser": "vscode",
-  "forwardPorts": [5173],
+  "forwardPorts": [
+    5173,
+    5174
+  ],
   "portsAttributes": {
     "5173": {
       "label": "MTG Commander Stats (iPhone)",
       "onAutoForward": "notify",
       "protocol": "https"
     },
-    "8080": {
-      "onAutoForward": "ignore"
+    "5174": {
+      "label": "MTG Commander Stats (Status)",
+      "onAutoForward": "notify",
+      "protocol": "https"
     },
     "5432": {
       "onAutoForward": "ignore"
+    },
+    "8080": {
+      "onAutoForward": "ignore"
     }
   },
-  "postCreateCommand": "npm ci --prefix frontend",
   "postStartCommand": "bash .devcontainer/start.sh"
 }
