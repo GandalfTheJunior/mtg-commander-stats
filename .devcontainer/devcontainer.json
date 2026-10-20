@@ -16,12 +16,12 @@
     "5173": {
       "label": "MTG Commander Stats (iPhone)",
       "onAutoForward": "notify",
-      "protocol": "https"
+      "protocol": "http"
     },
     "5174": {
       "label": "MTG Commander Stats (Status)",
       "onAutoForward": "notify",
-      "protocol": "https"
+      "protocol": "http"
     },
     "5432": {
       "onAutoForward": "ignore"
