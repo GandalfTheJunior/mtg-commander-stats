@@ -46,6 +46,9 @@ branches can use the configuration on `main` when their branch contains it.
 ## Security and troubleshooting
 
 - Ports **5173** (app) and **5174** (read-only status) must remain **Private**.
+  Both services listen on **HTTP** inside the Codespace (`portsAttributes.protocol` is `http`).
+  GitHub's authenticated port forwarding still gives Safari **HTTPS** addresses;
+  do not replace `https://` with `http://` in the browser.
   GitHub requires authentication for private forwarded ports. Do not make them
   public or share private Codespace URLs. Ports 8080 and 5432 are not intentionally
   forwarded. Vite proxies `/api` locally to Spring Boot; PostgreSQL binds to
