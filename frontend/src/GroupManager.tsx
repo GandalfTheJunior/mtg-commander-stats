@@ -53,6 +53,8 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
   const [revision, setRevision] = useState(0)
   const [operation, setOperation] = useState<'create' | 'join' | null>(null)
   const [notice, setNotice] = useState<Notice>(null)
+  const [groupName, setGroupName] = useState('')
+  const [invitationCode, setInvitationCode] = useState('')
   const request = useRef<AbortController | null>(null)
   const active = useRef(false)
   const pending = useRef(false)
@@ -126,7 +128,8 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
       if (!active.current) return
       setGroups((previous) => [...previous.filter((item) => item.id !== group.id), group])
       setNotice({ kind: 'success', message: operation === 'create' ? `${group.name} wurde erstellt.` : `${group.name}: Beitritt bestätigt.` })
-      form.reset()
+      if (operation === 'create') setGroupName('')
+      else setInvitationCode('')
     } catch (error) {
       if (active.current) handleError(error, operation)
     } finally {
@@ -175,6 +178,7 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
             <Stack component="form" aria-labelledby="create-group-heading" onSubmit={(event) => submit(event, 'create')}
               sx={{ mt: 3, gap: 3, minWidth: 0 }}>
               <TextField id="playgroups-create-name" label="Gruppenname" name="name" required disabled={busy} fullWidth
+                value={groupName} onChange={(event) => setGroupName(event.target.value)}
                 helperText="Wähle einen Namen für deine Gruppe." slotProps={{ inputLabel: { required: false } }} />
               <Button disabled={busy} type="submit" variant="contained" fullWidth>Gruppe erstellen</Button>
             </Stack>
@@ -184,6 +188,7 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
             <Stack component="form" aria-labelledby="join-group-heading" onSubmit={(event) => submit(event, 'join')}
               sx={{ mt: 3, gap: 3, minWidth: 0 }}>
               <TextField id="playgroups-join-code" label="Einladungscode" name="code" required disabled={busy} fullWidth
+                value={invitationCode} onChange={(event) => setInvitationCode(event.target.value)}
                 autoComplete="off" helperText="Verwende einen aktuellen Einladungscode, auch für einen erneuten Beitritt."
                 slotProps={{ inputLabel: { required: false }, htmlInput: { spellCheck: false } }} />
               <Button disabled={busy} type="submit" variant="contained" fullWidth>Gruppe beitreten</Button>

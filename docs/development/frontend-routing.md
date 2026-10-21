@@ -277,7 +277,10 @@ acknowledged server-summary replace/append behavior and reset only the submitted
 form; an explicit list refresh restores server order. Synchronous refs guard
 mutations and refresh before React renders disabled controls. Errors retain input,
 announce no success and offer explicit refresh guidance; join errors use controlled
-copy to avoid reflecting invitation codes. No new cache or request lifetime is added.
+copy to avoid reflecting invitation codes. Both drafts live only in component state
+and survive list refresh/loading/error/retry transitions; only an acknowledged
+success clears the submitted draft. Leaving Playgroups or retiring the session
+discards both drafts. No new cache or request lifetime is added.
 
 ### Playgroups overview browser evidence
 
