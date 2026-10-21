@@ -294,9 +294,7 @@ export default function App() {
             <Route path="/decks/new" element={editor} />
             <Route path="/decks/:deckId/edit" element={editor} />
             <Route path="/playgroups" element={
-              <div className="legacy-view">
-                <GroupManager key={`groups-${sessionVersion}`} onUnauthorized={sessionExpired} />
-              </div>
+              <GroupManager key={`groups-${sessionVersion}`} onUnauthorized={sessionExpired} />
             } />
             <Route path="/playgroups/:groupId/games/:gameId" element={
               <GameDetailsPage key={`game-${sessionVersion}-${location.pathname}`} currentUser={currentUser} onUnauthorized={sessionExpired}

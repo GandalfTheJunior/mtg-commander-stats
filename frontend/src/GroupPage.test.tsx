@@ -109,11 +109,11 @@ test.each([['', 'Spiele'], ['?tab=statistics', 'Statistiken'], ['?tab=members', 
 
 test('the group list has create/join and no selected group underneath, even with replayed Dashboard state', async () => {
   const api = setup(); show('/playgroups', { dashboardToken: 'old', kind: 'group', id: group.id })
-  await screen.findByRole('button', { name: 'Create group' })
+  await screen.findByRole('button', { name: 'Gruppe erstellen' })
   expect(screen.queryByRole('tab')).not.toBeInTheDocument()
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
   expect(api.calls(detailPath)).toHaveLength(0)
-  fireEvent.click(screen.getByRole('button', { name: `${group.name} (OWNER)` }))
+  fireEvent.click(screen.getByRole('button', { name: group.name }))
   await groupReady()
   expect(window.location.pathname).toBe(groupUrl(group.id))
   expect(api.calls(detailPath)).toHaveLength(1)
@@ -161,7 +161,7 @@ test.each(['', '?tab=statistics', '?tab=members', '/invitation-code'])('signed-o
 test.each(['bad-id', 'abcdefghijklmnopqrstuv', uid(99)])('invalid, join-code-shaped or missing UUID %s falls back without private state', async id => {
   const api = setup(); show(groupUrl(id, 'members'))
   await screen.findByText(groupUnavailable)
-  await screen.findByRole('button', { name: 'Create group' })
+  await screen.findByRole('button', { name: 'Gruppe erstellen' })
   expect(window.location.pathname).toBe('/playgroups')
   expect(screen.queryByRole('tab')).not.toBeInTheDocument()
   expect(api.calls(`/api/groups/${id}`)).toHaveLength(id === uid(99) ? 1 : 0)
@@ -219,7 +219,7 @@ test('tab history, Forward, reload and deterministic list return restore authori
   await screen.findByRole('tab', { name: 'Statistiken', selected: true })
   expect(api.calls(detailPath)).toHaveLength(2)
   fireEvent.click(screen.getByRole('link', { name: 'Zurück zu Playgroups' }))
-  await screen.findByRole('button', { name: 'Create group' })
+  await screen.findByRole('button', { name: 'Gruppe erstellen' })
   expect(window.location.pathname).toBe('/playgroups')
 })
 
@@ -446,17 +446,17 @@ test('204 departure replaces history, retires data, reauthorizes obsolete Back a
   const length = window.history.length
   await leave()
   await screen.findByText(/Du hast die Gruppe verlassen/)
-  await screen.findByRole('button', { name: 'Join group' })
+  await screen.findByRole('button', { name: 'Gruppe beitreten' })
   expect(window.location.pathname).toBe('/playgroups')
   expect(window.history.length).toBe(length)
   expect(screen.queryByRole('tab')).not.toBeInTheDocument()
   await act(async () => window.history.back())
   await screen.findByText(groupUnavailable)
   expect(screen.queryByRole('heading', { name: other.name })).not.toBeInTheDocument()
-  await screen.findByRole('button', { name: 'Join group' })
-  fireEvent.change(screen.getByLabelText('Invitation code'), { target: { value: oldCode } })
-  fireEvent.click(screen.getByRole('button', { name: 'Join group' }))
-  fireEvent.click(await screen.findByRole('button', { name: `${other.name} (MEMBER)` }))
+  await screen.findByRole('button', { name: 'Gruppe beitreten' })
+  fireEvent.change(screen.getByLabelText(/Einladungscode/), { target: { value: oldCode } })
+  fireEvent.click(screen.getByRole('button', { name: 'Gruppe beitreten' }))
+  fireEvent.click(await screen.findByRole('button', { name: other.name }))
   await groupReady(other.name)
   await menuAction('Gruppe verlassen')
   expect(screen.getByRole('dialog')).toBeInTheDocument()
@@ -521,7 +521,7 @@ test.each(['details', 'code GET', 'code POST', 'code CSRF', 'leave', 'leave CSRF
   const method = resource === 'code POST' ? 'POST' : resource === 'leave' ? 'DELETE' : 'GET'
   await waitFor(() => expect(api.calls(pendingPath, method)).toHaveLength(1))
   const signal = api.calls(pendingPath, method)[0][1]!.signal!
-  await goTo('Playgroups'); await screen.findByRole('button', { name: 'Create group' })
+  await goTo('Playgroups'); await screen.findByRole('button', { name: 'Gruppe erstellen' })
   expect(signal.aborted).toBe(true)
   await act(async () => pending.resolve(resource.endsWith('CSRF') ? response({ headerName: 'X-CSRF-TOKEN', token: 'retired' }) : response({}, 401)))
   expect(screen.queryByText(/session expired/)).not.toBeInTheDocument()
@@ -540,7 +540,7 @@ test.each([actor, { id: uid(4), username: 'Fourth' }].flatMap(loginUser => ['GET
   fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
   await screen.findByText('Logged out.'); await signIn()
   await goTo('Playgroups')
-  fireEvent.click(await screen.findByRole('button', { name: `${group.name} (OWNER)` }))
+  fireEvent.click(await screen.findByRole('button', { name: group.name }))
   await openCodeScreen()
   expect(screen.getByRole('link', { name: 'Zurück zur Gruppe' })).toHaveAttribute('href', groupUrl(group.id))
   await act(async () => pending.resolve(response({ code: oldCode })))
@@ -612,7 +612,7 @@ test.each(['details', 'code GET', 'code POST'] as const)('late successful %s can
     await waitFor(() => expect(api.calls(codePath, resource === 'code POST' ? 'POST' : 'GET')).toHaveLength(1))
   } else await screen.findByText('Gruppenberechtigung wird geprüft…')
   await goTo('Playgroups')
-  fireEvent.click(await screen.findByRole('button', { name: `${other.name} (MEMBER)` }))
+  fireEvent.click(await screen.findByRole('button', { name: other.name }))
   await groupReady(other.name)
   await act(async () => late.resolve(response(resource === 'details' ? group : { code: newCode })))
   expect(screen.queryByText(group.name)).not.toBeInTheDocument()
@@ -895,7 +895,7 @@ test.each(['games', 'members', 'code', 'global'] as const)('dirty %s exit stays 
   } else if (destination === 'global') {
     await screen.findByRole('heading', { name: 'Meine Decks' })
     fireEvent.click(screen.getByRole('link', { name: 'Playgroups' }))
-    fireEvent.click(await screen.findByRole('button', { name: `${group.name} (OWNER)` }))
+    fireEvent.click(await screen.findByRole('button', { name: group.name }))
   }
   await groupReady(); await selectTab('Spiele')
   await screen.findByRole('button', { name: 'Spiel erfassen' })
@@ -904,7 +904,7 @@ test.each(['games', 'members', 'code', 'global'] as const)('dirty %s exit stays 
 
 test('native Back out of a dirty group stays on cancel; discard and Forward fetch a fresh group without resurrecting the draft', async () => {
   const api = setup(); show('/playgroups')
-  fireEvent.click(await screen.findByRole('button', { name: `${group.name} (OWNER)` }))
+  fireEvent.click(await screen.findByRole('button', { name: group.name }))
   await groupReady()
   fireEvent.click(await screen.findByRole('button', { name: 'Spiel erfassen' }))
   const field = screen.getByRole('combobox', { name: 'Spieler 1' })
@@ -916,7 +916,7 @@ test('native Back out of a dirty group stays on cancel; discard and Forward fetc
   expect(field).toHaveValue(uid(2))
   await act(async () => window.history.back())
   fireEvent.click(await screen.findByRole('button', { name: 'Verwerfen und verlassen' }))
-  await screen.findByRole('button', { name: 'Create group' })
+  await screen.findByRole('button', { name: 'Gruppe erstellen' })
   await act(async () => window.history.forward())
   await groupReady()
   await screen.findByRole('button', { name: 'Spiel erfassen' })

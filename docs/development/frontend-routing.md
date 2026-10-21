@@ -268,6 +268,38 @@ and acknowledged summary updates; opening/reopening/rejoining a group always
 loads fresh details, with no membership/code cache. Explicit **Zurück zu
 Playgroups** always targets `/playgroups`, including on direct visits.
 
+The Playgroups overview uses themed MUI cards for every group in API order and
+two separate inline create/join forms below them, including the loaded empty
+state. Only identical display names gain an ID suffix: all namesakes use the same
+shortest distinguishing UUID prefix, starting at eight hexadecimal characters.
+Full IDs remain the React keys and route targets. Mutations retain the existing
+acknowledged server-summary replace/append behavior and reset only the submitted
+form; an explicit list refresh restores server order. Synchronous refs guard
+mutations and refresh before React renders disabled controls. Errors retain input,
+announce no success and offer explicit refresh guidance; join errors use controlled
+copy to avoid reflecting invitation codes. Both drafts live only in component state
+and survive list refresh/loading/error/retry transitions; only an acknowledged
+success clears the submitted draft. Leaving Playgroups or retiring the session
+discards both drafts. No new cache or request lifetime is added.
+
+### Playgroups overview browser evidence
+
+Chromium 154 against the production build with intercepted synthetic API data
+checked populated, empty, loading and error/retry states at 320, 390 and 1280px.
+Long/unbroken names, identical names with colliding eight-character UUID prefixes,
+Tab/Enter focus, touch/mouse entry and fresh route/Back/Forward/reload requests
+passed without horizontal overflow or nested list scrolling. Repeated Enter sent
+one CSRF-protected write; pending controls, unchanged payloads, selective form reset,
+server-returned roles and failed/malformed/ambiguous-write recovery were checked.
+Screenshots after the final UI edit were visually inspected, including scrolled
+phone forms with the final button above the fixed navigation.
+
+Computed card/input primary text measured 12.89:1, secondary card text 8.48:1;
+pending disabled text measured 4.99:1 at full opacity. Actual Tab focus used the
+shared 3px gold inset outline. These fixture checks do not establish live-backend,
+screen-reader or physical iPhone Safari/software-keyboard/safe-area acceptance;
+those device checks remain unavailable in this environment.
+
 ### Invitation code and departure lifetimes
 
 The overflow offers only **Einladungscode verwalten** to a freshly confirmed OWNER

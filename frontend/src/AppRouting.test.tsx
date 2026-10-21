@@ -88,7 +88,7 @@ test.each([
   await signIn()
   await destination(target)
   if (target === 'Decks') await screen.findByText(deck.name)
-  else if (target === 'Playgroups') await screen.findByRole('button', { name: `${group.name} (OWNER)` })
+  else if (target === 'Playgroups') await screen.findByRole('button', { name: group.name })
   else {
     expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
     await screen.findByRole('button', { name: deck.name })
@@ -116,8 +116,8 @@ test.each([
 test('Back and Forward follow the URL and remount only the destination manager with fresh data', async () => {
   const api = setup(); show('/dashboard'); await destination('Dashboard')
   await goTo('Decks'); await screen.findByText(deck.name)
-  expect(screen.queryByRole('heading', { name: 'My groups' })).not.toBeInTheDocument()
-  await goTo('Playgroups'); await screen.findByRole('button', { name: `${group.name} (OWNER)` })
+  expect(screen.queryByRole('heading', { name: 'Playgroups' })).not.toBeInTheDocument()
+  await goTo('Playgroups'); await screen.findByRole('button', { name: group.name })
   expect(screen.queryByRole('heading', { name: 'Meine Decks' })).not.toBeInTheDocument()
   api.state.decks = [{ ...deck, name: 'Refreshed deck' }]
   await act(async () => window.history.back())
@@ -127,23 +127,50 @@ test('Back and Forward follow the URL and remount only the destination manager w
   await destination('Playgroups')
   // Route selection can commit before the remounted manager's request effect.
   // Wait for fresh response content before checking exact request counts.
-  await screen.findByRole('button', { name: 'Refreshed group (OWNER)' })
+  await screen.findByRole('button', { name: 'Refreshed group' })
   expect(screen.queryByText('Refreshed deck')).not.toBeInTheDocument()
   // The Dashboard now also loads both lists once before the manager visits.
   expect(api.fetchMock.mock.calls.filter(([url]) => url === '/api/decks')).toHaveLength(3)
   expect(api.fetchMock.mock.calls.filter(([url]) => url === '/api/groups')).toHaveLength(3)
 })
 
-test('a current route 401 retires the session; Back still shows only safe authentication', async () => {
+test.each(['Decks', 'Playgroups'] as const)('a current %s route 401 retires the session; Back still shows only safe authentication', async name => {
   const api = setup()
   show('/dashboard'); await destination('Dashboard')
-  api.next('/api/decks', () => response({}, 401))
-  await goTo('Decks')
+  await screen.findByRole('button', { name: deck.name })
+  api.next(`/api/${name === 'Decks' ? 'decks' : 'groups'}`, () => response({}, 401))
+  await goTo(name)
   await screen.findByText('Your session expired. Sign in again.'); hidden()
   await act(async () => window.history.back())
   await waitFor(() => expect(window.location.pathname).toBe('/dashboard'))
   hidden()
   expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+})
+
+test('Playgroup entries require fresh authorization and returning refetches the list', async () => {
+  const api = setup(), checking = deferred()
+  const detailPath = `/api/groups/${group.id}`
+  show('/playgroups')
+  const entry = await screen.findByRole('button', { name: group.name })
+  expect(entry).toHaveAccessibleDescription('Gruppenersteller')
+  expect(api.fetchMock.mock.calls.some(([url]) => url === detailPath || url.endsWith('/join-code') || url.endsWith('/games'))).toBe(false)
+
+  api.next(detailPath, () => checking.promise)
+  fireEvent.click(entry)
+  await screen.findByText('Gruppenberechtigung wird geprüft…')
+  expect(window.location.pathname).toBe(`/playgroups/${group.id}`)
+  expect(screen.queryByRole('heading', { name: group.name })).not.toBeInTheDocument()
+  expect(api.fetchMock.mock.calls.some(([url]) => url.endsWith('/join-code') || url.endsWith('/games'))).toBe(false)
+  await act(async () => checking.resolve(response(group)))
+  await screen.findByRole('heading', { name: group.name })
+
+  fireEvent.click(screen.getByRole('link', { name: 'Zurück zu Playgroups' }))
+  fireEvent.click(await screen.findByRole('button', { name: group.name }))
+  await screen.findByRole('heading', { name: group.name })
+  expect(api.fetchMock.mock.calls.filter(([url]) => url === '/api/groups')).toHaveLength(2)
+  expect(api.fetchMock.mock.calls.filter(([url]) => url === detailPath)).toHaveLength(2)
+  expect(api.fetchMock.mock.calls.some(([url]) => url.endsWith('/join-code'))).toBe(false)
+  expect(api.fetchMock.mock.calls.some(([, init]) => init?.method && init.method !== 'GET')).toBe(false)
 })
 
 test('a successful login POST does not expose navigation until rotated CSRF and identity are verified', async () => {
@@ -166,7 +193,7 @@ test('a successful login POST does not expose navigation until rotated CSRF and 
 test('group access loss clears details and invitation code without logging out the confirmed account', async () => {
   const api = setup()
   show('/playgroups')
-  fireEvent.click(await screen.findByRole('button', { name: `${group.name} (OWNER)` }))
+  fireEvent.click(await screen.findByRole('button', { name: group.name }))
   await showCode()
   await screen.findByDisplayValue(code)
   api.next(`/api/groups/${group.id}`, () => response({}, 403))
@@ -174,7 +201,7 @@ test('group access loss clears details and invitation code without logging out t
   api.next(`/api/groups/${group.id}/join-code`, () => response({}, 403))
   fireEvent.click(screen.getByRole('button', { name: 'Einladungscode anzeigen' }))
   await screen.findByText(/Diese Playgroup ist nicht verfügbar/)
-  await screen.findByText('You have no groups yet.')
+  await screen.findByText('Noch keine Playgroups. Erstelle eine Gruppe oder tritt mit einem aktuellen Einladungscode bei.')
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
   expect(screen.queryByDisplayValue(code)).not.toBeInTheDocument()
   await destination('Playgroups')
@@ -184,7 +211,7 @@ test('group access loss clears details and invitation code without logging out t
 test('logout clears protected content and destination while pending; Back cannot resurrect prior data', async () => {
   const api = setup(), pending = deferred()
   show('/dashboard'); await destination('Dashboard'); await goTo('Playgroups')
-  fireEvent.click(await screen.findByRole('button', { name: `${group.name} (OWNER)` }))
+  fireEvent.click(await screen.findByRole('button', { name: group.name }))
   await showCode()
   await screen.findByDisplayValue(code)
   api.next('/api/session', () => pending.promise, 'DELETE')
@@ -207,7 +234,7 @@ test.each([owner, { id: uid(4), username: 'Fourth' }])('re-login as $username di
   api.state.loginUser = loginUser
   api.next(`/api/groups/${group.id}/join-code`, () => pending.promise)
   show('/playgroups'); await destination('Playgroups')
-  fireEvent.click(await screen.findByRole('button', { name: `${group.name} (OWNER)` }))
+  fireEvent.click(await screen.findByRole('button', { name: group.name }))
   await showCode()
   await waitFor(() => expect(api.fetchMock.mock.calls.some(([url]) => url.endsWith('/join-code'))).toBe(true))
   fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
@@ -264,7 +291,25 @@ test.each([200, 401])('a retired deck list (%s) cannot overwrite the reopened ma
   await destination('Decks')
 })
 
-test.each(['Decks', 'Playgroups'] as const)('leaving %s during CSRF preparation prevents a retired write', async name => {
+test.each([200, 401])('a retired Playgroups list (%s) cannot overwrite the reopened manager or expire its session', async status => {
+  const api = setup(), pending = deferred()
+  api.next('/api/groups', () => pending.promise)
+  show('/playgroups'); await destination('Playgroups')
+  await waitFor(() => expect(api.fetchMock.mock.calls.some(([url]) => url === '/api/groups')).toBe(true))
+  const signal = api.fetchMock.mock.calls.find(([url]) => url === '/api/groups')![1]!.signal!
+  await goTo('Decks'); await destination('Decks')
+  expect(signal.aborted).toBe(true)
+  api.state.groups = [{ ...group, name: 'Fresh Playgroup' }]
+  await goTo('Playgroups'); await screen.findByRole('button', { name: 'Fresh Playgroup' })
+  await act(async () => pending.resolve(response([group], status)))
+  expect(screen.queryByRole('button', { name: group.name })).not.toBeInTheDocument()
+  expect(screen.queryByText(/session expired/)).not.toBeInTheDocument()
+  await destination('Playgroups')
+})
+
+test.each([
+  ['Decks', 'create'], ['Playgroups', 'create'], ['Playgroups', 'join'],
+] as const)('leaving %s during CSRF preparation prevents a retired %s write', async (name, operation) => {
   const api = setup(), csrf = deferred()
   show(`/${name.toLowerCase()}`); await destination(name)
   if (name === 'Decks') {
@@ -272,11 +317,11 @@ test.each(['Decks', 'Playgroups'] as const)('leaving %s during CSRF preparation 
     fireEvent.change(await openNewDeck(), { target: { value: 'Retired write' } })
     fireEvent.change(screen.getByLabelText(/Commander/), { target: { value: 'Karn' } })
   } else {
-    await screen.findByRole('button', { name: 'Create group' })
-    fireEvent.change(screen.getByLabelText('Group name'), { target: { value: 'Retired write' } })
+    await screen.findByRole('button', { name: 'Gruppe erstellen' })
+    fireEvent.change(screen.getByLabelText(operation === 'create' ? /Gruppenname/ : /Einladungscode/), { target: { value: operation === 'create' ? 'Retired write' : code } })
   }
   api.next('/api/csrf', () => csrf.promise)
-  fireEvent.click(screen.getByRole('button', { name: name === 'Decks' ? 'Deck erstellen' : 'Create group' }))
+  fireEvent.click(screen.getByRole('button', { name: name === 'Decks' ? 'Deck erstellen' : operation === 'create' ? 'Gruppe erstellen' : 'Gruppe beitreten' }))
   await waitFor(() => expect(api.fetchMock.mock.calls.some(([url]) => url === '/api/csrf')).toBe(true))
   await goTo('Dashboard')
   if (name === 'Decks') {
@@ -287,6 +332,7 @@ test.each(['Decks', 'Playgroups'] as const)('leaving %s during CSRF preparation 
   api.state.loginUser = { id: uid(4), username: 'Fourth' }
   await signIn()
   await act(async () => csrf.resolve(response({ headerName: 'X-CSRF-TOKEN', token: 'retired-token' })))
-  expect(api.fetchMock.mock.calls.some(([url, init]) => url === (name === 'Decks' ? '/api/decks' : '/api/groups') && init?.method === 'POST')).toBe(false)
+  const writePath = name === 'Decks' ? '/api/decks' : operation === 'create' ? '/api/groups' : '/api/groups/join'
+  expect(api.fetchMock.mock.calls.some(([url, init]) => url === writePath && init?.method === 'POST')).toBe(false)
   expect(screen.getByText(/Signed in as/)).toHaveTextContent('Fourth')
 })
