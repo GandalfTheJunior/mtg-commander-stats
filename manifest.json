@@ -1,0 +1,43 @@
+{
+  "pr": 96,
+  "application_revision": "4bab2db9e282e3a41ac8b655cbabcb0e3cef0c6a",
+  "images": [
+    {
+      "file": "empty-drafts-1280.png",
+      "sha256": "5e100e099713dc2ce3b803ae252328f656b85d9b5ca18bd62e1d91eab888ef7c"
+    },
+    {
+      "file": "populated-drafts-1280.png",
+      "sha256": "884460d2d006e13928a0387a8ee6180f63371efbe3dc62bf92dd269241fb3125"
+    },
+    {
+      "file": "populated-drafts-320.png",
+      "sha256": "7d928c9064502eef2972c5cd5673f8b4cf008d9a955f98543627bf57b541216f"
+    },
+    {
+      "file": "populated-drafts-390.png",
+      "sha256": "40ac1b884e6622e974385b762ef8afa6fae8a41b14ce9d6ea01e421a3bb4a4e1"
+    },
+    {
+      "file": "refresh-error-390.png",
+      "sha256": "f5762b7dbcf12e95bb7906185ad97cdddc35127f0d696d534fb049962730573f"
+    }
+  ],
+  "browser_checks": [
+    "390px: failed Enter join preserves both drafts",
+    "390px: explicit loading refresh restores both exact drafts",
+    "390px: failed refresh then empty-list retry preserves drafts",
+    "390px: each acknowledged success resets only its own draft; exact payloads and CSRF retained",
+    "390px: route retirement discards drafts; no storage/history code, overflow or browser errors",
+    "1280px: failed Enter join preserves both drafts",
+    "1280px: explicit loading refresh restores both exact drafts",
+    "1280px: failed refresh then empty-list retry preserves drafts",
+    "1280px: each acknowledged success resets only its own draft; exact payloads and CSRF retained",
+    "1280px: route retirement discards drafts; no storage/history code, overflow or browser errors",
+    "320px: failed Enter join preserves both drafts",
+    "320px: explicit loading refresh restores both exact drafts",
+    "320px: failed refresh then empty-list retry preserves drafts",
+    "320px: each acknowledged success resets only its own draft; exact payloads and CSRF retained",
+    "320px: route retirement discards drafts; no storage/history code, overflow or browser errors"
+  ]
+}
