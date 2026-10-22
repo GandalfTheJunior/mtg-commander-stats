@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.JsonNode;
 
 @RestController
 public class DeckController {
@@ -46,6 +47,49 @@ public class DeckController {
     public DeckResponse update(@AuthenticationPrincipal UserPrincipal user, @PathVariable UUID deckId,
             @RequestBody DeckRequest request) {
         return DeckResponse.from(decks.update(user.getId(), deckId, request.name(), request.commanders()));
+    }
+
+    @PutMapping("/api/decks/{deckId}/commanders/{position}/artwork")
+    public DeckResponse changeArtwork(@AuthenticationPrincipal UserPrincipal user, @PathVariable UUID deckId,
+            @PathVariable int position, @RequestBody ArtworkRequest request) {
+        if (position < 1 || position > 2 || request.scryfallCardId == null) {
+            throw new InvalidCommanderException();
+        }
+        return DeckResponse.from(decks.changeArtwork(user.getId(), deckId, position,
+                request.scryfallCardId, request.artworkFaceIndex));
+    }
+
+    public static class ArtworkRequest {
+        private UUID scryfallCardId;
+        private Integer artworkFaceIndex;
+
+        @JsonSetter
+        public void setScryfallCardId(JsonNode value) {
+            if (!value.isString()) {
+                throw new InvalidCommanderException();
+            }
+            try {
+                scryfallCardId = UUID.fromString(value.asString());
+                if (!scryfallCardId.toString().equalsIgnoreCase(value.asString())) {
+                    throw new InvalidCommanderException();
+                }
+            } catch (IllegalArgumentException exception) {
+                throw new InvalidCommanderException();
+            }
+        }
+
+        @JsonSetter(nulls = Nulls.FAIL)
+        public void setArtworkFaceIndex(JsonNode value) {
+            if (!value.isIntegralNumber() || !value.canConvertToInt() || value.intValue() < 0) {
+                throw new InvalidCommanderException();
+            }
+            artworkFaceIndex = value.intValue();
+        }
+
+        @JsonAnySetter
+        public void rejectUnknownField(String field, Object value) {
+            throw new InvalidCommanderException();
+        }
     }
 
     @DeleteMapping("/api/decks/{deckId}")

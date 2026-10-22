@@ -7,6 +7,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -189,6 +190,26 @@ public class ScryfallLookup {
             throw new InvalidScryfallSelectionException();
         }
         return resolved;
+    }
+
+    /** Validate a new printing against the persisted gameplay identity, independently of display side. */
+    public ResolvedArtwork resolveArtworkOnline(UUID printingId, String oracleId, Integer previousGameplayFace,
+            Integer artworkFaceIndex) {
+        requireId(printingId);
+        FetchedCard fetched = fetchCard(printingId);
+        List<GameplayCard> matches = fetched.details().gameplayCards().stream()
+                .filter(gameplay -> oracleId.equals(gameplay.oracleId())).toList();
+        GameplayCard gameplay = matches.stream()
+                .filter(candidate -> Objects.equals(candidate.gameplayFaceIndex(), previousGameplayFace))
+                .findFirst().orElseGet(() -> matches.stream().findFirst().orElseThrow(InvalidScryfallSelectionException::new));
+        List<Artwork> images = fetched.artworks();
+        Artwork selected = artworkFaceIndex == null
+                ? (images.size() == 1 ? images.getFirst() : null)
+                : images.stream().filter(image -> artworkFaceIndex.equals(image.artworkFaceIndex())).findFirst().orElse(null);
+        if (selected == null) {
+            throw new InvalidScryfallSelectionException();
+        }
+        return new ResolvedArtwork(new CommanderSelectionRef(printingId, gameplay.gameplayFaceIndex()), selected);
     }
 
     public List<Artwork> artworks(UUID id, Integer gameplayFaceIndex) {

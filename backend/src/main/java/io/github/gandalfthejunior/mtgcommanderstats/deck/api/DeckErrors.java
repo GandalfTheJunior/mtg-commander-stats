@@ -23,7 +23,7 @@ public class DeckErrors {
     public ProblemDetail invalidInput() {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
                 "Provide a valid deck UUID, nonblank name and one standalone Commander or a legal pair of distinct Commanders with each required color."
-                        + " Printing/artwork changes require the artwork endpoint; archive requests must be empty.");
+                        + " Printing/artwork changes require the artwork endpoint with a printing UUID and an available image side; archive requests must be empty.");
     }
 
     @ExceptionHandler({DeckLifecycleConflictException.class, DataIntegrityViolationException.class,

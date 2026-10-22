@@ -9,6 +9,7 @@ separate [read-only game API](games-api.md#read-only-member-deck-selection).
 | GET | `/api/decks` | `200 DeckResponse[]`, including archived decks |
 | POST | `/api/decks` | `201 DeckResponse` |
 | PUT | `/api/decks/{deckId}` | `200 DeckResponse` |
+| PUT | `/api/decks/{deckId}/commanders/{position}/artwork` | `200 DeckResponse` |
 | DELETE | `/api/decks/{deckId}` | `204`, only when never used |
 | POST | `/api/decks/{deckId}/archive` | `200 DeckResponse` |
 
@@ -88,9 +89,53 @@ of the same gameplay identity returns `400` directing clients to the artwork
 operation; stale full updates cannot overwrite newer presentation snapshots. This applies
 to both slots even when the other Commander is being replaced or a chosen color
 is changed.
-#105 will implement the dedicated
-`PUT /api/decks/{deckId}/commanders/{position}/artwork` operation. No artwork update
-endpoint/gallery is included here.
+
+## Artwork-only updates and gallery
+
+`PUT /api/decks/{deckId}/commanders/{position}/artwork` changes only an existing
+slot's presentation. Position is 1 or 2; an absent slot returns `404` and an
+invalid position returns `400`. Supply a printing UUID and, for multiple
+face-local images, the original printing-local image index:
+
+```json
+{"scryfallCardId":"<printing UUID>","artworkFaceIndex":1}
+```
+
+A sole available image resolves automatically when the selector is omitted,
+including a back-only image retaining index 1. Top-level imagery has no selector:
+omit it. Explicit selectors must be non-negative JSON integers identifying an
+available face; null, strings, fractions, inapplicable or unavailable sides and
+missing selectors for multiple images return `400`. No usable `art_crop` means
+the artwork write is rejected, while initial Commander creation remains allowed.
+Unknown fields, including image URLs, attribution and gameplay selectors, fail.
+The response is the complete updated deck, after the transaction succeeds.
+
+The owner can update unused, permanently used and archived decks. The service
+locks the same deck row as full updates and first-game writes, fetches the new
+printing online and matches its gameplay Oracle identity to the persisted slot.
+For reversible cards it matches the authoritative face Oracle identity, remapping
+the printing-local gameplay reference when necessary. Either available artwork
+side can be displayed independently. Image, display-face index, illustration ID,
+artist and source are derived and saved together. Missing attribution is nullable.
+All gameplay snapshots, chosen colors, effective/deck WUBRG, slot order, lifecycle
+flags and historical references remain unchanged. Failed validation/upstream
+resolution changes nothing; reads remain offline.
+
+On saved Dashboard/Decks cards, each image (including its fallback) is an
+independent, keyboard-accessible gallery trigger. A pencil marker, focus outline
+and label identify the action; the other card region opens the editor. The two
+overlapping images retain independently reachable touch regions. No interactive
+control contains another interactive control.
+
+Each gallery option immediately submits one per-slot write with no confirmation
+button. While saving, choices and closing are disabled. Confirmed success closes
+the dialog, restores focus to its trigger and updates that view's deck response;
+changing routes loads the other view afresh. Confirmed failure retains the old
+art and shows an inline retry. An uncertain response locks selection until an
+authoritative deck-list read reconciles the result; a failed read offers an
+explicit status retry without resending the write. Selecting the already saved
+printing/side or closing without choosing makes no write. Loading, empty, lookup
+failure and broken-image fallback states remain local to the gallery.
 
 ## Permanent lifecycle and security
 

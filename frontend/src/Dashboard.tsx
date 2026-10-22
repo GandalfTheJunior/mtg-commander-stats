@@ -37,7 +37,7 @@ function useDashboardList<T>(load: (signal?: AbortSignal) => Promise<T[]>, onUna
     })
     return () => { current = false; controller.abort() }
   }, [load, onUnauthorized, revision])
-  return { ...state, refresh: () => { setState({ status: 'loading', items: [] }); setRevision(value => value + 1) } }
+  return { ...state, update: (replace: (items: T[]) => T[]) => setState(previous => ({ ...previous, items: replace(previous.items) })), refresh: () => { setState({ status: 'loading', items: [] }); setRevision(value => value + 1) } }
 }
 
 export default function Dashboard({ onUnauthorized, onOpen }: {
@@ -96,7 +96,8 @@ export default function Dashboard({ onUnauthorized, onOpen }: {
         {decks.status === 'loaded' && (sortedDecks.length === 0
           ? <Typography>Noch keine Decks. Erstelle dein erstes Commander-Deck.</Typography>
           : <Stack component="ul" aria-label="Deine Decks" sx={{ listStyle: 'none', p: 0, m: 0, gap: 2 }}>
-            {sortedDecks.map(deck => <SavedDeckCard key={deck.id} deck={deck}
+            {sortedDecks.map(deck => <SavedDeckCard key={deck.id} deck={deck} onUnauthorized={onUnauthorized}
+              onUpdated={updated => decks.update(items => items.map(item => item.id === updated.id ? updated : item))}
               onOpen={() => onOpen({ kind: 'deck', id: deck.id })}
               showId={sortedDecks.some(other => other.id !== deck.id && deckNames.compare(other.name, deck.name) === 0)} />)}
           </Stack>)}

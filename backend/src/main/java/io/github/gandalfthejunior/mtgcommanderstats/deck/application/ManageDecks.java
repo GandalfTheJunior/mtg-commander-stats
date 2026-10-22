@@ -11,6 +11,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidCommander
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.DeckRepository;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.application.ScryfallLookup;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.application.ResolvedCommander;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.application.ResolvedArtwork;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.PairingCapabilities;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -74,6 +75,17 @@ public class ManageDecks {
             }
         }
         deck.rename(name);
+        return deck;
+    }
+
+    @Transactional
+    public Deck changeArtwork(UUID ownerId, UUID deckId, int position, UUID printingId, Integer artworkFaceIndex) {
+        Deck deck = ownedDeck(ownerId, deckId);
+        DeckCommander commander = deck.getCommanders().stream().filter(slot -> slot.getPosition() == position)
+                .findFirst().orElseThrow(DeckNotFoundException::new);
+        ResolvedArtwork resolved = scryfall.resolveArtworkOnline(printingId, commander.getOracleId().toString(),
+                commander.getGameplayFaceIndex(), artworkFaceIndex);
+        commander.changeArtwork(resolved.selectionRef(), resolved.artwork());
         return deck;
     }
 
