@@ -1,11 +1,17 @@
 package io.github.gandalfthejunior.mtgcommanderstats.demo;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 
 import io.github.gandalfthejunior.mtgcommanderstats.MtgCommanderStatsApplication;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 
@@ -14,10 +20,25 @@ public final class OfflineDemoSeedApplication {
     private OfflineDemoSeedApplication() {
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         validateArguments(args);
-        SpringApplication.run(new Class<?>[]{MtgCommanderStatsApplication.class, Fixtures.class},
+        ConfigurableApplicationContext context = SpringApplication.run(new Class<?>[]{MtgCommanderStatsApplication.class, Fixtures.class},
                 Arrays.copyOfRange(args, 1, args.length));
+        awaitShutdown(context, System.in);
+    }
+
+    static void awaitShutdown(ConfigurableApplicationContext context, InputStream input) throws IOException {
+        PinnedScryfallClient fixtures = context.getBean(PinnedScryfallClient.class);
+        try (context) {
+            String command = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8)).readLine();
+            if (!"stop-offline-demo-seed".equals(command)) {
+                throw new IllegalStateException("Missing private demo shutdown request.");
+            }
+        }
+        // A signal, EOF, invalid command or shutdown failure cannot acknowledge
+        // success. Only the private handshake reaches this point after close().
+        fixtures.requireNoUnexpectedRequests();
+        System.out.println("Offline demo fixtures: no unexpected Scryfall requests.");
     }
 
     static void validateArguments(String[] args) {

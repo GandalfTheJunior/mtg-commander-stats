@@ -8,13 +8,12 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClient;
-import org.springframework.beans.factory.DisposableBean;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 /** Exact offline metadata replay. No method can fall back to HTTP. */
-public final class PinnedScryfallClient extends ScryfallClient implements DisposableBean {
+public final class PinnedScryfallClient extends ScryfallClient {
     private final JsonMapper json = JsonMapper.builder().build();
     private final Map<UUID, JsonNode> cards = new LinkedHashMap<>();
     private final AtomicInteger unexpectedRequests = new AtomicInteger();
@@ -84,12 +83,10 @@ public final class PinnedScryfallClient extends ScryfallClient implements Dispos
         return requests.get();
     }
 
-    @Override
-    public void destroy() {
-        // The wrapper requires this acknowledgement before marking a seed complete.
+    public void requireNoUnexpectedRequests() {
         // Even a request translated to an HTTP error by MVC poisons the whole run.
-        if (unexpectedRequests.get() == 0) {
-            System.out.println("Offline demo fixtures: no unexpected Scryfall requests.");
+        if (unexpectedRequests.get() != 0) {
+            throw new IllegalStateException("Unexpected Scryfall requests during offline seed.");
         }
     }
 }

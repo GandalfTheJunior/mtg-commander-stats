@@ -4,6 +4,7 @@ import {existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, unlinkS
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import {delimiter, resolve} from 'node:path';
 import {seed} from './api.mjs';
+import {trackBackend} from './backend-process.mjs';
 
 export class DemoError extends Error {}
 
@@ -122,18 +123,9 @@ async function backend(cfg, action) {
   if (jars.length !== 1) throw new DemoError('Build the existing backend jar first; see demo documentation.');
   const context = action ? `/demo-${randomBytes(16).toString('hex')}` : '';
   const args = backendArguments(resolve(root, 'backend/target', jars[0]), context);
-  const child = spawn('java', args, {cwd: root, env: backendEnvironment(cfg), stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true});
-  const exited = new Promise(resolve => {child.once('exit', code => resolve(code)); child.once('error', () => resolve(-1));});
-  let stopping = false;
-  let fixtureAcknowledged = false;
-  let fixtureOutput = '';
-  child.stdout.on('data', chunk => {
-    fixtureOutput += chunk.toString();
-    if (fixtureOutput.includes('Offline demo fixtures: no unexpected Scryfall requests.')) fixtureAcknowledged = true;
-    fixtureOutput = fixtureOutput.slice(-256);
-  });
-  const stop = () => {if (!stopping) {stopping = true; child.kill();}};
-  const unwatch = watchBackendShutdown(stop);
+  const child = spawn('java', args, {cwd: root, env: backendEnvironment(cfg), stdio: [action ? 'pipe' : 'ignore', 'pipe', 'pipe'], windowsHide: true});
+  const lifecycle = trackBackend(child, {seed: Boolean(action)});
+  const unwatch = watchBackendShutdown(lifecycle.stop);
   let timer;
   try {
     const port = await new Promise((resolve, reject) => {
@@ -146,23 +138,26 @@ async function backend(cfg, action) {
       });
       // Drain stderr without exposing credentials or authentication material.
       child.stderr.resume();
-      exited.then(() => reject(new DemoError('Demo backend exited before startup; rebuild the jar and check the demo database.')));
+      lifecycle.exited.then(() => reject(new DemoError('Demo backend exited before startup; rebuild the jar and check the demo database.')));
     });
     clearTimeout(timer);
     if (action) await action(`http://127.0.0.1:${port}${context}`);
     else {
       console.log('Demo backend ready on http://localhost:8080; PostgreSQL is 127.0.0.1:5433/mtg_commander_demo. Ctrl+C stops it.');
-      const code = await exited;
-      if (code !== 0 && !stopping) throw new DemoError('Demo backend stopped unexpectedly.');
+      const {code} = await lifecycle.exited;
+      if (code !== 0 && !lifecycle.stopping) throw new DemoError('Demo backend stopped unexpectedly.');
     }
   } finally {
-    clearTimeout(timer); stop();
-    const killTimer = setTimeout(() => child.kill('SIGKILL'), 10000);
-    await exited; clearTimeout(killTimer);
-    unwatch();
-    if (process.connected) process.disconnect();
+    clearTimeout(timer); lifecycle.stop();
+    try {
+      await lifecycle.finish();
+    } catch {
+      throw new DemoError('Offline seed shutdown/fixture acknowledgement failed; no completed marker written. Use explicit demo reset before retrying.');
+    } finally {
+      unwatch();
+      if (process.connected) process.disconnect();
+    }
   }
-  if (action && !fixtureAcknowledged) throw new DemoError('Offline seed did not confirm fixture isolation; no completed marker written. Use explicit demo reset before retrying.');
 }
 
 export async function main(args) {

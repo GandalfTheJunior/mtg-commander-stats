@@ -231,8 +231,13 @@ or relaxed Commander validators are used.
 Card requests match exact pinned printing UUIDs. The reversible example's
 supplemental Oracle query matches its full query string. Every other request,
 including search, artwork discovery and pagination, fails without a network
-fallback and poisons the seed's completion acknowledgement. Shutdown must confirm
-no unexpected requests before the wrapper writes `status: complete`. Failed runs
+fallback and poisons the seed's completion acknowledgement. The wrapper stops the
+temporary Java launcher through a private stdin command on every OS. The launcher
+closes its Spring context before confirming no unexpected requests. The wrapper
+waits for the child `close` event (including stdout/stderr EOF), a zero exit status
+and the complete acknowledgement before writing `status: complete`. A failed
+handshake, missing acknowledgement, nonzero exit or forced stop cannot complete
+the seed. Force-kill is only a bounded ten-second fallback. Failed runs
 remain explicit-reset-only; no automatic cleanup or retry occurs. This is offline
 **with respect to Scryfall**; the initial Maven/Docker dependency setup may require
 network access. No images are downloaded during seeding.
@@ -390,8 +395,10 @@ node --test tools/demo/*.test.mjs
 
 These dependency-free tests cover fixture invariants/manifest, fail-closed
 arguments and environment, target identity checks, and the HTTP cookie/CSRF
-rotation lifecycle, Windows-style `Path` command lookup, and cooperative IPC
-shutdown. The Windows allowlist also retains `ProgramFiles` (canonical
+rotation lifecycle, Windows-style `Path` command lookup, cooperative IPC
+shutdown and the Java stdin/exit/stdout completion boundary. Regression coverage
+includes delayed/split acknowledgement after `exit`, nonzero/signalled exits,
+broken stdin and forced-stop rejection. The Windows allowlist also retains `ProgramFiles` (canonical
 `PROGRAMFILES`) for Docker Compose plugin discovery while excluding
 `DOCKER_CONFIG`, remote Docker settings and application overrides. CI runs the
 tests with Node 24 on Linux and Windows. The normal
@@ -436,10 +443,17 @@ the status and use the documented demo-only recovery; nothing cleans up implicit
 A full Windows PowerShell + Docker Desktop run is still **unverified**. Windows
 CI exercises the dependency-free tooling tests, including native executable lookup
 and cooperative IPC shutdown, plus the conditional daemon-free Compose plugin
-discovery smoke check; it does not run the PostgreSQL/Java/browser demo.
+discovery smoke check. It also runs `./mvnw.cmd -B -Dtest=OfflineDemoShutdownTest test`:
+Node starts a real Java 25 child with a Spring context, the pinned fixture client
+and the launcher's actual stdin shutdown handler. It verifies context destruction
+before acknowledgement and rejects poisoned fixtures and stdin EOF. This test
+needs no PostgreSQL/Docker and does not claim the full database/browser demo.
+The same regression is part of canonical backend verification on Linux.
 The verifier requests backend shutdown over Node IPC, waits for the wrapper to
 stop/await its Java child and release the operation lock, and still requires a
-zero exit status. It does not send `child.kill('SIGINT')` to the Node wrapper
+zero exit status. The temporary seed child receives the private stdin stop command;
+neither its graceful shutdown nor its acknowledgement relies on a Windows signal.
+The verifier does not send `child.kill('SIGINT')` to the Node wrapper
 ([Node documents forceful Windows signal termination](https://nodejs.org/docs/latest-v24.x/api/child_process.html#subprocesskillsignal)).
 Manual Ctrl+C remains handled by the interactive wrapper; its native Windows
 console behavior is part of the outstanding check.
