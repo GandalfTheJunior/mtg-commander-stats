@@ -144,8 +144,11 @@ omit the gameplay selector. Artwork discovery also works for an ordinary card
 with a stable Oracle identity that is not Commander-eligible; it does not require
 a nonempty `commanderSelections` array.
 
-Alternative illustrations include all printing languages
-(`include_multilingual=true`), while Commander name search remains English-only.
+Alternative illustrations include all printing languages and rare variants
+(`include_multilingual=true&include_variations=true`). These options apply only
+to printing/artwork discovery; Commander name search remains English-only.
+Variants with a distinct illustration can add artwork choices; finish or frame
+variants using the same displayed illustration remain deduplicated.
 Every usable side from the initially selected printing is considered before
 alternative printing pages, even when the page bound excludes that printing.
 The selected gameplay default appears first when it has an available image.

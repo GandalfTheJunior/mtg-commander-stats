@@ -82,10 +82,11 @@ class ScryfallClientTest {
         assertThat(http.requests.getFirst().uri().toString())
                 .isEqualTo("https://api.scryfall.com/cards/search?q=name%3A%22Atraxa+%26+friends%22"
                         + "&unique=cards&order=name&dir=asc");
-        assertThat(http.requests.getFirst().uri().getRawQuery()).doesNotContain("include_multilingual");
+        assertThat(http.requests.getFirst().uri().getRawQuery())
+                .doesNotContain("include_multilingual", "include_variations");
         assertThat(http.requests.get(1).uri().toString())
                 .isEqualTo("https://api.scryfall.com/cards/search?q=oracleid%3A11111111-1111-4111-8111-111111111111"
-                        + "&unique=prints&order=released&dir=asc&include_multilingual=true");
+                        + "&unique=prints&order=released&dir=asc&include_multilingual=true&include_variations=true");
         assertThat(nanos.get()).isEqualTo(ScryfallRequestGate.REQUEST_SPACING.toNanos());
     }
 

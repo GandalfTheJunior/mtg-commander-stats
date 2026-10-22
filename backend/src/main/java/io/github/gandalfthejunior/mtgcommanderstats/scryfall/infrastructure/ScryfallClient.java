@@ -69,11 +69,11 @@ public class ScryfallClient {
         return search(query, "prints", "released", true);
     }
 
-    private JsonNode search(String query, String unique, String order, boolean includeMultilingual) {
+    private JsonNode search(String query, String unique, String order, boolean artworkDiscovery) {
         String encoded = URLEncoder.encode(query, StandardCharsets.UTF_8);
         return get(URI.create("https://" + API_HOST + "/cards/search?q=" + encoded
                 + "&unique=" + unique + "&order=" + order + "&dir=asc"
-                + (includeMultilingual ? "&include_multilingual=true" : "")));
+                + (artworkDiscovery ? "&include_multilingual=true&include_variations=true" : "")));
     }
 
     /** Pagination targets are authoritative metadata, but still restricted to the fixed API route. */

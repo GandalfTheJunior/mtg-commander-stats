@@ -282,6 +282,36 @@ class ScryfallLookupTest {
     }
 
     @Test
+    void discoversDistinctRareVariantArtworkWithoutDuplicatingTheSameIllustration() {
+        ObjectNode original = card(PRINTING, ORACLE, "Atraxa");
+        original.put("illustration_id", id(300).toString());
+        original.set("image_uris", json.valueToTree(images("original")));
+        ObjectNode rareVariant = original.deepCopy();
+        rareVariant.put("id", id(10).toString());
+        rareVariant.put("variation", true);
+        rareVariant.put("variation_of", PRINTING.toString());
+        rareVariant.put("illustration_id", id(301).toString());
+        rareVariant.put("artist", "Rare Variant Artist");
+        rareVariant.set("image_uris", json.valueToTree(images("rare-variant")));
+        ObjectNode sameIllustration = original.deepCopy();
+        sameIllustration.put("id", id(11).toString());
+        sameIllustration.put("variation", true);
+        sameIllustration.put("variation_of", PRINTING.toString());
+        sameIllustration.set("image_uris", json.valueToTree(images("same-illustration-variant")));
+        when(client.card(PRINTING)).thenReturn(original);
+        when(client.printings("oracleid:" + ORACLE))
+                .thenReturn(page(List.of(original, rareVariant, sameIllustration)));
+
+        List<Artwork> artworks = lookup.artworks(PRINTING, null);
+
+        assertThat(artworks).extracting(Artwork::scryfallCardId).containsExactly(PRINTING, id(10));
+        assertThat(artworks).extracting(Artwork::illustrationId)
+                .containsExactly(id(300).toString(), id(301).toString());
+        assertThat(artworks.get(1).artCropUrl()).endsWith("rare-variant-crop.jpg");
+        assertThat(artworks.get(1).artist()).isEqualTo("Rare Variant Artist");
+    }
+
+    @Test
     void ordinaryNoncommanderArtworkDiscoveryDoesNotMakeTheCardCommanderEligible() {
         ObjectNode island = card(PRINTING, ORACLE, "Island");
         island.put("type_line", "Basic Land — Island");
