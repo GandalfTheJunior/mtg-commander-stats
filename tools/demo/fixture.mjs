@@ -1,12 +1,33 @@
-// Stable logical references; UUIDs and recordedAt belong to the server.
+import {readFileSync} from 'node:fs';
+
+// Real, reviewed printing/Oracle metadata shared with the test-only backend provider.
+export const cards = JSON.parse(readFileSync(new URL('../../backend/src/test/resources/scryfall/demo-cards.json', import.meta.url))).cards;
+const colors = values => ['W', 'U', 'B', 'R', 'G'].filter(color => values.includes(color));
+function commander(card, chosenColor, gameplayFaceIndex, artworkFaceIndex) {
+  const metadata = cards[card];
+  const rules = gameplayFaceIndex === undefined ? metadata : cards['Zndrsplt, Eye of Wisdom'];
+  return {card, name: rules.name, oracleId: rules.oracle_id,
+    selectionRef: {scryfallCardId: metadata.id, ...(gameplayFaceIndex === undefined ? {} : {gameplayFaceIndex})},
+    ...(chosenColor === undefined ? {} : {chosenColor}),
+    ...(artworkFaceIndex === undefined ? {} : {artworkFaceIndex}),
+    baseColorIdentity: colors(rules.color_identity),
+    effectiveColorIdentity: colors([...rules.color_identity, chosenColor])};
+}
+const c = commander;
+// Preserve the original twelve logical decks, seating and outcomes. Each owner's
+// third deck is unused; game outcomes are never rewritten to create unused data.
 export const users = [
-  ['ada', 'Ada', [['Dragon Engine', 'The Ur-Dragon', ['W', 'U', 'B', 'R', 'G']], ['Patient Constructs', 'Karn, Silver Golem', []]]],
-  ['bruno', 'Bruno', [['Goblin Workshop', 'Krenko, Mob Boss', ['R']], ['Forest Council', 'Ezuri, Renegade Leader', ['G']]]],
-  ['cleo', 'Cleo', [['Graveyard Shift', 'Meren of Clan Nel Toth', ['B', 'G']], ['Sea Stories', 'Talrand, Sky Summoner', ['U']]]],
-  ['dara', 'Dara', [['Sunlit Tokens', 'Rhys the Redeemed', ['W', 'G']], ['Old Artifacts', 'Breya, Etherium Shaper', ['W', 'U', 'B', 'R']]]],
-  ['emil', 'Emil', [['Wild Lands', 'Omnath, Locus of Rage', ['R', 'G']], ['Spirit Parade', 'Millicent, Restless Revenant', ['W', 'U']]]],
-  ['faye', 'Faye', [['Night Court', 'Queen Marchesa', ['W', 'B', 'R']], ['Spore Garden', 'The Mycotyrant', ['B', 'G']]]],
-].map(([key, name, decks]) => ({key, name, email: `${key}@commander.example`, decks: decks.map(([name, commander, colorIdentity], index) => ({key: `${key}-${index}`, name, commander, colorIdentity}))}));
+  ['ada', 'Ada', [['Dragon Engine', [c('The Ur-Dragon')]], ['Patient Constructs', [c('Karn, Silver Golem')]], ['A very long expedition name for Pir and Toothy beyond the edge of the map', [c('Pir, Imaginative Rascal'), c('Toothy, Imaginary Friend')]]]],
+  ['bruno', 'Bruno', [['Goblin Workshop', [c('Krenko, Mob Boss')]], ['Forest Council', [c('The Prismatic Piper', 'G'), c('Gilanra, Caller of Wirewood')]], ['The Prismatic Bridge on the other side of Esika', [c('Esika, God of the Tree', undefined, undefined, 1)]]]],
+  ['cleo', 'Cleo', [['Graveyard Shift', [c('Meren of Clan Nel Toth')]], ['Sea Stories', [c('Talrand, Sky Summoner')]], ['Avacyn and the back-side Purifier illustration', [c('Archangel Avacyn', undefined, undefined, 1)]]]],
+  ['dara', 'Dara', [['Sunlit Tokens', [c('Faceless One', 'W'), c('Acolyte of Bahamut')]], ['Old Artifacts', [c('Breya, Etherium Shaper')]], ['Dragon Engine — a different illustration', [c('The Ur-Dragon (alternate art)')]]]],
+  ['emil', 'Emil', [['Wild Lands', [c('Omnath, Locus of Rage')]], ['Spirit Parade', [c('Clara Oswald', 'W'), c('The Second Doctor')]], ['Zndrsplt: reversible printing, same Oracle identity', [c('Zndrsplt (reversible)', undefined, 0, 1)]]]],
+  ['faye', 'Faye', [['Night Court', [c('Queen Marchesa')]], ['Spore Garden', [c('The Mycotyrant')]], ['Friends forever across all five colors', [c('Cecily, Haunted Mage'), c('Othelm, Sigardian Outcast')]]]],
+].map(([key, name, decks]) => ({key, name, email: `${key}@commander.example`, decks: decks.map(([name, commanders], index) => ({key: `${key}-${index}`, name, commanders, colorIdentity: colors(commanders.flatMap(c => c.effectiveColorIdentity))}))}));
+
+export function deckRequest(deck) {
+  return {name: deck.name, commanders: deck.commanders.map(({selectionRef, chosenColor}) => ({selectionRef, ...(chosenColor === undefined ? {} : {chosenColor})}))};
+}
 
 export const groups = [
   {key: 'friday', name: 'Demo Friday Table', owner: 'ada', members: ['ada', 'bruno', 'cleo', 'dara', 'emil']},

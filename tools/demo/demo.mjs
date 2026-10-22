@@ -2,8 +2,9 @@ import {spawn, spawnSync} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
 import {existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, unlinkSync} from 'node:fs';
 import {fileURLToPath, pathToFileURL} from 'node:url';
-import {resolve} from 'node:path';
+import {delimiter, resolve} from 'node:path';
 import {seed} from './api.mjs';
+import {trackBackend} from './backend-process.mjs';
 
 export class DemoError extends Error {}
 
@@ -51,15 +52,21 @@ function localDocker() {
   const host = contexts[0]?.Endpoints?.docker?.Host;
   checkDockerHost(host);
 }
+export function generateCredentials() {
+  return {databasePassword: randomBytes(32).toString('hex'), accountPassword: randomBytes(9).toString('base64url')};
+}
+export function validateCredentials(cfg) {
+  if (!/^[a-f0-9]{64}$/.test(cfg.databasePassword) || !/^(?:[A-Za-z0-9_-]{12}|[A-Za-z0-9_-]{32})$/.test(cfg.accountPassword)) throw new DemoError('Invalid demo credentials file. Preserve it for the existing demo volume.');
+  return cfg;
+}
 function config(create = false) {
   if (!existsSync(configPath)) {
     if (!create) throw new DemoError('Run demo.mjs up first.');
     mkdirSync(stateDir, {recursive: true, mode: 0o700});
-    writeFileSync(configPath, JSON.stringify({databasePassword: randomBytes(32).toString('hex'), accountPassword: randomBytes(24).toString('base64url')}, null, 2) + '\n', {flag: 'wx', mode: 0o600});
+    writeFileSync(configPath, JSON.stringify(generateCredentials(), null, 2) + '\n', {flag: 'wx', mode: 0o600});
   }
   const cfg = JSON.parse(readFileSync(configPath, 'utf8'));
-  if (!/^[a-f0-9]{64}$/.test(cfg.databasePassword) || !/^[A-Za-z0-9_-]{32}$/.test(cfg.accountPassword)) throw new DemoError('Invalid demo credentials file. Preserve it for the existing demo volume.');
-  return cfg;
+  return validateCredentials(cfg);
 }
 function compose(args, cfg) {
   return run(['compose', '--env-file', resolve(root, 'tools/demo/compose.env'), '-f', resolve(root, 'tools/demo/compose.yaml'), '-p', project, ...args], {...environment(), DEMO_POSTGRES_PASSWORD: cfg.databasePassword});
@@ -89,6 +96,16 @@ export function backendEnvironment(cfg) {
 }
 export const BACKEND_STOP = 'stop-demo-backend';
 
+export function backendArguments(jar, context = '') {
+  const settings = ['--spring.config.location=classpath:/application.yaml', '--server.address=127.0.0.1', `--server.port=${context ? 0 : 8080}`, `--server.servlet.context-path=${context || '/'}`, '--spring.datasource.url=jdbc:postgresql://127.0.0.1:5433/mtg_commander_demo', '--spring.datasource.username=mtg_commander_demo'];
+  if (!context) return ['-jar', jar, ...settings];
+  const classpathFile = resolve(root, 'backend/target/demo-classpath.txt');
+  const launcher = 'io.github.gandalfthejunior.mtgcommanderstats.demo.OfflineDemoSeedApplication';
+  if (!existsSync(classpathFile) || !existsSync(resolve(root, 'backend/target/test-classes', launcher.replaceAll('.', '/') + '.class'))) throw new DemoError('Build the offline seed launcher first: ./mvnw -Pdemo-seed -DskipTests package from backend/ (mvnw.cmd on Windows).');
+  const classpath = [resolve(root, 'backend/target/test-classes'), resolve(root, 'backend/target/classes'), readFileSync(classpathFile, 'utf8').trim()].join(delimiter);
+  return ['-cp', classpath, launcher, '--allow-isolated-demo-seed', ...settings];
+}
+
 // IPC requests let the verifier stop the wrapper cooperatively on Windows too;
 // child.kill('SIGINT') would terminate it before it can clean up its Java child.
 export function watchBackendShutdown(stop) {
@@ -105,12 +122,10 @@ async function backend(cfg, action) {
   const jars = readdirSync(resolve(root, 'backend/target')).filter(f => f.endsWith('.jar'));
   if (jars.length !== 1) throw new DemoError('Build the existing backend jar first; see demo documentation.');
   const context = action ? `/demo-${randomBytes(16).toString('hex')}` : '';
-  const args = ['-jar', resolve(root, 'backend/target', jars[0]), '--spring.config.location=classpath:/application.yaml', '--server.address=127.0.0.1', `--server.port=${action ? 0 : 8080}`, `--server.servlet.context-path=${context || '/'}`, '--spring.datasource.url=jdbc:postgresql://127.0.0.1:5433/mtg_commander_demo', '--spring.datasource.username=mtg_commander_demo'];
-  const child = spawn('java', args, {cwd: root, env: backendEnvironment(cfg), stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true});
-  const exited = new Promise(resolve => {child.once('exit', code => resolve(code)); child.once('error', () => resolve(-1));});
-  let stopping = false;
-  const stop = () => {if (!stopping) {stopping = true; child.kill();}};
-  const unwatch = watchBackendShutdown(stop);
+  const args = backendArguments(resolve(root, 'backend/target', jars[0]), context);
+  const child = spawn('java', args, {cwd: root, env: backendEnvironment(cfg), stdio: [action ? 'pipe' : 'ignore', 'pipe', 'pipe'], windowsHide: true});
+  const lifecycle = trackBackend(child, {seed: Boolean(action)});
+  const unwatch = watchBackendShutdown(lifecycle.stop);
   let timer;
   try {
     const port = await new Promise((resolve, reject) => {
@@ -123,21 +138,25 @@ async function backend(cfg, action) {
       });
       // Drain stderr without exposing credentials or authentication material.
       child.stderr.resume();
-      exited.then(() => reject(new DemoError('Demo backend exited before startup; rebuild the jar and check the demo database.')));
+      lifecycle.exited.then(() => reject(new DemoError('Demo backend exited before startup; rebuild the jar and check the demo database.')));
     });
     clearTimeout(timer);
     if (action) await action(`http://127.0.0.1:${port}${context}`);
     else {
       console.log('Demo backend ready on http://localhost:8080; PostgreSQL is 127.0.0.1:5433/mtg_commander_demo. Ctrl+C stops it.');
-      const code = await exited;
-      if (code !== 0 && !stopping) throw new DemoError('Demo backend stopped unexpectedly.');
+      const {code} = await lifecycle.exited;
+      if (code !== 0 && !lifecycle.stopping) throw new DemoError('Demo backend stopped unexpectedly.');
     }
   } finally {
-    clearTimeout(timer); stop();
-    const killTimer = setTimeout(() => child.kill('SIGKILL'), 10000);
-    await exited; clearTimeout(killTimer);
-    unwatch();
-    if (process.connected) process.disconnect();
+    clearTimeout(timer); lifecycle.stop();
+    try {
+      await lifecycle.finish();
+    } catch {
+      throw new DemoError('Offline seed shutdown/fixture acknowledgement failed; no completed marker written. Use explicit demo reset before retrying.');
+    } finally {
+      unwatch();
+      if (process.connected) process.disconnect();
+    }
   }
 }
 
@@ -176,9 +195,9 @@ export async function main(args) {
         if (table !== 'users' || run(['exec', id, 'psql', '-U', db, '-d', db, '-Atc', 'SELECT count(*) FROM public.users']) !== '0') throw new DemoError('Demo database is not empty; refusing to seed or clean up existing data.');
         writeFileSync(marker, JSON.stringify({status: 'started'}), {flag: 'wx', mode: 0o600});
         await seed(base, cfg.accountPassword);
-        writeFileSync(marker, JSON.stringify({status: 'complete'}), {mode: 0o600});
       });
-      console.log('Demo verified: 6 accounts, 2 groups, 12 decks, 36 games. Login: ada@commander.example; password is accountPassword in .demo/credentials.json. Expected results: tools/demo/expected-results.json.');
+      writeFileSync(marker, JSON.stringify({status: 'complete'}), {mode: 0o600});
+      console.log('Demo verified offline: 6 accounts, 2 groups, 12 played + 6 unused decks, 36 games. Login: ada@commander.example; password is accountPassword in .demo/credentials.json. Expected results: tools/demo/expected-results.json.');
     }
   } finally { unlinkSync(lock); }
 }

@@ -64,6 +64,32 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+    <profiles>
+        <!-- Only the isolated opt-in demo launcher uses this test classpath.
+             Neither its launcher nor its card fixtures enter the application jar. -->
+        <profile>
+            <id>demo-seed</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>demo-classpath</id>
+                                <phase>package</phase>
+                                <goals><goal>build-classpath</goal></goals>
+                                <configuration>
+                                    <includeScope>test</includeScope>
+                                    <outputFile>${project.build.directory}/demo-classpath.txt</outputFile>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
     <build>
         <plugins>
             <plugin>

@@ -34,6 +34,15 @@
           "winRatePercent": 0
         },
         {
+          "kind": "deck",
+          "user": "ada",
+          "deck": "ada-2",
+          "name": "A very long expedition name for Pir and Toothy beyond the edge of the map",
+          "games": 0,
+          "wins": 0,
+          "winRatePercent": 0
+        },
+        {
           "kind": "player",
           "user": "bruno",
           "name": "Bruno",
@@ -58,6 +67,15 @@
           "games": 10,
           "wins": 2,
           "winRatePercent": 20
+        },
+        {
+          "kind": "deck",
+          "user": "bruno",
+          "deck": "bruno-2",
+          "name": "The Prismatic Bridge on the other side of Esika",
+          "games": 0,
+          "wins": 0,
+          "winRatePercent": 0
         },
         {
           "kind": "player",
@@ -86,6 +104,15 @@
           "winRatePercent": 30
         },
         {
+          "kind": "deck",
+          "user": "cleo",
+          "deck": "cleo-2",
+          "name": "Avacyn and the back-side Purifier illustration",
+          "games": 0,
+          "wins": 0,
+          "winRatePercent": 0
+        },
+        {
           "kind": "player",
           "user": "dara",
           "name": "Dara",
@@ -112,6 +139,15 @@
           "winRatePercent": 25
         },
         {
+          "kind": "deck",
+          "user": "dara",
+          "deck": "dara-2",
+          "name": "Dragon Engine — a different illustration",
+          "games": 0,
+          "wins": 0,
+          "winRatePercent": 0
+        },
+        {
           "kind": "player",
           "user": "emil",
           "name": "Emil",
@@ -136,6 +172,15 @@
           "games": 6,
           "wins": 1,
           "winRatePercent": 16.67
+        },
+        {
+          "kind": "deck",
+          "user": "emil",
+          "deck": "emil-2",
+          "name": "Zndrsplt: reversible printing, same Oracle identity",
+          "games": 0,
+          "wins": 0,
+          "winRatePercent": 0
         }
       ]
     },
@@ -172,6 +217,15 @@
           "winRatePercent": 0
         },
         {
+          "kind": "deck",
+          "user": "cleo",
+          "deck": "cleo-2",
+          "name": "Avacyn and the back-side Purifier illustration",
+          "games": 0,
+          "wins": 0,
+          "winRatePercent": 0
+        },
+        {
           "kind": "player",
           "user": "dara",
           "name": "Dara",
@@ -196,6 +250,15 @@
           "games": 8,
           "wins": 3,
           "winRatePercent": 37.5
+        },
+        {
+          "kind": "deck",
+          "user": "dara",
+          "deck": "dara-2",
+          "name": "Dragon Engine — a different illustration",
+          "games": 0,
+          "wins": 0,
+          "winRatePercent": 0
         },
         {
           "kind": "player",
@@ -224,6 +287,15 @@
           "winRatePercent": 0
         },
         {
+          "kind": "deck",
+          "user": "emil",
+          "deck": "emil-2",
+          "name": "Zndrsplt: reversible printing, same Oracle identity",
+          "games": 0,
+          "wins": 0,
+          "winRatePercent": 0
+        },
+        {
           "kind": "player",
           "user": "faye",
           "name": "Faye",
@@ -248,6 +320,15 @@
           "games": 8,
           "wins": 4,
           "winRatePercent": 50
+        },
+        {
+          "kind": "deck",
+          "user": "faye",
+          "deck": "faye-2",
+          "name": "Friends forever across all five colors",
+          "games": 0,
+          "wins": 0,
+          "winRatePercent": 0
         }
       ]
     }

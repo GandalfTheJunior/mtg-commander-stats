@@ -176,8 +176,10 @@ applications and run `docker compose down --volumes` followed by
 development accounts, decks and games. Never use this reset on shared/production
 data. Testcontainers always migrates a clean PostgreSQL 18 database.
 
-The complete offline demo seed refresh belongs to #106. Its existing free-text
-seed writes do not yet work with this API; do not treat that workflow as updated.
+The opt-in offline demo seed uses pinned Scryfall metadata with these same
+authenticated API and validation paths. See the [demo guide](../development/demo.md)
+for its test-only launcher, explicit demo-only reset and retained credentials.
+Existing demo data is never reset or migrated implicitly.
 
 ## Two-slot editor
 

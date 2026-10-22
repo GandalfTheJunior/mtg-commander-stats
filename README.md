@@ -120,7 +120,8 @@ Choose a Commander explicitly from the debounced English-name search. WUBRG is
 read-only; qualifying Commanders require a separate pregame color choice.
 Saved decks and name-only edits work when Scryfall is unavailable; new selections
 require the provider. See the [deck API](docs/product/decks-api.md) for the V6
-local-data reset requirement and #106 demo-seed limitation. Deleting an unused deck asks for confirmation naming that deck; canceling sends
+local-data reset requirement and the [demo guide](docs/development/demo.md) for
+the isolated offline fixture seed. Deleting an unused deck asks for confirmation naming that deck; canceling sends
 no deletion request. Once a deck is used in a committed game, its commander and
 colors are permanently locked; its name remains editable. This restriction stays
 after its last game is changed or deleted. Used decks have an explicit **Archive**
@@ -250,6 +251,7 @@ From `backend/`:
 
 This is the canonical backend check. It runs the real Spring context against
 an isolated PostgreSQL 18 Testcontainer, including datasource, JPA, and Flyway.
+Node 24 is also required for the complete offline demo API integration test.
 Docker must be available; tests do not skip when Docker is missing. Compose
 need not be running, and no local database password is needed for the test.
 

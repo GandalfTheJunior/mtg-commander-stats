@@ -1,0 +1,802 @@
+{
+  "capturedAt": "2026-10-22",
+  "source": "https://api.scryfall.com",
+  "cards": {
+    "The Ur-Dragon": {
+      "object": "card",
+      "id": "10d42b35-844f-4a64-9981-c6118d45e826",
+      "oracle_id": "87b22b09-4f6d-4bc5-9cfc-663e4c7c6981",
+      "name": "The Ur-Dragon",
+      "lang": "en",
+      "released_at": "2023-08-04",
+      "scryfall_uri": "https://scryfall.com/card/cmm/361/the-ur-dragon?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/1/0/10d42b35-844f-4a64-9981-c6118d45e826.jpg?1783915607",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/1/0/10d42b35-844f-4a64-9981-c6118d45e826.jpg?1783915607"
+      },
+      "type_line": "Legendary Creature — Dragon Avatar",
+      "oracle_text": "Eminence — As long as The Ur-Dragon is in the command zone or on the battlefield, other Dragon spells you cast cost {1} less to cast.\nFlying\nWhenever one or more Dragons you control attack, draw that many cards, then you may put a permanent card from your hand onto the battlefield.",
+      "color_identity": [
+        "B",
+        "G",
+        "R",
+        "U",
+        "W"
+      ],
+      "keywords": [
+        "Flying",
+        "Eminence"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "cmm",
+      "collector_number": "361",
+      "artist": "Jaime Jones",
+      "illustration_id": "2140b832-65cd-4eb7-9502-c98be1b6349e"
+    },
+    "Karn, Silver Golem": {
+      "object": "card",
+      "id": "055a00a2-0df2-4f49-ac51-e33dfaf7ee85",
+      "oracle_id": "8a7c6391-020a-4d7a-8abb-702631bbee56",
+      "name": "Karn, Silver Golem",
+      "lang": "en",
+      "released_at": "2014-06-16",
+      "scryfall_uri": "https://scryfall.com/card/vma/270/karn-silver-golem?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/0/5/055a00a2-0df2-4f49-ac51-e33dfaf7ee85.jpg?1783939234",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/0/5/055a00a2-0df2-4f49-ac51-e33dfaf7ee85.jpg?1783939234"
+      },
+      "type_line": "Legendary Artifact Creature — Golem",
+      "oracle_text": "Whenever Karn blocks or becomes blocked, it gets -4/+4 until end of turn.\n{1}: Target noncreature artifact becomes an artifact creature with power and toughness each equal to its mana value until end of turn.",
+      "color_identity": [],
+      "keywords": [],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "vma",
+      "collector_number": "270",
+      "artist": "Mark Zug",
+      "illustration_id": "8e1b8e7a-e168-4071-89e4-e4eb51fa285e"
+    },
+    "Krenko, Mob Boss": {
+      "object": "card",
+      "id": "824b2d73-2151-4e5e-9f05-8f63e2bdcaa9",
+      "oracle_id": "68418069-f615-40ef-ae0d-764192acae00",
+      "name": "Krenko, Mob Boss",
+      "lang": "en",
+      "released_at": "2024-11-15",
+      "scryfall_uri": "https://scryfall.com/card/fdn/204/krenko-mob-boss?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/8/2/824b2d73-2151-4e5e-9f05-8f63e2bdcaa9.jpg?1783909065",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/8/2/824b2d73-2151-4e5e-9f05-8f63e2bdcaa9.jpg?1783909065"
+      },
+      "type_line": "Legendary Creature — Goblin Warrior",
+      "oracle_text": "{T}: Create X 1/1 red Goblin creature tokens, where X is the number of Goblins you control.",
+      "color_identity": [
+        "R"
+      ],
+      "keywords": [],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "fdn",
+      "collector_number": "204",
+      "artist": "Lie Setiawan",
+      "illustration_id": "d13abffb-deb1-4658-84f6-4425209d8188"
+    },
+    "The Prismatic Piper": {
+      "object": "card",
+      "id": "c78c2713-39e7-4a6e-a132-027099a89665",
+      "oracle_id": "b2aeee90-7b8d-47a6-9167-cc21f7fbfd43",
+      "name": "The Prismatic Piper",
+      "lang": "en",
+      "released_at": "2023-08-04",
+      "scryfall_uri": "https://scryfall.com/card/cmm/1/the-prismatic-piper?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/c/7/c78c2713-39e7-4a6e-a132-027099a89665.jpg?1783915731",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/c/7/c78c2713-39e7-4a6e-a132-027099a89665.jpg?1783915731"
+      },
+      "type_line": "Legendary Creature — Shapeshifter",
+      "oracle_text": "If The Prismatic Piper is your commander, choose a color before the game begins. The Prismatic Piper is the chosen color.\nPartner (You can have two commanders if both have partner.)",
+      "color_identity": [],
+      "keywords": [
+        "Partner"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "cmm",
+      "collector_number": "1",
+      "artist": "Seb McKinnon",
+      "illustration_id": "2c5e6f58-2fb7-4e04-940c-08443748c060"
+    },
+    "Gilanra, Caller of Wirewood": {
+      "object": "card",
+      "id": "745d297d-4bb4-40cf-bb9c-99dac04e5069",
+      "oracle_id": "4bda947d-493f-47a0-b0d2-516a6ef6b2c0",
+      "name": "Gilanra, Caller of Wirewood",
+      "lang": "en",
+      "released_at": "2020-11-20",
+      "scryfall_uri": "https://scryfall.com/card/cmr/230/gilanra-caller-of-wirewood?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/7/4/745d297d-4bb4-40cf-bb9c-99dac04e5069.jpg?1783928793",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/7/4/745d297d-4bb4-40cf-bb9c-99dac04e5069.jpg?1783928793"
+      },
+      "type_line": "Legendary Creature — Elf Druid",
+      "oracle_text": "{T}: Add {G}. When you spend this mana to cast a spell with mana value 6 or greater, draw a card.\nPartner (You can have two commanders if both have partner.)",
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [
+        "Partner"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "cmr",
+      "collector_number": "230",
+      "artist": "Jehan Choo",
+      "illustration_id": "efa1472f-d685-47ad-b667-334daab27702"
+    },
+    "Meren of Clan Nel Toth": {
+      "object": "card",
+      "id": "508b1442-bf2c-4ad6-9bcf-bd894e081ab6",
+      "oracle_id": "0310dfdb-0498-488d-9f1a-279f8239e024",
+      "name": "Meren of Clan Nel Toth",
+      "lang": "en",
+      "released_at": "2025-04-11",
+      "scryfall_uri": "https://scryfall.com/card/tdc/297/meren-of-clan-nel-toth?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/5/0/508b1442-bf2c-4ad6-9bcf-bd894e081ab6.jpg?1783907026",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/5/0/508b1442-bf2c-4ad6-9bcf-bd894e081ab6.jpg?1783907026"
+      },
+      "type_line": "Legendary Creature — Human Shaman",
+      "oracle_text": "Whenever another creature you control dies, you get an experience counter.\nAt the beginning of your end step, choose target creature card in your graveyard. If that card's mana value is less than or equal to the number of experience counters you have, return it to the battlefield. Otherwise, put it into your hand.",
+      "color_identity": [
+        "B",
+        "G"
+      ],
+      "keywords": [],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "tdc",
+      "collector_number": "297",
+      "artist": "Mark Winters",
+      "illustration_id": "34f76b57-924d-4d09-b1f3-5185320a2498"
+    },
+    "Talrand, Sky Summoner": {
+      "object": "card",
+      "id": "1be3ed47-072e-481a-b3d9-dc232ac4b24f",
+      "oracle_id": "ea1eb902-a23c-44ff-9169-19baf71de238",
+      "name": "Talrand, Sky Summoner",
+      "lang": "en",
+      "released_at": "2024-04-19",
+      "scryfall_uri": "https://scryfall.com/card/otc/116/talrand-sky-summoner?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/1/b/1be3ed47-072e-481a-b3d9-dc232ac4b24f.jpg?1783911937",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/1/b/1be3ed47-072e-481a-b3d9-dc232ac4b24f.jpg?1783911937"
+      },
+      "type_line": "Legendary Creature — Merfolk Wizard",
+      "oracle_text": "Whenever you cast an instant or sorcery spell, create a 2/2 blue Drake creature token with flying.",
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "otc",
+      "collector_number": "116",
+      "artist": "Svetlin Velinov",
+      "illustration_id": "99f6afc0-add4-4184-93eb-9dd01cde71a5"
+    },
+    "Faceless One": {
+      "object": "card",
+      "id": "25564fba-5765-457b-8dd3-f26b877221b8",
+      "oracle_id": "ef220170-c01a-4ca5-b887-f248c50227ee",
+      "name": "Faceless One",
+      "lang": "en",
+      "released_at": "2022-06-10",
+      "scryfall_uri": "https://scryfall.com/card/clb/1/faceless-one?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/2/5/25564fba-5765-457b-8dd3-f26b877221b8.jpg?1783922822",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/2/5/25564fba-5765-457b-8dd3-f26b877221b8.jpg?1783922822"
+      },
+      "type_line": "Legendary Enchantment Creature — Background",
+      "oracle_text": "If Faceless One is your commander, choose a color before the game begins. Faceless One is the chosen color.\nChoose a Background (You can have a Background as a second commander.)",
+      "color_identity": [],
+      "keywords": [
+        "Choose a background"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "clb",
+      "collector_number": "1",
+      "artist": "Gaboleps",
+      "illustration_id": "354229a3-a99f-478f-b5bf-ed7a05e6c00a"
+    },
+    "Acolyte of Bahamut": {
+      "object": "card",
+      "id": "b0260e1f-ff6a-4ef3-bef7-8c77f8413500",
+      "oracle_id": "38477748-bc57-449c-afe1-c5f34caf8eff",
+      "name": "Acolyte of Bahamut",
+      "lang": "en",
+      "released_at": "2022-06-10",
+      "scryfall_uri": "https://scryfall.com/card/clb/212/acolyte-of-bahamut?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/b/0/b0260e1f-ff6a-4ef3-bef7-8c77f8413500.jpg?1783922722",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/b/0/b0260e1f-ff6a-4ef3-bef7-8c77f8413500.jpg?1783922722"
+      },
+      "type_line": "Legendary Enchantment — Background",
+      "oracle_text": "Commander creatures you own have \"The first Dragon spell you cast each turn costs {2} less to cast.\"",
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "clb",
+      "collector_number": "212",
+      "artist": "Kai Carpenter",
+      "illustration_id": "50d416c4-2713-49e0-93d1-65c763a128ab"
+    },
+    "Breya, Etherium Shaper": {
+      "object": "card",
+      "id": "8bf3929c-957f-4ea2-a27d-7d53979844af",
+      "oracle_id": "d460a9e2-5a7d-4562-880e-45174be19a9d",
+      "name": "Breya, Etherium Shaper",
+      "lang": "en",
+      "released_at": "2024-06-14",
+      "scryfall_uri": "https://scryfall.com/card/mh3/289/breya-etherium-shaper?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/8/b/8bf3929c-957f-4ea2-a27d-7d53979844af.jpg?1783911211",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/8/b/8bf3929c-957f-4ea2-a27d-7d53979844af.jpg?1783911211"
+      },
+      "type_line": "Legendary Artifact Creature — Human",
+      "oracle_text": "When Breya enters, create two 1/1 blue Thopter artifact creature tokens with flying.\n{2}, Sacrifice two artifacts: Choose one —\n• Breya deals 3 damage to target player or planeswalker.\n• Target creature gets -4/-4 until end of turn.\n• You gain 5 life.",
+      "color_identity": [
+        "B",
+        "R",
+        "U",
+        "W"
+      ],
+      "keywords": [],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "mh3",
+      "collector_number": "289",
+      "artist": "Tiffany Turrill",
+      "illustration_id": "07ef8663-c388-4c49-9c35-5c6b3b4ac82b"
+    },
+    "Omnath, Locus of Rage": {
+      "object": "card",
+      "id": "637c5910-f835-496e-b1b9-445bfb71da97",
+      "oracle_id": "1816eede-c5bd-49df-958f-a3af64cb2932",
+      "name": "Omnath, Locus of Rage",
+      "lang": "en",
+      "released_at": "2026-01-23",
+      "scryfall_uri": "https://scryfall.com/card/ecc/129/omnath-locus-of-rage?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/6/3/637c5910-f835-496e-b1b9-445bfb71da97.jpg?1783904537",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/6/3/637c5910-f835-496e-b1b9-445bfb71da97.jpg?1783904537"
+      },
+      "type_line": "Legendary Creature — Elemental",
+      "oracle_text": "Landfall — Whenever a land you control enters, create a 5/5 red and green Elemental creature token.\nWhenever Omnath or another Elemental you control dies, Omnath deals 3 damage to any target.",
+      "color_identity": [
+        "G",
+        "R"
+      ],
+      "keywords": [
+        "Landfall"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "ecc",
+      "collector_number": "129",
+      "artist": "Brad Rigney",
+      "illustration_id": "eff013ca-b457-4fc9-a840-244e6f71c967"
+    },
+    "Clara Oswald": {
+      "object": "card",
+      "id": "9a1ee042-6713-4e9e-9901-9b94d99d33f1",
+      "oracle_id": "542eae01-058d-4959-92a8-49d6b1e33ecd",
+      "name": "Clara Oswald",
+      "lang": "en",
+      "released_at": "2023-10-13",
+      "scryfall_uri": "https://scryfall.com/card/who/9/clara-oswald?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/9/a/9a1ee042-6713-4e9e-9901-9b94d99d33f1.jpg?1783914685",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/9/a/9a1ee042-6713-4e9e-9901-9b94d99d33f1.jpg?1783914685"
+      },
+      "type_line": "Legendary Creature — Human Advisor",
+      "oracle_text": "Impossible Girl — If Clara Oswald is your commander, choose a color before the game begins. Clara Oswald is the chosen color.\nIf a triggered ability of a Doctor you control triggers, that ability triggers an additional time.\nDoctor's companion (You can have two commanders if the other is the Doctor.)",
+      "color_identity": [],
+      "keywords": [
+        "Impossible Girl",
+        "Doctor's companion"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "who",
+      "collector_number": "9",
+      "artist": "Marta Nael",
+      "illustration_id": "f5de3244-6cd8-4c67-bc07-7699c9fad5c7"
+    },
+    "The Second Doctor": {
+      "object": "card",
+      "id": "568c2687-4381-4954-9cab-f669d1fe6306",
+      "oracle_id": "8a6eda31-2791-4def-b9e7-3adde155a4f0",
+      "name": "The Second Doctor",
+      "lang": "en",
+      "released_at": "2023-10-13",
+      "scryfall_uri": "https://scryfall.com/card/who/156/the-second-doctor?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/5/6/568c2687-4381-4954-9cab-f669d1fe6306.jpg?1783914623",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/5/6/568c2687-4381-4954-9cab-f669d1fe6306.jpg?1783914623"
+      },
+      "type_line": "Legendary Creature — Time Lord Doctor",
+      "oracle_text": "Players have no maximum hand size.\nHow Civil of You — At the beginning of your end step, each player may draw a card. Each opponent who does can't attack you or permanents you control during their next turn.",
+      "color_identity": [
+        "U",
+        "W"
+      ],
+      "keywords": [
+        "How Civil of You"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "who",
+      "collector_number": "156",
+      "artist": "Bryan Sola",
+      "illustration_id": "94af37ce-c9ab-4c47-82bc-31c735360dc5"
+    },
+    "Queen Marchesa": {
+      "object": "card",
+      "id": "0fdae05f-7bdc-45fb-b9b9-e5ec3766f965",
+      "oracle_id": "d7ac4be1-dcca-49b6-8ddb-d1b0e6cf2dcf",
+      "name": "Queen Marchesa",
+      "lang": "en",
+      "released_at": "2024-04-19",
+      "scryfall_uri": "https://scryfall.com/card/otc/239/queen-marchesa?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/0/f/0fdae05f-7bdc-45fb-b9b9-e5ec3766f965.jpg?1783911896",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/0/f/0fdae05f-7bdc-45fb-b9b9-e5ec3766f965.jpg?1783911896"
+      },
+      "type_line": "Legendary Creature — Human Assassin",
+      "oracle_text": "Deathtouch, haste\nWhen Queen Marchesa enters, you become the monarch.\nAt the beginning of your upkeep, if an opponent is the monarch, create a 1/1 black Assassin creature token with deathtouch and haste.",
+      "color_identity": [
+        "B",
+        "R",
+        "W"
+      ],
+      "keywords": [
+        "Haste",
+        "Deathtouch"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "otc",
+      "collector_number": "239",
+      "artist": "Kieran Yanner",
+      "illustration_id": "4dd3219b-2923-425d-9dc8-c346a89d7d66"
+    },
+    "The Mycotyrant": {
+      "object": "card",
+      "id": "caef93cc-70d0-4cce-9aaa-13c0931b2ef7",
+      "oracle_id": "b69bbb8d-7f8c-45d6-983a-759b5fce6ebd",
+      "name": "The Mycotyrant",
+      "lang": "en",
+      "released_at": "2023-11-17",
+      "scryfall_uri": "https://scryfall.com/card/lci/235/the-mycotyrant?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/c/a/caef93cc-70d0-4cce-9aaa-13c0931b2ef7.jpg?1783913730",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/c/a/caef93cc-70d0-4cce-9aaa-13c0931b2ef7.jpg?1783913730"
+      },
+      "type_line": "Legendary Creature — Elder Fungus",
+      "oracle_text": "Trample\nThe Mycotyrant's power and toughness are each equal to the number of creatures you control that are Fungi and/or Saprolings.\nAt the beginning of your end step, create X 1/1 black Fungus creature tokens with \"This token can't block,\" where X is the number of times you descended this turn. (You descend each time a permanent card is put into your graveyard from anywhere.)",
+      "color_identity": [
+        "B",
+        "G"
+      ],
+      "keywords": [
+        "Trample"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "lci",
+      "collector_number": "235",
+      "artist": "Chase Stone",
+      "illustration_id": "8b99ea9d-061a-49f3-90f7-37282610d5aa"
+    },
+    "Pir, Imaginative Rascal": {
+      "object": "card",
+      "id": "5a7241f5-4d69-47fe-b037-95037008184c",
+      "oracle_id": "7683c2b2-a06f-4691-9cc5-1968dc032885",
+      "name": "Pir, Imaginative Rascal",
+      "lang": "en",
+      "released_at": "2018-06-08",
+      "scryfall_uri": "https://scryfall.com/card/bbd/11/pir-imaginative-rascal?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/5/a/5a7241f5-4d69-47fe-b037-95037008184c.jpg?1783934878",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/5/a/5a7241f5-4d69-47fe-b037-95037008184c.jpg?1783934878"
+      },
+      "type_line": "Legendary Creature — Human",
+      "oracle_text": "Partner with Toothy, Imaginary Friend (When this creature enters, target player may put Toothy into their hand from their library, then shuffle.)\nIf one or more counters would be put on a permanent your team controls, that many plus one of each of those kinds of counters are put on that permanent instead.",
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [
+        "Partner with",
+        "Partner"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "bbd",
+      "collector_number": "11",
+      "artist": "Zoltan Boros",
+      "illustration_id": "e3131c44-745d-45f3-b263-9e600286e698"
+    },
+    "Toothy, Imaginary Friend": {
+      "object": "card",
+      "id": "ebdf2f50-f69a-47c4-a75f-ff55781bb0c8",
+      "oracle_id": "41d6cce0-b852-4d0e-aee2-081df13dd9b8",
+      "name": "Toothy, Imaginary Friend",
+      "lang": "en",
+      "released_at": "2018-06-08",
+      "scryfall_uri": "https://scryfall.com/card/bbd/12/toothy-imaginary-friend?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/e/b/ebdf2f50-f69a-47c4-a75f-ff55781bb0c8.jpg?1783934877",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/e/b/ebdf2f50-f69a-47c4-a75f-ff55781bb0c8.jpg?1783934877"
+      },
+      "type_line": "Legendary Creature — Illusion",
+      "oracle_text": "Partner with Pir, Imaginative Rascal (When this creature enters, target player may put Pir into their hand from their library, then shuffle.)\nWhenever you draw a card, put a +1/+1 counter on Toothy.\nWhen Toothy leaves the battlefield, draw a card for each +1/+1 counter on it.",
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [
+        "Partner with",
+        "Partner"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "bbd",
+      "collector_number": "12",
+      "artist": "Zoltan Boros",
+      "illustration_id": "6b0cf81a-d55a-4698-8018-f02d0bd861e3"
+    },
+    "Cecily, Haunted Mage": {
+      "object": "card",
+      "id": "a09ffd51-8ea4-40a6-b64e-58f3acfee533",
+      "oracle_id": "a726c27d-2955-4d41-b8a6-fca654c020a2",
+      "name": "Cecily, Haunted Mage",
+      "lang": "en",
+      "released_at": "2022-03-03",
+      "scryfall_uri": "https://scryfall.com/card/slx/3/cecily-haunted-mage?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/a/0/a09ffd51-8ea4-40a6-b64e-58f3acfee533.jpg?1783923611",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/a/0/a09ffd51-8ea4-40a6-b64e-58f3acfee533.jpg?1783923611"
+      },
+      "type_line": "Legendary Creature — Human Wizard",
+      "oracle_text": "Your maximum hand size is eleven.\nWhenever Cecily, Haunted Mage attacks, you draw a card and you lose 1 life. Then if you have eleven or more cards in your hand, you may cast an instant or sorcery spell from your hand without paying its mana cost.\nPartner—Friends forever (You can have two commanders if both have this ability.)",
+      "color_identity": [
+        "B",
+        "R",
+        "U"
+      ],
+      "keywords": [
+        "Partner"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "slx",
+      "collector_number": "3",
+      "artist": "Anastasia Balakchina",
+      "illustration_id": "e55cc8a4-904e-4472-b0b2-c8d6cff53beb"
+    },
+    "Othelm, Sigardian Outcast": {
+      "object": "card",
+      "id": "b867fb22-4f2a-47aa-9432-1bcc5e731947",
+      "oracle_id": "4ee401bf-dc86-41a9-84f9-57aa0a314d08",
+      "name": "Othelm, Sigardian Outcast",
+      "lang": "en",
+      "released_at": "2022-03-03",
+      "scryfall_uri": "https://scryfall.com/card/slx/6/othelm-sigardian-outcast?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/b/8/b867fb22-4f2a-47aa-9432-1bcc5e731947.jpg?1783923610",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/b/8/b867fb22-4f2a-47aa-9432-1bcc5e731947.jpg?1783923610"
+      },
+      "type_line": "Legendary Creature — Human",
+      "oracle_text": "{2}, {T}: Choose target creature card in your graveyard that was put there from the battlefield this turn. Return it to the battlefield tapped.\nPartner—Friends forever (You can have two commanders if both have this ability.)",
+      "color_identity": [
+        "G",
+        "W"
+      ],
+      "keywords": [
+        "Partner"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "slx",
+      "collector_number": "6",
+      "artist": "Alexey Kruglov",
+      "illustration_id": "0333b1ef-f458-4c5e-88f0-45970a0b5812"
+    },
+    "Esika, God of the Tree": {
+      "object": "card",
+      "id": "f6cd7465-9dd0-473c-ac5e-dd9e2f22f5f6",
+      "oracle_id": "92023a5d-a143-4950-a71b-d736e6b8e959",
+      "name": "Esika, God of the Tree // The Prismatic Bridge",
+      "lang": "en",
+      "released_at": "2021-02-05",
+      "scryfall_uri": "https://scryfall.com/card/khm/168/esika-god-of-the-tree-the-prismatic-bridge?utm_source=api",
+      "layout": "modal_dfc",
+      "type_line": "Legendary Creature — God // Legendary Enchantment",
+      "color_identity": [
+        "B",
+        "G",
+        "R",
+        "U",
+        "W"
+      ],
+      "keywords": [
+        "Vigilance"
+      ],
+      "card_faces": [
+        {
+          "object": "card_face",
+          "name": "Esika, God of the Tree",
+          "type_line": "Legendary Creature — God",
+          "oracle_text": "Vigilance\n{T}: Add one mana of any color.\nOther legendary creatures you control have vigilance and \"{T}: Add one mana of any color.\"",
+          "colors": [
+            "G"
+          ],
+          "artist": "Johannes Voss",
+          "illustration_id": "b02e8c7b-b733-4d3b-9d71-7a48c4d2e713",
+          "image_uris": {
+            "small": "https://cards.scryfall.io/small/front/f/6/f6cd7465-9dd0-473c-ac5e-dd9e2f22f5f6.jpg?1783928221",
+            "art_crop": "https://cards.scryfall.io/art_crop/front/f/6/f6cd7465-9dd0-473c-ac5e-dd9e2f22f5f6.jpg?1783928221"
+          }
+        },
+        {
+          "object": "card_face",
+          "name": "The Prismatic Bridge",
+          "type_line": "Legendary Enchantment",
+          "oracle_text": "At the beginning of your upkeep, reveal cards from the top of your library until you reveal a creature or planeswalker card. Put that card onto the battlefield and the rest on the bottom of your library in a random order.",
+          "colors": [
+            "B",
+            "G",
+            "R",
+            "U",
+            "W"
+          ],
+          "artist": "Johannes Voss",
+          "illustration_id": "959283a3-5d90-4e9b-95ce-abc0ab93f75c",
+          "image_uris": {
+            "small": "https://cards.scryfall.io/small/back/f/6/f6cd7465-9dd0-473c-ac5e-dd9e2f22f5f6.jpg?1783928221",
+            "art_crop": "https://cards.scryfall.io/art_crop/back/f/6/f6cd7465-9dd0-473c-ac5e-dd9e2f22f5f6.jpg?1783928221"
+          }
+        }
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "khm",
+      "collector_number": "168",
+      "artist": "Johannes Voss"
+    },
+    "Archangel Avacyn": {
+      "object": "card",
+      "id": "fe675f03-cbb5-4177-b7d7-64a30260ee2a",
+      "oracle_id": "432b37a5-d32a-4b78-91ab-860aa026b7cc",
+      "name": "Archangel Avacyn // Avacyn, the Purifier",
+      "lang": "en",
+      "released_at": "2025-01-24",
+      "scryfall_uri": "https://scryfall.com/card/inr/11/archangel-avacyn-avacyn-the-purifier?utm_source=api",
+      "layout": "transform",
+      "type_line": "Legendary Creature — Angel // Legendary Creature — Angel",
+      "color_identity": [
+        "R",
+        "W"
+      ],
+      "keywords": [
+        "Flying",
+        "Vigilance",
+        "Transform",
+        "Flash"
+      ],
+      "card_faces": [
+        {
+          "object": "card_face",
+          "name": "Archangel Avacyn",
+          "type_line": "Legendary Creature — Angel",
+          "oracle_text": "Flash\nFlying, vigilance\nWhen Archangel Avacyn enters, creatures you control gain indestructible until end of turn.\nWhen a non-Angel creature you control dies, transform Archangel Avacyn at the beginning of the next upkeep.",
+          "colors": [
+            "W"
+          ],
+          "artist": "James Ryman",
+          "illustration_id": "f90dd248-e671-4055-8031-c0f9938132ee",
+          "image_uris": {
+            "small": "https://cards.scryfall.io/small/front/f/e/fe675f03-cbb5-4177-b7d7-64a30260ee2a.jpg?1783908191",
+            "art_crop": "https://cards.scryfall.io/art_crop/front/f/e/fe675f03-cbb5-4177-b7d7-64a30260ee2a.jpg?1783908191"
+          }
+        },
+        {
+          "object": "card_face",
+          "name": "Avacyn, the Purifier",
+          "type_line": "Legendary Creature — Angel",
+          "oracle_text": "Flying\nWhen this creature transforms into Avacyn, the Purifier, it deals 3 damage to each other creature and each opponent.",
+          "colors": [
+            "R"
+          ],
+          "artist": "James Ryman",
+          "illustration_id": "7c028c56-e6d0-4ce9-aea9-994ba128245f",
+          "image_uris": {
+            "small": "https://cards.scryfall.io/small/back/f/e/fe675f03-cbb5-4177-b7d7-64a30260ee2a.jpg?1783908191",
+            "art_crop": "https://cards.scryfall.io/art_crop/back/f/e/fe675f03-cbb5-4177-b7d7-64a30260ee2a.jpg?1783908191"
+          }
+        }
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "inr",
+      "collector_number": "11",
+      "artist": "James Ryman"
+    },
+    "The Ur-Dragon (alternate art)": {
+      "object": "card",
+      "id": "6270c798-a3ba-4826-b0a9-82f7e12890f6",
+      "oracle_id": "87b22b09-4f6d-4bc5-9cfc-663e4c7c6981",
+      "name": "The Ur-Dragon",
+      "lang": "en",
+      "released_at": "2023-08-04",
+      "scryfall_uri": "https://scryfall.com/card/cmm/689/the-ur-dragon?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/6/2/6270c798-a3ba-4826-b0a9-82f7e12890f6.jpg?1783915496",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/6/2/6270c798-a3ba-4826-b0a9-82f7e12890f6.jpg?1783915496"
+      },
+      "type_line": "Legendary Creature — Dragon Avatar",
+      "oracle_text": "Eminence — As long as The Ur-Dragon is in the command zone or on the battlefield, other Dragon spells you cast cost {1} less to cast.\nFlying\nWhenever one or more Dragons you control attack, draw that many cards, then you may put a permanent card from your hand onto the battlefield.",
+      "color_identity": [
+        "B",
+        "G",
+        "R",
+        "U",
+        "W"
+      ],
+      "keywords": [
+        "Flying",
+        "Eminence"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "cmm",
+      "collector_number": "689",
+      "artist": "Tyler Walpole",
+      "illustration_id": "ca356849-3bac-49c7-8f0d-363f74fe4381"
+    },
+    "Zndrsplt, Eye of Wisdom": {
+      "object": "card",
+      "id": "76c33402-a022-4d2f-9a83-4b8ddc04e971",
+      "oracle_id": "502849a6-8e65-40f3-b348-a41c4f939768",
+      "name": "Zndrsplt, Eye of Wisdom",
+      "lang": "en",
+      "released_at": "2018-06-08",
+      "scryfall_uri": "https://scryfall.com/card/bbd/5/zndrsplt-eye-of-wisdom?utm_source=api",
+      "layout": "normal",
+      "image_uris": {
+        "small": "https://cards.scryfall.io/small/front/7/6/76c33402-a022-4d2f-9a83-4b8ddc04e971.jpg?1783934878",
+        "art_crop": "https://cards.scryfall.io/art_crop/front/7/6/76c33402-a022-4d2f-9a83-4b8ddc04e971.jpg?1783934878"
+      },
+      "type_line": "Legendary Creature — Homunculus",
+      "oracle_text": "Partner with Okaun, Eye of Chaos (When this creature enters, target player may put Okaun into their hand from their library, then shuffle.)\nAt the beginning of combat on your turn, flip a coin until you lose a flip.\nWhenever a player wins a coin flip, draw a card.",
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [
+        "Partner with",
+        "Partner"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "bbd",
+      "collector_number": "5",
+      "artist": "Yongjae Choi",
+      "illustration_id": "4f2babb7-262c-4534-a5a5-829b13b08a00"
+    },
+    "Zndrsplt (reversible)": {
+      "object": "card",
+      "id": "d5dfd236-b1da-4552-b94f-ebf6bb9dafdf",
+      "name": "Zndrsplt, Eye of Wisdom // Zndrsplt, Eye of Wisdom",
+      "lang": "en",
+      "released_at": "2022-04-22",
+      "scryfall_uri": "https://scryfall.com/card/sld/379/zndrsplt-eye-of-wisdom-zndrsplt-eye-of-wisdom?utm_source=api",
+      "layout": "reversible_card",
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [
+        "Partner with",
+        "Partner"
+      ],
+      "card_faces": [
+        {
+          "object": "card_face",
+          "oracle_id": "502849a6-8e65-40f3-b348-a41c4f939768",
+          "layout": "normal",
+          "name": "Zndrsplt, Eye of Wisdom",
+          "type_line": "Legendary Creature — Homunculus",
+          "oracle_text": "Partner with Okaun, Eye of Chaos (When this creature enters, target player may put Okaun into their hand from their library, then shuffle.)\nAt the beginning of combat on your turn, flip a coin until you lose a flip.\nWhenever a player wins a coin flip, draw a card.",
+          "colors": [
+            "U"
+          ],
+          "artist": "Alexis Ziritt",
+          "illustration_id": "6d336a32-95a6-4a15-964c-358f11500f0a",
+          "image_uris": {
+            "small": "https://cards.scryfall.io/small/front/d/5/d5dfd236-b1da-4552-b94f-ebf6bb9dafdf.jpg?1783923539",
+            "art_crop": "https://cards.scryfall.io/art_crop/front/d/5/d5dfd236-b1da-4552-b94f-ebf6bb9dafdf.jpg?1783923539"
+          }
+        },
+        {
+          "object": "card_face",
+          "oracle_id": "502849a6-8e65-40f3-b348-a41c4f939768",
+          "layout": "normal",
+          "name": "Zndrsplt, Eye of Wisdom",
+          "type_line": "Legendary Creature — Homunculus",
+          "oracle_text": "Partner with Okaun, Eye of Chaos (When this creature enters, target player may put Okaun into their hand from their library, then shuffle.)\nAt the beginning of combat on your turn, flip a coin until you lose a flip.\nWhenever a player wins a coin flip, draw a card.",
+          "colors": [
+            "U"
+          ],
+          "artist": "Alexis Ziritt",
+          "illustration_id": "c5e6cb8f-c7bd-4ba7-988f-1332bd6d595b",
+          "image_uris": {
+            "small": "https://cards.scryfall.io/small/back/d/5/d5dfd236-b1da-4552-b94f-ebf6bb9dafdf.jpg?1783923539",
+            "art_crop": "https://cards.scryfall.io/art_crop/back/d/5/d5dfd236-b1da-4552-b94f-ebf6bb9dafdf.jpg?1783923539"
+          }
+        }
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "set": "sld",
+      "collector_number": "379",
+      "artist": "Alexis Ziritt"
+    }
+  }
+}
