@@ -11,6 +11,14 @@ authentication in `security`, authenticated deck management in the `deck`
 feature, play groups plus membership in the `group` feature, and Commander game
 recording in the `game` feature, alongside development/test infrastructure.
 
+The backend `scryfall` feature provides authenticated Commander name lookup,
+printing resolution, and artwork discovery through the fixed HTTPS Scryfall API.
+Its application service owns bounded lookup caching and the fresh online
+resolution boundary for later deck writes; its domain normalizes gameplay
+identity, chosen-color capability, and artwork metadata. Existing saved deck,
+history, and statistics reads remain independent of the external service. See
+the [Scryfall API contract](../product/scryfall-api.md) for the staged integration.
+
 ## Backend organization
 
 Use `io.github.gandalfthejunior.mtgcommanderstats` as the base package. Organize

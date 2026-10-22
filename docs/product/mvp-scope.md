@@ -65,10 +65,13 @@ operations; see the [usage guide](../../README.md#local-development).
   by the backend; clients do not choose an owner.
 - Deck name and commander are required display text. They use the shared
   `DisplayText` rule documented below, are not unique, and are not checked against
-  an external card database.
+  an external card database by the current deck write API. The staged
+  [Scryfall lookup extension](scryfall-api.md) provides backend card data;
+  authoritative Commander persistence is delivered separately in #101.
 - Color identity is any distinct subset of W, U, B, R, and G. An empty set is
   colorless, and API responses use canonical WUBRG order.
-- No decklist, Scryfall integration, ManaBox integration, or DeckVersion.
+- No decklist, ManaBox integration, or DeckVersion. Scryfall lookup is available
+  as the approved #100 extension, without changing existing deck writes yet.
 - Browser deletion requires a confirmation naming the selected unused deck.
   Canceling does not change the deck; confirmed deletion updates the UI only
   after the server acknowledges success.
@@ -181,7 +184,8 @@ without applying `DisplayText` trimming.
 - Voice, camera, or audio recognition
 - AI rules assistant
 - DeckVersion
-- Scryfall and ManaBox integrations
+- ManaBox integration; Scryfall-backed deck writes and UI remain deferred to
+  the follow-up issues after the #100 lookup foundation
 - Fine-grained group permission system
 - Placements and rankings
 - Monetization
