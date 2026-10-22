@@ -4,8 +4,13 @@ import java.util.List;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CommanderInput;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CommanderSummary;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.ManageDecks;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.Deck;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidCommanderException;
 import io.github.gandalfthejunior.mtgcommanderstats.security.UserPrincipal;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -34,15 +39,13 @@ public class DeckController {
     @PostMapping("/api/decks")
     @ResponseStatus(HttpStatus.CREATED)
     public DeckResponse create(@AuthenticationPrincipal UserPrincipal user, @RequestBody DeckRequest request) {
-        return DeckResponse.from(decks.create(user.getId(), request.name(), request.commander(),
-                request.colorIdentity()));
+        return DeckResponse.from(decks.create(user.getId(), request.name(), request.commanders()));
     }
 
     @PutMapping("/api/decks/{deckId}")
     public DeckResponse update(@AuthenticationPrincipal UserPrincipal user, @PathVariable UUID deckId,
             @RequestBody DeckRequest request) {
-        return DeckResponse.from(decks.update(user.getId(), deckId, request.name(), request.commander(),
-                request.colorIdentity()));
+        return DeckResponse.from(decks.update(user.getId(), deckId, request.name(), request.commanders()));
     }
 
     @DeleteMapping("/api/decks/{deckId}")
@@ -64,13 +67,38 @@ public class DeckController {
         }
     }
 
-    public record DeckRequest(String name, String commander, List<String> colorIdentity) {
+    public static class DeckRequest {
+        private String name;
+        private List<CommanderInput> commanders;
+
+        public String name() {
+            return name;
+        }
+
+        public List<CommanderInput> commanders() {
+            return commanders;
+        }
+
+        @JsonSetter
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        @JsonSetter(nulls = Nulls.FAIL)
+        public void setCommanders(List<CommanderInput> commanders) {
+            this.commanders = commanders;
+        }
+
+        @JsonAnySetter
+        public void rejectUnknownField(String field, Object value) {
+            throw new InvalidCommanderException();
+        }
     }
 
-    public record DeckResponse(UUID id, String name, String commander, List<String> colorIdentity,
+    public record DeckResponse(UUID id, String name, List<CommanderSummary> commanders, List<String> colorIdentity,
             boolean everUsed, boolean archived) {
         static DeckResponse from(Deck deck) {
-            return new DeckResponse(deck.getId(), deck.getName(), deck.getCommander(),
+            return new DeckResponse(deck.getId(), deck.getName(), deck.getCommanders().stream().map(CommanderSummary::from).toList(),
                     deck.getColorIdentity().symbols(), deck.isEverUsed(), deck.isArchived());
         }
     }

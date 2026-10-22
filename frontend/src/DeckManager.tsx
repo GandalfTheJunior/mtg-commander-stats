@@ -1,3 +1,4 @@
+import { commanderNames } from './api'
 import { useEffect, useState } from 'react'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -38,7 +39,7 @@ export default function DeckManager({ onUnauthorized, onOpen }: {
       <Stack component="ul" sx={{ p: 0, m: 0, listStyle: 'none', gap: 2 }}>
         {state.decks.map(deck => <Card component="li" key={deck.id} sx={{ p: 2 }}>
           <Typography component="h3" variant="h6">{deck.name}</Typography>
-          <Typography>Commander: {deck.commander}</Typography>
+          <Typography>Commander: {commanderNames(deck)}</Typography>
           <Typography sx={{ color: 'text.secondary' }}>Farbidentität: {deck.colorIdentity.map(color => `${colorNames[color]} (${color})`).join(' · ') || 'Farblos'}</Typography>
           <Typography sx={{ color: 'text.secondary' }}>{deck.archived ? 'Archiviert – für neue Spiele nicht verfügbar' : deck.everUsed ? 'Verwendet – Commander und Farben gesperrt' : 'Unbenutzt'}</Typography>
           <Box sx={{ mt: 1 }}><Button color="secondary" onClick={() => onOpen(deck.id)} aria-label={`${deck.name} bearbeiten`}>Bearbeiten</Button></Box>

@@ -1,3 +1,4 @@
+import { savedCommander } from './commanderFixtures'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { AppRouter as BrowserRouter } from '../AppRouter'
 import { vi } from 'vitest'
@@ -6,7 +7,7 @@ import { AppThemeProvider } from '../theme/AppThemeProvider'
 import type { CurrentUser, Deck } from '../api'
 import { group, response, uid } from './gameFixtures'
 
-export const deck: Deck = { id: uid(101), name: 'Alpha', commander: 'Karn', colorIdentity: [], everUsed: false, archived: false }
+export const deck: Deck = { id: uid(101), name: 'Alpha', commanders: [savedCommander('Karn')], colorIdentity: [], everUsed: false, archived: false }
 export const owner = { id: uid(1), username: 'Owner' }
 export function deckApi(initial = [deck]) {
   const state = { user: owner as CurrentUser | null, loginUser: owner, decks: initial }
@@ -19,6 +20,7 @@ export function deckApi(initial = [deck]) {
     const method = init?.method ?? 'GET'
     const reply = replies.get(`${method} ${path}`)?.shift()
     if (reply) return reply()
+    if (path.startsWith('/api/scryfall/commanders?')) return response([{ ...savedCommander(decodeURIComponent(path.split('=')[1])), thumbnailUrl: null }])
     if (path === '/api/me') return response(state.user ?? {}, state.user ? 200 : 401)
     if (path === '/api/csrf') return response({ headerName: 'X-CSRF-TOKEN', token: 'deck-token' })
     if (path === '/api/session') {
@@ -31,13 +33,13 @@ export function deckApi(initial = [deck]) {
     if (path.endsWith('/statistics')) return response({ players: [], decks: [] })
     if (path === '/api/decks' && method === 'GET') return response(state.decks)
     if (path === '/api/decks' && method === 'POST') {
-      const saved = { ...deck, ...JSON.parse(init!.body as string), id: uid(102) }
+      const saved = { ...deck, name: JSON.parse(init!.body as string).name, id: uid(102) }
       state.decks = [...state.decks, saved]
       return response(saved, 201)
     }
     const target = state.decks.find(candidate => path === `/api/decks/${candidate.id}` || path === `/api/decks/${candidate.id}/archive`)
     if (target && method === 'PUT') {
-      const saved = { ...target, ...JSON.parse(init!.body as string) }
+      const saved = { ...target, name: JSON.parse(init!.body as string).name }
       state.decks = state.decks.map(candidate => candidate.id === target.id ? saved : candidate)
       return response(saved)
     }
@@ -66,9 +68,13 @@ export async function editDeck(name = deck.name) {
   fireEvent.click(await screen.findByRole('button', { name: `${name} bearbeiten` }))
   return screen.findByRole('textbox', { name: /Deckname/ })
 }
-export function changeDeck(name = 'Changed', commander?: string) {
+export async function changeDeck(name = 'Changed', commander?: string) {
   fireEvent.change(screen.getByRole('textbox', { name: /Deckname/ }), { target: { value: name } })
-  if (commander) fireEvent.change(screen.getByRole('textbox', { name: /Commander/ }), { target: { value: commander } })
+  if (commander) {
+    const field = screen.getByRole('combobox', { name: /Commander/ })
+    fireEvent.change(field, { target: { value: commander } })
+    if (commander.trim().length >= 2 && ![...commander].every(char => /\p{White_Space}/u.test(char) || (char.codePointAt(0)! >= 28 && char.codePointAt(0)! <= 31))) { fireEvent.focus(field); fireEvent.click(await screen.findByRole('option', { name: commander })) }
+  }
 }
 export async function menuAction(name: 'Löschen' | 'Archivieren') {
   fireEvent.click(await screen.findByRole('button', { name: 'Deckaktionen' }))

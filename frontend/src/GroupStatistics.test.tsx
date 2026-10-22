@@ -1,3 +1,4 @@
+import { savedCommander } from './test/commanderFixtures'
 import { useState } from 'react'
 import type { GroupTab } from './groupNavigation'
 import { gameAction, selectGameDeck } from './test/gameEntry'
@@ -636,7 +637,7 @@ test('mobile cards retain complete long identity, server numbers and archived/ow
   const api = gameApi(), data = statistics()
   const longName = 'LangerUnunterbrochenerName'.repeat(12)
   data.players[0].username = longName
-  data.decks[2] = { ...data.decks[2], name: longName, ownerUsername: longName, commander: longName, winRatePercent: 12.5 }
+  data.decks[2] = { ...data.decks[2], name: longName, ownerUsername: longName, commanders: [savedCommander(longName)], winRatePercent: 12.5 }
   api.state.statistics = data; show()
   const players = await screen.findByRole('list', { name: 'Spielerstatistiken' })
   expect(within(players).getByRole('heading', { name: longName })).toHaveTextContent(longName)

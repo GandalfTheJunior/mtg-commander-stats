@@ -105,7 +105,7 @@ class GameIntegrityTest extends GameTestSupport {
                 () -> deckOperation(f, operation, expected), "decks");
         assertThat(games.count()).isEqualTo(1);
         assertThat(decks.findById(f.creatorDeck()).orElseThrow().isEverUsed()).isTrue();
-        assertThat(decks.findById(f.creatorDeck()).orElseThrow().getCommander()).isEqualTo("Krenko");
+        assertThat(decks.findById(f.creatorDeck()).orElseThrow().getCommanders().getFirst().getName()).isEqualTo("Krenko");
         assertThat(decks.findById(f.creatorDeck()).orElseThrow().getColorIdentity().canonicalValue()).isEqualTo("R");
         assertThat(decks.findById(f.creatorDeck()).orElseThrow().isArchived()).isEqualTo(operation.equals("archive"));
     }
@@ -118,14 +118,14 @@ class GameIntegrityTest extends GameTestSupport {
             switch (operation) {
                 case "archive" -> deckService.archive(f.creator().id(), f.creatorDeck());
                 case "delete" -> deckService.delete(f.creator().id(), f.creatorDeck());
-                case "commander" -> deckService.update(f.creator().id(), f.creatorDeck(), "Changed", "Atraxa", List.of("G"));
+                case "commander" -> deckService.update(f.creator().id(), f.creatorDeck(), "Changed", CommanderTestProvider.inputs("Atraxa", List.of("G")));
                 default -> throw new AssertionError(operation);
             }
             return null;
         }, () -> expect(f.owner(), "POST", f.path(), body(f), operation.equals("commander") ? CREATED.value() : BAD_REQUEST.value()), "decks");
         if (operation.equals("commander")) {
             assertThat(decks.findById(f.creatorDeck()).orElseThrow().isEverUsed()).isTrue();
-            assertThat(decks.findById(f.creatorDeck()).orElseThrow().getCommander()).isEqualTo("Atraxa");
+            assertThat(decks.findById(f.creatorDeck()).orElseThrow().getCommanders().getFirst().getName()).isEqualTo("Atraxa");
             expect(f.creator(), "PUT", "/api/decks/" + f.creatorDeck(), deckBody("Late", "Krenko", List.of("R")), CONFLICT.value());
         } else {
             assertThat(games.count()).isZero();
@@ -142,7 +142,7 @@ class GameIntegrityTest extends GameTestSupport {
         }, () -> deckOperation(f, "commander", OK.value()), "decks", true);
         assertThat(games.count()).isZero();
         assertThat(decks.findById(f.creatorDeck()).orElseThrow().isEverUsed()).isFalse();
-        assertThat(decks.findById(f.creatorDeck()).orElseThrow().getCommander()).isEqualTo("Atraxa");
+        assertThat(decks.findById(f.creatorDeck()).orElseThrow().getCommanders().getFirst().getName()).isEqualTo("Atraxa");
     }
 
     @Test
@@ -188,6 +188,27 @@ class GameIntegrityTest extends GameTestSupport {
                 () -> expect(f.creator(), "PUT", "/api/decks/" + replacement,
                         deckBody("Changed", "Atraxa", List.of("G")), CONFLICT.value()), "decks");
         assertThat(decks.findById(replacement).orElseThrow().isEverUsed()).isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void chosenColorChangeWaitsForFirstUseCommitOrRollback(boolean rollback) throws Exception {
+        Fixture f = fixture();
+        UUID printing = UUID.randomUUID();
+        CommanderTestProvider.put(printing, """
+                {"object":"card","id":"%s","oracle_id":"%s","name":"The Prismatic Piper","lang":"en",
+                 "layout":"normal","legalities":{"commander":"legal"},"type_line":"Legendary Creature — Shapeshifter",
+                 "oracle_text":"If The Prismatic Piper is your commander, choose a color before the game begins. The Prismatic Piper is the chosen color.","color_identity":[]}
+                """.formatted(printing, UUID.randomUUID()));
+        String path = "/api/decks/" + f.creatorDeck();
+        String initial = "{\"name\":\"Piper\",\"commanders\":[{\"selectionRef\":{\"scryfallCardId\":\"" + printing + "\"},\"chosenColor\":\"R\"}]}";
+        String changed = initial.replace("\"R\"", "\"G\"");
+        expect(f.creator(), "PUT", path, initial, OK.value());
+        race(() -> gameService.create(f.owner().id(), f.groupId(), assignments(f), GameResult.WIN, f.creator().id()),
+                () -> expect(f.creator(), "PUT", path, changed, rollback ? OK.value() : CONFLICT.value()), "decks", rollback);
+        assertThat(decks.findById(f.creatorDeck()).orElseThrow().getCommanders().getFirst().getChosenColor())
+                .isEqualTo(rollback ? "G" : "R");
+        assertThat(decks.findById(f.creatorDeck()).orElseThrow().isEverUsed()).isEqualTo(!rollback);
     }
 
     @Test

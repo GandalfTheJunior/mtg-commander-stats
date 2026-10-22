@@ -61,7 +61,13 @@ WUBRG-string representation; REST exposes color identity as a canonical symbol
 array. Persisted `ever_used` and `archived` flags govern the permanent lifecycle:
 committed game use permanently locks commander/color identity; names remain
 editable. Only unused decks may be physically deleted, and archival is explicit.
-The owning API exposes both flags. See [Deck API](../product/decks-api.md).
+Commander snapshots live in ordered `deck_commanders` slots keyed by deck/position,
+with distinct Oracle gameplay identities and separately stored printing, gameplay
+face selector and display artwork/attribution. The application resolves changed
+selections online through `scryfall`, validates per-card pregame chosen colors and
+derives canonical effective/deck WUBRG. Exactly one standalone Commander can be
+written until pairing validation arrives. Reads require no provider calls;
+name-only updates retain snapshots and lock the existing deck row. The owning API exposes both flags. See [Deck API](../product/decks-api.md).
 
 The `group` feature uses the same feature layers. `play_groups` owns the stable
 group UUID, DisplayText name, owner UUID, and unique join code;
@@ -128,7 +134,7 @@ conscious MVP tradeoff; no distributed locks or event infrastructure are added.
 
 Required human-readable labels use the small cross-feature `DisplayText` value
 rule. It trims only the product-defined boundary-whitespace set and preserves
-casing and internal whitespace. Username, deck name, and commander reuse this
+casing and internal whitespace. Username and deck name reuse this
 rule; email canonicalization and exact password handling remain separate.
 
 Email canonicalization is owned by the Flyway-defined `canonical_email`
@@ -298,10 +304,10 @@ confirmations identify the game and manage keyboard focus. Successful game chang
 refresh history/statistics. Navigating to Decks reloads permanent usage from the
 server; returning to Playgroups reloads details, history and eligible choices
 after own-deck changes. My decks requires boolean lifecycle flags, shows archived state, preserves
-immutable commander/color fields in full-update payloads, and offers explicit
+Commander snapshots in read DTOs and omits unchanged Commanders from name-only write payloads, and offers explicit
 confirmed archive for used decks. Failure/conflict states provide refresh without
-asserting a mutation succeeded. No backend contract or schema is changed by
-these browser controls.
+asserting a mutation succeeded. The controls consume the [Deck API](../product/decks-api.md);
+game assignments continue referencing stable deck IDs.
 
 ## Browser group statistics
 

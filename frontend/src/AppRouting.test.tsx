@@ -1,3 +1,4 @@
+import { savedCommander } from './test/commanderFixtures'
 import { stubLanHttpCrypto } from './test/lanHttp'
 import { showCode } from './test/groupEntry'
 import { openNewDeck } from './test/editorEntry'
@@ -11,7 +12,7 @@ import { goTo } from './test/renderApp'
 import type { CurrentUser } from './api'
 
 const owner = { id: uid(1), username: 'Owner' }
-const deck = { id: uid(101), name: 'Current deck', commander: 'Karn', colorIdentity: [], everUsed: false, archived: false }
+const deck = { id: uid(101), name: 'Current deck', commanders: [savedCommander('Karn')], colorIdentity: [], everUsed: false, archived: false }
 const code = 'abcdefghijklmnopqrstuv'
 
 function setup() {
@@ -25,6 +26,7 @@ function setup() {
     const method = init?.method ?? 'GET'
     const reply = pending.get(`${method} ${path}`)?.shift()
     if (reply) return reply()
+    if (path.startsWith('/api/scryfall/commanders?')) return response([{ ...savedCommander('Karn'), thumbnailUrl: null }])
     if (path === '/api/me') return response(state.user ?? {}, state.user ? 200 : 401)
     if (path === '/api/csrf') return response({ headerName: 'X-CSRF-TOKEN', token: 'routing-token' })
     if (path === '/api/session') {
@@ -316,6 +318,8 @@ test.each([
     await screen.findByText(deck.name)
     fireEvent.change(await openNewDeck(), { target: { value: 'Retired write' } })
     fireEvent.change(screen.getByLabelText(/Commander/), { target: { value: 'Karn' } })
+    fireEvent.focus(screen.getByRole('combobox', { name: /Commander/ }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Karn' }))
   } else {
     await screen.findByRole('button', { name: 'Gruppe erstellen' })
     fireEvent.change(screen.getByLabelText(operation === 'create' ? /Gruppenname/ : /Einladungscode/), { target: { value: operation === 'create' ? 'Retired write' : code } })

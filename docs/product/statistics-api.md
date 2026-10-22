@@ -18,15 +18,15 @@ Success is `200` with this shape (UUID placeholders stand for UUID strings):
     {"userId":"<UUID>","username":"Ada","games":12,"wins":6,"winRatePercent":50}
   ],
   "decks": [
-    {"deckId":"<UUID>","ownerUserId":"<UUID>","ownerUsername":"Ada","name":"Dragon Engine","commander":"The Ur-Dragon","archived":false,"games":6,"wins":6,"winRatePercent":100}
+    {"deckId":"<UUID>","ownerUserId":"<UUID>","ownerUsername":"Ada","name":"Dragon Engine","commanders":[{"position":1,"name":"The Ur-Dragon","oracleId":"<Oracle UUID>","selectionRef":{"scryfallCardId":"<printing UUID>"}}],"archived":false,"games":6,"wins":6,"winRatePercent":100}
   ]
 }
 ```
 
 The top-level fields are arrays. IDs are UUID strings; usernames, deck names and
-commanders are current public display strings; `archived` is boolean; `games`
+Commander names are saved English snapshots in ordered `commanders` arrays; `archived` is boolean; `games`
 and `wins` are integer counts; `winRatePercent` is a JSON number in percent units.
-All documented fields are present and non-null. Empty history returns exactly
+The example abbreviates Commander items; each includes the full [saved Commander snapshot](decks-api.md#saved-snapshots-and-updates), whose artwork and chosen-color fields can be null. Other documented fields are present and non-null. Empty history returns exactly
 `{"players":[],"decks":[]}`. Emails, credentials and join codes are never exposed.
 Stable IDs distinguish duplicate display names.
 

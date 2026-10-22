@@ -5,11 +5,11 @@ printing metadata, and alternative illustrations. React calls these application
 endpoints; only Spring Boot calls `https://api.scryfall.com`. Responses use the
 application DTOs below rather than forwarding Scryfall JSON.
 
-This is the lookup foundation from [issue #100](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/100).
-It introduces no database migration, frontend controls, or deck write changes.
-The existing [deck API](decks-api.md) remains unchanged until #101. Pair validation
-(#103) and artwork persistence/updates (#105) are separate work. Existing saved
-deck, history, and statistics reads do not request Scryfall metadata.
+The lookup foundation was delivered in [issue #100](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/100).
+The [deck API](decks-api.md) persists its authoritative selections and snapshots
+through the joint #101/#102 delivery. Pair validation (#103) and artwork
+updates/gallery (#105) are separate work. Existing saved deck, history and
+statistics reads do not request Scryfall metadata.
 
 | Method | Route | Success |
 | --- | --- | --- |
@@ -201,14 +201,14 @@ For `SCRYFALL_UNAVAILABLE`, the frontend can display:
 “Scryfall is currently imprisoned in the moon… Please try again later.”
 New/changed Commander persistence must perform an online authoritative lookup;
 a cached search or detail result cannot authorize offline creation. There is no
-manual-entry fallback for these future Scryfall-backed writes. Previously saved
+manual-entry fallback for Scryfall-backed deck writes. Previously saved
 decks, game history, statistics, and name-only edits remain independent of
 Scryfall availability.
 
 The application boundary `resolveCommanderOnline(selectionRef)` resolves a
 fresh printing response and validates the selected eligible gameplay identity.
 `resolveStandaloneCommanderOnline(selectionRef)` additionally requires
-`canBeSoleCommander`, for #101 before pair writes exist. Callers use these
+`canBeSoleCommander`, for deck writes before pair validation exists. Callers use these
 operations rather than trusting client metadata or reusing ordinary detail
 lookups. A previous search/reference remains structurally usable, but does not
 waive the online availability check. Cached derived/Oracle metadata may be

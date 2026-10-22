@@ -1,11 +1,14 @@
 package io.github.gandalfthejunior.mtgcommanderstats.deck.application;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
-import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.ColorIdentity;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.Deck;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckCommander;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidCommanderException;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.DeckRepository;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.application.ScryfallLookup;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,8 +16,19 @@ import org.springframework.transaction.annotation.Transactional;
 public class ManageDecks {
     private final DeckRepository decks;
 
-    public ManageDecks(DeckRepository decks) {
+    private final ScryfallLookup scryfall;
+
+    public ManageDecks(DeckRepository decks, ScryfallLookup scryfall) {
         this.decks = decks;
+        this.scryfall = scryfall;
+    }
+
+    private List<DeckCommander> resolve(List<CommanderInput> inputs) {
+        if (inputs == null || inputs.size() != 1 || inputs.getFirst() == null) {
+            throw new InvalidCommanderException();
+        }
+        CommanderInput input = inputs.getFirst();
+        return List.of(new DeckCommander(1, scryfall.resolveStandaloneCommanderOnline(input.selectionRef()), input.chosenColor()));
     }
 
     @Transactional(readOnly = true)
@@ -23,15 +37,31 @@ public class ManageDecks {
     }
 
     @Transactional
-    public Deck create(UUID ownerId, String name, String commander, List<String> colorIdentity) {
-        Deck deck = new Deck(ownerId, name, commander, ColorIdentity.fromSymbols(colorIdentity));
+    public Deck create(UUID ownerId, String name, List<CommanderInput> commanders) {
+        Deck deck = new Deck(ownerId, name, resolve(commanders));
         return decks.save(deck);
     }
 
     @Transactional
-    public Deck update(UUID ownerId, UUID deckId, String name, String commander, List<String> colorIdentity) {
+    public Deck update(UUID ownerId, UUID deckId, String name, List<CommanderInput> commanders) {
         Deck deck = ownedDeck(ownerId, deckId);
-        deck.update(name, commander, ColorIdentity.fromSymbols(colorIdentity));
+        if (commanders != null) {
+            if (commanders.size() != 1) {
+                throw new InvalidCommanderException();
+            }
+            // Exact saved references are idempotent and remain usable offline.
+            boolean unchanged = commanders.size() == deck.getCommanders().size();
+            for (int i = 0; unchanged && i < commanders.size(); i++) {
+                CommanderInput input = commanders.get(i);
+                DeckCommander saved = deck.getCommanders().get(i);
+                unchanged = input != null && saved.selectionRef().equals(input.selectionRef())
+                        && Objects.equals(saved.getChosenColor(), input.chosenColor());
+            }
+            if (!unchanged) {
+                deck.replaceCommanders(resolve(commanders));
+            }
+        }
+        deck.rename(name);
         return deck;
     }
 

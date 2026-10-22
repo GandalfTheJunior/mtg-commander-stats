@@ -1,3 +1,4 @@
+import { commanderNames } from './api'
 import { useEffect, useState } from 'react'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -101,7 +102,7 @@ export default function Dashboard({ onUnauthorized, onOpen }: {
                 aria-labelledby={`deck-name-${deck.id}`} aria-describedby={`deck-description-${deck.id}`}>
                 <Typography component="h4" variant="h6" id={`deck-name-${deck.id}`}>{deck.name}</Typography>
                 <Box id={`deck-description-${deck.id}`}>
-                  <Typography>Commander: {deck.commander}</Typography>
+                  <Typography>Commander: {commanderNames(deck)}</Typography>
                   <Typography sx={{ color: 'text.secondary' }}>Farbidentität: {magicColors.filter(color => deck.colorIdentity.includes(color))
                     .map(color => `${color} (${colorNames[color]})`).join(' · ') || 'Farblos'}</Typography>
                   <Typography sx={{ color: 'text.secondary' }}>{deck.archived ? 'Archiviert' : deck.everUsed ? 'Bereits gespielt' : 'Unbenutzt'}</Typography>

@@ -392,10 +392,20 @@ exits; browser-history tests use the production AppRouter. No Data Router,
 loaders, router-mode migration or new runtime dependency is needed.
 
 The five named WUBRG buttons use `aria-pressed`, check marks and theme focus/border
-states; swatches are supplementary. Zero means Farblos. DisplayText blank checks
+states; swatches are supplementary. All five controls are read-only. They are
+neutral until a valid Commander (and any required chosen color) is selected; only
+a complete empty identity means Farblos. `CommanderSearch` debounces name queries
+for 300 ms, uses the backend's complete selectionRef, and separates typed text
+from selected metadata. Typing invalidates the reference/colors/choice immediately;
+only explicit suggestion selection restores them. Abort and generation guards
+retire stale responses on typing, selection, navigation and unmount. Suggestions
+contain only a thumbnail/neutral placeholder and English name. Loading, exact
+Fblthp empty-result copy and Moon outage/retry feedback stay inline. Partner-only
+options cannot be selected alone. Required pregame color uses a separate mandatory
+single-choice radio group with no default. Saved selections restore from snapshots. DisplayText blank checks
 match Unicode White_Space plus U+001C–U+001F; payload text is sent unchanged so the
 server owns boundary trimming. Permanently used decks show locked commander and
-colors and submit their server-confirmed values for rename. Overflow availability
+colors/choice and omit `commanders` entirely for rename, as do unchanged unused-deck renames. Overflow availability
 and named confirmations follow the [deck lifecycle](../product/decks-api.md).
 Archiving with an unsaved rename additionally announces that the name change will
 be discarded and requires explicit discard-and-archive confirmation; cancel

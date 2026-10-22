@@ -1,5 +1,6 @@
 package io.github.gandalfthejunior.mtgcommanderstats.scryfall.api;
 
+import io.github.gandalfthejunior.mtgcommanderstats.deck.api.DeckController;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.application.InvalidScryfallRequestException;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidScryfallSelectionException;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.MalformedScryfallResponseException;
@@ -11,7 +12,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-@RestControllerAdvice(assignableTypes = ScryfallController.class)
+@RestControllerAdvice(assignableTypes = {ScryfallController.class, DeckController.class})
 public class ScryfallErrors {
     @ExceptionHandler({InvalidScryfallRequestException.class, InvalidScryfallSelectionException.class,
             MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class})

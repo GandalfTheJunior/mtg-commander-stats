@@ -1,5 +1,11 @@
 # Local Commander demo
 
+> The complete offline seed refresh is deferred to #106. Since the joint #101/#102
+> deck API replacement, this guide's legacy free-text seed requests do not work
+> against the current API. Isolated tooling tests still run; they do not establish
+> compatibility of the real seed/verification workflow. See the
+> [deck migration/API contract](../product/decks-api.md).
+
 This opt-in developer tool uses the existing registration, session, deck, group
 and game APIs, plus the read-only group statistics API. It does not seed on startup. Requires
 the [normal prerequisites](../../README.md#stack-and-prerequisites), including

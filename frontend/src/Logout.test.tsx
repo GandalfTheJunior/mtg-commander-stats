@@ -1,3 +1,4 @@
+import { savedCommander } from './test/commanderFixtures'
 import { showCode } from './test/groupEntry'
 import { openNewDeck } from './test/editorEntry'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
@@ -7,7 +8,7 @@ import { renderApp as render, goTo } from './test/renderApp'
 import type { CurrentUser } from './api'
 
 const user = { id: 'f058bf9c-c4ce-4b88-a252-aa176a5ef539', username: 'Gandalf' }
-const deck = { everUsed: false, archived: false, id: 'deck-id', name: 'Private deck', commander: 'Atraxa', colorIdentity: [] }
+const deck = { everUsed: false, archived: false, id: 'deck-id', name: 'Private deck', commanders: [savedCommander('Atraxa')], colorIdentity: [] }
 const group = { id: '11111111-1111-4111-8111-111111111111', name: 'Private group', role: 'OWNER' }
 const code = 'abcdefghijklmnopqrstuv'
 
@@ -35,6 +36,7 @@ function setup() {
     async code(): Promise<Response> { return json({ code }) },
   }
   const fetchMock = vi.fn((path: string, init?: RequestInit) => {
+    if (path.startsWith('/api/scryfall/commanders?')) return Promise.resolve(json([{ ...savedCommander('Atraxa'), thumbnailUrl: null }]))
     if (path === '/api/me') return server.me()
     if (path === '/api/csrf') return server.csrf()
     if (path === '/api/session' && init?.method === 'DELETE') return server.logout()
@@ -186,7 +188,9 @@ for (const logoutFails of [false, true]) {
       if (resource === 'deck mutation') {
         await screen.findByText(deck.name)
         fireEvent.change(await openNewDeck(), { target: { value: deck.name } })
-        fireEvent.change(screen.getByLabelText(/Commander/), { target: { value: deck.commander } })
+        fireEvent.change(screen.getByLabelText(/Commander/), { target: { value: deck.commanders[0].name } })
+        fireEvent.focus(screen.getByRole('combobox', { name: /Commander/ }))
+        fireEvent.click(await screen.findByRole('option', { name: 'Atraxa' }))
         fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
       }
       if (resource === 'group mutation') {

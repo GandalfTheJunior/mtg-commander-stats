@@ -121,7 +121,7 @@ test('App refreshes permanent own-deck usage after recording and retains it afte
   fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
   await screen.findByText('No recorded games yet.')
   await goTo('Decks'); await openExistingDeck()
-  expect(screen.getByRole('textbox', { name: /Commander/ })).toHaveAttribute('readonly')
+  expect(screen.getByRole('combobox', { name: /Commander/ })).toHaveAttribute('readonly')
   expect(screen.getByRole('button', { name: 'Rot (R)' })).toBeDisabled()
 })
 

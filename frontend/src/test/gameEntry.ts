@@ -1,3 +1,4 @@
+import { commanderNames } from '../api'
 import { fireEvent, screen, within } from '@testing-library/react'
 import { expect } from 'vitest'
 import type { DeckSelection } from '../api'
@@ -7,7 +8,7 @@ export async function selectGameDeck(slot: number, deck: DeckSelection) {
   const card = within(screen.getByRole('region', { name: `Spieler ${slot}` }))
   const field = card.getByRole('combobox', { name: `Deck für Spieler ${slot}` })
   const option = await within(field).findByRole('option', {
-    name: `${deck.name} — ${deck.commander} — ${deck.colorIdentity.join('') || 'Farblos'}`,
+    name: `${deck.name} — ${commanderNames(deck)} — ${deck.colorIdentity.join('') || 'Farblos'}`,
   })
   expect(field).toBeEnabled()
   expect(option).toHaveValue(deck.id)

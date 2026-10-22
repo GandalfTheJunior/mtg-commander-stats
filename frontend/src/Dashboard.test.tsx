@@ -1,3 +1,4 @@
+import { savedCommander } from './test/commanderFixtures'
 import { StrictMode } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { AppRouter as BrowserRouter } from './AppRouter'
@@ -11,7 +12,7 @@ import { goTo } from './test/renderApp'
 import { groupUnavailable } from './groupNavigation'
 
 const owner = { id: uid(1), username: 'Owner' }
-const deck: Deck = { id: uid(101), name: 'Alpha', commander: 'Karn', colorIdentity: [], archived: false, everUsed: false }
+const deck: Deck = { id: uid(101), name: 'Alpha', commanders: [savedCommander('Karn')], colorIdentity: [], archived: false, everUsed: false }
 function setup() {
   const state = { user: owner as CurrentUser | null, loginUser: owner, decks: [deck], groups: [group] as GroupSummary[] }
   const replies = new Map<string, Array<() => Response | Promise<Response>>>()
@@ -23,6 +24,7 @@ function setup() {
     const method = init?.method ?? 'GET'
     const reply = replies.get(`${method} ${path}`)?.shift()
     if (reply) return reply()
+    if (path.startsWith('/api/scryfall/commanders?')) return response([{ ...savedCommander('Karn'), thumbnailUrl: null }])
     if (path === '/api/me') return response(state.user ?? {}, state.user ? 200 : 401)
     if (path === '/api/csrf') return response({ headerName: 'X-CSRF-TOKEN', token: 'dashboard-token' })
     if (path === '/api/session') {
@@ -31,7 +33,7 @@ function setup() {
     }
     if (path === '/api/decks' && method === 'GET') return response(state.decks)
     if (path === '/api/decks' && method === 'POST') {
-      const created = { ...deck, ...JSON.parse(init!.body as string), id: uid(102) }
+      const created = { ...deck, name: JSON.parse(init!.body as string).name, id: uid(102) }
       state.decks.push(created)
       return response(created, 201)
     }
@@ -110,7 +112,7 @@ test('all decks sort case/accent-insensitively with ID ties, accessible colors a
   api.state.decks = [
     { ...deck, id: uid(105), name: 'zeta', archived: true, everUsed: true },
     { ...deck, id: uid(104), name: 'álpha', everUsed: true, colorIdentity: ['W', 'U', 'B', 'R', 'G'] },
-    { ...deck, id: uid(103), name: 'alpha', commander: 'A very long commander '.repeat(15) },
+    { ...deck, id: uid(103), name: 'alpha', commanders: [savedCommander('A very long commander '.repeat(15))] },
     { ...deck, name: 'Alpha' },
   ]
   show()
@@ -294,7 +296,11 @@ test.each(['create', 'rename', 'archive', 'delete'])('Dashboard reloads all deck
   const form = await screen.findByRole('form', { name: operation === 'create' ? 'Deck erstellen' : `Deck ${deck.name} bearbeiten` })
   if (operation === 'create' || operation === 'rename') {
     fireEvent.change(within(form).getByLabelText(/Deckname/), { target: { value: 'New deck' } })
-    if (operation === 'create') fireEvent.change(within(form).getByLabelText(/Commander/), { target: { value: 'Karn' } })
+    if (operation === 'create') {
+      fireEvent.change(within(form).getByLabelText(/Commander/), { target: { value: 'Karn' } })
+      fireEvent.focus(screen.getByRole('combobox', { name: /Commander/ }))
+      fireEvent.click(await screen.findByRole('option', { name: 'Karn' }))
+    }
     fireEvent.submit(form)
     await screen.findByText(`New deck wurde ${operation === 'create' ? 'erstellt' : 'gespeichert'}.`)
   } else {
