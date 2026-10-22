@@ -118,7 +118,7 @@ test('all decks sort case/accent-insensitively with ID ties, accessible colors a
   show()
   const list = await screen.findByRole('list', { name: 'Deine Decks' })
   expect(within(list).getAllByRole('heading').map(item => item.textContent)).toEqual(['Alpha', 'alpha', 'álpha', 'zeta'])
-  const buttons = within(list).getAllByRole('button')
+  const buttons = within(list).getAllByRole('button').filter(button => !button.hasAttribute('aria-haspopup'))
   expect(buttons[0]).toHaveAccessibleDescription(expect.stringContaining('Farblos'))
   expect(buttons[0]).toHaveAccessibleDescription(expect.stringContaining('Unbenutzt'))
   expect(buttons[0]).toHaveAccessibleDescription(expect.stringContaining(deck.id))

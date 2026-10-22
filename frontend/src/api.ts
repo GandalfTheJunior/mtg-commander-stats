@@ -588,3 +588,35 @@ export async function searchCommanders(query: string, signal?: AbortSignal, part
   if (!Array.isArray(body) || body.length > 20) throw new Error(scryfallUnavailable)
   return body.map(choiceFrom)
 }
+
+export type Artwork = Pick<SavedCommander, 'scryfallCardId' | 'artworkFaceIndex' | 'artCropUrl' | 'illustrationId' | 'artist' | 'scryfallUri'>
+
+export async function listArtworks(reference: CommanderSelectionRef, signal?: AbortSignal): Promise<Artwork[]> {
+  const context = reference.gameplayFaceIndex === undefined ? '' : `?gameplayFaceIndex=${reference.gameplayFaceIndex}`
+  const response = await checkedResponse(await fetch(`/api/scryfall/cards/${encodeURIComponent(reference.scryfallCardId)}/artworks${context}`,
+    { ...requestDefaults, signal }), 200, scryfallUnavailable)
+  const body: unknown = await response.json()
+  if (!Array.isArray(body) || body.length > 200) throw new Error('Invalid artwork list.')
+  return body.map((value: unknown): Artwork => {
+    if (!isRecord(value) || !isUuid(value.scryfallCardId) ||
+      (value.artworkFaceIndex !== null && (typeof value.artworkFaceIndex !== 'number' || !Number.isSafeInteger(value.artworkFaceIndex) || value.artworkFaceIndex < 0)) ||
+      !['artCropUrl', 'illustrationId', 'artist', 'scryfallUri'].every(key => value[key] === null || typeof value[key] === 'string')) {
+      throw new Error('Invalid artwork option.')
+    }
+    return { scryfallCardId: value.scryfallCardId, artworkFaceIndex: value.artworkFaceIndex as number | null,
+      artCropUrl: value.artCropUrl as string | null, illustrationId: value.illustrationId as string | null,
+      artist: value.artist as string | null, scryfallUri: value.scryfallUri as string | null }
+  })
+}
+
+export async function updateCommanderArtwork(deckId: string, commander: SavedCommander, artwork: Artwork, signal?: AbortSignal): Promise<Deck> {
+  const deck = await deckResponse(await unsafeRequest('PUT',
+    `/api/decks/${encodeURIComponent(deckId)}/commanders/${commander.position}/artwork`,
+    { scryfallCardId: artwork.scryfallCardId, ...(artwork.artworkFaceIndex === null ? {} : { artworkFaceIndex: artwork.artworkFaceIndex }) }, signal),
+  'Artwork konnte nicht gespeichert werden.', 200)
+  const slot = deck.commanders.find(card => card.position === commander.position)
+  if (deck.id !== deckId || slot?.oracleId !== commander.oracleId || slot.scryfallCardId !== artwork.scryfallCardId || slot.artworkFaceIndex !== artwork.artworkFaceIndex) {
+    throw new Error('The artwork save could not be confirmed.')
+  }
+  return deck
+}

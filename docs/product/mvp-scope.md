@@ -78,7 +78,9 @@ operations; see the [usage guide](../../README.md#local-development).
 - Browser deletion requires a confirmation naming the selected unused deck.
   Canceling does not change the deck; confirmed deletion updates the UI only
   after the server acknowledges success.
-- The deck name remains editable.
+- The deck name and selected artwork remain editable, including after use or
+  archival. Each saved Commander image opens its own immediate-save gallery;
+  selecting front/back artwork never changes the gameplay Commander.
 - Commander and color identity may change until the deck is first used in a
   recorded game; they become immutable after first use, including any pregame chosen color.
 - Decks remain used forever after their first committed game, even if all games

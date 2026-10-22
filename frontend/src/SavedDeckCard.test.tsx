@@ -35,7 +35,6 @@ test.each(['/dashboard', '/decks'])('%s renders saved single, dual and missing i
   expect(source.closest('button')).toBeNull()
   expect(within(editor).queryByRole('link')).not.toBeInTheDocument()
   expect(within(editor).queryByRole('img')).not.toBeInTheDocument()
-  fireEvent.click(within(card).getByRole('img', { name: `Illustration für ${first.name}` }))
   expect(window.location.pathname).toBe(path)
   expect(api.fetchMock.mock.calls.some(([url]) => url.includes('scryfall'))).toBe(false)
   fireEvent.click(editor)

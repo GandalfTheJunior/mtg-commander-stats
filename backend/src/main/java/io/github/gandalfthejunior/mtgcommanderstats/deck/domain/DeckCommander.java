@@ -119,6 +119,17 @@ public class DeckCommander {
         this.scryfallUri = previous.scryfallUri;
     }
 
+    public void changeArtwork(CommanderSelectionRef reference, Artwork artwork) {
+        this.scryfallCardId = reference.scryfallCardId();
+        // This selector is printing-local; remap it to the same immutable Oracle identity.
+        this.gameplayFaceIndex = reference.gameplayFaceIndex();
+        this.artworkFaceIndex = artwork.artworkFaceIndex();
+        this.artCropUrl = artwork.artCropUrl();
+        this.illustrationId = artwork.illustrationId();
+        this.artist = artwork.artist();
+        this.scryfallUri = artwork.scryfallUri();
+    }
+
     public CommanderSelectionRef selectionRef() {
         return new CommanderSelectionRef(scryfallCardId, gameplayFaceIndex);
     }

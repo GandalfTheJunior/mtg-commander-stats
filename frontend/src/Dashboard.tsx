@@ -8,6 +8,7 @@ import Typography from '@mui/material/Typography'
 import { Link } from 'react-router'
 import { ApiError, listDecks, listGroups } from './api'
 import SavedDeckCard from './SavedDeckCard'
+import { useArtworkGallery } from './useArtworkGallery'
 import type { DashboardIntent } from './dashboardNavigation'
 
 // Fix the locale and tie-break by ID, including case/accent-equivalent names.
@@ -37,7 +38,7 @@ function useDashboardList<T>(load: (signal?: AbortSignal) => Promise<T[]>, onUna
     })
     return () => { current = false; controller.abort() }
   }, [load, onUnauthorized, revision])
-  return { ...state, refresh: () => { setState({ status: 'loading', items: [] }); setRevision(value => value + 1) } }
+  return { ...state, update: (replace: (items: T[]) => T[]) => setState(previous => ({ ...previous, items: replace(previous.items) })), refresh: () => { setState({ status: 'loading', items: [] }); setRevision(value => value + 1) } }
 }
 
 export default function Dashboard({ onUnauthorized, onOpen }: {
@@ -47,6 +48,12 @@ export default function Dashboard({ onUnauthorized, onOpen }: {
   const groups = useDashboardList(listGroups, onUnauthorized)
   const decks = useDashboardList(listDecks, onUnauthorized)
   const [expanded, setExpanded] = useState(false)
+  const { openArtwork, gallery } = useArtworkGallery({
+    onUnauthorized,
+    onUpdated: updated => decks.update(items => items.map(item => item.id === updated.id ? updated : item)),
+    onReconciled: authoritative => decks.update(() => authoritative),
+    fallbackId: 'dashboard-decks-heading',
+  })
   const sortedDecks = [...decks.items].sort((a, b) => deckNames.compare(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   return (
     <Stack component="section" aria-labelledby="dashboard-heading" sx={{ gap: 4, minWidth: 0 }}>
@@ -83,7 +90,7 @@ export default function Dashboard({ onUnauthorized, onOpen }: {
         </>)}
       </Box>
       <Box component="section" aria-labelledby="dashboard-decks-heading">
-        <Typography component="h3" variant="h5" id="dashboard-decks-heading">Decks</Typography>
+        <Typography component="h3" variant="h5" id="dashboard-decks-heading" tabIndex={-1}>Decks</Typography>
         <Stack direction="row" useFlexGap sx={{ gap: 1, flexWrap: 'wrap', my: 2 }}>
           <Button variant="contained" onClick={() => onOpen({ kind: 'create-deck' })}>Deck erstellen</Button>
           <Button color="secondary" disabled={decks.status === 'loading'} onClick={decks.refresh}>Decks aktualisieren</Button>
@@ -96,11 +103,12 @@ export default function Dashboard({ onUnauthorized, onOpen }: {
         {decks.status === 'loaded' && (sortedDecks.length === 0
           ? <Typography>Noch keine Decks. Erstelle dein erstes Commander-Deck.</Typography>
           : <Stack component="ul" aria-label="Deine Decks" sx={{ listStyle: 'none', p: 0, m: 0, gap: 2 }}>
-            {sortedDecks.map(deck => <SavedDeckCard key={deck.id} deck={deck}
+            {sortedDecks.map(deck => <SavedDeckCard key={deck.id} deck={deck} onOpenArtwork={openArtwork}
               onOpen={() => onOpen({ kind: 'deck', id: deck.id })}
               showId={sortedDecks.some(other => other.id !== deck.id && deckNames.compare(other.name, deck.name) === 0)} />)}
           </Stack>)}
       </Box>
+      {gallery}
     </Stack>
   )
 }

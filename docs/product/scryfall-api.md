@@ -7,8 +7,8 @@ application DTOs below rather than forwarding Scryfall JSON.
 
 The lookup foundation was delivered in [issue #100](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/100).
 The [deck API](decks-api.md) persists its authoritative selections and snapshots
-through the joint #101/#102 delivery. Pair validation (#103) and artwork
-updates/gallery (#105) are separate work. Existing saved deck, history and
+through the joint #101/#102 delivery. Pair validation and the [per-slot artwork update/gallery](decks-api.md#artwork-only-updates-and-gallery)
+consume this metadata. Existing saved deck, history and
 statistics reads do not request Scryfall metadata.
 
 | Method | Route | Success |
