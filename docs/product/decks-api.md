@@ -133,7 +133,11 @@ the dialog, restores focus to its trigger and updates that view's deck response;
 changing routes loads the other view afresh. Confirmed failure retains the old
 art and shows an inline retry. An uncertain response locks selection until an
 authoritative deck-list read reconciles the result; a failed read offers an
-explicit status retry without resending the write. Selecting the already saved
+explicit status retry without resending the write. If that read confirms a deleted
+deck, missing slot or replaced gameplay identity, the deck list immediately adopts
+the authoritative result. The gallery explains the conflict and can be dismissed,
+while stale choices stay disabled. Closing restores focus to the artwork trigger,
+or to the deck-list heading if the trigger no longer exists. Selecting the already saved
 printing/side or closing without choosing makes no write. Loading, empty, lookup
 failure and broken-image fallback states remain local to the gallery.
 

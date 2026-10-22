@@ -138,3 +138,40 @@ test('retired gallery ignores late writes and authentication failures after rout
   expect(screen.getByText(/Signed in as/)).toBeInTheDocument()
   expect(window.location.pathname).toBe('/playgroups')
 })
+
+test.each(['/dashboard', '/decks'].flatMap(path => ['deleted', 'replaced', 'slot removed'].map(conflict => ({ path, conflict }))))(
+  '$path reconciles an authoritative $conflict conflict without trapping the dialog or resending the write', async ({ path, conflict }) => {
+    const api = deckApi([pair])
+    const target = conflict === 'slot removed' ? second : first
+    api.next(galleryPath(target), () => response([option]))
+    api.next(writePath(target.position), () => Promise.reject(new TypeError('Response lost')), 'PUT')
+    showDeckApp(path)
+    const { trigger, dialog } = await open(target.name)
+    const choice = await within(dialog).findByRole('button', { name: /Illustration 1, Seite 2/ })
+    const authoritative: Deck[] = conflict === 'deleted' ? [] : [{ ...pair, name: 'Fresh deck',
+      commanders: conflict === 'slot removed' ? [first] : [{ ...first, oracleId: uid(450), name: 'Replacement Commander' }, second],
+    }]
+    api.next('/api/decks', () => response(authoritative))
+    fireEvent.click(choice)
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Die Deckliste ist aktualisiert')
+    expect(dialog).toBeInTheDocument()
+    expect(choice).toBeDisabled()
+    expect(within(dialog).queryByRole('button', { name: 'Gespeicherten Stand prüfen' })).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Schließen' })).toBeEnabled()
+    // The server result is already reflected behind the still-dismissible dialog.
+    expect(screen.queryByRole('heading', { name: pair.name, hidden: true })).not.toBeInTheDocument()
+    if (conflict !== 'deleted') {
+      const card = screen.getByRole('heading', { name: 'Fresh deck', hidden: true }).closest('li')!
+      expect(within(card).getByText(/^Commander:/)).toHaveTextContent(conflict === 'replaced' ? 'Replacement Commander / Second' : 'Commander: First')
+      if (conflict === 'slot removed') expect(within(card).queryByLabelText('Artwork für Second ändern')).not.toBeInTheDocument()
+    }
+    fireEvent.click(choice)
+    if (conflict === 'slot removed') fireEvent.keyDown(dialog, { key: 'Escape' })
+    else fireEvent.click(within(dialog).getByRole('button', { name: 'Schließen' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    if (conflict === 'replaced') await waitFor(() => expect(trigger).toHaveFocus())
+    else await waitFor(() => expect(screen.getByRole('heading', { name: path === '/dashboard' ? 'Decks' : 'Meine Decks' })).toHaveFocus())
+    expect(api.writes().filter(([url]) => url === writePath(target.position))).toHaveLength(1)
+    if (conflict === 'deleted') expect(screen.queryByRole('button', { name: 'Artwork für First ändern' })).not.toBeInTheDocument()
+  },
+)

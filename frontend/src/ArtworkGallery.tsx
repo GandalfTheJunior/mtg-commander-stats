@@ -6,14 +6,14 @@ import { safeArtworkUrl } from './artworkUrl'
 
 const sameArt = (left: Artwork, right: Artwork) => left.scryfallCardId === right.scryfallCardId && left.artworkFaceIndex === right.artworkFaceIndex
 
-export default function ArtworkGallery({ deck, commander, onClose, onUpdated, onUnauthorized }: {
-  deck: Deck; commander: SavedCommander; onClose: () => void; onUpdated: (deck: Deck) => void; onUnauthorized: () => void
+export default function ArtworkGallery({ deck, commander, onClose, onUpdated, onReconciled, onUnauthorized }: {
+  deck: Deck; commander: SavedCommander; onClose: () => void; onUpdated: (deck: Deck) => void; onReconciled: (decks: Deck[]) => void; onUnauthorized: () => void
 }) {
   const id = useId()
   const [options, setOptions] = useState<Artwork[] | null>(null)
   const [loadError, setLoadError] = useState(false)
   const [revision, setRevision] = useState(0)
-  const [phase, setPhase] = useState<'ready' | 'saving' | 'reconciling' | 'uncertain'>('ready')
+  const [phase, setPhase] = useState<'ready' | 'saving' | 'reconciling' | 'uncertain' | 'conflict'>('ready')
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(commander)
   const pending = useRef(false)
@@ -47,8 +47,12 @@ export default function ArtworkGallery({ deck, commander, onClose, onUpdated, on
       if (!lifetime.current) return
       const updated = decks.find(item => item.id === deck.id)
       const slot = updated?.commanders.find(item => item.position === commander.position)
-      if (!updated || !slot || slot.oracleId !== commander.oracleId) throw new Error('Deck changed.')
-      onUpdated(updated)
+      onReconciled(decks)
+      if (!updated || !slot || slot.oracleId !== commander.oracleId) {
+        setPhase('conflict')
+        setError('Das Deck wurde gelöscht oder der Commander wurde geändert. Die Deckliste ist aktualisiert. Schließe die Galerie und öffne bei Bedarf das Artwork des aktuellen Commanders.')
+        return
+      }
       setSaved(slot)
       if (attempted.current && sameArt(slot, attempted.current)) { onClose(); return }
       setError('Der gespeicherte Stand wurde geprüft. Bitte wähle das gewünschte Artwork erneut.')
@@ -77,7 +81,8 @@ export default function ArtworkGallery({ deck, commander, onClose, onUpdated, on
       } else await reconcile()
     }
   }
-  const busy = phase !== 'ready'
+  const busy = phase === 'saving' || phase === 'reconciling' || phase === 'uncertain'
+  const choicesDisabled = phase !== 'ready'
   return <Dialog open onClose={() => { if (!busy) onClose() }} aria-labelledby={`${id}-title`} fullWidth maxWidth="md">
     <DialogTitle id={`${id}-title`}>Artwork für {commander.name} ändern</DialogTitle>
     <DialogContent>
@@ -90,9 +95,9 @@ export default function ArtworkGallery({ deck, commander, onClose, onUpdated, on
         <Button onClick={() => { setLoadError(false); setOptions(null); setRevision(value => value + 1) }}>Erneut laden</Button>
       </Alert> : options === null ? <Typography role="status">Artworks werden geladen…</Typography>
         : options.length === 0 ? <Typography>Keine verfügbaren Illustrationen gefunden.</Typography>
-          : <Box component="ul" aria-label="Verfügbare Artworks" aria-busy={busy} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, listStyle: 'none', p: 0, m: 0, gap: 2 }}>
+          : <Box component="ul" aria-label="Verfügbare Artworks" aria-busy={phase === 'saving' || phase === 'reconciling'} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, listStyle: 'none', p: 0, m: 0, gap: 2 }}>
             {options.map((artwork, index) => <Box component="li" key={`${artwork.scryfallCardId}-${artwork.artworkFaceIndex}`}>
-              <ButtonBase disabled={busy} onClick={() => void choose(artwork)}
+              <ButtonBase disabled={choicesDisabled} onClick={() => void choose(artwork)}
                 aria-label={`Illustration ${index + 1}${artwork.artworkFaceIndex === null ? '' : `, Seite ${artwork.artworkFaceIndex + 1}`}${artwork.artist ? ` von ${artwork.artist}` : ''} auswählen`}
                 aria-pressed={sameArt(saved, artwork)}
                 sx={{ display: 'block', width: '100%', textAlign: 'left', border: '2px solid', borderColor: sameArt(saved, artwork) ? 'secondary.main' : 'divider', borderRadius: 1, overflow: 'hidden',

@@ -1,21 +1,15 @@
-import { useId, useRef, useState } from 'react'
+import { useId } from 'react'
 import { Box, ButtonBase, Card, CardActionArea, Link, Stack, Typography } from '@mui/material'
 import { commanderNames, magicColors, type Deck, type SavedCommander } from './api'
 import { colorNames } from './deckColors'
 import { safeArtworkUrl } from './artworkUrl'
 import { CommanderArtwork } from './CommanderArtwork'
-import ArtworkGallery from './ArtworkGallery'
 
-const ignoreUnauthorized = () => {}
-
-export default function SavedDeckCard({ deck, onOpen, overview = false, showId = false, onUpdated, onUnauthorized = ignoreUnauthorized }: {
+export default function SavedDeckCard({ deck, onOpen, overview = false, showId = false, onOpenArtwork }: {
   deck: Deck; onOpen: () => void; overview?: boolean; showId?: boolean
-  onUpdated?: (deck: Deck) => void; onUnauthorized?: () => void
+  onOpenArtwork?: (deck: Deck, commander: SavedCommander, trigger: HTMLButtonElement) => void
 }) {
   const id = useId()
-  const [slot, setSlot] = useState<SavedCommander | null>(null)
-  const trigger = useRef<HTMLButtonElement | null>(null)
-  const close = () => { setSlot(null); requestAnimationFrame(() => trigger.current?.focus()) }
   const paired = deck.commanders.length === 2
   return <Card component="li" sx={{ containerType: 'inline-size', minWidth: 0 }}>
     <Box sx={{ display: 'grid', gridTemplateColumns: 'min(42%, 320px) minmax(0, 1fr)', gap: 2, p: 2,
@@ -26,7 +20,7 @@ export default function SavedDeckCard({ deck, onOpen, overview = false, showId =
           '@container (max-width: 560px)': { maxWidth: paired ? 256 : 180 } }}>
           {deck.commanders.map((commander, index) => <ButtonBase className="deck-artwork-slot" key={commander.position}
             aria-label={`Artwork für ${commander.name} ändern`} aria-haspopup="dialog"
-            onClick={event => { trigger.current = event.currentTarget; setSlot(commander) }}
+            onClick={event => onOpenArtwork?.(deck, commander, event.currentTarget)}
             sx={{ position: 'absolute', width: paired ? '55.5556%' : '100%', height: paired ? '80%' : '100%',
               left: index === 0 ? 0 : '44.4444%', top: index === 0 ? 0 : '20%', zIndex: index === 0 ? 2 : 1,
               '&:focus-visible, &.Mui-focusVisible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: 2, zIndex: 3 },
@@ -67,7 +61,5 @@ export default function SavedDeckCard({ deck, onOpen, overview = false, showId =
         {overview && <Typography component="span" sx={{ display: 'inline-block', mt: 1, color: 'secondary.main', textDecoration: 'underline' }}>Bearbeiten</Typography>}
       </CardActionArea>
     </Box>
-    {slot && <ArtworkGallery deck={deck} commander={slot} onClose={close}
-      onUpdated={updated => onUpdated?.(updated)} onUnauthorized={onUnauthorized} />}
   </Card>
 }
