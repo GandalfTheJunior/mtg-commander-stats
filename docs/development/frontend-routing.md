@@ -428,6 +428,44 @@ decks so a possibly committed request can be inspected. No write is auto-retried
 
 ## Responsive presentation
 
+### Saved deck artwork
+
+Dashboard and Meine Decks share `SavedDeckCard`. Each card renders the saved
+`artCropUrl` snapshots in a separate area beside the text. Two Commanders use
+approximately 80% of the single-image size, with slot 1 upper-left/in front and
+20% horizontal overlap. A container query stacks the entire image/credit area
+above the text on cards at most 560px wide; both images retain the same relative
+overlap and shrink together. Names wrap without truncation. WUBRG comes from the
+persisted deck `colorIdentity`, including pregame choices, and the existing
+Unbenutzt / Bereits gespielt / Archiviert lifecycle remains visible.
+
+Images and accessible missing/broken-image fallbacks are noninteractive. The
+text area opens the existing editor; saved artist credits and safe Scryfall
+source links are independent siblings, never nested inside its action. Credits
+use the displayed illustration's snapshot, including back-side art. The browser
+loads only the saved image URL, without transforming it or requesting Scryfall
+metadata. Browser failures do not change the saved choice or remove its credit;
+refetched artwork replaces the previous image/failure state. Gallery activation
+and artwork-only writes remain owned by #105.
+
+The repeatable layout check uses Python Playwright with an installed Chromium
+and a running frontend (`npm run dev -- --host 127.0.0.1`):
+
+```bash
+python tools/ui/verify-saved-deck-art.py
+```
+
+Install Playwright in your Python environment if needed (`pip install playwright`).
+`CHROMIUM_PATH`, `MTG_UI_URL`, and `MTG_SCREENSHOTS` override the executable,
+running app URL, and screenshot output directory. It intercepts API/image reads
+with non-sensitive saved DTOs and clearly marked synthetic image fixtures,
+without a live account/provider dependency. It checks both routes at 1280, 600,
+375 and 320px, plus a 300px card in a desktop viewport: overlap geometry/paint
+order, separate text, long names, single/missing/failed images, source keyboard
+activation and absence of metadata reads. Screenshots cover desktop/mobile for
+both routes. Live provider imagery and physical-device Safari remain outside
+this deterministic browser check.
+
 `AppShell.tsx` uses the shared theme for the shell, wordmark, top-right account,
 feedback and one navigation element. Each destination is a real link with an
 icon, visible label and `aria-current="page"`. At the `sm` breakpoint (600px)

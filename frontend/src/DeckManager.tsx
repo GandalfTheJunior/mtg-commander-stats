@@ -1,12 +1,9 @@
-import { commanderNames } from './api'
 import { useEffect, useState } from 'react'
-import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import Card from '@mui/material/Card'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import { ApiError, listDecks, type Deck } from './api'
-import { colorNames } from './deckColors'
+import SavedDeckCard from './SavedDeckCard'
 
 export default function DeckManager({ onUnauthorized, onOpen }: {
   onUnauthorized: () => void; onOpen: (id?: string) => void
@@ -37,14 +34,7 @@ export default function DeckManager({ onUnauthorized, onOpen }: {
     {state.status === 'error' && <Typography role="alert">Deine Deckliste ist nicht verfügbar. Bitte erneut aktualisieren.</Typography>}
     {state.status === 'loaded' && (state.decks.length === 0 ? <Typography>Noch keine Decks.</Typography> :
       <Stack component="ul" sx={{ p: 0, m: 0, listStyle: 'none', gap: 2 }}>
-        {state.decks.map(deck => <Card component="li" key={deck.id} sx={{ p: 2 }}>
-          <Typography component="h3" variant="h6">{deck.name}</Typography>
-          <Typography>Commander: {commanderNames(deck)}</Typography>
-          <Typography sx={{ color: 'text.secondary' }}>Farbidentität: {deck.colorIdentity.map(color => `${colorNames[color]} (${color})`).join(' · ') || 'Farblos'}</Typography>
-          <Typography sx={{ color: 'text.secondary' }}>{deck.archived ? 'Archiviert – für neue Spiele nicht verfügbar' : deck.everUsed ? 'Verwendet – Commander und Farben gesperrt' : 'Unbenutzt'}</Typography>
-          <Box sx={{ mt: 1 }}><Button color="secondary" onClick={() => onOpen(deck.id)} aria-label={`${deck.name} bearbeiten`}>Bearbeiten</Button></Box>
-          <Typography variant="body2" sx={{ color: 'text.secondary' }}>Deck-ID: {deck.id}</Typography>
-        </Card>)}
+        {state.decks.map(deck => <SavedDeckCard key={deck.id} deck={deck} overview showId onOpen={() => onOpen(deck.id)} />)}
       </Stack>)}
   </Stack>
 }
