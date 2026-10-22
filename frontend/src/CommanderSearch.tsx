@@ -48,7 +48,7 @@ export function CommanderSearch({ query, selection, onInput, onSelect, onUnautho
         </Box>
       }}
       renderInput={params => <TextField {...params} inputRef={inputRef} label="Commander" required name="commander"
-        error={Boolean(error)} helperText={error} slotProps={{ ...params.slotProps, input: { ...params.slotProps.input, endAdornment: <>
+        error={Boolean(error)} helperText={error} sx={{ '& input[readonly]': { bgcolor: 'background.paper', color: 'text.primary' } }} slotProps={{ ...params.slotProps, input: { ...params.slotProps.input, endAdornment: <>
           {current?.status === 'loading' && <CircularProgress size={18} aria-label="Commander werden gesucht" />}{params.slotProps.input.endAdornment}</> },
           htmlInput: { ...params.slotProps.htmlInput, 'aria-describedby': [params.slotProps.htmlInput['aria-describedby'], current ? 'commander-feedback' : undefined, locked ? 'deck-locked' : undefined].filter(Boolean).join(' ') || undefined } }} />}
     />
