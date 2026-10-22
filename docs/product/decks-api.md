@@ -14,10 +14,11 @@ separate [read-only game API](games-api.md#read-only-member-deck-selection).
 
 ## Authoritative Commander selection
 
-POST requires exactly one standalone-eligible Commander. PUT requires a name and
-optionally replaces that Commander before first use. Two-Commander writes are
-rejected with `400` until pairing validation is implemented in #103; persistence
-and read DTOs support two ordered slots. No free-text/manual or offline creation
+POST requires one standalone-eligible Commander or two distinct compatible
+Commanders in ordered slots. PUT requires a name and optionally replaces that
+configuration before first use. The backend validates both identities and
+pairing roles from fresh authoritative Scryfall metadata. Zero, more than two,
+duplicate identities and incompatible pairs return `400`. No free-text/manual or offline creation
 is supported. Names use DisplayText; Commander names come from Scryfall.
 
 ```json
@@ -31,8 +32,14 @@ Use the complete selection reference supplied by [Commander search](scryfall-api
 including `gameplayFaceIndex` only for exceptional reversible gameplay identities.
 Missing-required, inapplicable and invalid face selectors fail with `400`.
 Ordinary transform/modal cards have one gameplay identity; artwork sides do not
-select another Commander. Partner-required candidates such as Backgrounds cannot
-be saved alone.
+select another Commander. Partner-required candidates such as ordinary Backgrounds cannot be saved alone.
+Standalone eligibility is independent of pairing roles: Faceless One can remain
+alone with its required chosen color. Supported pairs are ordinary Partner,
+reciprocal Partner with, Choose a Background + legendary Background, qualified
+legendary Time Lord Doctor + Doctor's companion, and matching named Partner
+variants (including Friends forever). A card can have several roles; any one
+valid pairing rule suffices. Different named variants, ordinary Partner and
+Partner with are not interchangeable. See [partner lookup](scryfall-api.md#partner-filtered-search).
 
 For a Commander with `requiresChosenColor=true`, supply exactly one W/U/B/R/G:
 
@@ -58,6 +65,7 @@ Every deck response contains `id`, `name`, `commanders`, `colorIdentity`,
 | `position` | 1 or 2; list ordered by slot |
 | `oracleId`, `name` | Stable printing-independent gameplay identity and snapshotted English name |
 | `selectionRef`, `scryfallCardId` | Current printing and its gameplay-face selector when applicable |
+| `pairing` | Snapshotted sets of pairing roles, reciprocal counterpart names and normalized variant labels |
 | `canBeSoleCommander`, `requiresChosenColor` | Saved normalized selection capabilities |
 | `colorIdentity`, `chosenColor`, `effectiveColorIdentity` | Base WUBRG, nullable per-card choice, derived effective WUBRG |
 | `artworkFaceIndex`, `artCropUrl`, `illustrationId`, `artist`, `scryfallUri` | Nullable displayed-illustration/printing snapshots |
@@ -74,10 +82,12 @@ remain based on deck IDs.
 
 Rename with `{"name":"New name"}` and omit `commanders`. This preserves every
 Commander, color and presentation field without online resolution, for unused,
-used and archived decks. An unchanged full reference/choice is also idempotent
+used and archived decks. Unchanged full references/choices are also idempotent
 and preserves existing snapshots. Any PUT attempting only to change a printing
 of the same gameplay identity returns `400` directing clients to the artwork
-operation; stale full updates cannot overwrite newer presentation snapshots.
+operation; stale full updates cannot overwrite newer presentation snapshots. This applies
+to both slots even when the other Commander is being replaced or a chosen color
+is changed.
 #105 will implement the dedicated
 `PUT /api/decks/{deckId}/commanders/{position}/artwork` operation. No artwork update
 endpoint/gallery is included here.
@@ -119,3 +129,28 @@ data. Testcontainers always migrates a clean PostgreSQL 18 database.
 
 The complete offline demo seed refresh belongs to #106. Its existing free-text
 seed writes do not yet work with this API; do not treat that workflow as updated.
+
+## Two-slot editor
+
+Selecting any pairing-capable card reveals the second field. Ordinary Partner
+starts with an empty name search; Partner with immediately offers its validated
+reciprocal counterpart as a clickable suggestion, requiring explicit activation.
+It can be dismissed or removed. Restoring a saved selection on edit does not
+trigger that recommendation lookup; an unchanged rename remains offline. Doctor-first shows `Doctor's companion (optional)`;
+other standalone-eligible choices can also remain single. A Background without
+standalone eligibility requires an explicitly selected compatible second card.
+The backend search unions all roles, including both Faceless One roles.
+
+Each slot keeps query text separate from its selection reference and chosen
+color. Editing a selected name immediately invalidates that entire slot. Changing
+the first slot clears the second slot and retires its requests; restoring typed
+text cannot restore either reference. Each qualifying slot has its own mandatory
+W/U/B/R/G radio group; combined WUBRG is read-only. Saved pairs restore both
+choices without lookup; first-use locks both fields, while rename omits Commanders.
+Existing guarded navigation and uncertain-write recovery apply to the whole pair.
+
+V7 adds nullable pairing metadata to existing snapshots without network access or
+invented rules. Older snapshots remain readable and renameable offline; reselect
+an unused Commander to discover its pairing roles. Newly created/replaced slots
+store the normalized metadata for future offline editing. No existing migration
+or saved gameplay identity is rewritten.

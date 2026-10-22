@@ -409,6 +409,82 @@ class ScryfallLookupTest {
                 .isInstanceOf(MalformedScryfallResponseException.class);
     }
 
+    @Test
+    void unionsRolesFiltersAndDeduplicatesBeforeTwentyResultLimitAcrossPages() {
+        ObjectNode faceless = card(PRINTING, ORACLE, "Faceless One");
+        faceless.put("type_line", "Legendary Enchantment Creature — Background");
+        faceless.put("oracle_text", "Choose a Background");
+        when(client.card(PRINTING)).thenReturn(faceless);
+        List<JsonNode> firstPage = new ArrayList<>();
+        for (int i = 0; i < 30; i++) {
+            firstPage.add(card(id(100 + i), id(200 + i), "Test incompatible " + i));
+        }
+        ObjectNode renari = card(id(400), id(401), "Test Renari");
+        renari.put("oracle_text", "Choose a Background");
+        firstPage.add(renari);
+        ObjectNode alternate = renari.deepCopy().put("id", id(402).toString());
+        firstPage.add(alternate);
+        ObjectNode background = card(id(403), id(404), "Test Acolyte");
+        background.put("type_line", "Legendary Enchantment — Background");
+        String next = "https://api.scryfall.com/cards/search?page=2";
+        when(client.search(anyString())).thenReturn(page(firstPage, next));
+        when(client.nextPage(next)).thenReturn(page(List.of(background)));
+
+        List<CommanderChoice> result = lookup.searchPartners("Test", new CommanderSelectionRef(PRINTING, null));
+
+        assertThat(result).extracting(CommanderChoice::name).containsExactly("Test Renari", "Test Acolyte");
+        ArgumentCaptor<String> query = ArgumentCaptor.forClass(String.class);
+        verify(client).search(query.capture());
+        assertThat(query.getValue()).contains("t:background", "Choose a Background", " or ");
+        assertThat(lookup.searchPartners("test", new CommanderSelectionRef(PRINTING, null))).isEqualTo(result);
+        verify(client, times(1)).search(anyString());
+    }
+
+    @Test
+    void partnerContextIncludesSelectedGameplayFaceAndDoesNotInventAReciprocalSuggestion() {
+        UUID firstOracle = id(10);
+        UUID secondOracle = id(11);
+        ObjectNode reversible = reversible(firstOracle, secondOracle);
+        ObjectNode white = card(id(20), firstOracle, "Commander White");
+        white.put("oracle_text", "Partner");
+        ObjectNode red = card(id(21), secondOracle, "Commander Red");
+        red.put("oracle_text", "Friends forever");
+        ObjectNode candidate = card(id(22), id(23), "Test Partner");
+        candidate.put("oracle_text", "Partner");
+        when(client.card(PRINTING)).thenReturn(reversible);
+        when(client.search(anyString())).thenAnswer(invocation -> {
+            String query = invocation.getArgument(0);
+            return query.contains("oracleid:") ? page(List.of(white, red)) : page(List.of(candidate));
+        });
+        assertThat(lookup.searchPartners("Test", new CommanderSelectionRef(PRINTING, 0))).hasSize(1);
+        assertThat(lookup.searchPartners("Test", new CommanderSelectionRef(PRINTING, 1))).isEmpty();
+        assertThat(lookup.searchPartners("", new CommanderSelectionRef(PRINTING, 0))).isEmpty();
+        assertThatThrownBy(() -> lookup.searchPartners("Test", new CommanderSelectionRef(PRINTING, null)))
+                .isInstanceOf(InvalidScryfallSelectionException.class);
+    }
+
+    @Test
+    void partnerResultsAreCappedOnlyAfterValidationAndIdentityDeduplication() {
+        ObjectNode first = card(PRINTING, ORACLE, "First Partner");
+        first.put("oracle_text", "Partner");
+        when(client.card(PRINTING)).thenReturn(first);
+        List<JsonNode> candidates = new ArrayList<>();
+        for (int i = 0; i < 40; i++) {
+            candidates.add(card(id(1000 + i), id(2000 + i), "Result incompatible " + i));
+        }
+        for (int i = 0; i < 25; i++) {
+            ObjectNode candidate = card(id(3000 + i), id(4000 + i), "Result partner " + i);
+            candidate.put("oracle_text", "Partner");
+            candidates.add(candidate);
+            candidates.add(candidate.deepCopy().put("id", id(5000 + i).toString()));
+        }
+        when(client.search(anyString())).thenReturn(page(candidates));
+        List<CommanderChoice> result = lookup.searchPartners("Result", new CommanderSelectionRef(PRINTING, null));
+        assertThat(result).hasSize(20);
+        assertThat(result).extracting(CommanderChoice::name).doesNotHaveDuplicates();
+        assertThat(result).allMatch(choice -> choice.name().contains("partner"));
+    }
+
     private ObjectNode reversible(UUID firstOracle, UUID secondOracle) {
         ObjectNode card = card(PRINTING, ORACLE, "Commander White // Commander Red");
         card.put("layout", "reversible_card");

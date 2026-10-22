@@ -67,22 +67,38 @@ public class Deck {
     }
 
     public void replaceCommanders(List<DeckCommander> replacement) {
-        if (replacement == null || replacement.size() != 1 || replacement.getFirst().getPosition() != 1) {
+        if (replacement == null || replacement.isEmpty() || replacement.size() > 2) {
+            throw new InvalidCommanderException();
+        }
+        for (int i = 0; i < replacement.size(); i++) {
+            if (replacement.get(i) == null || replacement.get(i).getPosition() != i + 1
+                    || (i == 1 && replacement.get(0).getOracleId().equals(replacement.get(i).getOracleId()))) {
+                throw new InvalidCommanderException();
+            }
+        }
+        if (replacement.size() == 1 && !replacement.getFirst().getCanBeSoleCommander()) {
             throw new InvalidCommanderException();
         }
         boolean same = commanders.size() == replacement.size();
         for (int i = 0; same && i < commanders.size(); i++) {
             same = commanders.get(i).sameGameplay(replacement.get(i));
         }
+        if (!same && everUsed) {
+            throw new DeckLifecycleConflictException();
+        }
+        for (DeckCommander candidate : replacement) {
+            for (DeckCommander saved : commanders) {
+                if (saved.getOracleId().equals(candidate.getOracleId()) && !saved.selectionRef().equals(candidate.selectionRef())) {
+                    throw new InvalidCommanderException();
+                }
+                if (saved.getOracleId().equals(candidate.getOracleId())) {
+                    candidate.preserveArtwork(saved);
+                }
+            }
+        }
         if (same) {
             // An idempotent full update must never revert newer presentation snapshots.
-            if (!commanders.getFirst().selectionRef().equals(replacement.getFirst().selectionRef())) {
-                throw new InvalidCommanderException();
-            }
             return;
-        }
-        if (everUsed) {
-            throw new DeckLifecycleConflictException();
         }
         this.commanders.clear();
         this.commanders.addAll(replacement);

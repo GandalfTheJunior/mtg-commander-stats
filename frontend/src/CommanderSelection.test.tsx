@@ -5,7 +5,7 @@ import { savedCommander } from './test/commanderFixtures'
 import { deferred, response } from './test/gameFixtures'
 import { scryfallUnavailable } from './api'
 
-const field = () => screen.getByRole('combobox', { name: /Commander/ })
+const field = () => screen.getByRole('combobox', { name: /^Commander/ })
 const type = (value: string) => { fireEvent.change(field(), { target: { value } }); fireEvent.focus(field()) }
 const save = () => fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
 const request = (name: string) => `/api/scryfall/commanders?q=${encodeURIComponent(name)}`
@@ -88,16 +88,19 @@ test('empty success and provider failure have exactly the agreed copy; retry use
   expect(screen.queryByText(scryfallUnavailable)).not.toBeInTheDocument()
 })
 
-test('a partner-only result cannot be selected and reversible references pass through without technical face controls', async () => {
+test('a partner-only result requires a counterpart and reversible references pass through without technical face controls', async () => {
   const api = deckApi(); showDeckApp('/decks/new'); await screen.findByRole('textbox', { name: /Deckname/ })
-  api.next(request('Face'), () => response([{ ...savedCommander('Background'), canBeSoleCommander: false, thumbnailUrl: null },
+  api.next(request('Face'), () => response([{ ...savedCommander('Background'), canBeSoleCommander: false, pairing: { roles: ['BACKGROUND'], partnerWith: [], variants: [] }, thumbnailUrl: null },
     { ...savedCommander('Face Commander'), selectionRef: { scryfallCardId: deck.commanders[0].scryfallCardId, gameplayFaceIndex: 1 }, thumbnailUrl: null }]))
   type('Face')
   const background = await screen.findByRole('option', { name: 'Background' })
-  expect(background).toHaveAttribute('aria-disabled', 'true')
+  expect(background).toHaveAttribute('aria-disabled', 'false')
   fireEvent.click(background)
-  expect(field()).toHaveValue('Face')
-  fireEvent.keyDown(field(), { key: 'ArrowDown' })
+  expect(field()).toHaveValue('Background')
+  save(); expect(api.writes()).toHaveLength(0)
+  api.next(request('Face'), () => response([{ ...savedCommander('Face Commander'), selectionRef: { scryfallCardId: deck.commanders[0].scryfallCardId, gameplayFaceIndex: 1 }, thumbnailUrl: null }]))
+  type('Face')
+  await screen.findByRole('option', { name: 'Face Commander' })
   fireEvent.click(screen.getByRole('option', { name: 'Face Commander' }))
   fireEvent.change(screen.getByRole('textbox', { name: /Deckname/ }), { target: { value: 'Face Deck' } })
   save(); await waitFor(() => expect(api.writes()).toHaveLength(1))

@@ -1,0 +1,270 @@
+{
+  "exact-ordinary": {
+    "input": "Tymna",
+    "query": "name:/Tymna/ lang:en game:paper f:commander (kw:partner)",
+    "context": {
+      "id": "21e27b91-c7f1-4709-aa0d-8b5d81b22a0a",
+      "oracle_id": "3d867016-2601-4a37-a73d-308898d3bd37",
+      "name": "Thrasios, Triton Hero",
+      "layout": "normal",
+      "lang": "en",
+      "type_line": "Legendary Creature — Merfolk Wizard",
+      "oracle_text": "{4}: Scry 1, then reveal the top card of your library. If it's a land card, put it onto the battlefield tapped. Otherwise, draw a card.\nPartner (You can have two commanders if both have partner.)",
+      "keywords": [
+        "Partner",
+        "Scry"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "color_identity": [
+        "G",
+        "U"
+      ]
+    },
+    "response": {
+      "object": "list",
+      "has_more": false,
+      "data": [
+        {
+          "id": "bc7cbe9b-324e-42b8-94e2-36e91cb32163",
+          "oracle_id": "d15642e4-e61c-4d29-af48-de837991245e",
+          "name": "Tymna the Weaver",
+          "layout": "normal",
+          "lang": "en",
+          "type_line": "Legendary Creature — Human Cleric",
+          "oracle_text": "Lifelink\nAt the beginning of each of your postcombat main phases, you may pay X life, where X is the number of opponents that were dealt combat damage this turn. If you do, draw X cards.\nPartner (You can have two commanders if both have partner.)",
+          "keywords": [
+            "Lifelink",
+            "Partner"
+          ],
+          "legalities": {
+            "commander": "legal"
+          },
+          "color_identity": [
+            "B",
+            "W"
+          ]
+        }
+      ]
+    }
+  },
+  "exact-survivors": {
+    "input": "Ellie",
+    "query": "name:/Ellie/ lang:en game:paper f:commander (o:/Partner[ ]*[—–][ ]*survivors/)",
+    "context": {
+      "id": "713ab02f-cd48-420d-a2fe-ef460e6ce2d2",
+      "oracle_id": "64611260-c9f7-4375-b67a-f88fee6d3bff",
+      "name": "Joel, Resolute Survivor",
+      "layout": "normal",
+      "lang": "en",
+      "type_line": "Legendary Creature — Human Survivor",
+      "oracle_text": "Menace\nWhenever a creature token dies, put a +1/+1 counter on Joel and draw a card. This ability triggers only once each turn.\nPartner—Survivors (You can have two commanders if both have this ability.)",
+      "keywords": [
+        "Partner",
+        "Menace"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "color_identity": [
+        "B",
+        "G"
+      ]
+    },
+    "response": {
+      "object": "list",
+      "has_more": false,
+      "data": [
+        {
+          "id": "e973462f-589d-4c53-81d7-075ec1d5a9b4",
+          "oracle_id": "299ff264-c6db-4b48-88fb-ca006cb84f88",
+          "name": "Ellie, Brick Master",
+          "layout": "normal",
+          "lang": "en",
+          "type_line": "Legendary Creature — Human Survivor",
+          "oracle_text": "Distract the Horde — Whenever a player attacks one of your opponents, that attacking player creates a tapped 1/1 black Fungus Zombie creature token named Cordyceps Infected that's attacking that opponent.\nPartner—Survivors (You can have two commanders if both have this ability.)",
+          "keywords": [
+            "Distract the Horde",
+            "Partner"
+          ],
+          "legalities": {
+            "commander": "legal"
+          },
+          "color_identity": [
+            "R"
+          ]
+        },
+        {
+          "id": "dd0b3ace-91aa-46b7-8265-b8bc22dff5f7",
+          "oracle_id": "e619cb66-8c0d-408a-829c-6f02bf25fd0f",
+          "name": "Ellie, Vengeful Hunter",
+          "layout": "normal",
+          "lang": "en",
+          "type_line": "Legendary Creature — Human Survivor",
+          "oracle_text": "Pay 2 life, Sacrifice another creature: Ellie deals 2 damage to target player and gains indestructible until end of turn.\nPartner—Survivors (You can have two commanders if both have this ability.)",
+          "keywords": [
+            "Partner"
+          ],
+          "legalities": {
+            "commander": "legal"
+          },
+          "color_identity": [
+            "B",
+            "R"
+          ]
+        }
+      ]
+    }
+  },
+  "exact-friends": {
+    "input": "Sophina",
+    "query": "name:/Sophina/ lang:en game:paper f:commander (o:/Partner[ ]*[—–][ ]*friends forever/ or kw:\"Friends forever\")",
+    "context": {
+      "id": "39491011-bdf6-4e61-8534-fe26c1571f8f",
+      "oracle_id": "6cd03270-54cc-43e1-9b86-70c76960c841",
+      "name": "Wernog, Rider's Chaplain",
+      "layout": "normal",
+      "lang": "en",
+      "type_line": "Legendary Creature — Human",
+      "oracle_text": "When Wernog, Rider's Chaplain enters or leaves the battlefield, each opponent may investigate. Each opponent who doesn't loses 1 life. You investigate X times, where X is one plus the number of opponents who investigated this way.\nPartner—Friends forever (You can have two commanders if both have this ability.)",
+      "keywords": [
+        "Investigate",
+        "Partner"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "color_identity": [
+        "B",
+        "W"
+      ]
+    },
+    "response": {
+      "object": "list",
+      "has_more": false,
+      "data": [
+        {
+          "id": "e0a64924-068e-483f-91a6-d450b67b3c75",
+          "oracle_id": "095dabda-4570-4764-8d62-4a29eb19d3e6",
+          "name": "Sophina, Spearsage Deserter",
+          "layout": "normal",
+          "lang": "en",
+          "type_line": "Legendary Creature — Human Soldier",
+          "oracle_text": "Menace\nWhenever Sophina, Spearsage Deserter attacks, investigate once for each nontoken attacking creature. (To investigate, create a Clue token. It's an artifact with \"{2}, Sacrifice this artifact: Draw a card.\")\nPartner—Friends forever (You can have two commanders if both have this ability.)",
+          "keywords": [
+            "Investigate",
+            "Partner",
+            "Menace"
+          ],
+          "legalities": {
+            "commander": "legal"
+          },
+          "color_identity": [
+            "R",
+            "W"
+          ]
+        }
+      ]
+    }
+  },
+  "exact-character-select": {
+    "input": "Donatello",
+    "query": "name:/Donatello/ lang:en game:paper f:commander (o:/Partner[ ]*[—–][ ]*character select/)",
+    "context": {
+      "id": "72e637db-7112-406f-809b-0eda248488b5",
+      "oracle_id": "46ea8d02-b087-44f7-8403-93ffc1d3a8ad",
+      "name": "Leonardo, the Balance",
+      "layout": "normal",
+      "lang": "en",
+      "type_line": "Legendary Creature — Mutant Ninja Turtle",
+      "oracle_text": "Whenever a token you control enters, you may put a +1/+1 counter on each creature you control. Do this only once each turn.\n{W}{U}{B}{R}{G}: Creatures you control gain menace, trample, and lifelink until end of turn.\nPartner—Character select (You can have two commanders if both have this ability.)",
+      "keywords": [
+        "Partner"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "color_identity": [
+        "B",
+        "G",
+        "R",
+        "U",
+        "W"
+      ]
+    },
+    "response": {
+      "object": "list",
+      "has_more": false,
+      "data": [
+        {
+          "id": "774716f4-d211-497a-be91-69cd700edbf2",
+          "oracle_id": "1ba2f763-5895-4663-b38f-95591ebb2ef4",
+          "name": "Donatello, the Brains",
+          "layout": "normal",
+          "lang": "en",
+          "type_line": "Legendary Creature — Mutant Ninja Turtle",
+          "oracle_text": "If one or more tokens would be created under your control, those tokens plus a Mutagen token are created instead.\nPartner—Character select (You can have two commanders if both have this ability.)",
+          "keywords": [
+            "Partner"
+          ],
+          "legalities": {
+            "commander": "legal"
+          },
+          "color_identity": [
+            "U"
+          ]
+        }
+      ]
+    }
+  },
+  "exact-father-son": {
+    "input": "Atreus",
+    "query": "name:/Atreus/ lang:en game:paper f:commander (o:/Partner[ ]*[—–][ ]*father & son/)",
+    "context": {
+      "id": "77dcd29e-d0d5-474f-a05b-768ccf6b6293",
+      "oracle_id": "c000d5c3-5b0c-4c5c-9919-76640da0a1e4",
+      "name": "Kratos, Stoic Father",
+      "layout": "normal",
+      "lang": "en",
+      "type_line": "Legendary Creature — God Warrior",
+      "oracle_text": "Whenever you attack with one or more Gods and whenever a God dies, you get an experience counter.\nAt the beginning of your end step, put a number of +1/+1 counters on target creature equal to the number of experience counters you have.\nPartner—Father & son (You can have two commanders if both have this ability.)",
+      "keywords": [
+        "Partner"
+      ],
+      "legalities": {
+        "commander": "legal"
+      },
+      "color_identity": [
+        "R",
+        "W"
+      ]
+    },
+    "response": {
+      "object": "list",
+      "has_more": false,
+      "data": [
+        {
+          "id": "2e53b0b2-dba1-4a95-80c4-622ab1a547a4",
+          "oracle_id": "f6a4298c-3d9d-43e1-b32c-b168c02ad503",
+          "name": "Atreus, Impulsive Son",
+          "layout": "normal",
+          "lang": "en",
+          "type_line": "Legendary Creature — God Archer",
+          "oracle_text": "Reach\n{3}, {T}: Draw a card for each experience counter you have, then discard a card. Atreus deals 2 damage to each opponent.\nPartner—Father & son (You can have two commanders if both have this ability.)",
+          "keywords": [
+            "Reach",
+            "Partner"
+          ],
+          "legalities": {
+            "commander": "legal"
+          },
+          "color_identity": [
+            "R",
+            "U"
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -6,6 +6,8 @@ import java.util.Objects;
 import java.util.UUID;
 
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.ColorIdentityConverter;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.PairingCapabilitiesConverter;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.PairingCapabilities;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.application.ResolvedCommander;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.Artwork;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderSelectionRef;
@@ -41,6 +43,10 @@ public class DeckCommander {
     @Column(name = "can_be_sole_commander", nullable = false)
     private boolean canBeSoleCommander;
 
+    @Convert(converter = PairingCapabilitiesConverter.class)
+    @Column(name = "pairing", columnDefinition = "text")
+    private PairingCapabilities pairing;
+
     @JdbcTypeCode(SqlTypes.CHAR)
     @Column(name = "chosen_color", columnDefinition = "char(1)")
     private String chosenColor;
@@ -68,11 +74,12 @@ public class DeckCommander {
 
     public DeckCommander(int position, ResolvedCommander resolved, String chosenColor) {
         GameplayCard gameplay = resolved.gameplay();
-        if (position < 1 || position > 2 || !gameplay.canBeSoleCommander()
+        if (position < 1 || position > 2
                 || (gameplay.requiresChosenColor() ? chosenColor == null || !List.of("W", "U", "B", "R", "G").contains(chosenColor)
                         : chosenColor != null)) {
             throw new InvalidCommanderException();
         }
+        this.pairing = gameplay.pairing();
         this.position = position;
         this.oracleId = UUID.fromString(gameplay.oracleId());
         this.name = gameplay.name();
@@ -104,8 +111,20 @@ public class DeckCommander {
                 && effectiveColorIdentity().canonicalValue().equals(other.effectiveColorIdentity().canonicalValue());
     }
 
+    void preserveArtwork(DeckCommander previous) {
+        this.artworkFaceIndex = previous.artworkFaceIndex;
+        this.artCropUrl = previous.artCropUrl;
+        this.illustrationId = previous.illustrationId;
+        this.artist = previous.artist;
+        this.scryfallUri = previous.scryfallUri;
+    }
+
     public CommanderSelectionRef selectionRef() {
         return new CommanderSelectionRef(scryfallCardId, gameplayFaceIndex);
+    }
+
+    public PairingCapabilities getPairing() {
+        return pairing == null ? PairingCapabilities.NONE : pairing;
     }
 
     public int getPosition() {

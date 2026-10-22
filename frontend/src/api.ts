@@ -16,7 +16,9 @@ export type Deck = {
 }
 
 export type CommanderSelectionRef = { scryfallCardId: string; gameplayFaceIndex?: number }
+export type PairingCapabilities = { roles: string[]; partnerWith: string[]; variants: string[] }
 export type CommanderChoice = {
+  pairing: PairingCapabilities;
   selectionRef: CommanderSelectionRef; scryfallCardId: string; name: string; colorIdentity: MagicColor[]
   requiresChosenColor: boolean; canBeSoleCommander: boolean; thumbnailUrl: string | null
 }
@@ -539,6 +541,12 @@ function referenceFrom(value: unknown): CommanderSelectionRef {
   }
   return { scryfallCardId: value.scryfallCardId, ...(value.gameplayFaceIndex !== undefined ? { gameplayFaceIndex: value.gameplayFaceIndex as number } : {}) }
 }
+function pairingFrom(value: unknown): PairingCapabilities {
+  if (!isRecord(value) || !['roles', 'partnerWith', 'variants'].every(key => Array.isArray(value[key]) && value[key].every(item => typeof item === 'string'))) {
+    throw new Error('The server returned invalid Commander pairing metadata.')
+  }
+  return { roles: value.roles as string[], partnerWith: value.partnerWith as string[], variants: value.variants as string[] }
+}
 function choiceFrom(value: unknown): CommanderChoice {
   if (!isRecord(value) || typeof value.name !== 'string' || !value.name || !isUuid(value.scryfallCardId) ||
     typeof value.requiresChosenColor !== 'boolean' || typeof value.canBeSoleCommander !== 'boolean') {
@@ -546,7 +554,7 @@ function choiceFrom(value: unknown): CommanderChoice {
   }
   const selectionRef = referenceFrom(value.selectionRef)
   if (selectionRef.scryfallCardId !== value.scryfallCardId) throw new Error('The server returned inconsistent Commander printing data.')
-  return { name: value.name, selectionRef, scryfallCardId: value.scryfallCardId, colorIdentity: colorsFrom(value.colorIdentity),
+  return { pairing: pairingFrom(value.pairing), name: value.name, selectionRef, scryfallCardId: value.scryfallCardId, colorIdentity: colorsFrom(value.colorIdentity),
     requiresChosenColor: value.requiresChosenColor, canBeSoleCommander: value.canBeSoleCommander,
     thumbnailUrl: typeof value.thumbnailUrl === 'string' && /^https:\/\//.test(value.thumbnailUrl) ? value.thumbnailUrl : null }
 }
@@ -572,8 +580,9 @@ function commandersFrom(value: unknown): SavedCommander[] {
   if (new Set(result.map(card => card.oracleId)).size !== result.length) throw new Error('The server returned duplicate Commanders.')
   return result
 }
-export async function searchCommanders(query: string, signal?: AbortSignal): Promise<CommanderChoice[]> {
-  const response = await fetch(`/api/scryfall/commanders?q=${encodeURIComponent(query)}`, { ...requestDefaults, signal })
+export async function searchCommanders(query: string, signal?: AbortSignal, partnerOf?: CommanderSelectionRef): Promise<CommanderChoice[]> {
+  const context = partnerOf ? `&partnerOf=${encodeURIComponent(partnerOf.scryfallCardId)}${partnerOf.gameplayFaceIndex !== undefined ? `&partnerGameplayFaceIndex=${partnerOf.gameplayFaceIndex}` : ''}` : ''
+  const response = await fetch(`/api/scryfall/commanders?q=${encodeURIComponent(query)}${context}`, { ...requestDefaults, signal })
   if (!response.ok) throw new ApiError(scryfallUnavailable, response.status)
   const body: unknown = await response.json()
   if (!Array.isArray(body) || body.length > 20) throw new Error(scryfallUnavailable)

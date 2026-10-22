@@ -59,16 +59,18 @@ operations; see the [usage guide](../../README.md#local-development).
 ## Decks
 
 - Decks belong to users. Owners enter a deck name and explicitly select one
-  standalone-eligible Commander from backend Scryfall search. The response/schema
-  supports two ordered slots; pair writes await #103.
+  standalone-eligible Commander or two compatible Commanders from backend Scryfall
+  search. The backend validates distinct gameplay identities and all supported
+  pairing roles; the editor reveals the second field from normalized metadata.
+  See [pairing and filtered search](scryfall-api.md#partner-filtered-search).
 - Authenticated users can list, create, edit, and delete their own currently unused
   decks. Ownership comes from the authenticated user's stable UUID and is enforced
   by the backend; clients do not choose an owner.
 - Deck names use the shared `DisplayText` rule and need not be unique. Commander
   identities, names and base colors are authoritatively resolved online through
   [Scryfall](scryfall-api.md); saved snapshots need no provider access.
-- Color identity is the backend-derived WUBRG union of the selected Commander's
-  base colors and any required single pregame chosen color. Empty means colorless.
+- Color identity is the backend-derived WUBRG union of the selected Commanders'
+  base colors and each required single pregame chosen color. Empty means colorless.
   There is no manual color override. The editor retains read-only WUBRG controls
   and supplies a separate required W/U/B/R/G picker when appropriate.
 - No decklist, ManaBox integration, or DeckVersion. See [Deck API](decks-api.md)

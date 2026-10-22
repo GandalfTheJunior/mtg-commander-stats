@@ -149,10 +149,16 @@ public class ScryfallNormalizer {
             return;
         }
         List<String> colors = colors(rules, "color_identity");
+        List<String> keywords = stringList(rules.path("keywords"), false);
+        JsonNode front = rules.path("card_faces").isArray() && !rules.path("card_faces").isEmpty()
+                ? rules.path("card_faces").get(0) : rules;
+        // Card-level keywords can aggregate both artwork faces; only the gameplay front grants pairing roles.
+        PairingCapabilities pairing = PairingCapabilities.classify(typeLine,
+                stringList(front.path("keywords"), false), front == rules ? oracleText : combinedText(front, "oracle_text"));
         boolean requiresColor = ChosenColorAbility.requiresChosenColor(oracleText);
         Artwork artwork = defaultArtwork(card, images, index);
         GameplayCard gameplay = new GameplayCard(index, oracleId, name, colors, requiresColor, sole,
-                typeLine, stringList(rules.path("keywords"), false), oracleText, artwork);
+                typeLine, keywords, oracleText, artwork, pairing);
         // Keep every valid original face resolvable, even when two faces have the same Oracle identity.
         gameplayCards.add(gameplay);
         if (oracleId == null || seen.putIfAbsent(oracleId, Boolean.TRUE) != null) {
@@ -160,7 +166,7 @@ public class ScryfallNormalizer {
         }
         CommanderSelectionRef ref = new CommanderSelectionRef(printingId(card), index);
         choices.add(new CommanderChoice(ref, ref.scryfallCardId(), sole, name, colors,
-                requiresColor, thumbnail(card, index)));
+                requiresColor, thumbnail(card, index), pairing));
     }
 
     private static boolean canBeSoleCommander(String typeLine, String oracleText) {

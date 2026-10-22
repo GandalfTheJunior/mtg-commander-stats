@@ -401,8 +401,14 @@ only explicit suggestion selection restores them. Abort and generation guards
 retire stale responses on typing, selection, navigation and unmount. Suggestions
 contain only a thumbnail/neutral placeholder and English name. Loading, exact
 Fblthp empty-result copy and Moon outage/retry feedback stay inline. Partner-only
-options cannot be selected alone. Required pregame color uses a separate mandatory
-single-choice radio group with no default. Saved selections restore from snapshots. DisplayText blank checks
+options may be selected first but require an explicitly selected legal counterpart
+before saving unless standalone-eligible. Pairing metadata reveals an empty second
+search, scoped by the first full selectionRef. Only reciprocal Partner with has an
+immediate clickable, dismissible suggestion, never a committed default. Ordinary
+Partner needs typed input. Doctor-first uses the optional companion label. Changing
+the first selection clears the second and retires its responses. Both slots
+contribute their known effective colors. Each qualifying slot has a separate
+mandatory single-choice radio group with no default. Saved selections restore from snapshots. DisplayText blank checks
 match Unicode White_Space plus U+001C–U+001F; payload text is sent unchanged so the
 server owns boundary trimming. Permanently used decks show locked commander and
 colors/choice and omit `commanders` entirely for rename, as do unchanged unused-deck renames. Overflow availability

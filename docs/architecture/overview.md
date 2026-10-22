@@ -65,8 +65,10 @@ Commander snapshots live in ordered `deck_commanders` slots keyed by deck/positi
 with distinct Oracle gameplay identities and separately stored printing, gameplay
 face selector and display artwork/attribution. The application resolves changed
 selections online through `scryfall`, validates per-card pregame chosen colors and
-derives canonical effective/deck WUBRG. Exactly one standalone Commander can be
-written until pairing validation arrives. Reads require no provider calls;
+derives canonical effective/deck WUBRG. A narrow metadata classifier validates standalone choices or two distinct
+Commanders across all applicable pairing roles. Partner search uses the same
+validator before deduplication/result limiting; reads use snapshotted pairing
+metadata without provider calls. Reads require no provider calls;
 name-only updates retain snapshots and lock the existing deck row. The owning API exposes both flags. See [Deck API](../product/decks-api.md).
 
 The `group` feature uses the same feature layers. `play_groups` owns the stable
