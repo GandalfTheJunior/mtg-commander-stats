@@ -77,7 +77,7 @@ class GroupStatisticsTest extends GameTestSupport {
         assertThat(friday.get("decks").get(1).get("name").asText()).isEqualTo("Patient Constructs");
         assertThat(friday.get("decks").get(2).get("ownerUsername").asText()).isEqualTo("Emil");
         assertThat(friday.get("decks").get(3).get("ownerUsername").asText()).isEqualTo("Same Name");
-        assertThat(friday.get("decks").get(0).get("commander").asText()).isEqualTo("The Ur-Dragon");
+        assertThat(friday.get("decks").get(0).get("commanders").get(0).get("name").asText()).isEqualTo("The Ur-Dragon");
         JsonNode manifest = json.readTree(Files.readString(Path.of("..", "tools", "demo", "expected-results.json")));
         for (String name : List.of("Ada", "Dragon Engine", "Patient Constructs", "Emil")) {
             JsonNode expected = find(manifest.get("groups").get(0).get("rows"), "name", name);
@@ -157,14 +157,14 @@ class GroupStatisticsTest extends GameTestSupport {
             for (int i = 0; i < 5; i++) {
                 expect(f.owner(), "POST", f.path(), body(participants, "DRAW", null), CREATED.value());
             }
-            deckService.update(f.creator().id(), f.creatorDeck(), "Current name", "Krenko", List.of("R"));
+            deckService.update(f.creator().id(), f.creatorDeck(), "Current name", CommanderTestProvider.inputs("Krenko", List.of("R")));
             deckService.archive(f.member().id(), f.memberDeck());
             groupService.leave(f.member().id(), f.groupId());
             // Current directory data must win over the session's original username.
             jdbc.update("UPDATE users SET username = 'Same Name' WHERE id = ?", f.owner().id());
             sql.clear();
             JsonNode result = statistics(f.owner(), f.groupId());
-            assertThat(sql.getPrepareStatementCount()).isEqualTo(singleStatements).isEqualTo(5);
+            assertThat(sql.getPrepareStatementCount()).isEqualTo(singleStatements).isEqualTo(6);
             assertThat(sql.getEntityUpdateCount()).isZero();
             assertThat(sql.getEntityInsertCount()).isZero();
             assertThat(sql.getEntityDeleteCount()).isZero();
@@ -182,7 +182,8 @@ class GroupStatisticsTest extends GameTestSupport {
             for (JsonNode row : result.get("decks")) {
                 assertThat(row.size()).isEqualTo(9);
                 assertThat(row.get("ownerUsername").asText()).isEqualTo("Same Name");
-                assertThat(row.get("commander").asText()).isEqualTo("Krenko");
+                assertThat(row.get("commanders").get(0).get("name").asText()).isEqualTo("Krenko");
+                assertThat(row.get("commanders").get(0).get("artCropUrl").isNull()).isTrue();
                 assertThat(row.get("archived").isBoolean()).isTrue();
                 assertThat(row.get("ownerUserId").asText()).isIn(playerOrder.stream().map(UUID::toString).toList());
                 deckOrder.add(row);
@@ -195,7 +196,7 @@ class GroupStatisticsTest extends GameTestSupport {
             assertThat(formerDeck.get("archived").asBoolean()).isTrue();
             counts(formerDeck, 6, 0, "0");
             assertThat(find(result.get("decks"), "deckId", f.creatorDeck().toString()).get("name").asText()).isEqualTo("Current name");
-            assertThat(result.toString()).doesNotContain("email", "password", "joinCode", "everUsed", "null");
+            assertThat(result.toString()).doesNotContain("email", "password", "joinCode", "everUsed");
             expect(f.member(), "GET", path(f.groupId()), "", FORBIDDEN.value());
             expect(f.outsider(), "GET", path(f.groupId()), "", FORBIDDEN.value());
         } finally {

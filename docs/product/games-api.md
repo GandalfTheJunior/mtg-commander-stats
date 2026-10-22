@@ -77,7 +77,7 @@ and participant associations, and never resets deck usage. See
       "deck": {
         "id": "<same deck UUID>",
         "name": "Goblins",
-        "commander": "Krenko",
+        "commanders": [{"name": "Krenko", "position": 1, "oracleId": "<Oracle UUID>", "selectionRef": {"scryfallCardId": "<printing UUID>"}}],
         "colorIdentity": ["R"],
         "archived": false
       }
@@ -89,7 +89,7 @@ and participant associations, and never resets deck usage. See
       "deck": {
         "id": "<same other deck UUID>",
         "name": "Colorless",
-        "commander": "Karn",
+        "commanders": [{"name": "Karn", "position": 1, "oracleId": "<Oracle UUID>", "selectionRef": {"scryfallCardId": "<printing UUID>"}}],
         "colorIdentity": [],
         "archived": true
       }
@@ -118,7 +118,7 @@ used decks, ordered by name then deck UUID ascending:
   {
     "id": "<deck UUID>",
     "name": "Atraxa",
-    "commander": "Atraxa, Praetors' Voice",
+    "commanders": [{"name": "Atraxa, Praetors' Voice", "position": 1, "oracleId": "<Oracle UUID>", "selectionRef": {"scryfallCardId": "<printing UUID>"}}],
     "colorIdentity": ["W", "U", "B", "G"]
   }
 ]
@@ -145,3 +145,7 @@ Existing authentication and CSRF filters retain their status-only responses.
 Group existence and requesting membership are checked before fetching protected
 games or the target's decks. For a supplied existing group, unauthorized actors
 receive `403` without revealing whether a particular game or target exists.
+
+Commander arrays in the examples abbreviate the full saved snapshot contract.
+Each item contains all fields documented in [Deck API](decks-api.md#saved-snapshots-and-updates),
+including choice, base/effective colors and nullable artwork/attribution snapshots.

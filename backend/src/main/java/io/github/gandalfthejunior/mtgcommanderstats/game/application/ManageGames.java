@@ -7,8 +7,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import io.github.gandalfthejunior.mtgcommanderstats.deck.application.GameDecks;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CommanderSummary;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.GameDecks.DeckDisplay;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.application.GameDecks;
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.Game;
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.GameParticipant;
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.GameResult;
@@ -17,8 +18,8 @@ import io.github.gandalfthejunior.mtgcommanderstats.game.persistence.GameReposit
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GameGroupAccess;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupAccessDeniedException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.GroupRole;
-import io.github.gandalfthejunior.mtgcommanderstats.user.application.UserDirectory;
 import io.github.gandalfthejunior.mtgcommanderstats.user.application.UserDirectory.PublicUser;
+import io.github.gandalfthejunior.mtgcommanderstats.user.application.UserDirectory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -90,7 +91,7 @@ public class ManageGames {
             throw new GameNotFoundException();
         }
         return decks.eligible(targetUserId).stream()
-                .map(deck -> new DeckSelectionSummary(deck.id(), deck.name(), deck.commander(), deck.colorIdentity()))
+                .map(deck -> new DeckSelectionSummary(deck.id(), deck.name(), deck.commanders(), deck.colorIdentity()))
                 .toList();
     }
 
@@ -145,6 +146,6 @@ public class ManageGames {
     public record ParticipantDetails(UUID userId, String username, UUID deckId, DeckDisplay deck) {
     }
 
-    public record DeckSelectionSummary(UUID id, String name, String commander, List<String> colorIdentity) {
+    public record DeckSelectionSummary(UUID id, String name, List<CommanderSummary> commanders, List<String> colorIdentity) {
     }
 }

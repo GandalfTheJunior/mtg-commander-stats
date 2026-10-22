@@ -100,16 +100,14 @@ class ScryfallApiTest {
         assertProblem(get(session, "/api/scryfall/commanders?q=broken"), 503, "SCRYFALL_UNAVAILABLE");
         assertProblem(get(session, "/api/scryfall/cards/" + UNAVAILABLE_ID), 503, "SCRYFALL_UNAVAILABLE");
 
-        String deckBody = json.writeValueAsString(Map.of("name", "Saved deck", "commander", "Atraxa",
-                "colorIdentity", List.of("W", "U", "B", "G")));
+        String deckBody = json.writeValueAsString(Map.of("name", "Saved deck", "commanders", List.of(Map.of("selectionRef", Map.of("scryfallCardId", CARD_ID)))));
         HttpResponse<String> created = send("POST", "/api/decks", deckBody, session.cookie(), session.token());
         assertThat(created.statusCode()).isEqualTo(201);
         String deckId = json.readTree(created.body()).get("id").asText();
         provider.offline = true;
         int callsBeforeSavedReads = provider.calls.get();
         assertThat(get(session, "/api/decks").statusCode()).isEqualTo(200);
-        String renamed = json.writeValueAsString(Map.of("name", "Renamed offline", "commander", "Atraxa",
-                "colorIdentity", List.of("W", "U", "B", "G")));
+        String renamed = json.writeValueAsString(Map.of("name", "Renamed offline"));
         assertThat(send("PUT", "/api/decks/" + deckId, renamed, session.cookie(), session.token()).statusCode())
                 .isEqualTo(200);
         assertThat(provider.calls).hasValue(callsBeforeSavedReads);

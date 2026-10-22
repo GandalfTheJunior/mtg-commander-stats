@@ -50,7 +50,7 @@ class GameHistoryBatchingTest extends GameTestSupport {
                 String body = i % 2 == 0 ? body(alternate, "DRAW", null) : body(f);
                 gameIds.add(id(expect(f.creator(), "POST", f.path(), body, CREATED.value())));
             }
-            deckService.update(f.creator().id(), f.creatorDeck(), "Current deck name", "Krenko", List.of("R"));
+            deckService.update(f.creator().id(), f.creatorDeck(), "Current deck name", CommanderTestProvider.inputs("Krenko", List.of("R")));
             deckService.archive(f.member().id(), f.memberDeck());
             groupService.leave(f.member().id(), f.groupId());
             jdbc.update("UPDATE users SET username = ? WHERE id = ?", "Current username", f.creator().id());
@@ -91,8 +91,8 @@ class GameHistoryBatchingTest extends GameTestSupport {
             assertThat(history.toString()).doesNotContain("email", "password", "joinCode", "ownerId");
             assertThat(multipleGameStatements).as("SQL statements for six games versus one game")
                     .isEqualTo(singleGameStatements);
-            // Group lock, requesting membership, games with participants, users, decks.
-            assertThat(multipleGameStatements).isEqualTo(5);
+            // Group lock, requesting membership, games with participants, users, decks, Commander snapshots.
+            assertThat(multipleGameStatements).isEqualTo(6);
             expect(f.member(), "GET", f.path(), "", FORBIDDEN.value());
             expect(f.outsider(), "GET", f.path(), "", FORBIDDEN.value());
         } finally {

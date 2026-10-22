@@ -3,7 +3,7 @@ import {
   Alert, Box, Button, Card, Stack, Table, TableBody, TableCell, TableHead, TableRow,
   Typography, useMediaQuery, useTheme,
 } from '@mui/material'
-import { ApiError, getGroupStatistics, type GroupStatistics as Statistics } from './api'
+import { commanderNames, ApiError, getGroupStatistics, type GroupStatistics as Statistics } from './api'
 
 type Sort<Column> = { column: Column; direction: 'ascending' | 'descending' }
 type PlayerColumn = 'username' | 'games' | 'wins' | 'winRatePercent'
@@ -45,7 +45,7 @@ const focusStyle = { '&:focus-visible': { outline: '3px solid', outlineColor: 'i
 type State = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; data: Statistics }
 const percent = new Intl.NumberFormat('en', { maximumFractionDigits: 2 })
 type DisplayRow = { id: string; title: string; games: number; wins: number; winRatePercent: number;
-  commander?: string; owner?: string; ownerId?: string; archived?: boolean }
+  commanders?: { name: string }[]; owner?: string; ownerId?: string; archived?: boolean }
 
 // Presentation choices live in GameManager above this keyed request lifetime.
 // Access rechecks, refreshes, group/session changes retire outstanding requests.
@@ -128,7 +128,7 @@ export default function GroupStatistics({ groupId, onAccessError, sort, onSort, 
   }
   function title(row: DisplayRow) {
     return <>{row.title}{row.archived && <Typography component="span" sx={{ display: 'block', color: 'text.secondary' }}>Archiviert</Typography>}
-      {row.commander && <Typography component="span" sx={{ display: 'block', fontWeight: 400, color: 'text.secondary' }}>Commander: {row.commander}</Typography>}</>
+      {row.commanders && <Typography component="span" sx={{ display: 'block', fontWeight: 400, color: 'text.secondary' }}>Commander: {commanderNames({ commanders: row.commanders })}</Typography>}</>
   }
 
   return <Stack component="section" aria-labelledby={headingId} sx={{ gap: 2, pt: 2, minWidth: 0, color: 'text.primary', bgcolor: 'background.default', overflowWrap: 'anywhere' }}>

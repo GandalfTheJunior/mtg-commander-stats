@@ -1,3 +1,4 @@
+import { savedCommander } from './test/commanderFixtures'
 import { showCode } from './test/groupEntry'
 import { openNewDeck, openExistingDeck, openDeckAction } from './test/editorEntry'
 import { act, fireEvent, screen, within } from '@testing-library/react'
@@ -53,7 +54,7 @@ test('restores the authenticated session and loads its decks', async () => {
   const deck = {
     id: 'd7c6daac-d72f-49b2-9c10-cb7c653ededa',
     name: 'Atraxa Superfriends',
-    commander: "Atraxa, Praetors' Voice",
+    commanders: [savedCommander("Atraxa, Praetors' Voice")],
     colorIdentity: ['W', 'U', 'B', 'G'],
     everUsed: false, archived: false,
   }
@@ -337,6 +338,7 @@ test('shows an unverified session when identity confirmation fails after login',
 test.each(['request', 'csrf'])('a group 401 during %s expires the session and clears decks and groups', async (source) => {
   const group = { id: '11111111-1111-4111-8111-111111111111', name: 'Private group', role: 'OWNER' }
   const fetchMock = vi.fn((path: string) => {
+    if (path.startsWith('/api/scryfall/commanders?')) return Promise.resolve(jsonResponse([{ ...savedCommander('Atraxa'), thumbnailUrl: null }]))
     if (path === '/api/me') return Promise.resolve(jsonResponse(user))
     if (path === '/api/decks') return Promise.resolve(jsonResponse([]))
     if (path === '/api/groups') return Promise.resolve(jsonResponse([group]))
@@ -364,6 +366,7 @@ test('session expiration clears group details and ignores a late invitation-code
   let resolveCode!: (response: Response) => void
   const pendingCode = new Promise<Response>((resolve) => { resolveCode = resolve })
   const fetchMock = vi.fn((path: string, init?: RequestInit) => {
+    if (path.startsWith('/api/scryfall/commanders?')) return Promise.resolve(jsonResponse([{ ...savedCommander('Atraxa'), thumbnailUrl: null }]))
     if (path === '/api/me') return Promise.resolve(jsonResponse(user))
     if (path === '/api/decks' && init?.method === 'POST') return Promise.resolve(jsonResponse({}, 401))
     if (path === '/api/decks') return Promise.resolve(jsonResponse([]))
@@ -383,6 +386,8 @@ test('session expiration clears group details and ignores a late invitation-code
   await screen.findByRole('button', { name: 'Deck erstellen' })
   fireEvent.change(await openNewDeck(), { target: { value: 'My deck' } })
   fireEvent.change(screen.getByLabelText(/Commander/), { target: { value: 'Atraxa' } })
+  fireEvent.focus(screen.getByRole('combobox', { name: /Commander/ }))
+  fireEvent.click(await screen.findByRole('option', { name: 'Atraxa' }))
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
   await screen.findByText('Your session expired. Sign in again.')
   await act(async () => { resolveCode(jsonResponse({ code: 'abcdefghijklmnopqrstuv' })) })
@@ -399,6 +404,7 @@ test.each(['same user', 'different user'])('a confirmed login for %s discards ol
   let resolveCreate!: (response: Response) => void
   const pendingCreate = new Promise<Response>((resolve) => { resolveCreate = resolve })
   const fetchMock = vi.fn((path: string, init?: RequestInit) => {
+    if (path.startsWith('/api/scryfall/commanders?')) return Promise.resolve(jsonResponse([{ ...savedCommander('Atraxa'), thumbnailUrl: null }]))
     if (path === '/api/me') return Promise.resolve(jsonResponse(currentUser))
     if (path === '/api/decks') return Promise.resolve(jsonResponse([]))
     if (path === '/api/groups' && init?.method === 'POST') return pendingCreate
@@ -439,7 +445,7 @@ for (const identity of ['same user', 'different user']) {
       const nextUser = identity === 'same user' ? user : {
         id: 'e55c4c26-2d30-4ae0-8f9b-6100171ee99a', username: 'Saruman',
       }
-      const oldDeck = { everUsed: false, archived: false, id: '11111111-1111-4111-8111-111111111111', name: 'Old private deck', commander: 'Atraxa', colorIdentity: [] }
+      const oldDeck = { everUsed: false, archived: false, id: '11111111-1111-4111-8111-111111111111', name: 'Old private deck', commanders: [savedCommander('Atraxa')], colorIdentity: [] }
       const newDeck = { ...oldDeck, id: 'new-deck', name: 'Current session deck' }
       let resolveOld!: (response: Response) => void
       let rejectOld!: (error: Error) => void
@@ -447,7 +453,8 @@ for (const identity of ['same user', 'different user']) {
       let confirmedLogin = false
       let oldRequestStarted = false
       const fetchMock = vi.fn((path: string, init?: RequestInit) => {
-        if (path === '/api/me') return Promise.resolve(jsonResponse(confirmedLogin ? nextUser : user))
+        if (path.startsWith('/api/scryfall/commanders?')) return Promise.resolve(jsonResponse([{ ...savedCommander('Atraxa'), thumbnailUrl: null }]))
+    if (path === '/api/me') return Promise.resolve(jsonResponse(confirmedLogin ? nextUser : user))
         if (path === '/api/csrf') return Promise.resolve(jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'token' }))
         if (path === '/api/session' && init?.method === 'DELETE') return Promise.resolve(new Response(null, { status: 204 }))
         if (path === '/api/session') {
@@ -473,6 +480,8 @@ for (const identity of ['same user', 'different user']) {
         if (operation === 'create') {
           fireEvent.change(await openNewDeck(), { target: { value: 'Stale created deck' } })
           fireEvent.change(screen.getByLabelText(/Commander/), { target: { value: 'Atraxa' } })
+        fireEvent.focus(screen.getByRole('combobox', { name: /Commander/ }))
+        fireEvent.click(await screen.findByRole('option', { name: 'Atraxa' }))
           fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
         } else if (operation === 'edit') {
           await openExistingDeck()
@@ -520,6 +529,7 @@ test.each(['request', 'csrf'])('a current deck %s 401 after re-login still expir
   let rejectDeck = false
   const fetchMock = vi.fn((path: string, init?: RequestInit) => {
     if (path === '/api/session' && init?.method === 'DELETE') return Promise.resolve(new Response(null, { status: 204 }))
+    if (path.startsWith('/api/scryfall/commanders?')) return Promise.resolve(jsonResponse([{ ...savedCommander('Atraxa'), thumbnailUrl: null }]))
     if (path === '/api/me' || path === '/api/session') return Promise.resolve(jsonResponse(user))
     if (path === '/api/groups') return Promise.resolve(jsonResponse([]))
     if (path === '/api/decks') return Promise.resolve(jsonResponse(init?.method ? {} : [], init?.method ? 401 : 200))
@@ -541,6 +551,8 @@ test.each(['request', 'csrf'])('a current deck %s 401 after re-login still expir
   rejectDeck = true
   fireEvent.change(await openNewDeck(), { target: { value: 'Deck' } })
   fireEvent.change(screen.getByLabelText(/Commander/), { target: { value: 'Atraxa' } })
+  fireEvent.focus(screen.getByRole('combobox', { name: /Commander/ }))
+  fireEvent.click(await screen.findByRole('option', { name: 'Atraxa' }))
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
   await screen.findByText('Your session expired. Sign in again.')
   expect(screen.getByText('Not signed in.')).toBeInTheDocument()

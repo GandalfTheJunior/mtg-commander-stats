@@ -9,13 +9,25 @@ export type MagicColor = (typeof magicColors)[number]
 export type Deck = {
   id: string
   name: string
-  commander: string
+  commanders: SavedCommander[]
   colorIdentity: MagicColor[]
   everUsed: boolean
   archived: boolean
 }
 
-export type DeckInput = Pick<Deck, 'name' | 'commander' | 'colorIdentity'>
+export type CommanderSelectionRef = { scryfallCardId: string; gameplayFaceIndex?: number }
+export type CommanderChoice = {
+  selectionRef: CommanderSelectionRef; scryfallCardId: string; name: string; colorIdentity: MagicColor[]
+  requiresChosenColor: boolean; canBeSoleCommander: boolean; thumbnailUrl: string | null
+}
+export type SavedCommander = Omit<CommanderChoice, 'thumbnailUrl'> & {
+  position: number; oracleId: string; chosenColor: MagicColor | null; effectiveColorIdentity: MagicColor[]
+  artworkFaceIndex: number | null; artCropUrl: string | null; illustrationId: string | null; artist: string | null; scryfallUri: string | null
+}
+export type DeckInput = { name: string; commanders?: { selectionRef: CommanderSelectionRef; chosenColor?: MagicColor }[] }
+export const commanderNames = (deck: { commanders: { name: string }[] }) => deck.commanders.map(card => card.name).join(' / ')
+export const scryfallUnavailable = 'Scryfall is currently imprisoned in the moon… Please try again later.'
+
 
 export class ApiError extends Error {
   readonly status: number
@@ -86,8 +98,6 @@ function deckFrom(value: unknown): Deck {
     typeof value.id !== 'string' ||
     !('name' in value) ||
     typeof value.name !== 'string' ||
-    !('commander' in value) ||
-    typeof value.commander !== 'string' ||
     !('everUsed' in value) || typeof value.everUsed !== 'boolean' ||
     !('archived' in value) || typeof value.archived !== 'boolean' ||
     !('colorIdentity' in value) ||
@@ -101,7 +111,7 @@ function deckFrom(value: unknown): Deck {
   return {
     id: value.id,
     name: value.name,
-    commander: value.commander,
+    commanders: commandersFrom('commanders' in value ? value.commanders : undefined),
     colorIdentity: value.colorIdentity as MagicColor[],
     everUsed: value.everUsed,
     archived: value.archived,
@@ -336,7 +346,7 @@ export async function archiveDeck(id: string, signal?: AbortSignal): Promise<Dec
   return deck
 }
 
-export type DeckSelection = Pick<Deck, 'id' | 'name' | 'commander' | 'colorIdentity'>
+export type DeckSelection = Pick<Deck, 'id' | 'name' | 'commanders' | 'colorIdentity'>
 export type GameParticipant = {
   userId: string
   username: string
@@ -366,12 +376,12 @@ function canonicalColors(colors: unknown[]): string {
 
 function selectionFrom(value: unknown): DeckSelection {
   if (!isRecord(value) || !isUuid(value.id) || typeof value.name !== 'string' || !value.name ||
-    typeof value.commander !== 'string' || !value.commander || !Array.isArray(value.colorIdentity) ||
+    !Array.isArray(value.colorIdentity) ||
     value.colorIdentity.some((color) => !magicColors.includes(color as MagicColor)) ||
     value.colorIdentity.join('') !== canonicalColors(value.colorIdentity)) {
     throw new Error('The server returned invalid deck selection data.')
   }
-  return { id: value.id, name: value.name, commander: value.commander, colorIdentity: value.colorIdentity as MagicColor[] }
+  return { id: value.id, name: value.name, commanders: commandersFrom(value.commanders), colorIdentity: value.colorIdentity as MagicColor[] }
 }
 
 function gameFrom(value: unknown, groupId: string, gameId?: string): Game {
@@ -466,7 +476,7 @@ export type DeckStatistics = {
   ownerUserId: string
   ownerUsername: string
   name: string
-  commander: string
+  commanders: SavedCommander[]
   archived: boolean
   games: number
   wins: number
@@ -503,15 +513,69 @@ export async function getGroupStatistics(groupId: string, signal?: AbortSignal):
     if (!isRecord(row) || !isUuid(row.deckId) || !isUuid(row.ownerUserId) ||
       typeof row.ownerUsername !== 'string' || !row.ownerUsername ||
       typeof row.name !== 'string' || !row.name ||
-      typeof row.commander !== 'string' || !row.commander || typeof row.archived !== 'boolean') {
+      typeof row.archived !== 'boolean') {
       throw new Error('The server returned invalid deck statistics.')
     }
     return { deckId: row.deckId, ownerUserId: row.ownerUserId, ownerUsername: row.ownerUsername,
-      name: row.name, commander: row.commander, archived: row.archived, ...statisticsCounts(row) }
+      name: row.name, commanders: commandersFrom(row.commanders), archived: row.archived, ...statisticsCounts(row) }
   })
   if (new Set(players.map((row) => row.userId.toLowerCase())).size !== players.length ||
     new Set(decks.map((row) => row.deckId.toLowerCase())).size !== decks.length) {
     throw new Error('The server returned duplicate statistics rows.')
   }
   return { players, decks }
+}
+
+function colorsFrom(value: unknown): MagicColor[] {
+  if (!Array.isArray(value) || value.some(color => !magicColors.includes(color as MagicColor)) || value.join('') !== canonicalColors(value)) {
+    throw new Error('The server returned invalid Commander colors.')
+  }
+  return value as MagicColor[]
+}
+function referenceFrom(value: unknown): CommanderSelectionRef {
+  if (!isRecord(value) || !isUuid(value.scryfallCardId) || (value.gameplayFaceIndex !== undefined &&
+    (typeof value.gameplayFaceIndex !== 'number' || !Number.isSafeInteger(value.gameplayFaceIndex) || value.gameplayFaceIndex < 0))) {
+    throw new Error('The server returned an invalid Commander selection.')
+  }
+  return { scryfallCardId: value.scryfallCardId, ...(value.gameplayFaceIndex !== undefined ? { gameplayFaceIndex: value.gameplayFaceIndex as number } : {}) }
+}
+function choiceFrom(value: unknown): CommanderChoice {
+  if (!isRecord(value) || typeof value.name !== 'string' || !value.name || !isUuid(value.scryfallCardId) ||
+    typeof value.requiresChosenColor !== 'boolean' || typeof value.canBeSoleCommander !== 'boolean') {
+    throw new Error('The server returned an invalid Commander choice.')
+  }
+  const selectionRef = referenceFrom(value.selectionRef)
+  if (selectionRef.scryfallCardId !== value.scryfallCardId) throw new Error('The server returned inconsistent Commander printing data.')
+  return { name: value.name, selectionRef, scryfallCardId: value.scryfallCardId, colorIdentity: colorsFrom(value.colorIdentity),
+    requiresChosenColor: value.requiresChosenColor, canBeSoleCommander: value.canBeSoleCommander,
+    thumbnailUrl: typeof value.thumbnailUrl === 'string' && /^https:\/\//.test(value.thumbnailUrl) ? value.thumbnailUrl : null }
+}
+function commandersFrom(value: unknown): SavedCommander[] {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 2) throw new Error('The server returned invalid Commanders.')
+  const result = value.map((card: unknown, index): SavedCommander => {
+    const choice = choiceFrom(card)
+    if (!isRecord(card) || card.position !== index + 1 || !isUuid(card.oracleId) ||
+      (choice.requiresChosenColor ? !magicColors.includes(card.chosenColor as MagicColor) : card.chosenColor !== null) ||
+      (card.artworkFaceIndex !== null && (typeof card.artworkFaceIndex !== 'number' || !Number.isSafeInteger(card.artworkFaceIndex) || card.artworkFaceIndex < 0))) {
+      throw new Error('The server returned an invalid saved Commander.')
+    }
+    const nullableText = (key: string): string | null => {
+      if (card[key] !== null && typeof card[key] !== 'string') throw new Error('The server returned invalid Commander artwork.')
+      return card[key] as string | null
+    }
+    const { thumbnailUrl: _thumbnail, ...metadata } = choice
+    void _thumbnail
+    return { ...metadata, position: index + 1, oracleId: card.oracleId, chosenColor: card.chosenColor as MagicColor | null,
+      effectiveColorIdentity: colorsFrom(card.effectiveColorIdentity), artworkFaceIndex: card.artworkFaceIndex as number | null,
+      artCropUrl: nullableText('artCropUrl'), illustrationId: nullableText('illustrationId'), artist: nullableText('artist'), scryfallUri: nullableText('scryfallUri') }
+  })
+  if (new Set(result.map(card => card.oracleId)).size !== result.length) throw new Error('The server returned duplicate Commanders.')
+  return result
+}
+export async function searchCommanders(query: string, signal?: AbortSignal): Promise<CommanderChoice[]> {
+  const response = await fetch(`/api/scryfall/commanders?q=${encodeURIComponent(query)}`, { ...requestDefaults, signal })
+  if (!response.ok) throw new ApiError(scryfallUnavailable, response.status)
+  const body: unknown = await response.json()
+  if (!Array.isArray(body) || body.length > 20) throw new Error(scryfallUnavailable)
+  return body.map(choiceFrom)
 }

@@ -1,3 +1,4 @@
+import { commanderNames } from './api'
 import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
 import { Alert, Box, Button, Card, Stack, TextField, Typography } from '@mui/material'
 import { ApiError, memberDecks, type DeckSelection, type Game, type GameInput, type GroupDetails } from './api'
@@ -156,7 +157,7 @@ export default function GameEditor({ group, game, busy, writeError, onSubmit, on
           {!expanded && deck ? <>
             <Typography sx={{ fontWeight: 700 }}>{label(row.userId)}</Typography>
             <Typography>{deck.name}</Typography>
-            <Typography sx={{ color: 'text.secondary' }}>Commander: {deck.commander}</Typography>
+            <Typography sx={{ color: 'text.secondary' }}>Commander: {commanderNames(deck)}</Typography>
             <Typography sx={{ color: 'text.secondary' }}>Farbidentität: {deck.colorIdentity.join(' · ') || 'Farblos'}</Typography>
             <Button id={`game-${row.key}-edit`} color="secondary" variant="outlined" disabled={busy} aria-label={`Spieler ${index + 1} bearbeiten`}
               onClick={() => {
@@ -189,7 +190,7 @@ export default function GameEditor({ group, game, busy, writeError, onSubmit, on
               }}>
               <option value="">Deck auswählen</option>
               {decks(row).map(deck => <option key={deck.id} value={deck.id}>
-                {deck.name} — {deck.commander} — {deck.colorIdentity.join('') || 'Farblos'}
+                {deck.name} — {commanderNames(deck)} — {deck.colorIdentity.join('') || 'Farblos'}
                 {previous?.deckId === deck.id ? ` · nur erfasste Zuordnung${previous.deck.archived ? ' · Archiviertes Deck' : ''}` : ''}
               </option>)}
             </TextField>

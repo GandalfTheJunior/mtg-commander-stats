@@ -37,7 +37,7 @@ class GameManagementTest extends GameTestSupport {
         for (JsonNode participant : first.get("participants")) {
             assertThat(participant.get("username").asText()).isEqualTo("Same Name");
             assertThat(participant.get("deck").get("id")).isEqualTo(participant.get("deckId"));
-            assertThat(participant.get("deck").get("commander").asText()).isEqualTo("Krenko");
+            assertThat(participant.get("deck").get("commanders").get(0).get("name").asText()).isEqualTo("Krenko");
         }
         assertThat(first.toString()).doesNotContain("email", "password", "joinCode", "ownerId");
         assertThat(expect(f.member(), "GET", f.path() + "/" + id(first), "", OK.value())).isEqualTo(first);
@@ -274,7 +274,7 @@ class GameManagementTest extends GameTestSupport {
         for (UUID deckId : List.of(f.memberDeck(), replacement)) {
             assertThat(decks.findById(deckId).orElseThrow().isEverUsed()).isTrue();
             JsonNode renamed = expect(f.member(), "PUT", "/api/decks/" + deckId,
-                    deckBody("Renamed", " Krenko ", List.of("R")), OK.value());
+                    "{\"name\":\"Renamed\"}", OK.value());
             assertThat(renamed.get("name").asText()).isEqualTo("Renamed");
             assertThat(renamed.get("everUsed").asBoolean()).isTrue();
             expect(f.member(), "PUT", "/api/decks/" + deckId, deckBody("Other", "Atraxa", List.of("R")), CONFLICT.value());

@@ -37,7 +37,7 @@ test.each(['players', 'decks'] as const)('rejects invalid counts, labels and IDs
     { wins: -1 }, { wins: 0.5 }, { wins: '1' }, { wins: 99 }, { wins: undefined },
     { winRatePercent: -0.1 }, { winRatePercent: 101 }, { winRatePercent: '50' }, { winRatePercent: null },
     ...(kind === 'players' ? [{ userId: 'invalid' }, { username: '' }, { username: null }]
-      : [{ deckId: 'invalid' }, { ownerUserId: uid(1).slice(1) }, { ownerUsername: null }, { name: '' }, { commander: null }, { archived: 'true' }, { archived: undefined }]),
+      : [{ deckId: 'invalid' }, { ownerUserId: uid(1).slice(1) }, { ownerUsername: null }, { name: '' }, { commanders: null }, { archived: 'true' }, { archived: undefined }]),
   ]
   for (const change of changes) {
     const data = statistics()
@@ -83,7 +83,7 @@ test('preserves product-valid display text exactly, including BOM and zero-width
   data.players[0].username = '\uFEFF'
   data.decks[0].ownerUsername = '\uFEFF'
   data.decks[0].name = '\u200B'
-  data.decks[0].commander = '\uFEFF'
+  data.decks[0].commanders[0].name = '\uFEFF'
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(data)))
   expect(await getGroupStatistics(group.id)).toEqual(data)
 })

@@ -40,7 +40,7 @@ import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import(DatabaseConfiguration.class)
+@Import({DatabaseConfiguration.class, CommanderTestProvider.Configuration.class})
 abstract class GameTestSupport {
     private static final String PASSWORD = "correct horse battery";
 
@@ -63,6 +63,8 @@ abstract class GameTestSupport {
     @Autowired
     protected ManageDecks deckService;
     @Autowired
+    protected CommanderTestProvider provider;
+    @Autowired
     protected ManageGroups groupService;
 
     protected final JsonMapper json = JsonMapper.builder().build();
@@ -71,6 +73,7 @@ abstract class GameTestSupport {
     @BeforeEach
     @AfterEach
     void clearData() {
+        provider.offline = false;
         games.deleteAll();
         groups.deleteAll();
         decks.deleteAll();
@@ -110,7 +113,7 @@ abstract class GameTestSupport {
     }
 
     protected String deckBody(String name, String commander, List<String> colors) {
-        return json.writeValueAsString(Map.of("name", name, "commander", commander, "colorIdentity", colors));
+        return json.writeValueAsString(Map.of("name", name, "commanders", CommanderTestProvider.inputs(commander, colors)));
     }
 
     protected String body(Fixture fixture) {

@@ -8,15 +8,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import io.github.gandalfthejunior.mtgcommanderstats.deck.application.GameDecks;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CommanderSummary;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.GameDecks.DeckDisplay;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.application.GameDecks;
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.Game;
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.GameParticipant;
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.GameResult;
 import io.github.gandalfthejunior.mtgcommanderstats.game.persistence.GameRepository;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GameGroupAccess;
-import io.github.gandalfthejunior.mtgcommanderstats.user.application.UserDirectory;
 import io.github.gandalfthejunior.mtgcommanderstats.user.application.UserDirectory.PublicUser;
+import io.github.gandalfthejunior.mtgcommanderstats.user.application.UserDirectory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,7 +69,7 @@ public class ReadGroupStatistics {
             DeckDisplay deck = publicDecks.get(entry.getKey());
             UUID ownerId = deckOwners.get(entry.getKey());
             return new DeckStatistics(deck.id(), ownerId, publicUsers.get(ownerId).username(), deck.name(),
-                    deck.commander(), deck.archived(), counts.games(), counts.wins(), counts.winRatePercent());
+                    deck.commanders(), deck.archived(), counts.games(), counts.wins(), counts.winRatePercent());
         }).sorted(Comparator.comparing(DeckStatistics::ownerUsername).thenComparing(DeckStatistics::name)
                 .thenComparing(DeckStatistics::deckId)).toList();
         return new GroupStatistics(players, deckRows);
@@ -91,7 +92,7 @@ public class ReadGroupStatistics {
     public record PlayerStatistics(UUID userId, String username, long games, long wins, BigDecimal winRatePercent) {
     }
 
-    public record DeckStatistics(UUID deckId, UUID ownerUserId, String ownerUsername, String name, String commander,
+    public record DeckStatistics(UUID deckId, UUID ownerUserId, String ownerUsername, String name, List<CommanderSummary> commanders,
             boolean archived, long games, long wins, BigDecimal winRatePercent) {
     }
 }

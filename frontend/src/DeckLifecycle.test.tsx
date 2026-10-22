@@ -1,3 +1,4 @@
+import { savedCommander } from './test/commanderFixtures'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { changeDeck, deck, deckApi, editDeck, menuAction, showDeckApp } from './test/deckFixtures'
@@ -7,9 +8,9 @@ afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState(null, '', '
 test.each([
   [false, false, 'Löschen'], [true, false, 'Archivieren'], [true, true, null], [false, true, 'Löschen'],
 ] as const)('lifecycle used=%s archived=%s allows exactly %s and correct editable fields', async (everUsed, archived, action) => {
-  const api = deckApi([{ ...deck, everUsed, archived, colorIdentity: ['R'] }]); showDeckApp(); await editDeck()
-  expect(screen.getByRole('textbox', { name: /Commander/ })).toHaveProperty('readOnly', everUsed)
-  expect(screen.getByRole('button', { name: 'Rot (R)' })).toHaveProperty('disabled', everUsed)
+  const api = deckApi([{ ...deck, everUsed, archived, colorIdentity: ['R'], commanders: [savedCommander('Karn', ['R'])] }]); showDeckApp(); await editDeck()
+  expect(screen.getByRole('combobox', { name: /Commander/ })).toHaveProperty('readOnly', everUsed)
+  expect(screen.getByRole('button', { name: 'Rot (R)' })).toBeDisabled()
   expect(screen.getByRole('button', { name: 'Rot (R)' })).toHaveAttribute('aria-pressed', 'true')
   if (!action) expect(screen.queryByRole('button', { name: 'Deckaktionen' })).not.toBeInTheDocument()
   else {
@@ -18,10 +19,10 @@ test.each([
     expect(screen.getByRole('menuitem', { name: action })).toBeInTheDocument()
     fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
   }
-  changeDeck('Renamed')
+  await changeDeck('Renamed')
   fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
   await screen.findByText('Renamed wurde gespeichert.')
-  expect(JSON.parse(api.writes()[0][1]!.body as string)).toEqual({ name: 'Renamed', commander: deck.commander, colorIdentity: ['R'] })
+  expect(JSON.parse(api.writes()[0][1]!.body as string)).toEqual({ name: 'Renamed' })
 })
 test.each([false, true])('named destructive confirmation restores focus when canceled and waits for acknowledgement (used=%s)', async everUsed => {
   const api = deckApi([{ ...deck, everUsed }]); showDeckApp(); await editDeck()
@@ -63,7 +64,7 @@ test.each([403, 404, 409, 500])('archival denial %s never claims success and req
   expect(api.writes()).toHaveLength(1)
 })
 test('unused delete conflict refreshes permanent usage, preserving local name and requiring explicit review', async () => {
-  const api = deckApi(); showDeckApp(); await editDeck(); changeDeck('My draft', 'Draft commander')
+  const api = deckApi(); showDeckApp(); await editDeck(); await changeDeck('My draft', 'Draft commander')
   api.next(`/api/decks/${deck.id}`, () => {
     api.state.decks = [{ ...deck, everUsed: true, colorIdentity: ['W'] }]
     return response({ detail: 'Deck is now used.' }, 409)
@@ -73,11 +74,11 @@ test('unused delete conflict refreshes permanent usage, preserving local name an
   await screen.findByRole('button', { name: 'Serverstand geprüft – Entwurf weiter bearbeiten' })
   expect(screen.getByRole('textbox', { name: /Deckname/ })).toHaveValue('My draft')
   expect(screen.getByText(/Dein Entwurf: My draft · Draft commander/)).toBeInTheDocument()
-  expect(screen.getByRole('textbox', { name: /Commander/ })).toHaveValue('Karn')
+  expect(screen.getByRole('combobox', { name: /Commander/ })).toHaveValue('Karn')
   fireEvent.click(screen.getByRole('button', { name: 'Serverstand geprüft – Entwurf weiter bearbeiten' }))
   fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
   await screen.findByText('My draft wurde gespeichert.')
-  expect(JSON.parse(api.writes()[1][1]!.body as string)).toEqual({ name: 'My draft', commander: 'Karn', colorIdentity: ['W'] })
+  expect(JSON.parse(api.writes()[1][1]!.body as string)).toEqual({ name: 'My draft' })
 })
 
 test.each(['/dashboard', '/decks'] as const)('dirty archival explicitly discards the rename and returns to fresh %s only after acknowledgement', async origin => {
@@ -87,7 +88,7 @@ test.each(['/dashboard', '/decks'] as const)('dirty archival explicitly discards
     fireEvent.click(await screen.findByRole('button', { name: deck.name }))
     await screen.findByRole('textbox', { name: /Deckname/ })
   } else await editDeck()
-  changeDeck('Ungespeicherte Umbenennung')
+  await changeDeck('Ungespeicherte Umbenennung')
   const listCount = () => api.fetchMock.mock.calls.filter(([path, init]) => path === '/api/decks' && !init?.method).length
   const loadedLists = listCount()
   const dialog = await menuAction('Archivieren')

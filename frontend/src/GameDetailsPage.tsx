@@ -1,3 +1,4 @@
+import { commanderNames } from './api'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { Alert, Box, Button, Card, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, Menu, MenuItem, Stack, Typography } from '@mui/material'
@@ -160,7 +161,7 @@ export default function GameDetailsPage({ currentUser, onUnauthorized, onNotice,
           <Typography component="h4" variant="h6">{publicName(person, people)}{person.userId === ready.game.winnerUserId && ' · Sieg'}</Typography>
           {!ready.group.members.some(member => sameId(member.userId, person.userId)) && <Typography sx={{ color: 'text.secondary' }}>Ehemaliges Mitglied</Typography>}
           <Typography sx={{ mt: 1, fontWeight: 600 }}>{person.deck.name}</Typography>
-          <Typography>Commander: {person.deck.commander}</Typography>
+          <Typography>Commander: {commanderNames(person.deck)}</Typography>
           <Typography>Farbidentität: {person.deck.colorIdentity.length ? person.deck.colorIdentity.map(color => `${color} (${colorNames[color]})`).join(' · ') : 'Farblos'}</Typography>
           {person.deck.archived && <Typography sx={{ color: 'text.secondary' }}>Archiviertes Deck</Typography>}
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>Deckkennung: {person.deckId}</Typography>

@@ -1,3 +1,4 @@
+import { savedCommander } from './commanderFixtures'
 import { vi } from 'vitest'
 import type { DeckSelection, Game, GameInput, GroupDetails, GroupMember, GroupStatistics } from '../api'
 
@@ -9,7 +10,7 @@ export const members: GroupMember[] = [
   { userId: uid(4), username: 'Fourth', role: 'MEMBER' },
 ]
 export const group: GroupDetails = { id: uid(10), name: 'Friday games', role: 'OWNER', members }
-export const deckFor = (n: number): DeckSelection => ({ id: uid(100 + n), name: `Deck ${n}`, commander: `Commander ${n}`, colorIdentity: ['R'] })
+export const deckFor = (n: number): DeckSelection => ({ id: uid(100 + n), name: `Deck ${n}`, commanders: [savedCommander(`Commander ${n}`)], colorIdentity: ['R'] })
 export function recorded(overrides: Partial<Game> = {}): Game {
   return { id: uid(20), groupId: group.id, creatorId: uid(2), recordedAt: '2026-10-16T08:00:00.123456Z',
     result: 'WIN', winnerUserId: uid(2), participants: [2, 3].map((n) => ({

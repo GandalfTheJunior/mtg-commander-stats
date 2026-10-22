@@ -1,3 +1,4 @@
+import { savedCommander } from './test/commanderFixtures'
 import { stubLanHttpCrypto } from './test/lanHttp'
 import { StrictMode } from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -22,37 +23,34 @@ const stay = async () => {
 const discard = async () => { fireEvent.click(await screen.findByRole('button', { name: 'Verwerfen und verlassen' })) }
 const warning = () => { const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented }
 
-test.each([[], ['R'], ['W', 'U', 'B'], ['W', 'U', 'B', 'R', 'G']].map(colors => ({ colors: colors as MagicColor[] })))('creates canonical colors $colors through five independent accessible controls', async ({ colors }) => {
+test.each([[], ['R'], ['W', 'U', 'B'], ['W', 'U', 'B', 'R', 'G']].map(colors => ({ colors: colors as MagicColor[] })))('creates using authoritative selected colors $colors and read-only WUBRG', async ({ colors }) => {
   const api = deckApi(); showDeckApp(); await newDeck()
-  expect(screen.getAllByRole('button', { pressed: false })).toHaveLength(5)
-  expect(screen.getByText('Farblos')).toBeInTheDocument()
-  changeDeck('  Internal  spaces  ', 'Karn')
-  const names = { W: 'Weiß', U: 'Blau', B: 'Schwarz', R: 'Rot', G: 'Grün' }
-  for (const color of [...colors].reverse()) fireEvent.click(screen.getByRole('button', { name: `${names[color]} (${color})` }))
-  fireEvent.click(screen.getByRole('button', { name: 'Grün (G)' })); fireEvent.click(screen.getByRole('button', { name: 'Grün (G)' }))
+  expect(screen.queryByText('Farblos')).not.toBeInTheDocument()
+  api.next('/api/scryfall/commanders?q=Karn', () => response([{ ...savedCommander('Karn', colors), thumbnailUrl: null }]))
+  await changeDeck('  Internal  spaces  ', 'Karn')
+  for (const button of screen.queryAllByRole('button', { pressed: true })) expect(button).toBeDisabled()
+  expect(screen.queryAllByRole('button', { pressed: true })).toHaveLength(colors.length)
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
   await screen.findByText(/wurde erstellt\./)
-  await screen.findByRole('heading', { name: 'Meine Decks' })
-  expect(JSON.parse(api.writes()[0][1]!.body as string)).toEqual({ name: '  Internal  spaces  ', commander: 'Karn', colorIdentity: colors })
+  expect(JSON.parse(api.writes()[0][1]!.body as string)).toEqual({ name: '  Internal  spaces  ', commanders: [{ selectionRef: deck.commanders[0].selectionRef }] })
   expect(api.fetchMock.mock.calls.find(([path]) => path === '/api/csrf')?.[1]?.signal).toBe(api.writes()[0][1]!.signal)
-  expect(window.location.pathname).toBe('/decks')
   expect(warning()).toBe(false)
 })
 test.each(['', '\u00a0\u0085\u001c', '   '])('DisplayText blank %j has field errors and no unsafe request', async value => {
   const api = deckApi(); showDeckApp('/decks/new'); await screen.findByRole('textbox', { name: /Deckname/ })
-  changeDeck(value, value)
+  await changeDeck(value, value)
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
   expect(screen.getByText('Bitte einen Decknamen eingeben.')).toBeInTheDocument()
-  expect(screen.getByText('Bitte einen Commander eingeben.')).toBeInTheDocument()
+  expect(screen.getByText('Bitte einen Commander aus den Suchergebnissen wählen.')).toBeInTheDocument()
   expect(field()).toHaveFocus()
   expect(api.writes()).toHaveLength(0)
 })
 test('zero width space and BOM are meaningful DisplayText and pass through unchanged', async () => {
   const api = deckApi(); showDeckApp('/decks/new'); await screen.findByRole('textbox', { name: /Deckname/ })
-  changeDeck('\u200b', '\ufeff')
+  await changeDeck('\u200b', 'Karn')
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
   await waitFor(() => expect(api.writes()).toHaveLength(1))
-  expect(JSON.parse(api.writes()[0][1]!.body as string)).toMatchObject({ name: '\u200b', commander: '\ufeff' })
+  expect(JSON.parse(api.writes()[0][1]!.body as string)).toMatchObject({ name: '\u200b', commanders: [{ selectionRef: deck.commanders[0].selectionRef }] })
 })
 test.each(['/dashboard', '/decks'] as const)('save/cancel/discard use trusted calling overview %s', async origin => {
   const api = deckApi(); showDeckApp(origin)
@@ -63,7 +61,7 @@ test.each(['/dashboard', '/decks'] as const)('save/cancel/discard use trusted ca
   const overviewLists = api.fetchMock.mock.calls.filter(([path]) => path === '/api/decks').length
   await newDeck()
   expect(api.fetchMock.mock.calls.filter(([path]) => path === '/api/decks')).toHaveLength(overviewLists)
-  changeDeck('New', 'Karn')
+  await changeDeck('New', 'Karn')
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
   await screen.findByText('New wurde erstellt.')
   expect(window.location.pathname).toBe(origin)
@@ -72,7 +70,7 @@ test.each(['/dashboard', '/decks'] as const)('save/cancel/discard use trusted ca
   fireEvent.click(screen.getByRole('button', { name: 'Zurück' }))
   await screen.findByRole('heading', { name: origin === '/dashboard' ? 'Dashboard' : 'Meine Decks' })
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  await newDeck(); changeDeck('Discard', 'Karn')
+  await newDeck(); await changeDeck('Discard', 'Karn')
   fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
   await stay(); expect(field()).toHaveValue('Discard')
   fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' })); await discard()
@@ -116,7 +114,7 @@ test.each(['malformed', uid(999)])('invalid/missing/foreign ID %s is unavailable
 test('reload retains stable deck URL but never the previous Dashboard origin/draft', async () => {
   deckApi(); const view = showDeckApp('/dashboard')
   fireEvent.click(await screen.findByRole('button', { name: deck.name })); await screen.findByRole('textbox', { name: /Deckname/ })
-  changeDeck('Not persisted')
+  await changeDeck('Not persisted')
   const state = window.history.state.usr, path = window.location.pathname
   view.unmount(); showDeckApp(path, state); await screen.findByRole('textbox', { name: /Deckname/ })
   expect(field()).toHaveValue(deck.name)
@@ -125,9 +123,9 @@ test('reload retains stable deck URL but never the previous Dashboard origin/dra
 })
 test('a no-op draft is clean, dirty exits stay with intact input/focus, and beforeunload is scoped', async () => {
   deckApi(); showDeckApp(); await editDeck(); expect(warning()).toBe(false)
-  changeDeck('Changed'); expect(warning()).toBe(true)
-  changeDeck(deck.name); expect(warning()).toBe(false)
-  changeDeck('Changed'); field().focus()
+  await changeDeck('Changed'); expect(warning()).toBe(true)
+  await changeDeck(deck.name); expect(warning()).toBe(false)
+  await changeDeck('Changed'); field().focus()
   await goTo('Dashboard'); await stay()
   expect(field()).toHaveValue('Changed')
   await waitFor(() => expect(field()).toHaveFocus())
@@ -136,7 +134,7 @@ test('a no-op draft is clean, dirty exits stay with intact input/focus, and befo
   expect(warning()).toBe(false)
 })
 test('actual BrowserRouter Back/Forward preserves dirty editor, stay restores URL, discard replays intended traversal', async () => {
-  deckApi(); showDeckApp('/dashboard'); await goTo('Decks'); await editDeck(); changeDeck('Draft')
+  deckApi(); showDeckApp('/dashboard'); await goTo('Decks'); await editDeck(); await changeDeck('Draft')
   const editorPath = window.location.pathname
   await act(async () => window.history.back())
   await screen.findByRole('dialog')
@@ -151,7 +149,7 @@ test('actual BrowserRouter Back/Forward preserves dirty editor, stay restores UR
   await act(async () => window.history.back()); await screen.findByRole('heading', { name: 'Meine Decks' })
 })
 test.each(['network', 'status', 'malformed'] as const)('ambiguous %s write cannot succeed or retry until explicit server recheck', async outcome => {
-  const api = deckApi(); showDeckApp(); await editDeck(); changeDeck('Ambiguous')
+  const api = deckApi(); showDeckApp(); await editDeck(); await changeDeck('Ambiguous')
   api.next(`/api/decks/${deck.id}`, () => {
     if (outcome === 'network') throw new Error('offline')
     return response(outcome === 'malformed' ? {} : deck, outcome === 'status' ? 202 : 200)
@@ -169,7 +167,7 @@ test.each(['network', 'status', 'malformed'] as const)('ambiguous %s write canno
   expect(api.writes()).toHaveLength(2)
 })
 test.each(['csrf', 'write'])('logout retires a pending %s immediately without dirty prompt; old 401 cannot expire same-UUID re-login', async source => {
-  const api = deckApi(), pending = deferred(); showDeckApp(); await editDeck(); changeDeck('Old')
+  const api = deckApi(), pending = deferred(); showDeckApp(); await editDeck(); await changeDeck('Old')
   api.next(source === 'csrf' ? '/api/csrf' : `/api/decks/${deck.id}`, () => pending.promise, source === 'csrf' ? 'GET' : 'PUT')
   fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
   await waitFor(() => expect(api.fetchMock.mock.calls.some(([path]) => path === '/api/csrf')).toBe(true))
@@ -195,7 +193,7 @@ test.each([false, true])('archive current vs retired 401 expires only the active
 test('StrictMode editor uses fresh confirmed fields without resetting user input on rerender', async () => {
   deckApi(); window.history.replaceState(null, '', `/decks/${deck.id}/edit`)
   render(<StrictMode><AppThemeProvider><BrowserRouter><App /></BrowserRouter></AppThemeProvider></StrictMode>)
-  await screen.findByRole('textbox', { name: /Deckname/ }); changeDeck('Keep draft')
+  await screen.findByRole('textbox', { name: /Deckname/ }); await changeDeck('Keep draft')
   await menuAction('Löschen'); fireEvent.click(screen.getByRole('button', { name: 'Abbrechen', hidden: false }))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(field()).toHaveValue('Keep draft')
@@ -205,7 +203,7 @@ test('dirty Forward traversal prompts and retains fields on stay, then discards 
   deckApi(); showDeckApp('/decks/new'); await screen.findByRole('textbox', { name: /Deckname/ })
   await goTo('Decks'); await screen.findByRole('heading', { name: 'Meine Decks' })
   await act(async () => window.history.back()); await screen.findByRole('textbox', { name: /Deckname/ })
-  changeDeck('Forward draft', 'Karn')
+  await changeDeck('Forward draft', 'Karn')
   await act(async () => window.history.forward()); await screen.findByRole('dialog')
   await waitFor(() => expect(window.location.pathname).toBe('/decks/new'))
   await stay(); expect(field()).toHaveValue('Forward draft')
@@ -215,7 +213,7 @@ test('dirty Forward traversal prompts and retains fields on stay, then discards 
 })
 test('native links leaving the editor prompt, same-page skip links do not, logout bypasses the prompt', async () => {
   deckApi(); showDeckApp('/decks/new'); await screen.findByRole('textbox', { name: /Deckname/ })
-  changeDeck('Native link draft', 'Karn')
+  await changeDeck('Native link draft', 'Karn')
   const link = document.createElement('a')
   link.href = '/dashboard'; link.textContent = 'Native exit'; document.body.append(link)
   fireEvent.click(link); await stay()
@@ -231,7 +229,7 @@ test('native links leaving the editor prompt, same-page skip links do not, logou
 })
 test('double submit during CSRF preparation sends a single create and keeps all controls restricted', async () => {
   const api = deckApi(), pending = deferred(); showDeckApp('/decks/new'); await screen.findByRole('textbox', { name: /Deckname/ })
-  changeDeck('Once', 'Karn'); api.next('/api/csrf', () => pending.promise)
+  await changeDeck('Once', 'Karn'); api.next('/api/csrf', () => pending.promise)
   const submit = screen.getByRole('button', { name: 'Deck erstellen' })
   fireEvent.click(submit); fireEvent.click(submit)
   expect(field()).toBeDisabled()
@@ -244,14 +242,14 @@ test('double submit during CSRF preparation sends a single create and keeps all 
 })
 
 test('duplicate display names still select the exact owned UUID', async () => {
-  const second = { ...deck, id: uid(104), commander: 'Second commander' }
+  const second = { ...deck, id: uid(104), commanders: [savedCommander('Second commander')] }
   deckApi([deck, second]); showDeckApp(`/decks/${second.id}/edit`)
   await screen.findByRole('textbox', { name: /Deckname/ })
-  expect(screen.getByRole('textbox', { name: /Commander/ })).toHaveValue('Second commander')
+  expect(screen.getByRole('combobox', { name: /Commander/ })).toHaveValue('Second commander')
 })
 test('a rejected 400 preserves input with attached feedback and no success, allowing an explicit correction', async () => {
   const api = deckApi(); showDeckApp('/decks/new'); await screen.findByRole('textbox', { name: /Deckname/ })
-  changeDeck('Rejected', 'Karn')
+  await changeDeck('Rejected', 'Karn')
   api.next('/api/decks', () => response({ detail: 'Deck details are invalid.' }, 400), 'POST')
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('Deck details are invalid.')
@@ -262,7 +260,7 @@ test('a rejected 400 preserves input with attached feedback and no success, allo
 })
 test('ambiguous create recheck lists possibly committed decks and requires deliberate manual retry', async () => {
   const api = deckApi(); showDeckApp('/decks/new'); await screen.findByRole('textbox', { name: /Deckname/ })
-  changeDeck('Maybe saved', 'Karn')
+  await changeDeck('Maybe saved', 'Karn')
   api.next('/api/decks', () => { api.state.decks.push({ ...deck, id: uid(102), name: 'Maybe saved' }); throw new Error('Connection lost after commit') }, 'POST')
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
   await screen.findByText(/Kein Erfolg bestätigt/)
@@ -288,12 +286,12 @@ test.each(['network', 500, 403, 401] as const)('direct create needs no deck list
   expect(listRequests()).toHaveLength(0)
   expect(api.fetchMock.mock.calls.map(([path]) => path)).toEqual(['/api/me'])
   expect(field()).toHaveValue('')
-  changeDeck('Created independently', 'Karn')
+  await changeDeck('Created independently', 'Karn')
   api.next('/api/decks', () => pending.promise, 'POST')
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
   await waitFor(() => expect(api.writes()).toHaveLength(1))
   expect(listRequests()).toHaveLength(0)
-  expect(JSON.parse(api.writes()[0][1]!.body as string)).toEqual({ name: 'Created independently', commander: 'Karn', colorIdentity: [] })
+  expect(JSON.parse(api.writes()[0][1]!.body as string)).toEqual({ name: 'Created independently', commanders: [{ selectionRef: deck.commanders[0].selectionRef }] })
   expect(window.location.pathname).toBe('/decks/new')
   expect(screen.queryByText('Created independently wurde erstellt.')).not.toBeInTheDocument()
   await act(async () => pending.resolve(response({ ...deck, name: 'Created independently' }, 201)))
@@ -317,7 +315,7 @@ test.each(['network', 'malformed', 500, 403, 404, 401] as const)('edit still req
   if (failure === 401) await screen.findByText('Your session expired. Sign in again.')
   else await screen.findByText(/Dieses Deck ist nicht verfügbar/)
   expect(screen.queryByRole('textbox', { name: /Deckname/ })).not.toBeInTheDocument()
-  expect(screen.queryByDisplayValue(deck.commander)).not.toBeInTheDocument()
+  expect(screen.queryByDisplayValue(deck.commanders[0].name)).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Deckaktionen' })).not.toBeInTheDocument()
   expect(api.fetchMock.mock.calls.filter(([path]) => path === '/api/decks')).toHaveLength(1)
   expect(api.fetchMock.mock.calls.some(([path]) => path === '/api/csrf')).toBe(false)
@@ -327,7 +325,7 @@ test('reloading create resets draft and trusted Dashboard return without loading
   const api = deckApi(); const view = showDeckApp('/dashboard'); await newDeck()
   const listRequests = () => api.fetchMock.mock.calls.filter(([path, init]) => path === '/api/decks' && !init?.method)
   expect(listRequests()).toHaveLength(1) // Dashboard only.
-  changeDeck('Unpersisted create', 'Karn')
+  await changeDeck('Unpersisted create', 'Karn')
   const state = window.history.state.usr
   view.unmount(); showDeckApp('/decks/new', state)
   await screen.findByRole('textbox', { name: /Deckname/ })
@@ -363,7 +361,7 @@ test.each(['/dashboard', '/decks'] as const)('LAN HTTP creates and edits from %s
   const api = deckApi(); showDeckApp(origin)
   await newDeck()
   expect(window.location.pathname).toBe('/decks/new')
-  changeDeck('LAN deck', 'Karn')
+  await changeDeck('LAN deck', 'Karn')
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
   await screen.findByText('LAN deck wurde erstellt.')
   expect(window.location.pathname).toBe(origin)
@@ -371,7 +369,7 @@ test.each(['/dashboard', '/decks'] as const)('LAN HTTP creates and edits from %s
   else await editDeck()
   expect(await screen.findByRole('textbox', { name: /Deckname/ })).toHaveValue(deck.name)
   expect(window.location.pathname).toBe(`/decks/${deck.id}/edit`)
-  changeDeck('LAN edit')
+  await changeDeck('LAN edit')
   fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
   await screen.findByText('LAN edit wurde gespeichert.')
   expect(window.location.pathname).toBe(origin)

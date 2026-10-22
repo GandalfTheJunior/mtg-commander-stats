@@ -48,10 +48,10 @@ public class GameDecks {
                 .collect(Collectors.toMap(DeckDisplay::id, Function.identity()));
     }
 
-    public record DeckDisplay(UUID id, String name, String commander, List<String> colorIdentity,
+    public record DeckDisplay(UUID id, String name, List<CommanderSummary> commanders, List<String> colorIdentity,
             boolean archived) {
         static DeckDisplay from(Deck deck) {
-            return new DeckDisplay(deck.getId(), deck.getName(), deck.getCommander(),
+            return new DeckDisplay(deck.getId(), deck.getName(), deck.getCommanders().stream().map(CommanderSummary::from).toList(),
                     deck.getColorIdentity().symbols(), deck.isArchived());
         }
     }

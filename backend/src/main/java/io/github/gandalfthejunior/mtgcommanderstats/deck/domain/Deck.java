@@ -1,14 +1,24 @@
 package io.github.gandalfthejunior.mtgcommanderstats.deck.domain;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.ColorIdentityConverter;
 import io.github.gandalfthejunior.mtgcommanderstats.displaytext.DisplayText;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 @Entity
 @Table(name = "decks")
@@ -22,8 +32,12 @@ public class Deck {
     @Column(nullable = false, columnDefinition = "text")
     private String name;
 
-    @Column(nullable = false, columnDefinition = "text")
-    private String commander;
+    @ElementCollection(fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SUBSELECT)
+    @CollectionTable(name = "deck_commanders", joinColumns = @JoinColumn(name = "deck_id"))
+    @OrderBy("position ASC")
+    @BatchSize(size = 100)
+    private List<DeckCommander> commanders = new ArrayList<>();
 
     @Convert(converter = ColorIdentityConverter.class)
     @Column(name = "color_identity", nullable = false, columnDefinition = "text")
@@ -38,28 +52,42 @@ public class Deck {
     protected Deck() {
     }
 
-    public Deck(UUID ownerId, String name, String commander, ColorIdentity colorIdentity) {
-        if (ownerId == null || colorIdentity == null) {
-            throw new IllegalArgumentException("Deck owner and color identity are required.");
+    public Deck(UUID ownerId, String name, List<DeckCommander> commanders) {
+        if (ownerId == null) {
+            throw new IllegalArgumentException("Deck owner is required.");
         }
         this.id = UUID.randomUUID();
         this.ownerId = ownerId;
-        update(name, commander, colorIdentity);
+        rename(name);
+        replaceCommanders(commanders);
     }
 
-    public void update(String name, String commander, ColorIdentity colorIdentity) {
-        if (colorIdentity == null) {
-            throw new InvalidColorIdentityException();
+    public void rename(String name) {
+        this.name = new DisplayText(name).value();
+    }
+
+    public void replaceCommanders(List<DeckCommander> replacement) {
+        if (replacement == null || replacement.size() != 1 || replacement.getFirst().getPosition() != 1) {
+            throw new InvalidCommanderException();
         }
-        String canonicalName = new DisplayText(name).value();
-        String canonicalCommander = new DisplayText(commander).value();
-        if (everUsed && (!this.commander.equals(canonicalCommander)
-                || !this.colorIdentity.canonicalValue().equals(colorIdentity.canonicalValue()))) {
+        boolean same = commanders.size() == replacement.size();
+        for (int i = 0; same && i < commanders.size(); i++) {
+            same = commanders.get(i).sameGameplay(replacement.get(i));
+        }
+        if (same) {
+            // An idempotent full update must never revert newer presentation snapshots.
+            if (!commanders.getFirst().selectionRef().equals(replacement.getFirst().selectionRef())) {
+                throw new InvalidCommanderException();
+            }
+            return;
+        }
+        if (everUsed) {
             throw new DeckLifecycleConflictException();
         }
-        this.name = canonicalName;
-        this.commander = canonicalCommander;
-        this.colorIdentity = colorIdentity;
+        this.commanders.clear();
+        this.commanders.addAll(replacement);
+        this.colorIdentity = ColorIdentity.fromSymbols(replacement.stream()
+                .flatMap(commander -> commander.effectiveColorIdentity().symbols().stream()).distinct().toList());
     }
 
     public void markUsed() {
@@ -96,8 +124,8 @@ public class Deck {
         return name;
     }
 
-    public String getCommander() {
-        return commander;
+    public List<DeckCommander> getCommanders() {
+        return List.copyOf(commanders);
     }
 
     public ColorIdentity getColorIdentity() {

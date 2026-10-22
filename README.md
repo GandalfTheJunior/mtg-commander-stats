@@ -114,9 +114,13 @@ See [browser routing](docs/development/frontend-routing.md) for session lifecycl
 and SPA fallback requirements.
 
 In **Decks**, an authenticated user can list, create, edit, and delete their own
-manually entered decks in the **My decks** area. Deck changes use the existing CSRF/session flow,
+Scryfall-backed decks in the **My decks** area. Deck changes use the existing CSRF/session flow,
 persist in PostgreSQL, and remain scoped to the authenticated user's stable UUID.
-Deleting an unused deck asks for confirmation naming that deck; canceling sends
+Choose a Commander explicitly from the debounced English-name search. WUBRG is
+read-only; qualifying Commanders require a separate pregame color choice.
+Saved decks and name-only edits work when Scryfall is unavailable; new selections
+require the provider. See the [deck API](docs/product/decks-api.md) for the V6
+local-data reset requirement and #106 demo-seed limitation. Deleting an unused deck asks for confirmation naming that deck; canceling sends
 no deletion request. Once a deck is used in a committed game, its commander and
 colors are permanently locked; its name remains editable. This restriction stays
 after its last game is changed or deleted. Used decks have an explicit **Archive**

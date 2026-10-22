@@ -13,15 +13,24 @@ import MenuItem from '@mui/material/MenuItem'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
-import { ApiError, archiveDeck, createDeck, deleteDeck, listDecks, updateDeck, type Deck, type DeckInput } from './api'
+import { ApiError, archiveDeck, createDeck, deleteDeck, listDecks, updateDeck, commanderNames, type CommanderChoice, type Deck, type MagicColor, magicColors, scryfallUnavailable } from './api'
+import { CommanderSearch } from './CommanderSearch'
+import Radio from '@mui/material/Radio'
+import RadioGroup from '@mui/material/RadioGroup'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import { colorNames } from './deckColors'
 import { ManaColorPicker } from './ManaColorPicker'
 import { useEditorGuard } from './editorGuard'
 
 export type DeckOverview = '/dashboard' | '/decks'
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const blank: DeckInput = { name: '', commander: '', colorIdentity: [] }
-const inputOf = (deck?: Deck): DeckInput => deck ? { name: deck.name, commander: deck.commander, colorIdentity: deck.colorIdentity } : blank
-const equal = (a: DeckInput, b: DeckInput) => a.name === b.name && a.commander === b.commander && a.colorIdentity.join('') === b.colorIdentity.join('')
+type Draft = { name: string; commander: string; selection: CommanderChoice | null; chosenColor?: MagicColor }
+const blank: Draft = { name: '', commander: '', selection: null }
+const inputOf = (deck?: Deck): Draft => deck ? { name: deck.name, commander: commanderNames(deck),
+  selection: { ...deck.commanders[0], thumbnailUrl: null }, ...(deck.commanders[0].chosenColor ? { chosenColor: deck.commanders[0].chosenColor } : {}) } : blank
+const equal = (a: Draft, b: Draft) => a.name === b.name && a.commander === b.commander
+  && JSON.stringify(a.selection?.selectionRef) === JSON.stringify(b.selection?.selectionRef) && a.chosenColor === b.chosenColor
+const identityOf = (draft: Draft) => magicColors.filter(color => draft.selection?.colorIdentity.includes(color) || draft.chosenColor === color)
 // Match DisplayText boundary whitespace, including Java controls; do not trim the payload.
 const emptyText = (value: string) => [...value].every(char => /\p{White_Space}/u.test(char) || (char.codePointAt(0)! >= 28 && char.codePointAt(0)! <= 31))
 const message = (error: unknown) => error instanceof Error ? error.message : 'Der Vorgang konnte nicht bestätigt werden.'
@@ -67,7 +76,7 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
   const [confirmed, setConfirmed] = useState(deck)
   const [baseline, setBaseline] = useState(() => inputOf(deck))
   const [draft, setDraft] = useState(() => inputOf(deck))
-  const [errors, setErrors] = useState<{ name?: string; commander?: string }>({})
+  const [errors, setErrors] = useState<{ name?: string; commander?: string; chosenColor?: string }>({})
   const [busy, setBusy] = useState(false)
   const [completed, setCompleted] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -131,7 +140,10 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
           acknowledgment = `${confirmed.name} wurde gelöscht.`
         }
       } else {
-        const payload = confirmed?.everUsed ? { ...draft, commander: confirmed.commander, colorIdentity: confirmed.colorIdentity } : draft
+        const sameSelection = confirmed && JSON.stringify(draft.selection?.selectionRef) === JSON.stringify(confirmed.commanders[0].selectionRef)
+          && (draft.chosenColor ?? null) === confirmed.commanders[0].chosenColor
+        const payload = { name: draft.name, ...(!confirmed?.everUsed && !sameSelection ? { commanders: [{ selectionRef: draft.selection!.selectionRef,
+          ...(draft.selection!.requiresChosenColor ? { chosenColor: draft.chosenColor } : {}) }] } : {}) }
         const saved = confirmed ? await updateDeck(confirmed.id, payload, signal) : await createDeck(payload, signal)
         acknowledgment = `${saved.name} wurde ${confirmed ? 'gespeichert' : 'erstellt'}.`
       }
@@ -144,7 +156,7 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
       if (signal.aborted) return
       setDestructive(false)
       if (error instanceof ApiError && error.status === 401) { onUnauthorized(); return }
-      setNotice(message(error))
+      setNotice(error instanceof ApiError && error.status === 503 ? scryfallUnavailable : message(error))
       if (error instanceof ApiError && error.status === 409) {
         setNotice(`${message(error)} Konflikt: Der Serverstand wird neu geladen. Dein Entwurf bleibt zur Prüfung erhalten.`)
         await recheck(signal)
@@ -165,13 +177,16 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
     event.preventDefault()
     const invalid = {
       ...(emptyText(draft.name) ? { name: 'Bitte einen Decknamen eingeben.' } : {}),
-      ...(emptyText(confirmed?.everUsed ? confirmed.commander : draft.commander) ? { commander: 'Bitte einen Commander eingeben.' } : {}),
+      ...(!confirmed?.everUsed && !draft.selection ? { commander: 'Bitte einen Commander aus den Suchergebnissen wählen.' } : {}),
+      ...(!confirmed?.everUsed && draft.selection?.requiresChosenColor && !draft.chosenColor ? { chosenColor: 'Bitte eine Farbe wählen.' } : {}),
     }
     setErrors(invalid)
     if (invalid.name) nameField.current?.focus()
     else if (invalid.commander) commanderField.current?.focus()
+    else if (invalid.chosenColor) document.getElementById('chosen-color-W')?.focus()
     else void write('save')
   }
+  const displayed = confirmed?.everUsed ? inputOf(confirmed) : draft
   const hidden = recovery === 'checking' || recovery === 'unavailable'
   const restricted = busy || recovery !== 'none'
   const destructiveAction = confirmed && !(confirmed.everUsed && confirmed.archived)
@@ -190,15 +205,15 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
         ? 'Deckdaten sind bis zur erneuten Bestätigung ausgeblendet.' : 'Kein Erfolg bestätigt. Prüfe den aktuellen Serverstand vor einem manuellen neuen Versuch.'}</Typography>
       {recovery !== 'checking' && <Button color="secondary" disabled={busy} onClick={() => { void recheck(operation.current!.signal) }}>Serverstand erneut prüfen</Button>}
       {recovery === 'review' && <>
-        <Typography>Dein Entwurf: {draft.name} · {draft.commander} · {draft.colorIdentity.join('') || 'Farblos'}</Typography>
-        {confirmed ? <Typography>Serverstand: {confirmed.name} · {confirmed.commander} · {confirmed.colorIdentity.join('') || 'Farblos'} · {confirmed.everUsed ? 'dauerhaft verwendet' : 'unbenutzt'} · {confirmed.archived ? 'archiviert' : 'aktiv'}</Typography>
+        <Typography>Dein Entwurf: {draft.name} · {draft.commander} · {identityOf(draft).join('') || 'Farblos'}</Typography>
+        {confirmed ? <Typography>Serverstand: {confirmed.name} · {commanderNames(confirmed)} · {confirmed.colorIdentity.join('') || 'Farblos'} · {confirmed.everUsed ? 'dauerhaft verwendet' : 'unbenutzt'} · {confirmed.archived ? 'archiviert' : 'aktiv'}</Typography>
           : <><Typography>Aktuelle Decks – prüfe, ob dein Erstellversuch bereits gespeichert wurde:</Typography>
-            <ul>{checkedDecks.map(item => <li key={item.id}>{item.name} · {item.commander} · {item.id}</li>)}</ul></>}
+            <ul>{checkedDecks.map(item => <li key={item.id}>{item.name} · {commanderNames(item)} · {item.id}</li>)}</ul></>}
         <Button color="secondary" onClick={() => {
           // Only explicit review reconciles a draft with newly permanent fields.
           if (confirmed) {
             setBaseline(inputOf(confirmed))
-            if (confirmed.everUsed) setDraft(current => ({ ...current, commander: confirmed.commander, colorIdentity: confirmed.colorIdentity }))
+            if (confirmed.everUsed) setDraft(current => ({ ...inputOf(confirmed), name: current.name }))
           }
           setRecovery('none')
           setNotice(null)
@@ -209,15 +224,24 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
     {!hidden && <Box component="form" aria-label={deck ? `Deck ${deck.name} bearbeiten` : 'Deck erstellen'} noValidate onSubmit={submit} sx={{ display: 'grid', gap: 3, mt: 0, minWidth: 0 }}>
       <TextField inputRef={nameField} label="Deckname" name="name" required fullWidth value={draft.name} disabled={restricted}
         error={Boolean(errors.name)} helperText={errors.name} onChange={event => setDraft(current => ({ ...current, name: event.target.value }))} />
-      <TextField inputRef={commanderField} label="Commander" name="commander" required fullWidth disabled={restricted}
-        value={confirmed?.everUsed ? confirmed.commander : draft.commander} error={Boolean(errors.commander)} helperText={errors.commander}
-        sx={{ '& input[readonly]': { bgcolor: 'background.paper', color: 'text.primary' } }}
-        slotProps={{ input: { readOnly: confirmed?.everUsed, inputProps: { 'aria-describedby': confirmed?.everUsed ? 'deck-locked' : undefined } } }}
-        onChange={event => setDraft(current => ({ ...current, commander: event.target.value }))} />
+      <CommanderSearch inputRef={commanderField} query={displayed.commander} selection={displayed.selection} disabled={restricted}
+        locked={confirmed?.everUsed ?? false} error={errors.commander} onUnauthorized={onUnauthorized}
+        onInput={commander => { setDraft(current => ({ name: current.name, commander, selection: null })); setErrors(current => ({ ...current, commander: undefined, chosenColor: undefined })) }}
+        onSelect={selection => { setDraft(current => ({ name: current.name, commander: selection.name, selection })); setErrors(current => ({ ...current, commander: undefined, chosenColor: undefined })) }} />
       {confirmed?.everUsed && <Typography id="deck-locked">Bereits in einem Spiel verwendet: Commander und Farbidentität sind dauerhaft gesperrt, auch nach dem Löschen aller Spiele. Du kannst den Decknamen ändern.</Typography>}
       {confirmed?.archived && <Typography>Archiviert – für neue Spiele nicht verfügbar. Umbenennen bleibt möglich.</Typography>}
-      <ManaColorPicker value={confirmed?.everUsed ? confirmed.colorIdentity : draft.colorIdentity} disabled={restricted || confirmed?.everUsed} descriptionId={confirmed?.everUsed ? 'deck-locked' : undefined}
-        onChange={colorIdentity => setDraft(current => ({ ...current, colorIdentity }))} />
+      {displayed.selection?.requiresChosenColor && <Box component="fieldset" sx={{ m: 0, p: 2, borderColor: 'interaction.border' }}>
+        <Typography component="legend">Farbe vor Spielbeginn wählen (erforderlich)</Typography>
+        <RadioGroup aria-label="Farbe vor Spielbeginn" aria-required="true" aria-invalid={Boolean(errors.chosenColor)} value={displayed.chosenColor ?? ''} row
+          onChange={event => { setDraft(current => ({ ...current, chosenColor: event.target.value as MagicColor })); setErrors(current => ({ ...current, chosenColor: undefined })) }}>
+          {magicColors.map(color => <FormControlLabel key={color} value={color} label={colorNames[color]} disabled={restricted || confirmed?.everUsed}
+            control={<Radio id={`chosen-color-${color}`} slotProps={{ input: { 'aria-describedby': errors.chosenColor ? 'chosen-color-error' : undefined } }} />} />)}
+        </RadioGroup>
+        {errors.chosenColor && <Typography id="chosen-color-error" color="error" role="alert">{errors.chosenColor}</Typography>}
+      </Box>}
+      <ManaColorPicker value={confirmed?.everUsed ? confirmed.colorIdentity : identityOf(draft)} disabled
+        selected={Boolean(draft.selection && (!draft.selection.requiresChosenColor || draft.chosenColor))}
+        descriptionId={confirmed?.everUsed ? 'deck-locked' : undefined} onChange={() => {}} />
       <Stack direction="row" useFlexGap sx={{ gap: 1, flexWrap: 'wrap' }}>
         <Button variant="contained" type="submit" disabled={restricted}>{busy ? 'Wird gespeichert…' : deck ? 'Änderungen speichern' : 'Deck erstellen'}</Button>
         <Button color="secondary" type="button" disabled={busy} onClick={() => { void navigate(returnTo.current ?? '/decks', { replace: true }) }}>Abbrechen</Button>

@@ -37,7 +37,7 @@ test('validates and strips response fields while retaining server game order and
 
 test.each([
   [{ ...deckFor(2), id: 'bad' }], [{ ...deckFor(2), colorIdentity: ['R', 'R'] }],
-  [{ ...deckFor(2), colorIdentity: ['G', 'W'] }], [{ ...deckFor(2), commander: null }],
+  [{ ...deckFor(2), colorIdentity: ['G', 'W'] }], [{ ...deckFor(2), commanders: null }],
   [deckFor(2), deckFor(2)], {},
 ])('rejects invalid eligible-deck summaries', async (body) => {
   vi.stubGlobal('fetch', vi.fn(async () => response(body)))

@@ -58,26 +58,27 @@ operations; see the [usage guide](../../README.md#local-development).
 
 ## Decks
 
-- Decks belong to users. Data is entered manually and includes at least the deck
-  name, commander, and color identity.
+- Decks belong to users. Owners enter a deck name and explicitly select one
+  standalone-eligible Commander from backend Scryfall search. The response/schema
+  supports two ordered slots; pair writes await #103.
 - Authenticated users can list, create, edit, and delete their own currently unused
   decks. Ownership comes from the authenticated user's stable UUID and is enforced
   by the backend; clients do not choose an owner.
-- Deck name and commander are required display text. They use the shared
-  `DisplayText` rule documented below, are not unique, and are not checked against
-  an external card database by the current deck write API. The staged
-  [Scryfall lookup extension](scryfall-api.md) provides backend card data;
-  authoritative Commander persistence is delivered separately in #101.
-- Color identity is any distinct subset of W, U, B, R, and G. An empty set is
-  colorless, and API responses use canonical WUBRG order.
-- No decklist, ManaBox integration, or DeckVersion. Scryfall lookup is available
-  as the approved #100 extension, without changing existing deck writes yet.
+- Deck names use the shared `DisplayText` rule and need not be unique. Commander
+  identities, names and base colors are authoritatively resolved online through
+  [Scryfall](scryfall-api.md); saved snapshots need no provider access.
+- Color identity is the backend-derived WUBRG union of the selected Commander's
+  base colors and any required single pregame chosen color. Empty means colorless.
+  There is no manual color override. The editor retains read-only WUBRG controls
+  and supplies a separate required W/U/B/R/G picker when appropriate.
+- No decklist, ManaBox integration, or DeckVersion. See [Deck API](decks-api.md)
+  for snapshot fields, strict write contracts and disposable local data migration.
 - Browser deletion requires a confirmation naming the selected unused deck.
   Canceling does not change the deck; confirmed deletion updates the UI only
   after the server acknowledges success.
 - The deck name remains editable.
 - Commander and color identity may change until the deck is first used in a
-  recorded game; they become immutable after first use.
+  recorded game; they become immutable after first use, including any pregame chosen color.
 - Decks remain used forever after their first committed game, even if all games
   referencing them are edited or deleted. Failed writes leave usage unchanged.
 - Used-deck DELETE returns a conflict; owners explicitly archive them instead.
@@ -163,8 +164,8 @@ outside this MVP.
 
 ## Display text
 
-Required human-readable labels such as display usernames, deck names, and
-commander names share the `DisplayText` rule. Leading and trailing product
+Required user-entered labels such as display usernames and deck names share the
+`DisplayText` rule. Commander names are authoritative Scryfall snapshots. Leading and trailing product
 boundary whitespace is removed before persistence; casing and all internal
 whitespace are preserved. Null, missing, or blank-after-trimming values are
 invalid.
