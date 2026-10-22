@@ -63,11 +63,56 @@ not choose the color or derive the final deck identity.
 `canBeSoleCommander` separates standalone choices from cards only usable with a
 legal second Commander, such as a Background enchantment. A legendary creature
 with an optional pairing ability can still be a standalone Commander. A false
-value does not establish that any particular pair is legal. Until #103 provides
-pair writes, #101/#102 must save only standalone-eligible selections.
+value does not establish that any particular pair is legal. The deck write boundary requires standalone eligibility for a single selection
+and validates the actual pairing rules for a pair.
 
 The future search UI debounces typing by approximately 300 ms. The backend also
 caches repeated lookups and limits aggregate upstream request traffic.
+
+## Partner-filtered search
+
+`GET /api/scryfall/commanders?q=fragment&partnerOf=<printing UUID>` restricts
+results to legal partners of a validated first gameplay choice. Include
+`partnerGameplayFaceIndex` when its `selectionRef` includes `gameplayFaceIndex`;
+missing/inapplicable/invalid selectors return `400`. A selector without
+`partnerOf` is invalid. The backend resolves the context and applies the same
+pair validator used by deck writes. Selection context is never inferred from a
+name or an artwork side.
+
+`CommanderChoice` and saved Commander snapshots now also contain `pairing`:
+
+```json
+{"roles":["BACKGROUND","CHOOSE_BACKGROUND"],"partnerWith":[],"variants":[]}
+```
+
+Roles are `PARTNER`, `CHOOSE_BACKGROUND`, `BACKGROUND`, `DOCTOR`, `COMPANION`.
+`partnerWith` contains normalized, authoritative reciprocal counterpart names;
+`variants` contains normalized specific labels, such as `friends forever` or
+`survivors`. Every applicable role contributes to the union. This DTO drives field
+visibility; it never substitutes for server validation. Named labels using the
+standard `Partner—[label]` syntax work without a card or label allowlist. Unknown
+mechanics grant no pairing permission. A qualifying Doctor is a legendary
+creature with exactly the `Time Lord` and `Doctor` creature subtypes; `Time Lord`
+is one subtype and additional creature subtypes are rejected. Ordinary
+transform/modal back-face abilities do not grant front gameplay pairing roles;
+exceptional reversible choices use their selected gameplay face's metadata.
+
+Both general and partner searches return only legal Commander candidates in
+English. Partner search uses a bounded upstream query for the union of compatible
+roles and traverses at most three pages / 525 candidates, filters authoritative
+pair rules and deduplicates stable identities **before** the 20-result cap. It
+never filters the general search's already capped list on the client. The usual
+150 ms upstream request gate, safe literal name queries, 5-minute bounded caches,
+timeouts and controlled errors also apply here. Partner result cache holds up to
+128 context/query combinations.
+
+Only for reciprocal Partner with suggestions may `q` be omitted or empty. This
+returns the matching reciprocal named choice without committing it. Ordinary
+Partner yields no immediate recommendation. Nonempty queries still require at
+least two non-whitespace characters and the existing length/control validation.
+The second UI uses the same debounce, thumbnail/placeholder, explicit selection,
+inline Fblthp/Moon copy, retry and abort/stale protection as the first. A context
+change retires the previous results and any selected second Commander.
 
 ## Selection reference and stable gameplay identity
 

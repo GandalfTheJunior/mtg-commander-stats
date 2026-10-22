@@ -24,13 +24,25 @@ import { useEditorGuard } from './editorGuard'
 
 export type DeckOverview = '/dashboard' | '/decks'
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-type Draft = { name: string; commander: string; selection: CommanderChoice | null; chosenColor?: MagicColor }
-const blank: Draft = { name: '', commander: '', selection: null }
-const inputOf = (deck?: Deck): Draft => deck ? { name: deck.name, commander: commanderNames(deck),
-  selection: { ...deck.commanders[0], thumbnailUrl: null }, ...(deck.commanders[0].chosenColor ? { chosenColor: deck.commanders[0].chosenColor } : {}) } : blank
-const equal = (a: Draft, b: Draft) => a.name === b.name && a.commander === b.commander
-  && JSON.stringify(a.selection?.selectionRef) === JSON.stringify(b.selection?.selectionRef) && a.chosenColor === b.chosenColor
-const identityOf = (draft: Draft) => magicColors.filter(color => draft.selection?.colorIdentity.includes(color) || draft.chosenColor === color)
+type Slot = { commander: string; selection: CommanderChoice | null; chosenColor?: MagicColor }
+type Draft = Slot & { name: string; second?: Slot; offerNamedPartner?: boolean }
+const blankSlot: Slot = { commander: '', selection: null }
+const blank: Draft = { name: '', ...blankSlot }
+const slotOf = (card: Deck['commanders'][number]): Slot => ({ commander: card.name, selection: { ...card, thumbnailUrl: null },
+  ...(card.chosenColor ? { chosenColor: card.chosenColor } : {}) })
+const inputOf = (deck?: Deck): Draft => deck ? { name: deck.name, ...slotOf(deck.commanders[0]),
+  ...(deck.commanders[1] ? { second: slotOf(deck.commanders[1]) } : {}) } : blank
+const slotEqual = (a?: Slot, b?: Slot) => (a?.commander ?? '') === (b?.commander ?? '')
+  && JSON.stringify(a?.selection?.selectionRef) === JSON.stringify(b?.selection?.selectionRef) && a?.chosenColor === b?.chosenColor
+const equal = (a: Draft, b: Draft) => a.name === b.name && slotEqual(a, b) && slotEqual(a.second, b.second)
+const slotsOf = (draft: Draft) => [draft, ...(draft.second?.selection ? [draft.second] : [])]
+const identityOf = (draft: Draft) => magicColors.filter(color => slotsOf(draft).some(slot => slot.selection?.colorIdentity.includes(color) || slot.chosenColor === color))
+const supportsPair = (choice: CommanderChoice | null) => Boolean(choice && (choice.pairing.roles.length || choice.pairing.partnerWith.length || choice.pairing.variants.length))
+const identityComplete = (draft: Draft) => Boolean(draft.selection && (draft.selection.canBeSoleCommander || draft.second?.selection)
+  && (!draft.second?.commander || draft.second.selection) && slotsOf(draft).every(slot => !slot.selection?.requiresChosenColor || slot.chosenColor))
+const secondLabel = (choice: CommanderChoice | null) => choice?.pairing.roles.length === 1 && choice.pairing.roles[0] === 'DOCTOR'
+  && !choice.pairing.partnerWith.length && !choice.pairing.variants.length ? "Doctor's companion (optional)"
+  : `Zweiter Commander (${choice?.canBeSoleCommander ? 'optional' : 'erforderlich'})`
 // Match DisplayText boundary whitespace, including Java controls; do not trim the payload.
 const emptyText = (value: string) => [...value].every(char => /\p{White_Space}/u.test(char) || (char.codePointAt(0)! >= 28 && char.codePointAt(0)! <= 31))
 const message = (error: unknown) => error instanceof Error ? error.message : 'Der Vorgang konnte nicht bestätigt werden.'
@@ -76,7 +88,7 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
   const [confirmed, setConfirmed] = useState(deck)
   const [baseline, setBaseline] = useState(() => inputOf(deck))
   const [draft, setDraft] = useState(() => inputOf(deck))
-  const [errors, setErrors] = useState<{ name?: string; commander?: string; chosenColor?: string }>({})
+  const [errors, setErrors] = useState<{ name?: string; commander?: string; chosenColor?: string; second?: string; secondColor?: string }>({})
   const [busy, setBusy] = useState(false)
   const [completed, setCompleted] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -89,6 +101,7 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
   const overflow = useRef<HTMLButtonElement>(null)
   const nameField = useRef<HTMLInputElement>(null)
   const commanderField = useRef<HTMLInputElement>(null)
+  const secondField = useRef<HTMLInputElement>(null)
   const noticeElement = useRef<HTMLDivElement>(null)
   const operation = useRef<AbortController | null>(null)
   const pending = useRef(false)
@@ -140,10 +153,12 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
           acknowledgment = `${confirmed.name} wurde gelöscht.`
         }
       } else {
-        const sameSelection = confirmed && JSON.stringify(draft.selection?.selectionRef) === JSON.stringify(confirmed.commanders[0].selectionRef)
-          && (draft.chosenColor ?? null) === confirmed.commanders[0].chosenColor
-        const payload = { name: draft.name, ...(!confirmed?.everUsed && !sameSelection ? { commanders: [{ selectionRef: draft.selection!.selectionRef,
-          ...(draft.selection!.requiresChosenColor ? { chosenColor: draft.chosenColor } : {}) }] } : {}) }
+        const selected = slotsOf(draft)
+        const sameSelection = confirmed && selected.length === confirmed.commanders.length && selected.every((slot, index) =>
+          JSON.stringify(slot.selection?.selectionRef) === JSON.stringify(confirmed.commanders[index].selectionRef)
+          && (slot.chosenColor ?? null) === confirmed.commanders[index].chosenColor)
+        const payload = { name: draft.name, ...(!confirmed?.everUsed && !sameSelection ? { commanders: selected.map(slot => ({ selectionRef: slot.selection!.selectionRef,
+          ...(slot.selection!.requiresChosenColor ? { chosenColor: slot.chosenColor } : {}) })) } : {}) }
         const saved = confirmed ? await updateDeck(confirmed.id, payload, signal) : await createDeck(payload, signal)
         acknowledgment = `${saved.name} wurde ${confirmed ? 'gespeichert' : 'erstellt'}.`
       }
@@ -178,11 +193,15 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
     const invalid = {
       ...(emptyText(draft.name) ? { name: 'Bitte einen Decknamen eingeben.' } : {}),
       ...(!confirmed?.everUsed && !draft.selection ? { commander: 'Bitte einen Commander aus den Suchergebnissen wählen.' } : {}),
+      ...(!confirmed?.everUsed && draft.selection && ((!draft.selection.canBeSoleCommander && !draft.second?.selection) || (draft.second?.commander && !draft.second.selection)) ? { second: 'Bitte einen kompatiblen zweiten Commander aus den Suchergebnissen wählen oder den optionalen Entwurf entfernen.' } : {}),
+      ...(!confirmed?.everUsed && draft.second?.selection?.requiresChosenColor && !draft.second.chosenColor ? { secondColor: 'Bitte eine Farbe für den zweiten Commander wählen.' } : {}),
       ...(!confirmed?.everUsed && draft.selection?.requiresChosenColor && !draft.chosenColor ? { chosenColor: 'Bitte eine Farbe wählen.' } : {}),
     }
     setErrors(invalid)
     if (invalid.name) nameField.current?.focus()
     else if (invalid.commander) commanderField.current?.focus()
+    else if (invalid.second) secondField.current?.focus()
+    else if (invalid.secondColor) document.getElementById('chosen-color-2-W')?.focus()
     else if (invalid.chosenColor) document.getElementById('chosen-color-W')?.focus()
     else void write('save')
   }
@@ -205,7 +224,7 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
         ? 'Deckdaten sind bis zur erneuten Bestätigung ausgeblendet.' : 'Kein Erfolg bestätigt. Prüfe den aktuellen Serverstand vor einem manuellen neuen Versuch.'}</Typography>
       {recovery !== 'checking' && <Button color="secondary" disabled={busy} onClick={() => { void recheck(operation.current!.signal) }}>Serverstand erneut prüfen</Button>}
       {recovery === 'review' && <>
-        <Typography>Dein Entwurf: {draft.name} · {draft.commander} · {identityOf(draft).join('') || 'Farblos'}</Typography>
+        <Typography>Dein Entwurf: {draft.name} · {[draft.commander, draft.second?.commander].filter(Boolean).join(' / ')} · {identityOf(draft).join('') || 'Farblos'}</Typography>
         {confirmed ? <Typography>Serverstand: {confirmed.name} · {commanderNames(confirmed)} · {confirmed.colorIdentity.join('') || 'Farblos'} · {confirmed.everUsed ? 'dauerhaft verwendet' : 'unbenutzt'} · {confirmed.archived ? 'archiviert' : 'aktiv'}</Typography>
           : <><Typography>Aktuelle Decks – prüfe, ob dein Erstellversuch bereits gespeichert wurde:</Typography>
             <ul>{checkedDecks.map(item => <li key={item.id}>{item.name} · {commanderNames(item)} · {item.id}</li>)}</ul></>}
@@ -226,21 +245,33 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
         error={Boolean(errors.name)} helperText={errors.name} onChange={event => setDraft(current => ({ ...current, name: event.target.value }))} />
       <CommanderSearch inputRef={commanderField} query={displayed.commander} selection={displayed.selection} disabled={restricted}
         locked={confirmed?.everUsed ?? false} error={errors.commander} onUnauthorized={onUnauthorized}
-        onInput={commander => { setDraft(current => ({ name: current.name, commander, selection: null })); setErrors(current => ({ ...current, commander: undefined, chosenColor: undefined })) }}
-        onSelect={selection => { setDraft(current => ({ name: current.name, commander: selection.name, selection })); setErrors(current => ({ ...current, commander: undefined, chosenColor: undefined })) }} />
+        onInput={commander => { setDraft(current => ({ name: current.name, commander, selection: null })); setErrors(current => ({ ...current, commander: undefined, chosenColor: undefined, second: undefined, secondColor: undefined })) }}
+        onSelect={selection => { setDraft(current => ({ name: current.name, commander: selection.name, selection, offerNamedPartner: true })); setErrors(current => ({ ...current, commander: undefined, chosenColor: undefined, second: undefined, secondColor: undefined })) }} />
       {confirmed?.everUsed && <Typography id="deck-locked">Bereits in einem Spiel verwendet: Commander und Farbidentität sind dauerhaft gesperrt, auch nach dem Löschen aller Spiele. Du kannst den Decknamen ändern.</Typography>}
       {confirmed?.archived && <Typography>Archiviert – für neue Spiele nicht verfügbar. Umbenennen bleibt möglich.</Typography>}
-      {displayed.selection?.requiresChosenColor && <Box component="fieldset" sx={{ m: 0, p: 2, borderColor: 'interaction.border' }}>
-        <Typography component="legend">Farbe vor Spielbeginn wählen (erforderlich)</Typography>
-        <RadioGroup aria-label="Farbe vor Spielbeginn" aria-required="true" aria-invalid={Boolean(errors.chosenColor)} value={displayed.chosenColor ?? ''} row
-          onChange={event => { setDraft(current => ({ ...current, chosenColor: event.target.value as MagicColor })); setErrors(current => ({ ...current, chosenColor: undefined })) }}>
+      {(supportsPair(displayed.selection) || displayed.second) && <Stack sx={{ gap: 1 }}>
+        <CommanderSearch key={JSON.stringify(displayed.selection?.selectionRef)} inputRef={secondField} slot={2} label={secondLabel(displayed.selection)}
+          required={!displayed.selection?.canBeSoleCommander} query={displayed.second?.commander ?? ''} selection={displayed.second?.selection ?? null}
+          partnerOf={displayed.selection?.selectionRef} immediate={Boolean(displayed.offerNamedPartner && displayed.selection?.pairing.partnerWith.length)}
+          disabled={restricted} locked={confirmed?.everUsed ?? false} error={errors.second} onUnauthorized={onUnauthorized}
+          onInput={commander => { setDraft(current => ({ ...current, second: { commander, selection: null } })); setErrors(current => ({ ...current, second: undefined, secondColor: undefined })) }}
+          onSelect={selection => { setDraft(current => ({ ...current, second: { commander: selection.name, selection } })); setErrors(current => ({ ...current, second: undefined, secondColor: undefined })) }} />
+        {!confirmed?.everUsed && displayed.second?.commander && <Button color="secondary" sx={{ alignSelf: 'start' }} disabled={restricted}
+          onClick={() => { setDraft(current => ({ ...current, second: undefined })); setErrors(current => ({ ...current, second: undefined, secondColor: undefined })); secondField.current?.focus() }}>Zweiten Commander entfernen</Button>}
+      </Stack>}
+      {[displayed, ...(displayed.second ? [displayed.second] : [])].map((slot, index) => slot.selection?.requiresChosenColor && <Box key={index} component="fieldset" sx={{ m: 0, p: 2, borderColor: 'interaction.border' }}>
+        <Typography component="legend">Farbe vor Spielbeginn wählen (erforderlich){index === 1 ? ` – ${slot.selection.name}` : ''}</Typography>
+        <RadioGroup aria-label={index === 0 ? 'Farbe vor Spielbeginn' : 'Farbe vor Spielbeginn – zweiter Commander'} aria-required="true"
+          aria-invalid={Boolean(index === 0 ? errors.chosenColor : errors.secondColor)} value={slot.chosenColor ?? ''} row
+          onChange={event => { const chosenColor = event.target.value as MagicColor; setDraft(current => index === 0 ? { ...current, chosenColor }
+            : { ...current, second: { ...current.second!, chosenColor } }); setErrors(current => ({ ...current, [index === 0 ? 'chosenColor' : 'secondColor']: undefined })) }}>
           {magicColors.map(color => <FormControlLabel key={color} value={color} label={colorNames[color]} disabled={restricted || confirmed?.everUsed}
-            control={<Radio id={`chosen-color-${color}`} slotProps={{ input: { 'aria-describedby': errors.chosenColor ? 'chosen-color-error' : undefined } }} />} />)}
+            control={<Radio id={index === 0 ? `chosen-color-${color}` : `chosen-color-2-${color}`} slotProps={{ input: { 'aria-describedby': (index === 0 ? errors.chosenColor : errors.secondColor) ? `chosen-color-error-${index}` : undefined } }} />} />)}
         </RadioGroup>
-        {errors.chosenColor && <Typography id="chosen-color-error" color="error" role="alert">{errors.chosenColor}</Typography>}
-      </Box>}
+        {(index === 0 ? errors.chosenColor : errors.secondColor) && <Typography id={`chosen-color-error-${index}`} color="error" role="alert">{index === 0 ? errors.chosenColor : errors.secondColor}</Typography>}
+      </Box>)}
       <ManaColorPicker value={confirmed?.everUsed ? confirmed.colorIdentity : identityOf(draft)} disabled
-        selected={Boolean(draft.selection && (!draft.selection.requiresChosenColor || draft.chosenColor))}
+        selected={identityComplete(displayed)}
         descriptionId={confirmed?.everUsed ? 'deck-locked' : undefined} onChange={() => {}} />
       <Stack direction="row" useFlexGap sx={{ gap: 1, flexWrap: 'wrap' }}>
         <Button variant="contained" type="submit" disabled={restricted}>{busy ? 'Wird gespeichert…' : deck ? 'Änderungen speichern' : 'Deck erstellen'}</Button>

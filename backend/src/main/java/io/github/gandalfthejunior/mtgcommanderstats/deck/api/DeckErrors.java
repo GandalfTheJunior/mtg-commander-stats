@@ -22,7 +22,7 @@ public class DeckErrors {
             MethodArgumentTypeMismatchException.class})
     public ProblemDetail invalidInput() {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
-                "Provide a valid deck UUID, nonblank name and exactly one standalone Commander with its required color."
+                "Provide a valid deck UUID, nonblank name and one standalone Commander or a legal pair of distinct Commanders with each required color."
                         + " Printing/artwork changes require the artwork endpoint; archive requests must be empty.");
     }
 

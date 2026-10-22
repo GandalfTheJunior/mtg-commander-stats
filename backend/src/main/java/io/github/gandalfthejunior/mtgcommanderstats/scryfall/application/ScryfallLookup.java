@@ -17,6 +17,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderSel
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.GameplayCard;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidScryfallSelectionException;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.MalformedScryfallResponseException;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.PairingCapabilities;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.ScryfallNormalizer;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClient;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClientException;
@@ -35,6 +36,8 @@ public class ScryfallLookup {
     private final ScryfallClient client;
     private final ScryfallNormalizer normalizer;
     private final BoundedCache<String, List<CommanderChoice>> searches =
+            new BoundedCache<>(128, CACHE_TTL, System::nanoTime);
+    private final BoundedCache<String, List<CommanderChoice>> partnerSearches =
             new BoundedCache<>(128, CACHE_TTL, System::nanoTime);
     private final BoundedCache<UUID, FetchedCard> cards =
             new BoundedCache<>(256, CACHE_TTL, System::nanoTime);
@@ -90,6 +93,76 @@ public class ScryfallLookup {
         return ordinaryCard(id).details();
     }
 
+    /** Context is an entire gameplay reference. Filtering and identity deduplication precede the cap. */
+    public List<CommanderChoice> searchPartners(String input, CommanderSelectionRef partnerOf) {
+        validateReference(partnerOf);
+        GameplayCard first = normalizer.resolve(ordinaryCard(partnerOf.scryfallCardId()).details(), partnerOf);
+        boolean immediate = input == null || input.isEmpty();
+        String name = immediate ? "" : normalizeQuery(input);
+        String key = partnerOf + ":" + name.toLowerCase(Locale.ROOT);
+        List<CommanderChoice> cached = partnerSearches.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        List<String> filters = partnerFilters(first.pairing(), immediate);
+        if (filters.isEmpty()) {
+            return List.of();
+        }
+        String query = (immediate ? "" : "name:/" + literalRegex(name) + "/ ")
+                + "lang:en game:paper f:commander (" + String.join(" or ", filters) + ")";
+        List<JsonNode> candidates = collectSearch(query, false, MAX_PAGES * MAX_PAGE_CARDS);
+        Map<String, JsonNode> metadata = reversibleMetadata(candidates);
+        Map<String, CommanderChoice> distinct = new LinkedHashMap<>();
+        for (JsonNode raw : candidates) {
+            if (!raw.path("lang").isTextual()) {
+                throw new MalformedScryfallResponseException();
+            }
+            if (!"en".equals(raw.path("lang").asText())) {
+                continue;
+            }
+            CardDetails card = normalizer.normalize(raw, metadata);
+            for (CommanderChoice choice : card.commanderSelections()) {
+                GameplayCard second = normalizer.resolve(card, choice.selectionRef());
+                if (choice.name().toLowerCase(Locale.ROOT).contains(name.toLowerCase(Locale.ROOT))
+                        && PairingCapabilities.compatible(first, second)
+                        && (!immediate || (first.pairing().partnerWith().contains(choice.name().toLowerCase(Locale.ROOT))
+                            && second.pairing().partnerWith().contains(first.name().toLowerCase(Locale.ROOT))))) {
+                    distinct.putIfAbsent(second.oracleId(), choice);
+                }
+            }
+        }
+        List<CommanderChoice> result = distinct.values().stream().limit(MAX_SUGGESTIONS).toList();
+        partnerSearches.put(key, result);
+        return result;
+    }
+
+    private static List<String> partnerFilters(PairingCapabilities pairing, boolean immediate) {
+        List<String> filters = new ArrayList<>();
+        for (String name : pairing.partnerWith()) {
+            filters.add("name:/^" + literalRegex(name) + "$/");
+        }
+        if (immediate) {
+            return filters;
+        }
+        for (String role : pairing.roles()) {
+            switch (role) {
+                case PairingCapabilities.PARTNER -> filters.add("kw:partner");
+                case PairingCapabilities.CHOOSE_BACKGROUND -> filters.add("(t:legendary t:enchantment t:background)");
+                case PairingCapabilities.BACKGROUND -> filters.add("(t:legendary t:creature o:\"Choose a Background\")");
+                case PairingCapabilities.DOCTOR -> filters.add("o:\"Doctor's companion\"");
+                case PairingCapabilities.COMPANION -> filters.add("(t:legendary t:creature t:doctor)");
+                default -> { /* Unknown roles never authorize a pair. */ }
+            }
+        }
+        for (String variant : pairing.variants()) {
+            filters.add("o:/Partner[ ]*[—–][ ]*" + literalRegex(variant) + "/");
+            if ("friends forever".equals(variant)) {
+                filters.add("kw:\"Friends forever\"");
+            }
+        }
+        return filters;
+    }
+
     private FetchedCard ordinaryCard(UUID id) {
         requireId(id);
         FetchedCard cached = cards.get(id);
@@ -109,7 +182,7 @@ public class ScryfallLookup {
         return new ResolvedCommander(card, gameplay);
     }
 
-    /** #101 must use this until #103 introduces authoritative two-Commander pairing validation. */
+    /** Convenience boundary for callers requiring a standalone Commander. */
     public ResolvedCommander resolveStandaloneCommanderOnline(CommanderSelectionRef reference) {
         ResolvedCommander resolved = resolveCommanderOnline(reference);
         if (!resolved.gameplay().canBeSoleCommander()) {

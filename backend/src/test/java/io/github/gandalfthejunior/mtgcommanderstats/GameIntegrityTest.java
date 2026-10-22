@@ -1,7 +1,9 @@
 package io.github.gandalfthejunior.mtgcommanderstats;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -10,14 +12,18 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CommanderInput;
 import io.github.gandalfthejunior.mtgcommanderstats.game.application.ManageGames.GameDetails;
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.GameParticipant;
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.GameResult;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderSelectionRef;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.dao.DataIntegrityViolationException;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
@@ -209,6 +215,69 @@ class GameIntegrityTest extends GameTestSupport {
         assertThat(decks.findById(f.creatorDeck()).orElseThrow().getCommanders().getFirst().getChosenColor())
                 .isEqualTo(rollback ? "G" : "R");
         assertThat(decks.findById(f.creatorDeck()).orElseThrow().isEverUsed()).isEqualTo(!rollback);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0,false,false", "1,false,false", "0,false,true", "1,false,true",
+            "0,true,false", "1,true,false", "0,true,true", "1,true,true"})
+    void bothPairSlotsLockWithFirstAssignmentAndAssignmentEditsOrRollback(int slot, boolean edit, boolean rollback) throws Exception {
+        Fixture f = fixture();
+        List<CommanderInput> pair = new ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            UUID print = UUID.randomUUID();
+            String name = "Color partner " + i;
+            CommanderTestProvider.put(print, """
+                    {"object":"card","id":"%s","oracle_id":"%s","name":"%s","lang":"en",
+                     "layout":"normal","legalities":{"commander":"legal"},"type_line":"Legendary Creature — Human",
+                     "oracle_text":"Partner\\nIf %s is your commander, choose a color before the game begins. %s is the chosen color.","color_identity":[]}
+                    """.formatted(print, UUID.randomUUID(), name, name, name));
+            pair.add(new CommanderInput(new CommanderSelectionRef(print, null), i == 0 ? "R" : "U"));
+        }
+        deckService.update(f.creator().id(), f.creatorDeck(), "Pair", pair);
+        GameDetails existing = edit ? gameService.create(f.owner().id(), f.groupId(), List.of(
+                new GameParticipant(f.owner().id(), f.ownerDeck()), assignments(f).get(1)), GameResult.DRAW, null) : null;
+        List<CommanderInput> changed = new ArrayList<>(pair);
+        changed.set(slot, new CommanderInput(pair.get(slot).selectionRef(), "G"));
+        race(() -> edit ? gameService.replace(f.owner().id(), f.groupId(), existing.id(), assignments(f), GameResult.DRAW, null)
+                        : gameService.create(f.owner().id(), f.groupId(), assignments(f), GameResult.DRAW, null),
+                () -> expect(f.creator(), "PUT", "/api/decks/" + f.creatorDeck(),
+                        json.writeValueAsString(Map.of("name", "Pair", "commanders", changed)), rollback ? OK.value() : CONFLICT.value()), "decks", rollback);
+        assertThat(decks.findById(f.creatorDeck()).orElseThrow().getCommanders().get(slot).getChosenColor())
+                .isEqualTo(rollback ? "G" : pair.get(slot).chosenColor());
+        assertThat(decks.findById(f.creatorDeck()).orElseThrow().isEverUsed()).isEqualTo(!rollback);
+        if (!rollback) {
+            for (List<CommanderInput> mutation : List.of(pair.reversed(), List.of(pair.getFirst()))) {
+                expect(f.creator(), "PUT", "/api/decks/" + f.creatorDeck(),
+                        json.writeValueAsString(Map.of("name", "Pair", "commanders", mutation)), CONFLICT.value());
+            }
+            UUID replacementPrint = UUID.randomUUID();
+            ObjectNode replacement = (ObjectNode) provider.card(pair.get(slot).selectionRef().scryfallCardId()).deepCopy();
+            replacement.put("id", replacementPrint.toString()).put("oracle_id", UUID.randomUUID().toString());
+            CommanderTestProvider.put(replacementPrint, replacement.toString());
+            List<CommanderInput> changedIdentity = new ArrayList<>(pair);
+            changedIdentity.set(slot, new CommanderInput(new CommanderSelectionRef(replacementPrint, null), pair.get(slot).chosenColor()));
+            expect(f.creator(), "PUT", "/api/decks/" + f.creatorDeck(),
+                    json.writeValueAsString(Map.of("name", "Pair", "commanders", changedIdentity)), CONFLICT.value());
+            JsonNode history = expect(f.owner(), "GET", f.path(), "", OK.value());
+            List<JsonNode> pairDisplays = new ArrayList<>();
+            for (JsonNode participant : history.get(0).path("participants")) {
+                if (participant.path("deckId").asText().equals(f.creatorDeck().toString())) {
+                    pairDisplays.add(participant.path("deck").path("commanders"));
+                }
+            }
+            assertThat(pairDisplays).hasSize(1);
+            assertThat(pairDisplays.getFirst().size()).isEqualTo(2);
+            JsonNode selection = expect(f.owner(), "GET", f.selection(f.creator().id()), "", OK.value());
+            assertThat(selection.get(0).path("commanders").size()).isEqualTo(2);
+            expect(f.owner(), "GET", "/api/groups/" + f.groupId() + "/statistics", "", OK.value());
+            expect(f.owner(), "DELETE", f.path() + "/" + history.get(0).path("id").asText(), "", NO_CONTENT.value());
+            expect(f.creator(), "PUT", "/api/decks/" + f.creatorDeck(),
+                    json.writeValueAsString(Map.of("name", "Pair", "commanders", changed)), CONFLICT.value());
+            assertThat(decks.findById(f.creatorDeck()).orElseThrow().isEverUsed()).isTrue();
+            provider.offline = true;
+            JsonNode renamed = expect(f.creator(), "PUT", "/api/decks/" + f.creatorDeck(), "{\"name\":\"Offline pair\"}", OK.value());
+            assertThat(renamed.path("commanders").size()).isEqualTo(2);
+        }
     }
 
     @Test
