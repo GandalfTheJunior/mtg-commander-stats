@@ -274,6 +274,7 @@ Tests terminate without watch mode. GitHub Actions runs separate `backend` and
 - [Commander games API](docs/product/games-api.md)
 - [Group statistics API](docs/product/statistics-api.md)
 - [Deck lifecycle API](docs/product/decks-api.md)
+- [Scryfall card lookup API](docs/product/scryfall-api.md)
 - [Architecture and ADRs](docs/architecture/overview.md)
 - [Post-MVP frontend UI strategy (ADR 0003)](docs/architecture/adr/0003-defer-ui-framework-until-after-mvp.md)
 - [Frontend theme and incremental adoption](docs/development/frontend-theme.md)
