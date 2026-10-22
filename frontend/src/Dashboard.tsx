@@ -1,4 +1,3 @@
-import { commanderNames } from './api'
 import { useEffect, useState } from 'react'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -7,12 +6,12 @@ import CardActionArea from '@mui/material/CardActionArea'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import { Link } from 'react-router'
-import { ApiError, listDecks, listGroups, magicColors } from './api'
+import { ApiError, listDecks, listGroups } from './api'
+import SavedDeckCard from './SavedDeckCard'
 import type { DashboardIntent } from './dashboardNavigation'
 
 // Fix the locale and tie-break by ID, including case/accent-equivalent names.
 const deckNames = new Intl.Collator('de', { sensitivity: 'base' })
-const colorNames = { W: 'Weiß', U: 'Blau', B: 'Schwarz', R: 'Rot', G: 'Grün' }
 const cardAction = {
   display: 'block', textAlign: 'left', p: 2, minHeight: 72, color: 'text.primary',
   overflowWrap: 'anywhere',
@@ -97,20 +96,9 @@ export default function Dashboard({ onUnauthorized, onOpen }: {
         {decks.status === 'loaded' && (sortedDecks.length === 0
           ? <Typography>Noch keine Decks. Erstelle dein erstes Commander-Deck.</Typography>
           : <Stack component="ul" aria-label="Deine Decks" sx={{ listStyle: 'none', p: 0, m: 0, gap: 2 }}>
-            {sortedDecks.map(deck => <Card component="li" key={deck.id}>
-              <CardActionArea disableRipple sx={cardAction} onClick={() => onOpen({ kind: 'deck', id: deck.id })}
-                aria-labelledby={`deck-name-${deck.id}`} aria-describedby={`deck-description-${deck.id}`}>
-                <Typography component="h4" variant="h6" id={`deck-name-${deck.id}`}>{deck.name}</Typography>
-                <Box id={`deck-description-${deck.id}`}>
-                  <Typography>Commander: {commanderNames(deck)}</Typography>
-                  <Typography sx={{ color: 'text.secondary' }}>Farbidentität: {magicColors.filter(color => deck.colorIdentity.includes(color))
-                    .map(color => `${color} (${colorNames[color]})`).join(' · ') || 'Farblos'}</Typography>
-                  <Typography sx={{ color: 'text.secondary' }}>{deck.archived ? 'Archiviert' : deck.everUsed ? 'Bereits gespielt' : 'Unbenutzt'}</Typography>
-                  {sortedDecks.some(other => other.id !== deck.id && deckNames.compare(other.name, deck.name) === 0) &&
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>Deck-ID: {deck.id}</Typography>}
-                </Box>
-              </CardActionArea>
-            </Card>)}
+            {sortedDecks.map(deck => <SavedDeckCard key={deck.id} deck={deck}
+              onOpen={() => onOpen({ kind: 'deck', id: deck.id })}
+              showId={sortedDecks.some(other => other.id !== deck.id && deckNames.compare(other.name, deck.name) === 0)} />)}
           </Stack>)}
       </Box>
     </Stack>
