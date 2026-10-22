@@ -250,6 +250,7 @@ From `backend/`:
 
 This is the canonical backend check. It runs the real Spring context against
 an isolated PostgreSQL 18 Testcontainer, including datasource, JPA, and Flyway.
+Node 24 is also required for the complete offline demo API integration test.
 Docker must be available; tests do not skip when Docker is missing. Compose
 need not be running, and no local database password is needed for the test.
 

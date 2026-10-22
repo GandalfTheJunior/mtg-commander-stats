@@ -1,6 +1,6 @@
 // Explicit destructive integration check, never included in ordinary tests/startup.
 import assert from 'node:assert/strict';
-import {readFileSync, writeFileSync, unlinkSync} from 'node:fs';
+import {readFileSync, readdirSync, writeFileSync, unlinkSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {fork, spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
@@ -49,7 +49,10 @@ async function interactiveSignIn() {
     const {accountPassword} = JSON.parse(readFileSync(resolve(root, '.demo/credentials.json')));
     const session = new Session('http://127.0.0.1:8080');
     assert.equal((await session.login('ada@commander.example', accountPassword)).username, 'Ada');
-    assert.equal((await session.call('GET', '/decks')).length, 2);
+    const decks = await session.call('GET', '/decks');
+    assert.equal(decks.length, 3);
+    assert.equal(decks.filter(deck => !deck.everUsed).length, 1);
+    for (const deck of decks) assert.deepEqual(await session.call('PUT', `/decks/${deck.id}`, {name: deck.name}), deck);
     assert.equal((await session.call('GET', '/groups')).length, 1);
     await session.call('DELETE', '/session', undefined, 204);
   } finally {
@@ -65,17 +68,24 @@ async function interactiveSignIn() {
   }
 }
 const before = others();
+const jar = readdirSync(resolve(root, 'backend/target')).filter(name => name.endsWith('.jar'));
+assert.equal(jar.length, 1, 'Build the ordinary application jar first.');
+const contents = spawnSync('jar', ['tf', resolve(root, 'backend/target', jar[0])], {env: environment(), encoding: 'utf8'});
+assert.equal(contents.status, 0, 'Cannot inspect the application jar.');
+assert.ok(!contents.stdout.includes('/demo/') && !contents.stdout.includes('scryfall/demo-cards.json'), 'Test launcher/provider/fixtures must never enter the normal jar.');
 // up validates the local socket context before any demo database operation.
 command(['up']);
+const credentialsPath = resolve(root, '.demo/credentials.json');
+const credentialsDigest = createHash('sha256').update(readFileSync(credentialsPath)).digest('hex');
 command(['reset', '--destroy-demo-data']);
 assert.deepEqual(others(), before);
 command(['up']);
 command(['seed', '--allow-demo-seed']);
-assert.equal(counts(), '6|12|2|36');
+assert.equal(counts(), '6|18|2|36');
 await interactiveSignIn();
 for (const args of [['seed', '--allow-demo-seed'], ['seed'], ['reset'], ['seed', '--allow-demo-seed', '--base-url=http://localhost:8080'], ['seed', '--allow-demo-seed', '--base-url=https://example.com'], ['up', '--port=5432']]) {
   command(args, 1);
-  assert.equal(counts(), '6|12|2|36');
+  assert.equal(counts(), '6|18|2|36');
 }
 // Missing local status must still refuse an already populated database.
 const statusPath = resolve(root, '.demo/seed-status.json');
@@ -83,18 +93,25 @@ const status = readFileSync(statusPath);
 unlinkSync(statusPath);
 try {
   command(['seed', '--allow-demo-seed'], 1);
-  assert.equal(counts(), '6|12|2|36');
+  assert.equal(counts(), '6|18|2|36');
 } finally { writeFileSync(statusPath, status, {mode: 0o600}); }
 // Interrupted/partial runs are also explicitly refused, with no cleanup.
 writeFileSync(statusPath, JSON.stringify({status: 'started'}), {mode: 0o600});
 try {
   command(['seed', '--allow-demo-seed'], 1);
-  assert.equal(counts(), '6|12|2|36');
+  assert.equal(counts(), '6|18|2|36');
 } finally { writeFileSync(statusPath, status, {mode: 0o600}); }
 command(['stop']); command(['up']);
-assert.equal(counts(), '6|12|2|36');
+assert.equal(counts(), '6|18|2|36');
 assert.deepEqual(others(), before);
 command(['reset', '--destroy-demo-data']);
 assert.ok(!volumes().includes('mtg-commander-demo-data'));
 assert.deepEqual(others(), before);
+// Repeat the supported full reset-and-seed path, including its offline-provider
+// acknowledgement and all API snapshot/history/statistics assertions.
+command(['up']); command(['seed', '--allow-demo-seed']);
+assert.equal(counts(), '6|18|2|36');
+command(['reset', '--destroy-demo-data']);
+assert.deepEqual(others(), before);
+assert.equal(createHash('sha256').update(readFileSync(credentialsPath)).digest('hex'), credentialsDigest, 'Reset/reuse/reseed must retain existing credentials.');
 console.log('Real demo API, reseed refusal, bad-target refusal, persistence and demo-only reset verified. Other volume identities unchanged (this does not inspect their data contents).');

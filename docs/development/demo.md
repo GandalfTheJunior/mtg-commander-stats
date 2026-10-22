@@ -1,11 +1,5 @@
 # Local Commander demo
 
-> The complete offline seed refresh is deferred to #106. Since the joint #101/#102
-> deck API replacement, this guide's legacy free-text seed requests do not work
-> against the current API. Isolated tooling tests still run; they do not establish
-> compatibility of the real seed/verification workflow. See the
-> [deck migration/API contract](../product/decks-api.md).
-
 This opt-in developer tool uses the existing registration, session, deck, group
 and game APIs, plus the read-only group statistics API. It does not seed on startup. Requires
 the [normal prerequisites](../../README.md#stack-and-prerequisites), including
@@ -18,14 +12,14 @@ Build the existing backend once (repeat after backend changes):
 
 ```powershell
 Push-Location backend
-./mvnw.cmd -DskipTests package
+./mvnw.cmd -Pdemo-seed -DskipTests package
 Pop-Location
 node tools/demo/demo.mjs up
 node tools/demo/demo.mjs seed --allow-demo-seed
 node tools/demo/demo.mjs backend
 ```
 
-On macOS/Linux, build with `(cd backend && ./mvnw -DskipTests package)`; all the
+On macOS/Linux, build with `(cd backend && ./mvnw -Pdemo-seed -DskipTests package)`; all the
 Node commands are identical. `up` generates random local passwords in ignored
 `.demo/credentials.json` and starts PostgreSQL 18 on **127.0.0.1:5433**. Keep this
 file for subsequent runs; initialized volumes retain their original password.
@@ -37,10 +31,10 @@ folder and restrict its inherited ACL if it is shared with other OS users.
 backend** on a random loopback port and random context path, supplies the demo
 connection explicitly, waits for startup, seeds, verifies the API results and
 stops it. It does not connect to an independently running backend. It may take
-about a minute on first startup. Success reports 6 accounts, 2 groups, 12 decks,
+about a minute on first startup. Success reports 6 accounts, 2 groups, 12 played plus 6 unused decks,
 36 games and the login/file locations, without printing any password.
 
-`backend` then starts the same jar for interactive use on **127.0.0.1:8080**.
+`backend` then starts the ordinary application jar for interactive use on **127.0.0.1:8080**.
 Stop any other backend on 8080 first. The wrapper sets these variables in the
 **child backend process only** (your PowerShell environment is unchanged):
 
@@ -75,7 +69,15 @@ proxy reaches port 8080. Sign in as **ada@commander.example** with the value of
 **accountPassword** in `.demo/credentials.json`. Open that file privately in a
 text editor (for example `notepad .demo/credentials.json` from the root on
 Windows). All six fictional accounts share this randomly generated local-only
-password; each is 32 ASCII/Unicode code points, exceeding the 12-code-point rule.
+password. Newly generated account passwords are exactly **12 random URL-safe
+characters**, the shortest length accepted by the unchanged application policy
+(at least 12 Unicode code points). The independent database password remains
+64 hexadecimal characters. Existing **32-character** demo passwords remain valid;
+`up`, `seed`, `backend` and `reset` never silently rotate credentials. To intentionally
+obtain fresh 12-character credentials, first stop the applications and perform
+`reset --destroy-demo-data`; only after successful deletion of the demo volume,
+remove the private `.demo/credentials.json`, then run `up` and explicitly seed.
+Never remove that file while retaining its initialized volume/users.
 Other emails are bruno, cleo, dara, emil and faye at `commander.example` (a reserved
 example domain). This is local demo convenience, not a deployed account scheme.
 
@@ -195,7 +197,7 @@ are deliberately variable. All 36 games have four players; 4 are DRAWs.
 | Demo Friday Table | Ada | Ada, Bruno, Cleo, Dara, Emil | 20 | 2 |
 | Demo Sunday Table | Faye | Cleo, Dara, Emil, Faye | 16 | 2 |
 
-Each player owns two decks. Ada plays 12 Friday games: Dragon Engine wins 6/6
+Each player owns the original two played decks and one additional unused deck. Ada plays 12 Friday games: Dragon Engine wins 6/6
 (100%), Patient Constructs wins 0/6 (0%), and Ada's overall rate is 6/12 (50%).
 Friday seating varies participation counts. Dara's Old Artifacts is used and
 then archived, stays visible in history, and is unavailable for new assignments.
@@ -212,6 +214,76 @@ row against the live statistics API as well as real game-history responses, plus
 fresh sign-in, own decks, membership/role and visibility scopes,
 archived history/selection, and rejection of an archived deck in a new game.
 It submits no placements, seasons or timestamp overrides.
+
+## Pinned offline Scryfall metadata
+
+The explicit seed process uses `OfflineDemoSeedApplication` and
+`PinnedScryfallClient` from **test classes only**, built with `-Pdemo-seed`.
+The profile writes `backend/target/demo-classpath.txt`; keep the build outputs
+and Maven dependencies locally. The ordinary application jar contains neither
+launcher, fixture provider nor test resources and has no fixture/profile switch.
+The wrapper still validates the local Docker context, fixed container/volume,
+loopback database, empty users and explicit opt-in before API writes. The test
+launcher additionally rejects arbitrary arguments/targets and requires the
+random temporary loopback context and ephemeral HTTP port. No direct SQL inserts
+or relaxed Commander validators are used.
+
+Card requests match exact pinned printing UUIDs. The reversible example's
+supplemental Oracle query matches its full query string. Every other request,
+including search, artwork discovery and pagination, fails without a network
+fallback and poisons the seed's completion acknowledgement. Shutdown must confirm
+no unexpected requests before the wrapper writes `status: complete`. Failed runs
+remain explicit-reset-only; no automatic cleanup or retry occurs. This is offline
+**with respect to Scryfall**; the initial Maven/Docker dependency setup may require
+network access. No images are downloaded during seeding.
+
+After the temporary process exits, `demo.mjs backend` launches the **ordinary jar**.
+New/changed gameplay identities and explicit artwork gallery actions then use live
+Scryfall validation. Saved decks, source/artist/image snapshots, games, statistics
+and name-only edits read persisted data without Scryfall. Image URLs may fail in an
+offline browser; the existing fallback keeps text usable.
+
+[demo-cards.json](../../backend/src/test/resources/scryfall/demo-cards.json) pins
+real Scryfall responses captured on 2026-10-22. The
+[fixture notes](../../backend/src/test/resources/scryfall/README.md#offline-demo-fixtures)
+record reduction and refresh instructions. Synthetic unknown cards, malformed
+metadata, unrelated color-choice text and illegal pairs exist only in automated
+tests; they are never seeded as demo decks.
+
+| Scenario | Account / deck |
+| --- | --- |
+| Multicolor, colorless, monocolor singles | Ada's Dragon Engine / Patient Constructs; Bruno's Goblin Workshop |
+| Partner, chosen green | Bruno's Forest Council: The Prismatic Piper + Gilanra |
+| Choose a Background, chosen white | Dara's Sunlit Tokens: Faceless One + Acolyte of Bahamut |
+| Doctor's companion, chosen white | Emil's Spirit Parade: Clara Oswald + The Second Doctor |
+| Reciprocal Partner with, long names | Ada's unused Pir + Toothy expedition |
+| Generic named Partner—Friends forever | Faye's unused Cecily + Othelm deck |
+| Same Commander, different print/illustration | Ada's Dragon Engine vs Dara's unused Dragon Engine |
+| Modal / transform back illustration | Bruno's unused Esika; Cleo's unused Archangel Avacyn |
+| Reversible gameplay face 0, artwork side 1 | Emil's unused Zndrsplt (both sides retain the same Oracle identity) |
+| Permanent usage and archived history | The twelve original decks; Dara's archived Old Artifacts |
+
+## Final demo smoke checklist
+
+Seed a fresh demo, start the ordinary backend and Vite, then check:
+
+1. As Ada, Dashboard and Decks show a single illustration, colorless Karn and
+   the unused two-Commander Pir/Toothy deck with its long name. Open/cancel the
+   editor, inspect used vs unused status, and verify separate attribution links.
+2. As Bruno, Dara and Emil, inspect both saved Commander names and canonical
+   effective colors on the played chosen-color pairs. Their gameplay/color
+   choices are locked; name-only edits still work. Dara's archived Breya remains
+   visible in history and absent from new-game choices.
+3. Inspect Esika/Avacyn/Zndrsplt's saved back-side artwork and its attribution.
+   Compare both Ur-Dragon illustrations. At desktop and narrow mobile sizes,
+   check the existing single/overlapped-dual layout, long names and fallback.
+4. With Scryfall available, activate either dual artwork to open the correct
+   slot gallery; selecting another illustration must retain gameplay/colors,
+   usage and history. This explicit gallery smoke needs live Scryfall and is
+   separate from the strictly offline seed.
+5. Check Friday/Sunday history and statistics against the manifest below.
+   The six unused decks have no statistics rows. Verify Ada's 12/6/50% and
+   Dragon Engine's 6/6/100%; saved reads and rename work without Scryfall.
 
 ## Check browser statistics with existing demo data
 
@@ -338,7 +410,12 @@ or its Compose plugin is not installed/discoverable in the ordinary shell. If th
 ordinary `docker compose version` works but the sanitized invocation fails, the
 check fails. A skipped check is not proof of successful plugin discovery.
 
-For a repeatable real API/isolation check with Docker, a freshly built jar, and
+The canonical backend `./mvnw verify` also requires Node 24 and runs the full
+API seed twice against a disposable PostgreSQL 18 Testcontainer, plus pinned
+Oracle/chosen-color, negative-pair and launcher/fixture guard tests.
+
+For a repeatable real API/isolation check with Docker, freshly built
+`-Pdemo-seed` outputs, and
 port 8080 free (stop any interactive backend first):
 
 ```powershell
@@ -346,7 +423,8 @@ node tools/demo/verify.mjs --destroy-demo-data
 ```
 
 **This explicitly resets the demo before and after the check.** It exercises
-up/seed and interactive-backend sign-in/logout, confirms second-seed and
+two complete reset/up/offline-seed cycles and ordinary interactive-backend
+sign-in/logout plus snapshot-only name edits, confirms second-seed and
 missing/partial-status refusal without data changes, rejects target/opt-in
 overrides, checks all other Docker volumes retain their identities, and checks
 reset removes only the demo volume. It preserves credentials; run `up`, `seed`,

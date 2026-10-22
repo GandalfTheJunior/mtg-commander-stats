@@ -1,5 +1,40 @@
 # Partner discovery fixtures
 
+## Offline demo fixtures
+
+`demo-cards.json` contains real card responses pinned on 2026-10-22 for #106.
+Each entry was retrieved from `/cards/named?exact=<name>`, except the alternate
+Ur-Dragon (selected from `oracleid:<Ur-Dragon Oracle UUID>&unique=art`) and the
+reversible Zndrsplt (from `layout:reversible_card name:Zndrsplt&unique=prints`).
+The UUID in each entry is the exact `/cards/{id}` refresh target. Zndrsplt's
+ordinary printing supplies the canonical Oracle metadata needed to normalize
+the reversible printing; both physical sides represent that same gameplay card.
+The two Ur-Dragon entries share Oracle identity and have distinct illustration IDs.
+
+The snapshot retains verbatim names, printing/Oracle identifiers, layout,
+language, type, Oracle text (including face-specific text), keywords, color
+identity, Commander legality, set/collector/release metadata, artist,
+illustration/source references and `small`/`art_crop` image URLs. Other legalities,
+image sizes and unrelated fields are omitted. No artwork is downloaded.
+
+To refresh intentionally, use an identified client with `Accept: application/json`
+to GET `https://api.scryfall.com/cards/{id}` for each pinned ID, at least 150 ms
+between requests. Apply only the reduction above; do not invent rules or replace
+stable IDs by a fuzzy/latest-name match. Review the diff for legality, pairing,
+chosen-color wording, Oracle/face identity and artwork/attribution changes. Update
+the capture date only after successful review. A new printing/scenario also
+requires updating `tools/demo/fixture.mjs` and any exact-query expectations in the
+test provider. Keep synthetic/invalid metadata in test code, outside this file.
+
+Run `node --test tools/demo/*.test.mjs`, canonical backend/frontend checks,
+build the `demo-seed` profile, and explicitly run
+`node tools/demo/verify.mjs --destroy-demo-data` against the isolated local demo.
+This deliberately resets only demo data; never apply a fixture refresh to an
+existing database implicitly. The supported reset/up/seed sequence is documented
+in [the demo guide](../../../../../docs/development/demo.md).
+
+## Partner query captures
+
 `partner-discovery.json` contains reduced real Scryfall responses captured on
 2026-10-22 for PR #112. The five scenarios cover ordinary Partner and every
 named variant observed that day: Survivors, Friends forever, Character select,

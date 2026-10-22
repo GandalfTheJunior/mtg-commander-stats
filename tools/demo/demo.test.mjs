@@ -4,8 +4,8 @@ import {readFileSync} from 'node:fs';
 import {createServer} from 'node:http';
 import {spawn, spawnSync} from 'node:child_process';
 import {dirname} from 'node:path';
-import {users, groups, games, archivedDeck, results} from './fixture.mjs';
-import {validateCommand, environment, backendEnvironment, checkContainer, checkVolume, checkDockerHost} from './demo.mjs';
+import {users, groups, games, archivedDeck, results, cards, deckRequest} from './fixture.mjs';
+import {validateCommand, environment, backendEnvironment, backendArguments, generateCredentials, validateCredentials, checkContainer, checkVolume, checkDockerHost} from './demo.mjs';
 import {Session} from './api.mjs';
 
 test('fixture eligibility, ownership, outcomes, lifecycle and checkable manifest', () => {
@@ -14,6 +14,8 @@ test('fixture eligibility, ownership, outcomes, lifecycle and checkable manifest
   assert.equal(new Set(users.map(u => u.email)).size, 6);
   assert.equal(games.length, 36);
   assert.equal(games.filter(g => g.result === 'DRAW').length, 4);
+  assert.equal(users.flatMap(u => u.decks).length, 18);
+  assert.equal(new Set(games.flatMap(g => g.participants.map(p => p.deck))).size, 12);
   for (const user of users) {
     assert.match(user.email, /@commander\.example$/);
     assert.ok(user.decks.length >= 2 && user.decks.length <= 3);
@@ -47,6 +49,45 @@ test('fixture eligibility, ownership, outcomes, lifecycle and checkable manifest
       assert.equal(decks.reduce((n, r) => n + r.wins, 0), player.wins);
     }
   }
+});
+
+test('fresh demo account passwords have exactly 12 random characters; existing 32-character credentials remain valid', () => {
+  const generated = Array.from({length: 32}, generateCredentials);
+  assert.equal(new Set(generated.map(c => c.accountPassword)).size, generated.length);
+  for (const cfg of generated) {
+    assert.match(cfg.accountPassword, /^[A-Za-z0-9_-]{12}$/);
+    assert.match(cfg.databasePassword, /^[a-f0-9]{64}$/);
+    assert.equal(validateCredentials(cfg), cfg);
+  }
+  const legacy = {...generated[0], accountPassword: 'a'.repeat(32)};
+  assert.equal(validateCredentials(legacy), legacy);
+  for (const length of [0, 11, 13, 31, 33]) assert.throws(() => validateCredentials({...legacy, accountPassword: 'a'.repeat(length)}));
+});
+
+test('interactive backend uses only the normal jar; ambient flags cannot enable fixture seeding', () => {
+  const args = backendArguments('/built/backend.jar');
+  assert.deepEqual(args.slice(0, 2), ['-jar', '/built/backend.jar']);
+  assert.ok(args.includes('--server.port=8080'));
+  assert.ok(!args.some(arg => /fixture|classpath.txt|allow-isolated|-cp/.test(arg)));
+});
+
+test('demo payloads use pinned real identities and separate display sides; ordinary cards have no chosenColor', () => {
+  for (const deck of users.flatMap(u => u.decks)) {
+    const request = deckRequest(deck);
+    assert.deepEqual(Object.keys(request), ['name', 'commanders']);
+    assert.equal(request.commanders.length, deck.commanders.length);
+    for (const [index, commander] of deck.commanders.entries()) {
+      const metadata = cards[commander.card];
+      assert.equal(metadata.object, 'card');
+      assert.equal(metadata.legalities.commander, 'legal');
+      assert.equal(request.commanders[index].selectionRef.scryfallCardId, metadata.id);
+      assert.equal(Object.hasOwn(request.commanders[index], 'chosenColor'), ['The Prismatic Piper', 'Faceless One', 'Clara Oswald'].includes(metadata.name));
+      assert.ok(!Object.hasOwn(request.commanders[index], 'artworkFaceIndex'));
+      assert.ok(!Object.hasOwn(request.commanders[index], 'colorIdentity'));
+    }
+  }
+  assert.equal(cards['The Ur-Dragon'].oracle_id, cards['The Ur-Dragon (alternate art)'].oracle_id);
+  assert.notEqual(cards['The Ur-Dragon'].illustration_id, cards['The Ur-Dragon (alternate art)'].illustration_id);
 });
 
 test('commands fail closed before any side effects; no arbitrary URL, port or target', () => {
