@@ -134,6 +134,26 @@ both sides of the ownership boundary:
 5. In separate conversations, confirm that ordinary review discussion and the
    Reviewer's own technical completion do not trigger the check.
 
+## Screenshot delivery and recovery
+
+Run these cases in a fresh conversation using the current client and the
+[Implementer screenshot contract](roles/implementer.md#ui-screenshot-evidence).
+Use non-sensitive desktop/mobile captures of a running development UI after its
+final edit, stored outside Git. These cases test delivery behavior, not UI approval.
+
+| Case and input | Observable outcome |
+| --- | --- |
+| Shared-workspace client supports direct absolute file links. Ask for the captured desktop/mobile images. | Final response uses existing readable image files through clickable workspace links or embeds in the supported format. The PO can open/view both images. The agent does not require an upload tool or substitute a bare path/PR URL. |
+| File exists and the agent's image-view tool succeeds, but client rendering/receipt has not been observed. | The agent distinguishes capture and its own inspection from PO receipt; it does not treat tool success alone as proof of delivery. No mandatory receipt-confirmation question or new approval gate is introduced. |
+| A submitted link is inaccessible. Send `Ich habe noch keine Bilder bekommen`. | The agent checks the file and client link format, uses an available supported alternative, and corrects unsupported delivery claims. It does not simply resend the same failed route or infer that all screenshot delivery is impossible. |
+| After receiving corrected direct links, send `Das funktioniert`. | The agent recognizes receipt without treating it as UI approval or merge authority. When asked to update the PR, it records receipt, removes any stale delivery blocker, preserves real hosting/verification limitations and verifies the persisted body. |
+| No supported delivery route is actually available. | The agent states the specific blocker honestly in the final response and PR, preserves the images, and does not claim receipt or commit temporary screenshots to work around delivery. |
+
+Repository checks may verify file existence/readability and link syntax, but
+cannot prove that a separate client renders an image or that the PO received it.
+Exercise the delivery cases through the actual client; inspect any authorized
+PR-body correction through GitHub rather than only the submitted request.
+
 ## Agent Poker refinement
 
 Run each case in a fresh conversation loading the root and Issue Refiner
