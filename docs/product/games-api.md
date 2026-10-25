@@ -213,3 +213,18 @@ Only active-mode fields reach POST/PUT. A player change clears only that card's
 results across modes; a deck-only change preserves results. The leave guard
 includes seat order, mode and inactive cached results. No cross-session draft
 recovery, live match tracking or partial historical-game correction is provided.
+
+## Read-only game details presentation
+
+Game details show one artwork card per participant in a vertical stack on mobile
+and desktop. WIN uses effective GET placement, then saved start seat for ties;
+equal ranks have equal indentation. DRAW uses only saved start seats, without
+finish ranks or a winner. Cards label seats, placements, survival and the sole WIN
+winner explicitly, retaining archived-deck and former-member information.
+
+Each card uses the currently associated deck's saved Commander artwork from the
+GET response, with equal adjacent panels for two Commanders. Images use a cover
+crop and names over a dark gradient. Missing, unsafe or failed sources fall back;
+changing the Commander/source resets image failure state. A fresh details load
+reflects current deck assignment and saved artwork, without provider lookups or
+separate game-level artwork storage. Artwork selection remains in deck editing.

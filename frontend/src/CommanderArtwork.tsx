@@ -4,6 +4,10 @@ import { safeArtworkUrl } from './artworkUrl'
 
 
 export function CommanderArtwork({ commander }: { commander: { name: string; artCropUrl: string | null } }) {
+  return <ArtworkImage key={JSON.stringify([commander.name, commander.artCropUrl])} commander={commander} />
+}
+
+function ArtworkImage({ commander }: { commander: { name: string; artCropUrl: string | null } }) {
   const [failed, setFailed] = useState(false)
   const src = safeArtworkUrl(commander.artCropUrl)
   return src && !failed
