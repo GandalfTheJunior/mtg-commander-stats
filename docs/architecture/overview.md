@@ -94,11 +94,14 @@ API.
 
 The `game` feature owns `games` and the `game_participants` element collection.
 Group, creator, user and deck foreign keys, a participant primary key per game/user,
-a composite deck/owner FK, and result/winner checks protect persisted references.
-A deferred winner FK requires the winning user to participate at commit, while
-allowing atomic creation, assignment replacement and hard deletion. The domain
-validates 2–6 distinct players and WIN/DRAW consistency; the application validates
-new assignments and permissions. Game identity fields are never updated.
+a composite deck/owner FK, unique start seats and deferred complete-game checks
+protect persisted references and mode-specific canonical facts. The domain
+validates seats, 2–6 distinct players/decks and competition ranks for normal WIN,
+alternate WIN and DRAW. Winner UUID and effective ranks/survival are derived as
+documented in the [Games API](../product/games-api.md); only manual ranks and
+mode-specific winner/survivor facts are persisted. The application validates new
+assignments and permissions. Game identity fields are never updated. V8 refuses
+any pre-upgrade game rows without modifying them; no historical facts are inferred.
 
 `ManageGames` coordinates the group's `GameGroupAccess`, the deck's `GameDecks`,
 and the public-user directory rather than other features' repositories. Game

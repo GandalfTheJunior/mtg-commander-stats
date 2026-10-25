@@ -54,15 +54,15 @@ class GroupStatisticsTest extends GameTestSupport {
         UUID constructs = id(expect(f.owner(), "POST", "/api/decks",
                 deckBody("Patient Constructs", "Karn, Silver Golem", List.of()), CREATED.value()));
         for (int i = 0; i < 12; i++) {
-            List<GameParticipant> participants = List.of(new GameParticipant(f.owner().id(), i < 6 ? dragons : constructs),
-                    new GameParticipant(f.creator().id(), f.creatorDeck()), new GameParticipant(f.member().id(), f.memberDeck()));
+            List<GameParticipant> participants = List.of(assignment(f.owner().id(), i < 6 ? dragons : constructs),
+                    assignment(f.creator().id(), f.creatorDeck()), assignment(f.member().id(), f.memberDeck()));
             UUID winner = i < 6 ? f.owner().id() : i == 6 ? f.creator().id() : null;
             expect(f.owner(), "POST", f.path(), body(participants, winner == null ? "DRAW" : "WIN", winner), CREATED.value());
         }
         UUID sunday = groupService.create(f.owner().id(), "Sunday").id();
         groupService.join(f.creator().id(), groupService.joinCode(f.owner().id(), sunday));
-        List<GameParticipant> shared = List.of(new GameParticipant(f.owner().id(), dragons),
-                new GameParticipant(f.creator().id(), f.creatorDeck()));
+        List<GameParticipant> shared = List.of(assignment(f.owner().id(), dragons),
+                assignment(f.creator().id(), f.creatorDeck()));
         for (int i = 0; i < 3; i++) {
             expect(f.owner(), "POST", "/api/groups/" + sunday + "/games",
                     body(shared, i == 0 ? "WIN" : "DRAW", i == 0 ? f.creator().id() : null), CREATED.value());
@@ -109,7 +109,7 @@ class GroupStatisticsTest extends GameTestSupport {
         String gamePath = f.path() + "/" + gameId;
         UUID alternative = deck(f.creator());
         counts(find(statistics(f.owner(), f.groupId()).get("decks"), "deckId", f.creatorDeck().toString()), 1, 1, "100");
-        List<GameParticipant> changedDeck = List.of(new GameParticipant(f.creator().id(), alternative), assignments(f).get(1));
+        List<GameParticipant> changedDeck = List.of(assignment(f.creator().id(), alternative), assignments(f).get(1));
         expect(f.creator(), "PUT", gamePath, body(changedDeck, "WIN", f.member().id()), OK.value());
         JsonNode changed = statistics(f.owner(), f.groupId());
         assertThat(changed.get("decks").size()).isEqualTo(2);
@@ -125,7 +125,7 @@ class GroupStatisticsTest extends GameTestSupport {
         for (JsonNode row : drawn.get("decks")) {
             counts(row, 1, 0, "0");
         }
-        List<GameParticipant> changedPlayers = List.of(new GameParticipant(f.owner().id(), f.ownerDeck()), assignments(f).get(1));
+        List<GameParticipant> changedPlayers = List.of(assignment(f.owner().id(), f.ownerDeck()), assignments(f).get(1));
         expect(f.creator(), "PUT", gamePath, body(changedPlayers, "WIN", f.owner().id()), OK.value());
         JsonNode replaced = statistics(f.owner(), f.groupId());
         assertThat(replaced.get("players").size()).isEqualTo(2);
@@ -152,8 +152,8 @@ class GroupStatisticsTest extends GameTestSupport {
             long singleStatements = sql.getPrepareStatementCount();
             assertThat(sql.getEntityUpdateCount()).isZero();
             UUID alternate = deck(f.creator());
-            List<GameParticipant> participants = List.of(new GameParticipant(f.creator().id(), alternate),
-                    assignments(f).get(1), new GameParticipant(f.owner().id(), f.ownerDeck()));
+            List<GameParticipant> participants = List.of(assignment(f.creator().id(), alternate),
+                    assignments(f).get(1), assignment(f.owner().id(), f.ownerDeck()));
             for (int i = 0; i < 5; i++) {
                 expect(f.owner(), "POST", f.path(), body(participants, "DRAW", null), CREATED.value());
             }

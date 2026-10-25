@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.JsonNode;
 
 @RestController
 public class GameController {
@@ -35,7 +36,7 @@ public class GameController {
     public GameDetails create(@AuthenticationPrincipal UserPrincipal user, @PathVariable UUID groupId,
             @RequestBody GameRequest request) {
         return games.create(user.getId(), groupId, request.assignments(), GameResult.parse(request.result()),
-                uuid(request.winnerUserId()));
+                request.alternate());
     }
 
     @GetMapping("/api/groups/{groupId}/games")
@@ -53,7 +54,7 @@ public class GameController {
     public GameDetails replace(@AuthenticationPrincipal UserPrincipal user, @PathVariable UUID groupId,
             @PathVariable UUID gameId, @RequestBody GameRequest request) {
         return games.replace(user.getId(), groupId, gameId, request.assignments(), GameResult.parse(request.result()),
-                uuid(request.winnerUserId()));
+                request.alternate());
     }
 
     @DeleteMapping("/api/groups/{groupId}/games/{gameId}")
@@ -84,13 +85,39 @@ public class GameController {
         }
     }
 
-    public record GameRequest(List<ParticipantRequest> participants, String result, String winnerUserId) {
+    private static Integer integer(JsonNode value, boolean required) {
+        if (value == null && !required) {
+            return null;
+        }
+        if (value == null || !value.isIntegralNumber() || !value.canConvertToInt()) {
+            throw new InvalidGameException();
+        }
+        return value.intValue();
+    }
+
+    private static Boolean bool(JsonNode value, boolean required) {
+        if (value == null && !required) {
+            return null;
+        }
+        if (value == null || !value.isBoolean()) {
+            throw new InvalidGameException();
+        }
+        return value.booleanValue();
+    }
+
+    public record GameRequest(List<ParticipantRequest> participants, String result, JsonNode alternateWinCon) {
         List<GameParticipant> assignments() {
             if (participants == null || participants.stream().anyMatch(participant -> participant == null)) {
                 throw new InvalidGameException();
             }
             return participants.stream()
-                    .map(participant -> new GameParticipant(uuid(participant.userId()), uuid(participant.deckId()))).toList();
+                    .map(participant -> new GameParticipant(uuid(participant.userId()), uuid(participant.deckId()),
+                            integer(participant.startPosition(), true), integer(participant.placement(), false),
+                            bool(participant.winner(), false), bool(participant.stillInGame(), false))).toList();
+        }
+
+        Boolean alternate() {
+            return bool(alternateWinCon, true);
         }
 
         @JsonAnySetter
@@ -99,7 +126,8 @@ public class GameController {
         }
     }
 
-    public record ParticipantRequest(String userId, String deckId) {
+    public record ParticipantRequest(String userId, String deckId, JsonNode startPosition,
+            JsonNode placement, JsonNode winner, JsonNode stillInGame) {
         @JsonAnySetter
         public void rejectUnknownField(String field, Object value) {
             throw new InvalidGameException();

@@ -191,7 +191,7 @@ class CommanderArtworkTest extends GameTestSupport {
         ObjectNode alternative = ((ObjectNode) provider.card(inputs.get(0).selectionRef().scryfallCardId())).deepCopy();
         alternative.put("id", UUID.randomUUID().toString()).put("artist", "Concurrent art");
         UUID print = store(alternative);
-        race(() -> gameService.create(f.owner().id(), f.groupId(), assignments(f), GameResult.DRAW, null),
+        race(() -> createGame(f.owner().id(), f.groupId(), assignments(f), GameResult.DRAW, null),
                 () -> expect(f.creator(), "PUT", artworkPath(f.creatorDeck(), 1), payload(print, null), 200));
         JsonNode used = read(f.creator(), f.creatorDeck());
         assertThat(used.path("everUsed").asBoolean()).isTrue();

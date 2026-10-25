@@ -5,6 +5,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.deck.application.ManageDecks
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.DeckRepository;
 import io.github.gandalfthejunior.mtgcommanderstats.game.application.ManageGames;
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.GameParticipant;
+import io.github.gandalfthejunior.mtgcommanderstats.game.domain.GameResult;
 import io.github.gandalfthejunior.mtgcommanderstats.game.persistence.GameRepository;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.ManageGroups;
 import io.github.gandalfthejunior.mtgcommanderstats.group.persistence.PlayGroupRepository;
@@ -121,17 +123,58 @@ abstract class GameTestSupport {
     }
 
     protected List<GameParticipant> assignments(Fixture fixture) {
-        return List.of(new GameParticipant(fixture.creator().id(), fixture.creatorDeck()),
-                new GameParticipant(fixture.member().id(), fixture.memberDeck()));
+        return List.of(assignment(fixture.creator().id(), fixture.creatorDeck()),
+                assignment(fixture.member().id(), fixture.memberDeck()));
     }
 
     protected String body(List<GameParticipant> participants, String result, UUID winner) {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("participants", participants.stream()
-                .map(p -> Map.of("userId", p.getUserId(), "deckId", p.getDeckId())).toList());
+        List<Map<String, Object>> entries = new ArrayList<>();
+        int seat = 0;
+        int loserPlace = 2;
+        for (GameParticipant p : participants) {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("userId", p.getUserId());
+            entry.put("deckId", p.getDeckId());
+            entry.put("startPosition", ++seat);
+            if ("DRAW".equals(result)) { entry.put("stillInGame", true); }
+            else { entry.put("placement", p.getUserId().equals(winner) ? 1 : loserPlace++); }
+            entries.add(entry);
+        }
+        payload.put("participants", entries);
         payload.put("result", result);
-        payload.put("winnerUserId", winner);
+        payload.put("alternateWinCon", false);
+        // Deliberately invalid test input must remain invalid under the new contract.
+        if ("DRAW".equals(result) && winner != null) { payload.put("winnerUserId", winner); }
         return json.writeValueAsString(payload);
+    }
+
+    protected GameParticipant assignment(UUID user, UUID deck) {
+        return new GameParticipant(user, deck, 1, null, null, true);
+    }
+
+    protected List<GameParticipant> complete(List<GameParticipant> assignments,
+            GameResult result, UUID winner) {
+        List<GameParticipant> complete = new ArrayList<>();
+        int seat = 0;
+        int loserPlace = 2;
+        for (GameParticipant p : assignments) {
+            complete.add(new GameParticipant(p.getUserId(), p.getDeckId(), ++seat,
+                    result == GameResult.DRAW
+                            ? null : p.getUserId().equals(winner) ? 1 : loserPlace++,
+                    null, result == GameResult.DRAW ? true : null));
+        }
+        return complete;
+    }
+
+    protected ManageGames.GameDetails createGame(UUID actor, UUID group, List<GameParticipant> participants,
+            GameResult result, UUID winner) {
+        return gameService.create(actor, group, complete(participants, result, winner), result, false);
+    }
+
+    protected ManageGames.GameDetails replaceGame(UUID actor, UUID group, UUID game, List<GameParticipant> participants,
+            GameResult result, UUID winner) {
+        return gameService.replace(actor, group, game, complete(participants, result, winner), result, false);
     }
 
     protected JsonNode expect(Actor actor, String method, String path, String body, int status) throws Exception {
