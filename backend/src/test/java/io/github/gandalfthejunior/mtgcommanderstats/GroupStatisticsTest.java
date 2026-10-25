@@ -237,7 +237,10 @@ class GroupStatisticsTest extends GameTestSupport {
                 "playerCount=02", "playerCount=%202", "playerCount=2%20", "playerCount=%2B2",
                 "playerCount=2147483648", "playerCount=2,3", "playerCount=2&playerCount=2",
                 "playerCount=2&playerCount=3", "playerCount=&playerCount=4")) {
-            expect(f.owner(), "GET", path(f.groupId()) + "?" + query, "", BAD_REQUEST.value());
+            // expect also verifies application/problem+json, JSON status and absence of sensitive fields.
+            JsonNode problem = expect(f.owner(), "GET", path(f.groupId()) + "?" + query, "", BAD_REQUEST.value());
+            assertThat(problem.get("detail").asText())
+                    .isEqualTo("Provide playerCount exactly once as an integer from 2 through 6.");
         }
         for (int n = 2; n <= 6; n++) {
             empty(filtered(f.owner(), f.groupId(), n), n);
