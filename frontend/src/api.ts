@@ -495,7 +495,19 @@ export type DeckStatistics = {
   wins: number
   winRatePercent: number
 }
-export type GroupStatistics = { players: PlayerStatistics[]; decks: DeckStatistics[] }
+export type PlayerCount = 2 | 3 | 4 | 5 | 6
+export type StatisticsCounts = { games: number; wins: number; winRatePercent: number | null }
+export type ManaStatistics = StatisticsCounts & { color: MagicColor | 'C' }
+export type SeatStatistics = StatisticsCounts & { startPosition: number }
+export type GroupStatistics = {
+  players: PlayerStatistics[]; decks: DeckStatistics[]
+  startPositions: { playerCount: PlayerCount; seats: SeatStatistics[] }[]
+  manaColors: ManaStatistics[]
+}
+function chartCounts(row: Record<string, unknown>): StatisticsCounts {
+  if (row.games === 0 && row.wins === 0 && row.winRatePercent === null) return { games: 0, wins: 0, winRatePercent: null }
+  return statisticsCounts(row)
+}
 
 function statisticsCounts(value: Record<string, unknown>) {
   const { games, wins, winRatePercent } = value
@@ -507,13 +519,13 @@ function statisticsCounts(value: Record<string, unknown>) {
   return { games, wins, winRatePercent }
 }
 
-export async function getGroupStatistics(groupId: string, signal?: AbortSignal): Promise<GroupStatistics> {
+export async function getGroupStatistics(groupId: string, signal?: AbortSignal, playerCount?: PlayerCount): Promise<GroupStatistics> {
   const response = await checkedResponse(await fetch(
-    `/api/groups/${encodeURIComponent(groupId)}/statistics`,
+    `/api/groups/${encodeURIComponent(groupId)}/statistics${playerCount === undefined ? '' : `?playerCount=${playerCount}`}`,
     { ...requestDefaults, ...(signal ? { signal } : {}) },
   ), 200, 'Could not load statistics.')
   const body: unknown = await response.json()
-  if (!isRecord(body) || !Array.isArray(body.players) || !Array.isArray(body.decks)) {
+  if (!isRecord(body) || !Array.isArray(body.players) || !Array.isArray(body.decks) || !Array.isArray(body.startPositions) || !Array.isArray(body.manaColors)) {
     throw new Error('The server returned invalid group statistics.')
   }
   const players = body.players.map((row: unknown): PlayerStatistics => {
@@ -536,7 +548,24 @@ export async function getGroupStatistics(groupId: string, signal?: AbortSignal):
     new Set(decks.map((row) => row.deckId.toLowerCase())).size !== decks.length) {
     throw new Error('The server returned duplicate statistics rows.')
   }
-  return { players, decks }
+  const sizes = playerCount === undefined ? [2, 3, 4, 5, 6] : [playerCount]
+  if (body.startPositions.length !== sizes.length) throw new Error('Invalid statistics table sizes.')
+  const startPositions = body.startPositions.map((section: unknown, index: number) => {
+    if (!isRecord(section) || section.playerCount !== sizes[index] || !Array.isArray(section.seats) || section.seats.length !== sizes[index]) {
+      throw new Error('Invalid statistics seats.')
+    }
+    return { playerCount: sizes[index] as PlayerCount, seats: section.seats.map((seat: unknown, position: number) => {
+      if (!isRecord(seat) || seat.startPosition !== position + 1) throw new Error('Invalid statistics seat.')
+      return { startPosition: position + 1, ...chartCounts(seat) }
+    }) }
+  })
+  const colors = ['W', 'U', 'B', 'R', 'G', 'C']
+  const manaColors = body.manaColors.map((row: unknown): ManaStatistics => {
+    if (!isRecord(row) || typeof row.color !== 'string' || !colors.includes(row.color)) throw new Error('Invalid statistics color.')
+    return { color: row.color as ManaStatistics['color'], ...chartCounts(row) }
+  })
+  if (manaColors.length !== 6 || new Set(manaColors.map(row => row.color)).size !== 6) throw new Error('Invalid statistics colors.')
+  return { players, decks, startPositions, manaColors }
 }
 
 function colorsFrom(value: unknown): MagicColor[] {

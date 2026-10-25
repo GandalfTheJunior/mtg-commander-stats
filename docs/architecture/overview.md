@@ -350,4 +350,12 @@ Statistics 401/403/404 responses delegate to the existing game/group recovery:
 group GET determines access. Confirmed membership permits explicit Refresh games
 or Refresh statistics to reload the respective area; automatic denial retries are
 blocked to avoid request loops. Failed checks keep both areas hidden. There are
-no client-side statistics counters or new backend contracts.
+no client-side statistics counters. The shared player-count choice lives beside
+sort/view state in GameManager and is sent as the API v2 `playerCount` query.
+Changing it retires old results and requests before loading all four arrays.
+The API parser requires all table-size/seat and color categories, validates
+zero/null versus observed numeric rates, and strips extra fields. StatisticsCharts
+renders semantic labeled lists with decorative CSS bars, accessible counts and
+percentages, and responsive side-by-side/stacked layout. Empty seat sections are
+suppressed for display only. Mana ordering uses exact BigInt cross-products of
+counts; displayed percentages remain server-supplied.

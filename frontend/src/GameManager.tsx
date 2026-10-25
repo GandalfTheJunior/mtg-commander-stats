@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import {
   ApiError, getGroup, listGames, saveGame,
-  type Game, type GameInput, type GroupDetails,
+  type Game, type GameInput, type GroupDetails, type PlayerCount,
 } from './api'
 import { Alert, Box, Button, Card, CardActionArea, Stack, Typography } from '@mui/material'
 import { Link } from 'react-router'
@@ -52,6 +52,7 @@ export default function GameManager({ group, actorId, tab = 'games', initialEdit
   // First visit mounts one statistics view; tab switches only hide its panel.
   const [statisticsVisited, setStatisticsVisited] = useState(tab === 'statistics')
   if (tab === 'statistics' && !statisticsVisited) setStatisticsVisited(true)
+  const [statisticsPlayerCount, setStatisticsPlayerCount] = useState<PlayerCount | undefined>(undefined)
   const [statisticsView, setStatisticsView] = useState<StatisticsView>('players')
   const [focusStatistics, setFocusStatistics] = useState(false)
   const statisticsRetry = useRef<HTMLButtonElement>(null)
@@ -200,7 +201,7 @@ export default function GameManager({ group, actorId, tab = 'games', initialEdit
         <p role="status">Gruppenzugriff bestätigt. Bitte Statistiken aktualisieren, um den Serverstand zu prüfen.</p>
         <Button ref={statisticsRetry} color="secondary" onClick={() => { setFocusStatistics(true); setStatisticsBlocked(false) }}>Statistiken aktualisieren</Button>
       </div> : <GroupStatistics key={statisticsRevision} groupId={id} onAccessError={recover} sort={statisticsSort} onSort={setStatisticsSort}
-        view={statisticsView} onView={setStatisticsView} focusRefresh={focusStatistics && tab === 'statistics'} onRefreshFocused={() => setFocusStatistics(false)} />)}
+        playerCount={statisticsPlayerCount} onPlayerCount={setStatisticsPlayerCount} view={statisticsView} onView={setStatisticsView} focusRefresh={focusStatistics && tab === 'statistics'} onRefreshFocused={() => setFocusStatistics(false)} />)}
     </Box>
   </>
 }

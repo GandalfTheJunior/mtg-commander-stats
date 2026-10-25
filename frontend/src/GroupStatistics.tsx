@@ -1,3 +1,5 @@
+import StatisticsCharts from './StatisticsCharts'
+import type { PlayerCount } from './api'
 import { useEffect, useRef, useState } from 'react'
 import {
   Alert, Box, Button, Card, Stack, Table, TableBody, TableCell, TableHead, TableRow,
@@ -11,6 +13,8 @@ type DeckColumn = 'name' | 'ownerUsername' | 'games' | 'wins' | 'winRatePercent'
 export type StatisticsView = 'players' | 'decks'
 export type StatisticsSort = { players: Sort<PlayerColumn> | null; decks: Sort<DeckColumn> | null }
 type Props = {
+  playerCount?: PlayerCount
+  onPlayerCount: (value: PlayerCount | undefined) => void
   groupId: string
   onAccessError: (error: unknown) => void
   sort: StatisticsSort
@@ -49,7 +53,7 @@ type DisplayRow = { id: string; title: string; games: number; wins: number; winR
 
 // Presentation choices live in GameManager above this keyed request lifetime.
 // Access rechecks, refreshes, group/session changes retire outstanding requests.
-export default function GroupStatistics({ groupId, onAccessError, sort, onSort, view, onView, focusRefresh, onRefreshFocused }: Props) {
+export default function GroupStatistics({ groupId, onAccessError, sort, onSort, view, onView, focusRefresh, onRefreshFocused, playerCount, onPlayerCount }: Props) {
   const theme = useTheme()
   const desktop = useMediaQuery(theme.breakpoints.up('md'))
   const [state, setState] = useState<State>({ status: 'loading' })
@@ -74,7 +78,7 @@ export default function GroupStatistics({ groupId, onAccessError, sort, onSort, 
     let active = true
     const version = ++generation.current
     const controller = new AbortController()
-    getGroupStatistics(groupId, controller.signal).then((data) => {
+    getGroupStatistics(groupId, controller.signal, playerCount).then((data) => {
       if (active && version === generation.current) setState({ status: 'ready', data })
     }).catch((error: unknown) => {
       if (!active || version !== generation.current) return
@@ -82,7 +86,7 @@ export default function GroupStatistics({ groupId, onAccessError, sort, onSort, 
       else setState({ status: 'error', message: error instanceof Error ? error.message : 'Statistiken konnten nicht geladen werden.' })
     })
     return () => { active = false; controller.abort() }
-  }, [groupId, revision])
+  }, [groupId, revision, playerCount])
 
   const selectedSort = sort[view]
   const columns = view === 'players' ? playerColumns : deckColumns
@@ -133,6 +137,17 @@ export default function GroupStatistics({ groupId, onAccessError, sort, onSort, 
 
   return <Stack component="section" aria-labelledby={headingId} sx={{ gap: 2, pt: 2, minWidth: 0, color: 'text.primary', bgcolor: 'background.default', overflowWrap: 'anywhere' }}>
     <Typography component="h3" variant="h5" id={headingId}>Statistiken</Typography>
+    <Box component="label" sx={{ display: 'grid', gap: 1 }}>
+      Spielerzahl
+      <Box component="select" value={playerCount ?? ''} onChange={event => {
+        generation.current++
+        setState({ status: 'loading' })
+        onPlayerCount(event.target.value === '' ? undefined : Number(event.target.value) as PlayerCount)
+      }} sx={{ minHeight: 48, p: 1, borderRadius: 1, font: 'inherit', color: 'text.primary', bgcolor: 'background.paper', ...focusStyle }}>
+        <option value="">Alle</option>
+        {[2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} Spieler</option>)}
+      </Box>
+    </Box>
     <Stack direction="row" role="group" aria-label="Statistikansicht" sx={{ gap: 1 }}>
       {(['players', 'decks'] as const).map(value => <Button key={value} color="secondary" variant="outlined"
         aria-pressed={view === value} onClick={() => onView(value)} sx={{ flex: 1, minWidth: 0 }}>{value === 'players' ? 'Spieler' : 'Decks'}</Button>)}
@@ -167,7 +182,9 @@ export default function GroupStatistics({ groupId, onAccessError, sort, onSort, 
         {label}: {selectedSort ? `${columns.find(column => column.column === selectedSort.column)?.label}, ${directionLabel(selectedSort.direction)}` : 'Standardreihenfolge'}
       </Typography>
       {state.status === 'ready' && (rows.length === 0 ? <Typography role="status">
-        {view === 'players' ? 'Noch keine Spielerstatistiken.' : 'Noch keine Deckstatistiken.'} Erfasse ein Spiel in dieser Gruppe, um Ergebnisse zu sehen.
+        {playerCount !== undefined
+          ? `Keine ${view === 'players' ? 'Spielerstatistiken' : 'Deckstatistiken'} für ${playerCount}-Spieler-Partien vorhanden.`
+          : `${view === 'players' ? 'Noch keine Spielerstatistiken.' : 'Noch keine Deckstatistiken.'} Erfasse ein Spiel in dieser Gruppe, um Ergebnisse zu sehen.`}
       </Typography> : desktop ? <Table aria-label={label} sx={{ width: '100%', tableLayout: 'fixed', '& th, & td': { px: 1, py: 1.5, verticalAlign: 'top', borderColor: 'divider', overflowWrap: 'anywhere' }, '& td': { fontVariantNumeric: 'tabular-nums' } }}>
         <TableHead><TableRow>{columns.map(({ column, label }, index) => <TableCell key={column} component="th" scope="col"
           sx={{ width: index === 0 ? view === 'players' ? '46%' : '28%' : column === 'ownerUsername' ? '21%' : undefined }}
@@ -196,5 +213,6 @@ export default function GroupStatistics({ groupId, onAccessError, sort, onSort, 
         </Card>)}
       </Stack>)}
     </Box>
+    {state.status === 'ready' && <StatisticsCharts data={state.data} />}
   </Stack>
 }

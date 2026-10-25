@@ -114,8 +114,16 @@ and sorts survive same-group navigation, refresh and acknowledged writes, then
 reset with the group/session lifetime. These are presentation choices, not
 rankings or changes to API counts. Successful game changes and explicit refresh
 reload server statistics. Loading, local error/retry, subview-specific empty states
-and group/session access recovery keep retired rows hidden. Advanced statistics
-remain deferred.
+and group/session access recovery keep retired rows hidden.
+One shared Spielerzahl filter (Alle, 2–6) reloads all four API datasets. Below the
+selected table, start-seat and Mana-color bar charts remain visible for both
+subviews, side by side on wide screens and stacked on phones. Start seats stay
+separated by table size; All hides unobserved sizes. Empty observations display
+“Keine Daten vorhanden”, whereas measured no-win rates display 0%. Color bars
+rank by exact rate, games, then WUBRG/C. Every bar exposes games, wins and the
+server percentage as text. Colors count full overlapping deck appearances;
+colorless is a separate gray category. No raw-game aggregation or date filter is
+added. Broader placement analytics and custom dashboards remain deferred.
 
 Play-group seasons and season-specific win-rate leaderboards are documented as a
 [post-MVP product concept](playgroup-seasons.md). This is a future feature and

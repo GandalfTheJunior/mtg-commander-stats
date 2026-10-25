@@ -1,3 +1,4 @@
+import { emptyStatistics } from './statisticsFixtures'
 import { savedCommander } from './commanderFixtures'
 import { vi } from 'vitest'
 import type { DeckSelection, Game, GameInput, GroupDetails, GroupMember, GroupStatistics } from '../api'
@@ -27,7 +28,7 @@ export function deferred() {
 }
 type Reply = (input?: RequestInit) => Response | Promise<Response>
 export function gameApi(initial: Game[] = []) {
-  const state = { history: initial, statistics: { players: [], decks: [] } as GroupStatistics }
+  const state = { history: initial, statistics: emptyStatistics() as GroupStatistics }
   const replies = new Map<string, Reply[]>()
   function next(path: string, reply: Reply, method = 'GET') {
     const key = `${method} ${path}`

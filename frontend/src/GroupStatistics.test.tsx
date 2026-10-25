@@ -10,7 +10,7 @@ import App from './App'
 import { renderApp, goTo } from './test/renderApp'
 import GameManager from './GameManager'
 import { deferred, gameApi, group, recorded, response, uid, deckFor } from './test/gameFixtures'
-import { statistics } from './test/statisticsFixtures'
+import { statistics, emptyStatistics } from './test/statisticsFixtures'
 
 const path = `/api/groups/${group.id}/statistics`
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
@@ -114,7 +114,7 @@ test('namesakes reveal distinct complete identifiers only on request, preserving
   const disclosures = within(playerTable()).getAllByRole('button', { name: /Kennung anzeigen/ })
   expect(disclosures[0]).not.toHaveAccessibleName(disclosures[1].getAttribute('aria-label')!)
   expect(sortedIds(playerTable())).toEqual([uid(1), uid(2)])
-  api.state.statistics = { players: [...data.players].reverse(), decks: [...data.decks].reverse() }
+  api.state.statistics = { ...data, players: [...data.players].reverse(), decks: [...data.decks].reverse() }
   fireEvent.click(screen.getByRole('button', { name: 'Statistiken aktualisieren' }))
   await waitFor(() => expect(sortedIds(playerTable())).toEqual([uid(2), uid(1)]))
   const decks = deckTable()
@@ -157,7 +157,7 @@ test.each(['network', 'server', 'malformed', 'json', 'bad-request', 'conflict'])
 })
 
 test('only acknowledged game creation refreshes visited statistics; canceled creation does nothing', async () => {
-  const api = appSetup(); api.state.history = []; api.state.statistics = { players: [], decks: [] }; renderApp(<App />, `/playgroups/${group.id}`)
+  const api = appSetup(); api.state.history = []; api.state.statistics = emptyStatistics(); renderApp(<App />, `/playgroups/${group.id}`)
   await stats()
   await screen.findByText(/Noch keine (Spieler|Deck)statistiken/)
   await games()
@@ -241,7 +241,7 @@ test('acknowledged game deletion reloads server statistics; canceled deletion se
   expect(statsCalls(api)).toHaveLength(2)
   expect(screen.queryByText('Spiel gelöscht. Die bisherige Decknutzung bleibt erhalten.')).not.toBeInTheDocument()
   api.state.history = []
-  api.state.statistics = { players: [], decks: [] }
+  api.state.statistics = emptyStatistics()
   await act(async () => pending.resolve(new Response(null, { status: 204 })))
   await screen.findByText('Spiel gelöscht. Die bisherige Decknutzung bleibt erhalten.')
   await stats()
@@ -325,9 +325,9 @@ test.each(['switch', 'close', 'members', 'games'].flatMap(action => [200, 401].m
   fireEvent.click(screen.getByRole('button', { name: 'Statistiken aktualisieren' }))
   await screen.findByText('Statistiken werden geladen…')
   const signal = statsCalls(api).at(-1)![1]!.signal!
-  api.state.statistics = { players: [], decks: [] }
+  api.state.statistics = emptyStatistics()
   if (action === 'switch') {
-    api.next(`/api/groups/${api.other.id}/statistics`, () => response({ players: [], decks: [] }))
+    api.next(`/api/groups/${api.other.id}/statistics`, () => response(emptyStatistics()))
     await open(api.other.name)
   } else if (action === 'close') fireEvent.click(screen.getByRole('link', { name: 'Zurück zu Playgroups' }))
   else if (action === 'members') {
@@ -385,7 +385,7 @@ test('switching a loaded group hides its statistics while the next group details
   await screen.findByText('Gruppenberechtigung wird geprüft…')
   expect(screen.queryByRole('heading', { name: 'Statistiken' })).not.toBeInTheDocument()
   expect(screen.queryByRole('table')).not.toBeInTheDocument()
-  api.state.statistics = { players: [], decks: [] }
+  api.state.statistics = emptyStatistics()
   await act(async () => details.resolve(response(api.other)))
   await stats()
   await screen.findByText(/Noch keine (Spieler|Deck)statistiken/)
@@ -737,4 +737,69 @@ test('denial recovery focuses explicit retry and reloaded statistics without aut
   const tabTrigger = screen.getByRole('button', { name: 'Show statistics' })
   tabTrigger.focus(); fireEvent.click(tabTrigger)
   expect(tabTrigger).toHaveFocus()
+})
+
+test('shared filter replaces every view, hides stale charts, ignores retired responses and preserves sorting', async () => {
+  const api = gameApi()
+  const data = statistics()
+  data.startPositions[0].seats = data.startPositions[0].seats.map((row, i) => ({ ...row, games: 2, wins: i === 0 ? 1 : 0, winRatePercent: i === 0 ? 50 : 0 }))
+  data.manaColors[0] = { color: 'W', games: 4, wins: 1, winRatePercent: 25 }
+  api.state.statistics = data
+  const base = api.fetchMock
+  const pending = deferred()
+  const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+    if (url === `${path}?playerCount=3`) return pending.promise
+    if (url === `${path}?playerCount=4`) return Promise.resolve(response(emptyStatistics(4)))
+    return base(url, init)
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  show()
+  const seat = await screen.findByRole('region', { name: 'Siegrate nach Startplatz' })
+  expect(within(seat).getByRole('region', { name: '2 Spieler' })).toBeInTheDocument()
+  expect(within(seat).queryByRole('region', { name: '3 Spieler' })).not.toBeInTheDocument()
+  expect(within(seat).getByText('0%')).toBeInTheDocument()
+  expect(screen.getByRole('region', { name: 'Siegrate nach Manafarbe' })).toHaveTextContent('25%')
+  selectView('Decks')
+  fireEvent.click(within(deckTable()).getByRole('button', { name: 'Siege' }))
+  expect(seat).toBeInTheDocument()
+  const filter = screen.getByRole('combobox', { name: 'Spielerzahl' })
+  expect(filter).toHaveValue('')
+  fireEvent.change(filter, { target: { value: '3' } })
+  expect(screen.queryByRole('region', { name: 'Siegrate nach Startplatz' })).not.toBeInTheDocument()
+  fireEvent.change(filter, { target: { value: '4' } })
+  await screen.findByText('Keine Deckstatistiken für 4-Spieler-Partien vorhanden.')
+  expect(screen.getByText('Deckstatistiken: Siege, Absteigend')).toBeInTheDocument()
+  expect(screen.getByRole('region', { name: 'Siegrate nach Startplatz' })).toHaveTextContent('Keine Daten vorhanden')
+  expect(screen.queryByText('Startplatz 1')).not.toBeInTheDocument()
+  await act(async () => pending.resolve(response({ ...data, startPositions: [emptyStatistics(3).startPositions[0]] })))
+  expect(screen.getByRole('region', { name: 'Siegrate nach Manafarbe' })).not.toHaveTextContent('25%')
+  expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  expect(fetchMock.mock.calls.filter(([url]) => url.startsWith(path)).map(([url]) => url)).toEqual([path, `${path}?playerCount=3`, `${path}?playerCount=4`])
+})
+
+
+test('empty filtered statistics name the selected table size in both views despite existing group games', async () => {
+  const api = gameApi([recorded()]) // Existing two-player game, no four-player games.
+  api.state.statistics = statistics()
+  api.next(`${path}?playerCount=4`, () => response(emptyStatistics(4)))
+  show()
+  await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spielerzahl' }), { target: { value: '4' } })
+  await screen.findByText('Keine Spielerstatistiken für 4-Spieler-Partien vorhanden.')
+  selectView('Decks')
+  expect(screen.getByText('Keine Deckstatistiken für 4-Spieler-Partien vorhanden.')).toBeInTheDocument()
+  expect(screen.queryByText(/Erfasse ein Spiel in dieser Gruppe/)).not.toBeInTheDocument()
+  selectView('Spieler')
+  expect(screen.getByText('Keine Spielerstatistiken für 4-Spieler-Partien vorhanden.')).toBeInTheDocument()
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spielerzahl' }), { target: { value: '' } })
+  await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  expect(screen.queryByText(/für 4-Spieler-Partien vorhanden/)).not.toBeInTheDocument()
+})
+
+test('unfiltered empty statistics retain the original guidance for both views', async () => {
+  gameApi()
+  show()
+  await screen.findByText('Noch keine Spielerstatistiken. Erfasse ein Spiel in dieser Gruppe, um Ergebnisse zu sehen.')
+  selectView('Decks')
+  expect(screen.getByText('Noch keine Deckstatistiken. Erfasse ein Spiel in dieser Gruppe, um Ergebnisse zu sehen.')).toBeInTheDocument()
 })

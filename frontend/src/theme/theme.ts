@@ -6,7 +6,7 @@ declare module '@mui/material/styles' {
     raised: string
   }
   interface Palette {
-    mana: Record<'W' | 'U' | 'B' | 'R' | 'G', string>
+    mana: Record<'W' | 'U' | 'B' | 'R' | 'G' | 'C', string>
     interaction: {
       border: string
       focus: string
@@ -40,7 +40,7 @@ declare module '@mui/material/Typography' {
 export const appTheme = createTheme({
   palette: {
     mode: 'dark',
-    mana: { W: '#F4EBDF', U: '#8DBBFF', B: '#19171B', R: '#FF9C90', G: '#A6CFAB' },
+    mana: { W: '#F4EBDF', U: '#8DBBFF', B: '#19171B', R: '#FF9C90', G: '#A6CFAB', C: '#A7ADB5' },
     contrastThreshold: 4.5,
     background: { default: '#19171B', paper: '#29242A', raised: '#342A31' },
     primary: { main: '#854358', light: '#C98C9F', dark: '#71364A', contrastText: '#F4EBDF' },
