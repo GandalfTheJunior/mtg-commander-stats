@@ -23,7 +23,9 @@ username or email address) is deferred until after the MVP.
   member leaves or a deck is archived.
 - Each participant uses one of their own decks.
 - The result is either WIN with exactly one winner or DRAW with no winner.
-- Placements and rankings are out of scope.
+- The original MVP deferred placements; the approved #116 backend extension now
+  records explicit start seats, competition ranks, alternate victories and DRAW
+  survival under the [Games API](games-api.md). Editor rollout remains #117.
 - An active group member creates the game and need not participate. Its creator may modify or delete it while
   they remain an active member. The group OWNER may modify or delete games in
   that group.
@@ -192,6 +194,6 @@ without applying `DisplayText` trimming.
 - ManaBox integration; Scryfall-backed deck writes and UI remain deferred to
   the follow-up issues after the #100 lookup foundation
 - Fine-grained group permission system
-- Placements and rankings
+- Broader placement statistics and ranking UI (follow-on Commander Chronicles issues)
 - Monetization
 - Deployment

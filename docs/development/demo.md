@@ -191,6 +191,12 @@ cannot rule out additional device-specific defects before the checklist is run.
 [fixture.mjs](../../tools/demo/fixture.mjs) defines stable logical identities,
 commanders, colors, seating and outcomes. Server UUIDs and recording timestamps
 are deliberately variable. All 36 games have four players; 4 are DRAWs.
+The minimal #116 contract adaptation assigns explicit fictional start seats 1–4,
+normal WIN places 1–4 preserving the existing winner, and four survivors for each
+DRAW. These facts apply only to newly seeded fixtures; no historic records are
+reconstructed. The comprehensive scenario redesign remains #123. A database with
+pre-V8 game rows must be retained for a separate migration plan or explicitly reset
+using the isolated disposable demo reset below before retrying the upgrade.
 
 | Group | Owner | Members | Games | Draws |
 | --- | --- | --- | --- | --- |

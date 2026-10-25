@@ -63,8 +63,8 @@ class GameIntegrityTest extends GameTestSupport {
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> insertParticipant(gameId, f.owner().id(), f.creatorDeck()))
                 .isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbc.update("UPDATE games SET winner_user_id = ? WHERE id = ?",
-                f.outsider().id(), gameId)).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("UPDATE game_participants SET placement = 2 WHERE user_id = ? AND game_id = ?",
+                f.creator().id(), gameId)).isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbc.update("DELETE FROM decks WHERE id = ?", f.creatorDeck()))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(games.count()).isEqualTo(1);
@@ -75,11 +75,11 @@ class GameIntegrityTest extends GameTestSupport {
     void failedCommitRollsBackGameAndFirstUseTogether() throws Exception {
         Fixture f = fixture();
         assertThatThrownBy(() -> transactions.executeWithoutResult(status -> {
-            GameDetails game = gameService.create(f.owner().id(), f.groupId(), assignments(f), GameResult.WIN,
+            GameDetails game = createGame(f.owner().id(), f.groupId(), assignments(f), GameResult.WIN,
                     f.creator().id());
             games.flush();
-            // Force a deferred FK failure at commit after both the game and usage flags have been flushed.
-            jdbc.update("UPDATE games SET winner_user_id = ? WHERE id = ?", f.outsider().id(), game.id());
+            // Force a deferred complete-game constraint failure at commit after both the game and usage flags have been flushed.
+            jdbc.update("UPDATE game_participants SET placement = 2 WHERE user_id = ? AND game_id = ?", f.creator().id(), game.id());
         })).isInstanceOf(DataIntegrityViolationException.class);
         assertThat(games.count()).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM game_participants", Long.class)).isZero();
@@ -91,11 +91,11 @@ class GameIntegrityTest extends GameTestSupport {
         Fixture f = fixture();
         JsonNode game = expect(f.creator(), "POST", f.path(), body(f), CREATED.value());
         UUID replacement = deck(f.member());
-        List<GameParticipant> assignments = List.of(assignments(f).get(0), new GameParticipant(f.member().id(), replacement));
+        List<GameParticipant> assignments = List.of(assignments(f).get(0), assignment(f.member().id(), replacement));
         assertThatThrownBy(() -> transactions.executeWithoutResult(status -> {
-            gameService.replace(f.creator().id(), f.groupId(), id(game), assignments, GameResult.DRAW, null);
+            replaceGame(f.creator().id(), f.groupId(), id(game), assignments, GameResult.DRAW, null);
             games.flush();
-            jdbc.update("UPDATE games SET result = 'WIN', winner_user_id = ? WHERE id = ?", f.outsider().id(), id(game));
+            jdbc.update("UPDATE game_participants SET still_in_game = NULL WHERE user_id = ? AND game_id = ?", f.creator().id(), id(game));
         })).isInstanceOf(DataIntegrityViolationException.class);
         assertThat(expect(f.owner(), "GET", f.path() + "/" + id(game), "", OK.value())).isEqualTo(game);
         assertThat(decks.findById(replacement).orElseThrow().isEverUsed()).isFalse();
@@ -107,7 +107,7 @@ class GameIntegrityTest extends GameTestSupport {
     void firstCommittedGameSerializesConcurrentDeckChanges(String operation) throws Exception {
         Fixture f = fixture();
         int expected = operation.equals("archive") ? OK.value() : CONFLICT.value();
-        race(() -> gameService.create(f.owner().id(), f.groupId(), assignments(f), GameResult.WIN, f.creator().id()),
+        race(() -> createGame(f.owner().id(), f.groupId(), assignments(f), GameResult.WIN, f.creator().id()),
                 () -> deckOperation(f, operation, expected), "decks");
         assertThat(games.count()).isEqualTo(1);
         assertThat(decks.findById(f.creatorDeck()).orElseThrow().isEverUsed()).isTrue();
@@ -143,7 +143,7 @@ class GameIntegrityTest extends GameTestSupport {
     void rolledBackFirstUseDoesNotLockOutWaitingDeckUpdate() throws Exception {
         Fixture f = fixture();
         race(() -> {
-            gameService.create(f.owner().id(), f.groupId(), assignments(f), GameResult.WIN, f.creator().id());
+            createGame(f.owner().id(), f.groupId(), assignments(f), GameResult.WIN, f.creator().id());
             return null;
         }, () -> deckOperation(f, "commander", OK.value()), "decks", true);
         assertThat(games.count()).isZero();
@@ -165,7 +165,7 @@ class GameIntegrityTest extends GameTestSupport {
     @Test
     void gameCommitsBeforeWaitingLeavePreservingHistoricalData() throws Exception {
         Fixture f = fixture();
-        race(() -> gameService.create(f.owner().id(), f.groupId(), assignments(f), GameResult.WIN, f.creator().id()),
+        race(() -> createGame(f.owner().id(), f.groupId(), assignments(f), GameResult.WIN, f.creator().id()),
                 () -> expect(f.member(), "DELETE", "/api/groups/" + f.groupId() + "/membership", "", NO_CONTENT.value()), "play_groups");
         assertThat(expect(f.owner(), "GET", f.path(), "", OK.value()).get(0).get("participants").toString())
                 .contains(f.member().id().toString());
@@ -189,8 +189,8 @@ class GameIntegrityTest extends GameTestSupport {
         Fixture f = fixture();
         JsonNode game = expect(f.creator(), "POST", f.path(), body(f), CREATED.value());
         UUID replacement = deck(f.creator());
-        List<GameParticipant> participants = List.of(new GameParticipant(f.creator().id(), replacement), assignments(f).get(1));
-        race(() -> gameService.replace(f.creator().id(), f.groupId(), id(game), participants, GameResult.DRAW, null),
+        List<GameParticipant> participants = List.of(assignment(f.creator().id(), replacement), assignments(f).get(1));
+        race(() -> replaceGame(f.creator().id(), f.groupId(), id(game), participants, GameResult.DRAW, null),
                 () -> expect(f.creator(), "PUT", "/api/decks/" + replacement,
                         deckBody("Changed", "Atraxa", List.of("G")), CONFLICT.value()), "decks");
         assertThat(decks.findById(replacement).orElseThrow().isEverUsed()).isTrue();
@@ -210,7 +210,7 @@ class GameIntegrityTest extends GameTestSupport {
         String initial = "{\"name\":\"Piper\",\"commanders\":[{\"selectionRef\":{\"scryfallCardId\":\"" + printing + "\"},\"chosenColor\":\"R\"}]}";
         String changed = initial.replace("\"R\"", "\"G\"");
         expect(f.creator(), "PUT", path, initial, OK.value());
-        race(() -> gameService.create(f.owner().id(), f.groupId(), assignments(f), GameResult.WIN, f.creator().id()),
+        race(() -> createGame(f.owner().id(), f.groupId(), assignments(f), GameResult.WIN, f.creator().id()),
                 () -> expect(f.creator(), "PUT", path, changed, rollback ? OK.value() : CONFLICT.value()), "decks", rollback);
         assertThat(decks.findById(f.creatorDeck()).orElseThrow().getCommanders().getFirst().getChosenColor())
                 .isEqualTo(rollback ? "G" : "R");
@@ -234,12 +234,12 @@ class GameIntegrityTest extends GameTestSupport {
             pair.add(new CommanderInput(new CommanderSelectionRef(print, null), i == 0 ? "R" : "U"));
         }
         deckService.update(f.creator().id(), f.creatorDeck(), "Pair", pair);
-        GameDetails existing = edit ? gameService.create(f.owner().id(), f.groupId(), List.of(
-                new GameParticipant(f.owner().id(), f.ownerDeck()), assignments(f).get(1)), GameResult.DRAW, null) : null;
+        GameDetails existing = edit ? createGame(f.owner().id(), f.groupId(), List.of(
+                assignment(f.owner().id(), f.ownerDeck()), assignments(f).get(1)), GameResult.DRAW, null) : null;
         List<CommanderInput> changed = new ArrayList<>(pair);
         changed.set(slot, new CommanderInput(pair.get(slot).selectionRef(), "G"));
-        race(() -> edit ? gameService.replace(f.owner().id(), f.groupId(), existing.id(), assignments(f), GameResult.DRAW, null)
-                        : gameService.create(f.owner().id(), f.groupId(), assignments(f), GameResult.DRAW, null),
+        race(() -> edit ? replaceGame(f.owner().id(), f.groupId(), existing.id(), assignments(f), GameResult.DRAW, null)
+                        : createGame(f.owner().id(), f.groupId(), assignments(f), GameResult.DRAW, null),
                 () -> expect(f.creator(), "PUT", "/api/decks/" + f.creatorDeck(),
                         json.writeValueAsString(Map.of("name", "Pair", "commanders", changed)), rollback ? OK.value() : CONFLICT.value()), "decks", rollback);
         assertThat(decks.findById(f.creatorDeck()).orElseThrow().getCommanders().get(slot).getChosenColor())
@@ -288,7 +288,7 @@ class GameIntegrityTest extends GameTestSupport {
         groupService.join(f.creator().id(), code);
         groupService.join(f.member().id(), code);
         List<GameParticipant> reversed = assignments(f).reversed();
-        race(() -> gameService.create(f.owner().id(), f.groupId(), assignments(f), GameResult.DRAW, null),
+        race(() -> createGame(f.owner().id(), f.groupId(), assignments(f), GameResult.DRAW, null),
                 () -> expect(f.owner(), "POST", "/api/groups/" + other + "/games", body(reversed, "DRAW", null), CREATED.value()),
                 "decks");
         assertThat(games.count()).isEqualTo(2);
@@ -349,13 +349,18 @@ class GameIntegrityTest extends GameTestSupport {
     }
 
     private void insertGame(UUID groupId, UUID creatorId, String result, UUID winner) {
-        jdbc.update("""
-                INSERT INTO games (id, group_id, creator_id, recorded_at, result, winner_user_id)
-                VALUES (?, ?, ?, now(), ?, ?)
-                """, UUID.randomUUID(), groupId, creatorId, result, winner);
+        transactions.executeWithoutResult(status -> {
+            UUID id = UUID.randomUUID();
+            jdbc.update("INSERT INTO games (id, group_id, creator_id, recorded_at, result, alternate_win_con) VALUES (?, ?, ?, now(), ?, false)",
+                    id, groupId, creatorId, result);
+            if (winner != null) {
+                jdbc.update("INSERT INTO game_participants (game_id, user_id, deck_id, start_position, placement) SELECT ?, ?, id, 1, 1 FROM decks WHERE owner_id = ? LIMIT 1",
+                        id, winner, winner);
+            }
+        });
     }
 
     private void insertParticipant(UUID gameId, UUID userId, UUID deckId) {
-        jdbc.update("INSERT INTO game_participants (game_id, user_id, deck_id) VALUES (?, ?, ?)", gameId, userId, deckId);
+        jdbc.update("INSERT INTO game_participants (game_id, user_id, deck_id, start_position, placement) VALUES (?, ?, ?, 3, 3)", gameId, userId, deckId);
     }
 }

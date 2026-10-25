@@ -39,9 +39,9 @@ public class ManageGames {
     }
 
     public GameDetails create(UUID actorId, UUID groupId, List<GameParticipant> participants, GameResult result,
-            UUID winnerUserId) {
+            Boolean alternateWinCon) {
         groups.lockActiveMember(groupId, actorId);
-        Game game = new Game(groupId, actorId, participants, result, winnerUserId);
+        Game game = new Game(groupId, actorId, participants, result, alternateWinCon);
         useNewAssignments(groupId, participants, List.of());
         games.save(game);
         return details(game);
@@ -68,13 +68,13 @@ public class ManageGames {
     }
 
     public GameDetails replace(UUID actorId, UUID groupId, UUID gameId, List<GameParticipant> participants,
-            GameResult result, UUID winnerUserId) {
+            GameResult result, Boolean alternateWinCon) {
         GroupRole role = groups.lockActiveMember(groupId, actorId);
         Game game = find(groupId, gameId);
         requireModification(actorId, role, game);
-        Game.validate(participants, result, winnerUserId);
+        Game.validate(participants, result, alternateWinCon);
         useNewAssignments(groupId, participants, game.getParticipants());
-        game.replace(participants, result, winnerUserId);
+        game.replace(participants, result, alternateWinCon);
         return details(game);
     }
 
@@ -99,7 +99,8 @@ public class ManageGames {
             List<GameParticipant> previous) {
         Map<UUID, UUID> deckOwners = new HashMap<>();
         for (GameParticipant participant : participants) {
-            if (!previous.contains(participant)) {
+            if (previous.stream().noneMatch(old -> old.getUserId().equals(participant.getUserId())
+                    && old.getDeckId().equals(participant.getDeckId()))) {
                 if (!groups.isActiveMember(groupId, participant.getUserId())
                         || deckOwners.putIfAbsent(participant.getDeckId(), participant.getUserId()) != null) {
                     throw new InvalidGameException();
@@ -129,21 +130,24 @@ public class ManageGames {
     }
 
     private GameDetails details(Game game, Map<UUID, PublicUser> publicUsers, Map<UUID, DeckDisplay> publicDecks) {
+        Game.validate(game.getParticipants(), game.getResult(), game.isAlternateWinCon());
         List<ParticipantDetails> summaries = game.getParticipants().stream()
                 .sorted(Comparator.comparing(GameParticipant::getUserId))
                 .map(participant -> new ParticipantDetails(participant.getUserId(),
                         publicUsers.get(participant.getUserId()).username(), participant.getDeckId(),
-                        publicDecks.get(participant.getDeckId())))
+                        publicDecks.get(participant.getDeckId()), participant.getStartPosition(),
+                        game.placement(participant), game.stillInGame(participant)))
                 .toList();
         return new GameDetails(game.getId(), game.getGroupId(), game.getCreatorId(), game.getRecordedAt(),
-                game.getResult(), game.getWinnerUserId(), summaries);
+                game.getResult(), game.isAlternateWinCon(), game.getWinnerUserId(), summaries);
     }
 
     public record GameDetails(UUID id, UUID groupId, UUID creatorId, Instant recordedAt, GameResult result,
-            UUID winnerUserId, List<ParticipantDetails> participants) {
+            boolean alternateWinCon, UUID winnerUserId, List<ParticipantDetails> participants) {
     }
 
-    public record ParticipantDetails(UUID userId, String username, UUID deckId, DeckDisplay deck) {
+    public record ParticipantDetails(UUID userId, String username, UUID deckId, DeckDisplay deck,
+            int startPosition, Integer placement, boolean stillInGame) {
     }
 
     public record DeckSelectionSummary(UUID id, String name, List<CommanderSummary> commanders, List<String> colorIdentity) {

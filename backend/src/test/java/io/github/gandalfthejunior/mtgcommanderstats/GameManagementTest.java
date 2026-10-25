@@ -58,12 +58,12 @@ class GameManagementTest extends GameTestSupport {
     void acceptsSixPlayersAndBothResultTypes() throws Exception {
         Fixture f = fixture();
         List<GameParticipant> participants = new ArrayList<>(assignments(f));
-        participants.add(new GameParticipant(f.owner().id(), f.ownerDeck()));
+        participants.add(assignment(f.owner().id(), f.ownerDeck()));
         String code = groupService.joinCode(f.owner().id(), f.groupId());
         for (int i = 0; i < 3; i++) {
             Actor actor = register("extra" + i, "Extra");
             groupService.join(actor.id(), code);
-            participants.add(new GameParticipant(actor.id(), deck(actor)));
+            participants.add(assignment(actor.id(), deck(actor)));
         }
         assertThat(expect(f.owner(), "POST", f.path(), body(participants, "WIN", f.member().id()), CREATED.value())
                 .get("participants").size()).isEqualTo(6);
@@ -78,7 +78,7 @@ class GameManagementTest extends GameTestSupport {
         invalidBodies.add(body(valid.subList(0, 1), "WIN", f.creator().id()));
         List<GameParticipant> seven = new ArrayList<>(valid);
         for (int i = 0; i < 5; i++) {
-            seven.add(new GameParticipant(UUID.randomUUID(), UUID.randomUUID()));
+            seven.add(assignment(UUID.randomUUID(), UUID.randomUUID()));
         }
         invalidBodies.add(body(seven, "DRAW", null));
         invalidBodies.add(body(List.of(valid.get(0), valid.get(0)), "WIN", f.creator().id()));
@@ -87,11 +87,11 @@ class GameManagementTest extends GameTestSupport {
         invalidBodies.add(body(valid, "DRAW", f.creator().id()));
         invalidBodies.add(body(valid, "LOSS", null));
         invalidBodies.add(body(List.of(valid.get(0),
-                new GameParticipant(f.member().id(), f.creatorDeck())), "DRAW", null));
+                assignment(f.member().id(), f.creatorDeck())), "DRAW", null));
         invalidBodies.add(body(List.of(valid.get(0),
-                new GameParticipant(f.outsider().id(), f.outsiderDeck())), "DRAW", null));
+                assignment(f.outsider().id(), f.outsiderDeck())), "DRAW", null));
         invalidBodies.add(body(List.of(valid.get(0),
-                new GameParticipant(f.member().id(), UUID.randomUUID())), "DRAW", null));
+                assignment(f.member().id(), UUID.randomUUID())), "DRAW", null));
         for (String body : invalidBodies) {
             expect(f.owner(), "POST", f.path(), body, BAD_REQUEST.value());
             assertThat(games.count()).isZero();
@@ -126,8 +126,8 @@ class GameManagementTest extends GameTestSupport {
                 body(f).replace(f.creatorDeck().toString(), "AAAAAAAAAAAAAAAAAAAAAA=="),
                 body(f).replace(f.creatorDeck().toString(), ""),
                 body(f).replace("\"WIN\"", "0"), body(f).replace("\"WIN\"", "null"),
-                body(assignments(f), "DRAW", null).replace("\"winnerUserId\":null", "\"winnerUserId\":\"\""),
-                body(assignments(f), "DRAW", null).replace("\"winnerUserId\":null", "\"winnerUserId\":\" \""),
+                body(assignments(f), "DRAW", null).replace("\"alternateWinCon\":false", "\"winnerUserId\":\"\",\"alternateWinCon\":false"),
+                body(assignments(f), "DRAW", null).replace("\"alternateWinCon\":false", "\"winnerUserId\":\" \",\"alternateWinCon\":false"),
                 body(f).replace("\"userId\":\"" + f.creator().id() + "\"", "\"userId\":null"),
                 body(f).replace("\"deckId\":\"" + f.creatorDeck() + "\"", "\"deckId\":null"));
         List<String> missingFields = List.of(
@@ -192,7 +192,7 @@ class GameManagementTest extends GameTestSupport {
         assertThat(decks.findAll()).allMatch(deck -> !deck.isEverUsed());
         JsonNode original = expect(f.creator(), "POST", f.path(), body(f), CREATED.value());
         UUID replacement = deck(f.member());
-        List<GameParticipant> changed = List.of(assignments(f).get(0), new GameParticipant(f.member().id(), replacement));
+        List<GameParticipant> changed = List.of(assignments(f).get(0), assignment(f.member().id(), replacement));
         String path = f.path() + "/" + id(original);
         expect(f.member(), "PUT", path, body(changed, "DRAW", null), FORBIDDEN.value());
         expect(f.creator(), "PUT", path, body(changed, "WIN", f.outsider().id()), BAD_REQUEST.value());
@@ -208,7 +208,7 @@ class GameManagementTest extends GameTestSupport {
         JsonNode original = expect(f.creator(), "POST", f.path(), body(f), CREATED.value());
         String path = f.path() + "/" + id(original);
         groupService.leave(f.member().id(), f.groupId());
-        List<GameParticipant> changed = List.of(assignments(f).get(0), new GameParticipant(f.owner().id(), f.ownerDeck()));
+        List<GameParticipant> changed = List.of(assignments(f).get(0), assignment(f.owner().id(), f.ownerDeck()));
         expect(f.creator(), "PUT", path, body(changed, "DRAW", null), OK.value());
         expect(f.creator(), "PUT", path, body(f), BAD_REQUEST.value());
         assertThat(expect(f.owner(), "GET", path, "", OK.value()).get("participants").toString())
@@ -245,7 +245,7 @@ class GameManagementTest extends GameTestSupport {
         assertThat(history.get("participants").toString()).contains("Same Name", f.memberDeck().toString(),
                 "\"archived\":true");
         expect(f.creator(), "PUT", path, body(assignments(f), "DRAW", null), OK.value());
-        List<GameParticipant> changed = List.of(assignments(f).get(0), new GameParticipant(f.member().id(), replacement));
+        List<GameParticipant> changed = List.of(assignments(f).get(0), assignment(f.member().id(), replacement));
         expect(f.creator(), "PUT", path, body(changed, "DRAW", null), BAD_REQUEST.value());
         assertThat(decks.findById(replacement).orElseThrow().isEverUsed()).isFalse();
         expect(f.member(), "GET", path, "", FORBIDDEN.value());
@@ -268,7 +268,7 @@ class GameManagementTest extends GameTestSupport {
         UUID replacement = deck(f.member());
         JsonNode created = expect(f.creator(), "POST", f.path(), body(f), CREATED.value());
         String path = f.path() + "/" + id(created);
-        List<GameParticipant> changed = List.of(assignments(f).get(0), new GameParticipant(f.member().id(), replacement));
+        List<GameParticipant> changed = List.of(assignments(f).get(0), assignment(f.member().id(), replacement));
         expect(f.creator(), "PUT", path, body(changed, "DRAW", null), OK.value());
         expect(f.creator(), "DELETE", path, "", NO_CONTENT.value());
         for (UUID deckId : List.of(f.memberDeck(), replacement)) {

@@ -44,8 +44,8 @@ class GameHistoryBatchingTest extends GameTestSupport {
 
             UUID alternateDeck = deck(f.member());
             List<GameParticipant> alternate = List.of(
-                    new GameParticipant(f.owner().id(), f.ownerDeck()),
-                    new GameParticipant(f.member().id(), alternateDeck));
+                    assignment(f.owner().id(), f.ownerDeck()),
+                    assignment(f.member().id(), alternateDeck));
             for (int i = 0; i < 5; i++) {
                 String body = i % 2 == 0 ? body(alternate, "DRAW", null) : body(f);
                 gameIds.add(id(expect(f.creator(), "POST", f.path(), body, CREATED.value())));

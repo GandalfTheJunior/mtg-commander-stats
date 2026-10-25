@@ -44,7 +44,12 @@ export const games = groups.flatMap(group => Array.from({length: group.key === '
   const draw = group.key === 'friday' ? i === 13 || i === 19 : i % 7 === 6;
   const winner = draw ? null : group.key === 'friday' && i < 12 && i % 2 === 0 ? 'ada'
     : members.filter(user => user !== 'ada')[i % (members.length - (members.includes('ada') ? 1 : 0))];
-  return {key: `${group.key}-${i + 1}`, group: group.key, participants, result: draw ? 'DRAW' : 'WIN', winner};
+  // Explicit fictional facts for freshly seeded games; never reconstruct existing rows.
+  let nextPlace = 2;
+  const complete = participants.map((p, index) => ({...p, startPosition: index + 1,
+    ...(draw ? {stillInGame: true} : {placement: p.user === winner ? 1 : nextPlace++})}));
+  return {key: `${group.key}-${i + 1}`, group: group.key, participants: complete,
+    result: draw ? 'DRAW' : 'WIN', alternateWinCon: false, winner};
 }));
 export const archivedDeck = 'dara-1';
 

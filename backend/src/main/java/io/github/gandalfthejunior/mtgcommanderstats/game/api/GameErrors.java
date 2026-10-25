@@ -21,7 +21,7 @@ public class GameErrors {
     public ProblemDetail invalidInput() {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
                 "Provide only documented fields, 2–6 distinct eligible players with their decks,"
-                        + " and either WIN with one participant as winner or DRAW without a winner.");
+                        + " unique start seats and complete mode-specific WIN/DRAW facts with valid competition ranks.");
     }
 
     @ExceptionHandler(GroupAccessDeniedException.class)

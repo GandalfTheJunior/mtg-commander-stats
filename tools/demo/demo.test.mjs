@@ -24,6 +24,15 @@ test('fixture eligibility, ownership, outcomes, lifecycle and checkable manifest
     const group = groups.find(g => g.key === game.group);
     assert.ok(group.members.includes(group.owner));
     assert.equal(game.participants.length, 4);
+    assert.equal(game.alternateWinCon, false);
+    assert.deepEqual(game.participants.map(p => p.startPosition).toSorted((a, b) => a - b), [1, 2, 3, 4]);
+    if (game.result === 'DRAW') {
+      assert.ok(game.participants.every(p => p.stillInGame === true && !Object.hasOwn(p, 'placement')));
+    } else {
+      assert.deepEqual(game.participants.map(p => p.placement).toSorted((a, b) => a - b), [1, 2, 3, 4]);
+      assert.equal(game.participants.find(p => p.placement === 1).user, game.winner);
+      assert.ok(game.participants.every(p => !Object.hasOwn(p, 'stillInGame') && !Object.hasOwn(p, 'winner')));
+    }
     assert.equal(new Set(game.participants.map(p => p.user)).size, 4);
     for (const p of game.participants) {
       assert.ok(group.members.includes(p.user));

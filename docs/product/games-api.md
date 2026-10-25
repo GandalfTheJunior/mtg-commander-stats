@@ -25,26 +25,43 @@ preserving historical games and stable participant references.
 
 ## Recording and replacing a game
 
-POST and PUT accept the same complete replacement payload:
+POST and PUT accept the same complete replacement payload. Every write requires
+`result: "WIN" | "DRAW"`, boolean `alternateWinCon`, and 2–6 distinct participants
+with distinct owned decks. Every participant supplies `userId`, `deckId`, and an
+integer `startPosition`: unique contiguous seats 1…N, independent of array order.
+
+| Mode | Required participant result fields | Forbidden fields |
+| --- | --- | --- |
+| WIN / false | Every player: integer `placement`; exactly one rank 1 | `winner`, `stillInGame` |
+| WIN / true | Sole winner: `winner: true`; every opponent: boolean `stillInGame`; eliminated opponents also supply `placement` | Winner: placement/status; opponents: `winner` (even false); surviving opponents: placement |
+| DRAW / false | Every player: boolean `stillInGame`; at least one survivor | `winner`, `placement` |
+
+`DRAW/true` is invalid. Alternate victory requires at least one surviving opponent.
+The server derives alternate winner rank 1 and surviving-opponent rank 2; these
+are never separately stored. Eliminated opponents submit ranks greater than 2.
+Normal WIN and alternate effective ranks use standard competition ranking:
+`1,2,2,4` is valid; `1,2,2,3` is invalid. The backend checks numeric ranks only;
+users assign ties for eliminations during the same turn. No turn/event log,
+elimination timestamps or timing verification exists.
+
+Example normal WIN (physical array order does not imply starting order):
 
 ```json
 {
-  "participants": [
-    {"userId": "<registered user UUID>", "deckId": "<that user's deck UUID>"},
-    {"userId": "<another user UUID>", "deckId": "<that user's deck UUID>"}
-  ],
   "result": "WIN",
-  "winnerUserId": "<one participating user's UUID>"
+  "alternateWinCon": false,
+  "participants": [
+    {"userId": "<user A UUID>", "deckId": "<A deck UUID>", "startPosition": 2, "placement": 1},
+    {"userId": "<user B UUID>", "deckId": "<B deck UUID>", "startPosition": 1, "placement": 2}
+  ]
 }
 ```
 
-There must be 2–6 distinct users, each with exactly one owned deck. `WIN` requires
-exactly one participant as winner. `DRAW` requires `winnerUserId: null` (an omitted
-winner is also treated as null). Result names are case-sensitive. Unknown fields,
-including nested fields and server-owned `id`, `groupId`, `creatorId`, and
-`recordedAt`, are rejected. Missing/null required data and malformed UUIDs fail. Body UUID values must use
-the standard hyphenated representation; empty/blank strings are invalid,
-including a DRAW winner supplied as an empty string.
+`winnerUserId` is read-only and always rejected on writes, including null.
+Extraneous mode-specific fields, including explicit nulls, are rejected rather
+than ignored. Missing/null required fields, unknown fields, fractional seats or
+ranks and malformed UUIDs fail. UUIDs require standard hyphenated representation.
+There is no partial update or incomplete historical-game edit path.
 
 On creation, every participant must be an active member of this group, and each
 selected deck must be theirs and unarchived. On replacement, an unchanged
@@ -68,11 +85,15 @@ and participant associations, and never resets deck usage. See
   "creatorId": "<original creator's user UUID>",
   "recordedAt": "2026-10-16T08:00:00.123456Z",
   "result": "WIN",
+  "alternateWinCon": false,
   "winnerUserId": "<participating user UUID>",
   "participants": [
     {
       "userId": "<user UUID>",
       "username": "Gandalf",
+      "startPosition": 2,
+      "placement": 1,
+      "stillInGame": true,
       "deckId": "<deck UUID>",
       "deck": {
         "id": "<same deck UUID>",
@@ -85,6 +106,9 @@ and participant associations, and never resets deck usage. See
     {
       "userId": "<other user UUID>",
       "username": "Aragorn",
+      "startPosition": 1,
+      "placement": 2,
+      "stillInGame": false,
       "deckId": "<other deck UUID>",
       "deck": {
         "id": "<same other deck UUID>",
@@ -149,3 +173,25 @@ receive `403` without revealing whether a particular game or target exists.
 Commander arrays in the examples abbreviate the full saved snapshot contract.
 Each item contains all fields documented in [Deck API](decks-api.md#saved-snapshots-and-updates),
 including choice, base/effective colors and nullable artwork/attribution snapshots.
+
+## Read facts and schema upgrade
+
+GET list/detail always include the same keys: game `result`, boolean
+`alternateWinCon`, derived `winnerUserId` (explicit JSON null for DRAW); participant
+`startPosition`, effective `placement` (explicit JSON null for DRAW) and boolean
+`stillInGame`. Normal WIN survival derives from rank 1. Alternate WIN survival is
+true for the winner and active opponents. DRAW reflects stored survivor flags.
+Participant UUID ordering is retained and never defines start order. Basic
+player/deck games, wins and win-rate semantics remain unchanged; DRAW adds no win.
+
+V8 adds canonical seat, manual-rank and mode-specific winner/survivor facts and
+removes the independently stored winner UUID. Deferred database constraints check
+complete games after atomic replacement. Applied migrations remain unchanged.
+V8 stops before schema changes if **any** legacy game rows exist, with an actionable
+error. It never reconstructs facts or deletes records. An owner may separately
+reset an explicitly isolated disposable local demo database; shared/production
+records require a separately approved retention/migration plan.
+
+The existing browser editor still uses the former write contract. Coordinate
+user-facing rollout with #117; this backend change does not implement that editor,
+read-only artwork details, new statistics or the comprehensive #123 demo redesign.
