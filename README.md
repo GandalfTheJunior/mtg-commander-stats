@@ -268,6 +268,11 @@ npm run build
 From the repository root, verify the demo tooling with `node --test tools/demo/*.test.mjs`.
 See [demo verification](docs/development/demo.md#verification) for the opt-in real API check.
 
+Dashboard layout and empty-state browser checks use synthetic API responses:
+with Vite running, run `python tools/ui/verify-statistics.py` (Python Playwright
+and Chromium required). `MTG_UI_URL`, `CHROMIUM_PATH` and `MTG_SCREENSHOTS` override
+the server, browser and screenshot output locations.
+
 Tests terminate without watch mode. GitHub Actions runs separate `backend` and
 `frontend` jobs for PRs to `main` and pushes to `main`.
 

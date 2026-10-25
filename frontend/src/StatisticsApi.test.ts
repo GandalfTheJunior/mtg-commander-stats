@@ -1,7 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { ApiError, getGroupStatistics } from './api'
 import { group, response, uid } from './test/gameFixtures'
-import { statistics } from './test/statisticsFixtures'
+import { statistics, emptyStatistics } from './test/statisticsFixtures'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -20,9 +20,9 @@ test('uses the credentialed GET contract and abort signal, strips extras and pre
 })
 
 test('accepts an empty group and sends no CSRF request', async () => {
-  const mock = vi.fn().mockResolvedValue(response({ players: [], decks: [] }))
+  const mock = vi.fn().mockResolvedValue(response(emptyStatistics()))
   vi.stubGlobal('fetch', mock)
-  expect(await getGroupStatistics(group.id)).toEqual({ players: [], decks: [] })
+  expect(await getGroupStatistics(group.id)).toEqual(emptyStatistics())
   expect(mock).toHaveBeenCalledExactlyOnceWith(`/api/groups/${group.id}/statistics`, { credentials: 'same-origin' })
 })
 
@@ -86,4 +86,24 @@ test('preserves product-valid display text exactly, including BOM and zero-width
   data.decks[0].commanders[0].name = '\uFEFF'
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(data)))
   expect(await getGroupStatistics(group.id)).toEqual(data)
+})
+
+test.each([2, 3, 4, 5, 6] as const)('requests the shared %s-player subset and validates its fixed shape', async n => {
+  const data = emptyStatistics(n)
+  const mock = vi.fn().mockResolvedValue(response(data))
+  vi.stubGlobal('fetch', mock)
+  expect(await getGroupStatistics(group.id, undefined, n)).toEqual(data)
+  expect(mock.mock.calls[0][0]).toBe(`/api/groups/${group.id}/statistics?playerCount=${n}`)
+  mock.mockResolvedValue(response(emptyStatistics()))
+  await expect(getGroupStatistics(group.id, undefined, n)).rejects.toThrow()
+})
+
+test.each([
+  { manaColors: [] }, { manaColors: [...emptyStatistics().manaColors.slice(1), emptyStatistics().manaColors[1]] },
+  { startPositions: [] },
+  { manaColors: emptyStatistics().manaColors.map(row => ({ ...row, winRatePercent: 0 })) },
+  { startPositions: [{ playerCount: 2, seats: [{ startPosition: 1, games: 1, wins: 0, winRatePercent: null }] }] },
+])('rejects malformed v2 categories %j', async change => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ ...emptyStatistics(), ...change })))
+  await expect(getGroupStatistics(group.id)).rejects.toThrow()
 })
