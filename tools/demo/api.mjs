@@ -55,10 +55,19 @@ export async function seed(base, password) {
   }
   for (const game of games) {
     const group = groups.find(g => g.key === game.group);
-    await accounts[group.owner].session.call('POST', `/groups/${tables[game.group]}/games`, {
-      participants: game.participants.map(p => ({userId: accounts[p.user].id, deckId: decks[p.deck]})),
-      result: game.result, winnerUserId: game.winner ? accounts[game.winner].id : null,
+    const saved = await accounts[group.owner].session.call('POST', `/groups/${tables[game.group]}/games`, {
+      participants: game.participants.map(p => ({userId: accounts[p.user].id, deckId: decks[p.deck],
+        startPosition: p.startPosition, ...(game.result === 'DRAW' ? {stillInGame: p.stillInGame} : {placement: p.placement})})),
+      result: game.result, alternateWinCon: game.alternateWinCon,
     }, 201);
+    assert.equal(saved.alternateWinCon, false);
+    assert.equal(saved.winnerUserId, game.winner ? accounts[game.winner].id : null);
+    for (const p of game.participants) {
+      const actual = saved.participants.find(row => row.userId === accounts[p.user].id);
+      assert.equal(actual.startPosition, p.startPosition);
+      assert.equal(actual.placement, game.result === 'DRAW' ? null : p.placement);
+      assert.equal(actual.stillInGame, game.result === 'DRAW' ? p.stillInGame : p.placement === 1);
+    }
   }
   await accounts.dara.session.call('POST', `/decks/${decks[archivedDeck]}/archive`);
   await verify(base, password, {accounts, decks, tables});
@@ -165,7 +174,7 @@ async function verify(base, password, {accounts, decks, tables}) {
   const game = games.find(g => g.participants.some(p => p.deck === archivedDeck));
   const group = groups.find(g => g.key === game.group);
   await accounts[group.owner].session.call('POST', `/groups/${tables[group.key]}/games`, {
-    participants: game.participants.map(p => ({userId: accounts[p.user].id, deckId: decks[p.deck]})), result: 'DRAW', winnerUserId: null,
+    participants: game.participants.map(p => ({userId: accounts[p.user].id, deckId: decks[p.deck], startPosition: p.startPosition, stillInGame: true})), result: 'DRAW', alternateWinCon: false,
   }, 400);
   assert.equal((await accounts[group.owner].session.call('GET', `/groups/${tables[group.key]}/games`)).length, games.filter(g => g.group === group.key).length);
   for (const {session} of Object.values(accounts)) await session.call('DELETE', '/session', undefined, 204);
