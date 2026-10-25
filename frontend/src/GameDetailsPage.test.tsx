@@ -448,7 +448,7 @@ test.each([['OWNER', 1], ['MEMBER', 2]] as const)('LAN HTTP hands off %s game ed
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
   await screen.findByText('Game updated.')
   expect(api.calls(gamePath, 'PUT')).toHaveLength(1)
-  expect(JSON.parse(api.calls(gamePath, 'PUT')[0][1]!.body as string)).toMatchObject({ result: 'DRAW', winnerUserId: null })
+  expect(JSON.parse(api.calls(gamePath, 'PUT')[0][1]!.body as string)).toMatchObject({ result: 'DRAW', alternateWinCon: false })
   act(() => window.history.back())
   await screen.findByRole('heading', { name: 'Spieldetails' })
   act(() => window.history.forward())

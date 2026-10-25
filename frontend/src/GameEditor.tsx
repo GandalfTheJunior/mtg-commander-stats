@@ -1,12 +1,13 @@
+import { alternateOutcome, effectivePlace, gameMode, outcomeError, outcomeFields, savedOutcome, type OutcomeDraft, type OutcomeMode } from './gameOutcome'
 import { commanderNames } from './api'
 import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
-import { Alert, Box, Button, Card, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Card, Checkbox, FormControlLabel, Stack, TextField, Typography } from '@mui/material'
 import { ApiError, memberDecks, type DeckSelection, type Game, type GameInput, type GroupDetails } from './api'
 import { EditorLeave, useEditorGuard } from './editorGuard'
 import { publicName, sameId } from './gamePresentation'
 import { groupUrl } from './groupNavigation'
 
-type Assignment = { key: number; userId: string; deckId: string; expanded: boolean }
+type Assignment = { key: number; userId: string; deckId: string; expanded: boolean; outcome: OutcomeDraft }
 type Choice = { status: 'loading' | 'ready' | 'error'; decks: DeckSelection[]; error?: string }
 type Props = {
   group: GroupDetails
@@ -41,26 +42,27 @@ function DeckLoader({ groupId, userId, onLoaded, onAccessError }: {
   return null
 }
 
-const material = (rows: Assignment[], result: 'WIN' | 'DRAW', winner: string) => JSON.stringify({
-  participants: rows.filter(row => row.userId || row.deckId).map(({ userId, deckId }) => ({ userId, deckId })),
-  result, winnerUserId: result === 'DRAW' ? null : winner,
+const material = (rows: Assignment[], mode: OutcomeMode) => JSON.stringify({
+  participants: rows.filter(row => row.userId || row.deckId).map(({ userId, deckId, outcome }) => ({ userId, deckId, outcome })), mode,
 })
 
 export default function GameEditor({ group, game, busy, writeError, onSubmit, onCancel, onAccessError }: Props) {
   const [rows, setRows] = useState<Assignment[]>(() => game
-    ? game.participants.map((p, key) => ({ key, userId: p.userId, deckId: p.deckId, expanded: false }))
-    : Array.from({ length: 4 }, (_, key) => ({ key, userId: '', deckId: '', expanded: true })))
+    ? game.participants.toSorted((a, b) => a.startPosition - b.startPosition).map((p, key) => ({ key, userId: p.userId, deckId: p.deckId, expanded: false, outcome: savedOutcome(game, p) }))
+    : Array.from({ length: 4 }, (_, key) => ({ key, userId: '', deckId: '', expanded: true, outcome: {} })))
   const nextKey = useRef(rows.length)
   const heading = useRef<HTMLHeadingElement>(null)
   const focusNext = useRef<string | null>(null)
-  const [result, setResult] = useState<'WIN' | 'DRAW'>(game?.result ?? 'WIN')
-  const [winner, setWinner] = useState(game?.winnerUserId ?? '')
-  const [baseline] = useState(() => material(rows, result, winner))
+  const [mode, setMode] = useState<OutcomeMode>(gameMode(game))
+  const dragKey = useRef<number | null>(null)
+  const [dropKey, setDropKey] = useState<number | null>(null)
+  const [movement, setMovement] = useState('')
+  const [baseline] = useState(() => material(rows, mode))
   const [attempted, setAttempted] = useState(false)
   const [choices, setChoices] = useState<Record<string, Choice>>({})
   const [retries, setRetries] = useState<Record<string, number>>({})
   const leave = useContext(EditorLeave)
-  useEditorGuard(material(rows, result, winner) !== baseline || busy, busy, {
+  useEditorGuard(material(rows, mode) !== baseline || busy, busy, {
     onDiscard: onCancel,
     allows: destination => destination.origin === window.location.origin && destination.pathname === groupUrl(group.id),
   })
@@ -90,13 +92,19 @@ export default function GameEditor({ group, game, busy, writeError, onSubmit, on
     return Boolean(row.userId && row.deckId && selectedDeck(row) &&
       rows.filter(other => other.userId && sameId(other.userId, row.userId)).length === 1)
   }
-  function changeRows(next: Assignment[], changedUser?: string) {
+  function changeRows(next: Assignment[]) { setRows(next) }
+  function updateOutcome(key: number, update: (draft: OutcomeDraft) => OutcomeDraft) {
+    setRows(current => current.map(row => row.key === key ? { ...row, outcome: update(row.outcome) } : row))
+  }
+  function move(key: number, target: number) {
+    const from = rows.findIndex(row => row.key === key)
+    if (busy || from < 0 || target < 0 || target >= rows.length || from === target) return
+    const next = [...rows]
+    next.splice(target, 0, next.splice(from, 1)[0])
     setRows(next)
-    // Even replacing a winner's deck invalidates that explicit result choice.
-    if (changedUser === winner || !next.some(row => row.userId === winner && row.deckId)) setWinner('')
+    setMovement(`${label(rows[from].userId)} an Position ${target + 1} verschoben.`)
   }
   const complete = rows.filter(valid)
-  if (winner && !complete.some(row => row.userId === winner)) setWinner('')
   const loading = rows.some(row => row.userId && !valid(row) && active(row.userId) && (!choices[row.userId] || choices[row.userId].status === 'loading'))
   const errors = new Map<number, { player?: string; deck?: string }>()
   for (const row of rows) {
@@ -110,22 +118,24 @@ export default function GameEditor({ group, game, busy, writeError, onSubmit, on
     if (Object.keys(fields).length) errors.set(row.key, fields)
   }
   const countError = complete.length < 2 || complete.length > 6 ? 'Bitte 2–6 vollständige, unterschiedliche Spieler mit Deck auswählen. Leere Karten werden nicht gespeichert.' : ''
-  const winnerError = result === 'WIN' && !complete.some(row => row.userId === winner) ? 'Bitte einen vollständigen Teilnehmer ausdrücklich als Gewinner auswählen.' : ''
+  const resultError = outcomeError(complete.map(row => row.outcome), mode)
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (busy) return
     setAttempted(true)
-    if (errors.size || countError || winnerError || loading) {
+    if (errors.size || countError || resultError || loading) {
       const first = rows.find(row => errors.has(row.key))
       if (first) {
         setRows(rows.map(row => row.key === first.key ? { ...row, expanded: true } : row))
         focusNext.current = `game-${first.key}-${errors.get(first.key)?.player ? 'player' : 'deck'}`
       } else if (countError) document.getElementById(`game-${rows.find(row => !valid(row))?.key ?? rows[0].key}-player`)?.focus()
-      else document.getElementById('game-winner')?.focus()
+      else document.getElementById('game-outcome-error')?.focus()
       return
     }
-    onSubmit({ participants: complete.map(({ userId, deckId }) => ({ userId, deckId })), result, winnerUserId: result === 'DRAW' ? null : winner })
+    onSubmit({ participants: complete.map(({ userId, deckId, outcome }, index) => ({
+      userId, deckId, startPosition: index + 1, ...outcomeFields(outcome, mode),
+    })), result: mode === 'DRAW' ? 'DRAW' : 'WIN', alternateWinCon: mode === 'ALTERNATE' })
   }
 
   return <Stack component="form" aria-label={game ? 'Spiel bearbeiten' : 'Spiel erfassen'} onSubmit={submit} noValidate
@@ -138,12 +148,23 @@ export default function GameEditor({ group, game, busy, writeError, onSubmit, on
     {[...new Set(rows.map(row => row.userId).filter(id => id && active(id)))].map(userId =>
       <DeckLoader key={`${userId}:${retries[userId] ?? 0}`} groupId={group.id} userId={userId} onLoaded={loaded} onAccessError={onAccessError} />)}
     <Typography component="h4" variant="h5" ref={heading} tabIndex={-1}>{game ? 'Spiel bearbeiten' : 'Commander-Spiel erfassen'}</Typography>
-    <Typography sx={{ color: 'text.secondary' }}>Wähle 2–6 Spieler und ihre Decks. Du musst selbst nicht mitspielen. Vollständig leere Karten werden ausgelassen.</Typography>
+    <Typography sx={{ color: 'text.secondary' }}>Wähle 2–6 Spieler und ihre Decks. Du musst selbst nicht mitspielen. Vollständig leere Karten werden ausgelassen. Erfasse den Endstand des abgeschlossenen Spiels. Die Kartenreihenfolge bestimmt die Startplätze.</Typography>
+    <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 2, justifyContent: 'flex-end' }}>
+      <TextField id="game-result" select label="Spielergebnis" value={mode === 'DRAW' ? 'DRAW' : 'WIN'} disabled={busy}
+        slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+        onChange={event => setMode(event.target.value as 'WIN' | 'DRAW')}>
+        <option value="WIN">Sieg</option><option value="DRAW">Unentschieden</option>
+      </TextField>
+      {mode !== 'DRAW' && <FormControlLabel label="Alternate WinCon" control={<Checkbox checked={mode === 'ALTERNATE'} disabled={busy}
+        onChange={event => setMode(event.target.checked ? 'ALTERNATE' : 'WIN')} />} />}
+    </Stack>
+    <Typography role="status" aria-live="polite">{movement}</Typography>
     {writeError && <Alert id="game-write-error" tabIndex={-1} severity="error">{writeError}</Alert>}
-    {attempted && (errors.size > 0 || countError || winnerError) && <Alert severity="error">
-      Bitte die markierten Angaben korrigieren. {countError} {winnerError}
+    {attempted && (errors.size > 0 || countError || resultError) && <Alert severity="error">
+      Bitte die markierten Angaben korrigieren. {countError} {resultError}
       {rows.filter(row => errors.has(row.key)).map(row => <Typography key={row.key}>Spieler {rows.indexOf(row) + 1}: {errors.get(row.key)?.player} {errors.get(row.key)?.deck}</Typography>)}
     </Alert>}
+    {resultError && <Box id="game-outcome-error" tabIndex={-1} sx={{ color: 'error.main', border: 1, borderRadius: 1, p: 2 }}>{resultError}</Box>}
     {rows.map((row, index) => {
       const deck = selectedDeck(row)
       const previous = original(row.userId)
@@ -151,9 +172,32 @@ export default function GameEditor({ group, game, busy, writeError, onSubmit, on
       const choice = choices[row.userId]
       const expanded = row.expanded || !valid(row)
       const fields = attempted ? errors.get(row.key) : undefined
-      return <Card component="section" key={row.key} aria-labelledby={`game-slot-${row.key}`} sx={{ p: { xs: 1.5, sm: 2 }, minWidth: 0 }}>
-        <Stack sx={{ gap: 1.5, minWidth: 0 }}>
+      return <Card component="section" data-seat-key={row.key} key={row.key} aria-labelledby={`game-slot-${row.key}`} sx={{ p: { xs: 1, sm: 2 }, minWidth: 0, display: 'flex', gap: 1, outline: dropKey === row.key ? '2px solid' : undefined, outlineColor: 'primary.main' }}>
+        <Stack sx={{ flexShrink: 0, width: 44, gap: 1 }}>
+          <Button aria-label={`Spieler ${index + 1} verschieben`} disabled={busy}
+            sx={{ minWidth: 44, minHeight: 44, touchAction: 'none', cursor: 'grab' }}
+            onKeyDown={event => {
+              if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                event.preventDefault(); move(row.key, index + (event.key === 'ArrowUp' ? -1 : 1))
+              }
+            }}
+            onPointerDown={event => { if (event.button !== 0) return; dragKey.current = row.key; event.currentTarget.setPointerCapture(event.pointerId) }}
+            onPointerMove={event => {
+              if (dragKey.current === null) return
+              const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-seat-key]')
+              setDropKey(target ? Number(target.getAttribute('data-seat-key')) : null)
+            }}
+            onPointerUp={event => {
+              const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-seat-key]')
+              if (dragKey.current !== null && target) move(dragKey.current, rows.findIndex(r => r.key === Number(target.getAttribute('data-seat-key'))))
+              dragKey.current = null; setDropKey(null)
+            }} onPointerCancel={() => { dragKey.current = null; setDropKey(null) }}>⠿</Button>
+          <Button aria-label={`Spieler ${index + 1} nach oben`} disabled={busy || index === 0} sx={{ minWidth: 44, minHeight: 44 }} onClick={() => move(row.key, index - 1)}>↑</Button>
+          <Button aria-label={`Spieler ${index + 1} nach unten`} disabled={busy || index === rows.length - 1} sx={{ minWidth: 44, minHeight: 44 }} onClick={() => move(row.key, index + 1)}>↓</Button>
+        </Stack>
+        <Stack sx={{ gap: 1.5, minWidth: 0, flex: 1 }}>
           <Typography component="h5" variant="h6" id={`game-slot-${row.key}`}>Spieler {index + 1}</Typography>
+          <Typography sx={{ color: 'text.secondary' }}>{row.userId && row.deckId ? `Startplatz ${rows.slice(0, index + 1).filter(r => r.userId && r.deckId).length}` : 'Kein Startplatz · unvollständige Karte'}</Typography>
           {!expanded && deck ? <>
             <Typography sx={{ fontWeight: 700 }}>{label(row.userId)}</Typography>
             <Typography>{deck.name}</Typography>
@@ -171,7 +215,7 @@ export default function GameEditor({ group, game, busy, writeError, onSubmit, on
                 const userId = event.target.value
                 if (!active(userId) && original(userId)) focusNext.current = `game-${row.key}-edit`
                 // Historical membership grants only its exact recorded pair.
-                changeRows(rows.map(candidate => candidate.key === row.key ? { ...candidate, userId, deckId: !active(userId) ? original(userId)?.deckId ?? '' : '', expanded: active(userId) || !original(userId) } : candidate), row.userId)
+                changeRows(rows.map(candidate => candidate.key === row.key ? { ...candidate, outcome: {}, userId, deckId: !active(userId) ? original(userId)?.deckId ?? '' : '', expanded: active(userId) || !original(userId) } : candidate))
               }}>
               <option value="">Spieler auswählen</option>
               {people.map(person => {
@@ -186,7 +230,7 @@ export default function GameEditor({ group, game, busy, writeError, onSubmit, on
               onChange={event => {
                 const deckId = event.target.value
                 focusNext.current = deckId ? `game-${row.key}-edit` : null
-                changeRows(rows.map(candidate => candidate.key === row.key ? { ...candidate, deckId, expanded: !deckId } : candidate), row.userId)
+                changeRows(rows.map(candidate => candidate.key === row.key ? { ...candidate, deckId, expanded: !deckId } : candidate))
               }}>
               <option value="">Deck auswählen</option>
               {decks(row).map(deck => <option key={deck.id} value={deck.id}>
@@ -195,6 +239,30 @@ export default function GameEditor({ group, game, busy, writeError, onSubmit, on
               </option>)}
             </TextField>
           </>}
+          {row.userId && <Stack role="group" aria-label={`Ergebnis für Spieler ${index + 1}`} sx={{ gap: 1 }}>
+            {mode === 'ALTERNATE' && <FormControlLabel label="Winner" control={<Checkbox disabled={busy}
+              checked={alternateOutcome(row.outcome).winner} onChange={event => updateOutcome(row.key, draft => ({
+                ...draft, alternate: { ...alternateOutcome(draft), winner: event.target.checked, stillInGame: false },
+              }))} />} />}
+            {mode !== 'WIN' && !(mode === 'ALTERNATE' && alternateOutcome(row.outcome).winner) &&
+              <FormControlLabel label="Noch im Spiel" control={<Checkbox disabled={busy}
+                checked={mode === 'DRAW' ? row.outcome.draw ?? true : alternateOutcome(row.outcome).stillInGame}
+                onChange={event => updateOutcome(row.key, draft => mode === 'DRAW' ? { ...draft, draw: event.target.checked } : {
+                  ...draft, alternate: { ...alternateOutcome(draft), winner: false, stillInGame: event.target.checked },
+                })} />} />}
+            {mode !== 'DRAW' && <Typography>Platz: {effectivePlace(row.outcome, mode) ?? 'Bitte auswählen'}</Typography>}
+            {(mode === 'WIN' || mode === 'ALTERNATE' && !alternateOutcome(row.outcome).winner && !alternateOutcome(row.outcome).stillInGame) &&
+              <Box role="group" aria-label="Platzierung" sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {Array.from({ length: complete.length }, (_, i) => i + 1).map(place =>
+                  <Button key={place} aria-label={`Platz ${place}`} aria-pressed={effectivePlace(row.outcome, mode) === place}
+                    variant={effectivePlace(row.outcome, mode) === place ? 'contained' : 'outlined'}
+                    disabled={busy} sx={{ minWidth: 44, minHeight: 44 }}
+                    onClick={() => updateOutcome(row.key, draft => mode === 'WIN' ? { ...draft, placement: place } : {
+                      ...draft, alternate: { ...alternateOutcome(draft), placement: place },
+                    })}>{place}</Button>)}
+              </Box>}
+            {attempted && resultError && <Typography color="error" variant="body2">{resultError}</Typography>}
+          </Stack>}
           {former && <Typography sx={{ color: 'text.secondary' }}>Ehemaliges Mitglied: Nur die ursprüngliche Spieler-/Deckzuordnung darf erhalten bleiben.</Typography>}
           {previous?.deckId === row.deckId && previous.deck.archived && <Typography sx={{ color: 'text.secondary' }}>Archiviertes Deck · nur erfasste Zuordnung</Typography>}
           {row.userId && !former && (!choice || choice.status === 'loading') && <Typography role="status">Decks für {label(row.userId)} werden geladen…</Typography>}
@@ -205,13 +273,13 @@ export default function GameEditor({ group, game, busy, writeError, onSubmit, on
           <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 1 }}>
             <Button color="secondary" disabled={busy || (!row.userId && !row.deckId)} aria-label={`Spieler ${index + 1} leeren`} onClick={() => {
               focusNext.current = `game-${row.key}-player`
-              changeRows(rows.map(candidate => candidate.key === row.key ? { ...candidate, userId: '', deckId: '', expanded: true } : candidate), row.userId)
+              changeRows(rows.map(candidate => candidate.key === row.key ? { ...candidate, userId: '', deckId: '', expanded: true, outcome: {} } : candidate))
             }}>Leeren</Button>
             <Button color="inherit" disabled={busy || rows.length <= 2} aria-label={`Spieler ${index + 1} entfernen`} onClick={() => {
               const next = rows.filter(candidate => candidate.key !== row.key)
               const target = next[Math.min(index, next.length - 1)]
               focusNext.current = `game-${target.key}-${target.expanded || !valid(target) ? 'player' : 'edit'}`
-              changeRows(next, row.userId)
+              changeRows(next)
             }}>Entfernen</Button>
           </Stack>
         </Stack>
@@ -220,21 +288,8 @@ export default function GameEditor({ group, game, busy, writeError, onSubmit, on
     <Button color="secondary" variant="outlined" disabled={busy || rows.length >= 6} onClick={() => {
       const key = nextKey.current++
       focusNext.current = `game-${key}-player`
-      changeRows([...rows, { key, userId: '', deckId: '', expanded: true }])
+      changeRows([...rows, { key, userId: '', deckId: '', expanded: true, outcome: {} }])
     }}>Spieler hinzufügen</Button>
-    <Card component="section" aria-labelledby="game-result-title" sx={{ p: { xs: 1.5, sm: 2 }, bgcolor: 'background.raised', minWidth: 0 }}>
-      <Stack sx={{ gap: 2 }}>
-        <Typography id="game-result-title" component="h5" variant="h6">Spielergebnis</Typography>
-        <TextField id="game-result" select label="Spielergebnis" value={result} disabled={busy} slotProps={{ select: { native: true }, inputLabel: { shrink: true } }} onChange={event => {
-          setResult(event.target.value as 'WIN' | 'DRAW'); setWinner('')
-        }}><option value="WIN">Sieg</option><option value="DRAW">Unentschieden</option></TextField>
-        {result === 'WIN' && <TextField id="game-winner" select label="Gewinner" value={winner} disabled={busy} error={attempted && Boolean(winnerError)}
-          helperText={attempted && winnerError ? winnerError : 'Wähle den Gewinner ausdrücklich aus den vollständigen Teilnehmern.'} slotProps={{ select: { native: true }, inputLabel: { shrink: true } }} onChange={event => setWinner(event.target.value)}>
-          <option value="">Gewinner auswählen</option>
-          {complete.map(row => <option key={row.key} value={row.userId}>{label(row.userId)}</option>)}
-        </TextField>}
-      </Stack>
-    </Card>
     <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
       <Button type="submit" variant="contained" disabled={busy || loading}>{busy ? 'Spiel wird gespeichert…' : 'Spiel speichern'}</Button>
       <Button type="button" color="secondary" onClick={() => leave(onCancel)}>Abbrechen</Button>

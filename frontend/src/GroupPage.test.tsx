@@ -1,3 +1,4 @@
+import { selectGameWinner } from './test/gameEntry'
 import { stubLanHttpCrypto } from './test/lanHttp'
 import { StrictMode } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -817,7 +818,7 @@ test('visible tabs and native same-group Back/Forward preserve summaries, expans
   fireEvent.click(screen.getByRole('button', { name: 'Spieler 2 bearbeiten' }))
   fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 3' }), { target: { value: uid(4) } })
   await waitFor(() => expect(screen.getByRole('combobox', { name: 'Deck für Spieler 3' })).toBeEnabled())
-  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(2) } })
+  selectGameWinner(uid(2))
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
   expect(screen.getByRole('combobox', { name: 'Deck für Spieler 3' })).toHaveFocus()
   await selectTab('Statistiken'); await selectTab('Mitglieder')
@@ -833,7 +834,7 @@ test('visible tabs and native same-group Back/Forward preserve summaries, expans
   expect(screen.getByRole('combobox', { name: 'Spieler 2' })).toHaveValue(uid(3))
   expect(screen.getByRole('combobox', { name: 'Deck für Spieler 2' })).toHaveValue(deckFor(3).id)
   expect(screen.getByRole('combobox', { name: 'Deck für Spieler 3' })).toHaveAttribute('aria-invalid', 'true')
-  expect(screen.getByRole('combobox', { name: 'Gewinner' })).toHaveValue(uid(2))
+  expect(within(screen.getByRole('region', { name: 'Spieler 1' })).getByRole('button', { name: 'Platz 1' })).toHaveAttribute('aria-pressed', 'true')
   expect(screen.getAllByRole('form')).toHaveLength(1)
   expect(screen.getByRole('alert')).toHaveTextContent('Spieler 3:')
   await act(async () => window.history.forward())

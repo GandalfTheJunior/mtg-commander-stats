@@ -1,3 +1,4 @@
+import { selectGameWinner } from './test/gameEntry'
 import { savedCommander } from './test/commanderFixtures'
 import { useState } from 'react'
 import type { GroupTab } from './groupNavigation'
@@ -167,7 +168,7 @@ test('only acknowledged game creation refreshes visited statistics; canceled cre
   fireEvent.click(screen.getByRole('button', { name: 'Spiel erfassen' }))
   for (const n of [1, 2]) fireEvent.change(screen.getByRole('combobox', { name: `Spieler ${n}` }), { target: { value: uid(n + 1) } })
   for (const n of [1, 2]) await selectGameDeck(n, deckFor(n + 1))
-  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(2) } })
+  selectGameWinner(uid(2))
   const pending = deferred()
   api.next(`/api/groups/${group.id}/games`, () => pending.promise, 'POST')
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))

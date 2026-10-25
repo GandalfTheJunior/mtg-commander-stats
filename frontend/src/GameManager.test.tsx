@@ -1,3 +1,4 @@
+import { selectGameWinner } from './test/gameEntry'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App'
@@ -34,7 +35,7 @@ test.each(['WIN', 'DRAW'])('records %s without the actor playing, using only doc
   await start()
   await selectPlayers()
   if (result === 'DRAW') fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
-  else fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(2) } })
+  else selectGameWinner(uid(2))
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
   await screen.findByText('Game recorded.')
   await screen.findByRole('article', { name: `Game ${uid(20)}` })
@@ -43,8 +44,8 @@ test.each(['WIN', 'DRAW'])('records %s without the actor playing, using only doc
   expect(call[0]).toBe(path)
   expect(call[1]).toEqual(expect.objectContaining({ credentials: 'same-origin', method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': 'game-token' } }))
-  expect(JSON.parse(call[1]!.body as string)).toEqual({ participants: [2, 3].map((n) => ({ userId: uid(n), deckId: deckFor(n).id })),
-    result, winnerUserId: result === 'DRAW' ? null : uid(2) })
+  expect(JSON.parse(call[1]!.body as string)).toEqual({ participants: [2, 3].map((n, i) => ({ userId: uid(n), deckId: deckFor(n).id, startPosition: i + 1, ...(result === 'DRAW' ? { stillInGame: true } : { placement: i + 1 }) })),
+    result, alternateWinCon: false })
   expect(api.fetchMock.mock.calls.filter(([url, init]) => url === path && !init?.method)).toHaveLength(2)
 })
 
@@ -56,7 +57,7 @@ test('validates incomplete results, disables duplicates, limits player count, an
   await selectPlayers()
   fireEvent.click(screen.getByRole('button', { name: 'Spieler 2 bearbeiten' }))
   expect(within(screen.getByRole('combobox', { name: 'Spieler 2' })).getByRole('option', { name: /Same name.*0002.*bereits gewählt/ })).toBeDisabled()
-  expect(within(screen.getByRole('combobox', { name: 'Gewinner' })).queryByRole('option', { name: /Owner/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole('combobox', { name: 'Gewinner' })).not.toBeInTheDocument()
   for (let i = 0; i < 4; i++) fireEvent.click(screen.getByRole('button', { name: 'Spieler hinzufügen' }))
   expect(screen.getByRole('button', { name: 'Spieler hinzufügen' })).toBeDisabled()
   fireEvent.click(screen.getByRole('button', { name: 'Spieler 6 entfernen' }))
@@ -89,7 +90,7 @@ test('waits for acknowledgment and prevents duplicate creation while pending', a
   const pending = deferred()
   api.next(path, () => pending.promise, 'POST')
   show(); await start(); await selectPlayers()
-  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(2) } })
+  selectGameWinner(uid(2))
   const form = screen.getByRole('form', { name: 'Spiel erfassen' })
   fireEvent.submit(form); fireEvent.submit(form)
   await screen.findByRole('button', { name: 'Spiel wird gespeichert…' })
@@ -116,7 +117,7 @@ test('preserves former/archived assignments when editing and sends no immutable 
   await screen.findByText('Game updated.')
   const write = api.fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT')!
   expect(write[0]).toBe(`${path}/${old.id}`)
-  expect(JSON.parse(write[1]!.body as string)).toEqual({ participants: old.participants.map(({ userId, deckId }) => ({ userId, deckId })), result: 'DRAW', winnerUserId: null })
+  expect(JSON.parse(write[1]!.body as string)).toEqual({ participants: old.participants.map(({ userId, deckId, startPosition }) => ({ userId, deckId, startPosition, stillInGame: true })), result: 'DRAW', alternateWinCon: false })
   expect(api.fetchMock.mock.calls.some(([url]) => url.endsWith(`/members/${uid(2)}/decks`))).toBe(false)
 })
 
@@ -144,7 +145,7 @@ test.each(['validation', 'conflict', 'network', 'malformed', 'server', 'unexpect
     if (failure === 'unexpected') return response(recorded(), 200)
     return response({ detail: 'Game could not be recorded.' }, failure === 'validation' ? 400 : 409)
   }, 'POST')
-  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(2) } })
+  selectGameWinner(uid(2))
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
   await screen.findByRole('alert')
   expect(screen.queryByText('Game recorded.')).not.toBeInTheDocument()
@@ -208,13 +209,13 @@ test.each(['history', 'decks'])('retired %s cannot restore a previous mounted ga
 
 test('400 preserves an editable draft for deliberate correction and does not auto-repeat POST', async () => {
   const api = gameApi(); show(); await start(); await selectPlayers()
-  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(2) } })
+  selectGameWinner(uid(2))
   api.next(path, () => response({ detail: 'Deck no longer eligible.' }, 400), 'POST')
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
   const error = await screen.findByRole('alert')
   expect(error).toHaveTextContent('Der Server hat die Angaben abgelehnt')
   expect(error).toHaveFocus()
-  expect(screen.getByRole('combobox', { name: 'Gewinner' })).toHaveValue(uid(2))
+  expect(within(screen.getByRole('region', { name: 'Spieler 1' })).getByRole('button', { name: 'Platz 1' })).toHaveAttribute('aria-pressed', 'true')
   expect(screen.getByRole('button', { name: 'Spieler 1 bearbeiten' })).toBeEnabled()
   expect(api.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
   fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
@@ -232,7 +233,7 @@ test.each(['POST', 'PUT'] as const)('%s ambiguous acknowledgment retires private
     fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
   } else {
     await start(); await selectPlayers()
-    fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(2) } })
+    selectGameWinner(uid(2))
   }
   const check = deferred()
   api.next(`/api/groups/${group.id}`, () => check.promise)
@@ -257,7 +258,7 @@ test.each(['POST', 'PUT'] as const)('%s ambiguous acknowledgment retires private
 
 test.each([403, 404])('write %s hides the draft, safely rechecks access and requires a new authorized action', async status => {
   const api = gameApi(); show(); await start(); await selectPlayers()
-  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(2) } })
+  selectGameWinner(uid(2))
   api.next(path, () => response({}, status), 'POST')
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('Anfrage wurde abgelehnt')
@@ -269,7 +270,7 @@ test.each([403, 404])('write %s hides the draft, safely rechecks access and requ
 
 test('write 401 expires the current session and retires the draft', async () => {
   const api = gameApi(); show(); await start(); await selectPlayers()
-  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(2) } })
+  selectGameWinner(uid(2))
   api.next(path, () => response({}, 401), 'POST')
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
   await screen.findByRole('heading', { name: 'Sign in' })
@@ -278,7 +279,7 @@ test('write 401 expires the current session and retires the draft', async () => 
 
 test('duplicate saves are locked during CSRF; discarding pending work aborts it and requires server inspection', async () => {
   const api = gameApi(), csrf = deferred(); show(); await start(); await selectPlayers()
-  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(2) } })
+  selectGameWinner(uid(2))
   api.next('/api/csrf', () => csrf.promise)
   const form = screen.getByRole('form', { name: 'Spiel erfassen' })
   fireEvent.submit(form); fireEvent.submit(form)
@@ -298,7 +299,7 @@ test('duplicate saves are locked during CSRF; discarding pending work aborts it 
 
 test('an ambiguous write keeps its possible-commit warning when the safe group check itself fails', async () => {
   const api = gameApi(); show(); await start(); await selectPlayers()
-  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(2) } })
+  selectGameWinner(uid(2))
   api.next(path, () => { throw new Error('Write connection lost') }, 'POST')
   api.next(`/api/groups/${group.id}`, () => { throw new Error('Group check unavailable') })
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
@@ -312,7 +313,7 @@ test('an ambiguous write keeps its possible-commit warning when the safe group c
 
 test('lost membership during safe recovery prevents restoration or another write without expiring a confirmed session', async () => {
   const api = gameApi(); show(); await start(); await selectPlayers()
-  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(2) } })
+  selectGameWinner(uid(2))
   api.next(path, () => response({}, 403), 'POST')
   api.next(`/api/groups/${group.id}`, () => response({}, 403))
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))

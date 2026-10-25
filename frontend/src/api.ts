@@ -1,3 +1,4 @@
+import { gamePayload } from './gameOutcome'
 export type CurrentUser = {
   id: string
   username: string
@@ -350,6 +351,9 @@ export async function archiveDeck(id: string, signal?: AbortSignal): Promise<Dec
 
 export type DeckSelection = Pick<Deck, 'id' | 'name' | 'commanders' | 'colorIdentity'>
 export type GameParticipant = {
+  startPosition: number
+  placement: number | null
+  stillInGame: boolean
   userId: string
   username: string
   deckId: string
@@ -362,10 +366,11 @@ export type Game = {
   recordedAt: string
   participants: GameParticipant[]
   result: 'WIN' | 'DRAW'
+  alternateWinCon: boolean
   winnerUserId: string | null
 }
-export type GameInput = Pick<Game, 'result' | 'winnerUserId'> & {
-  participants: { userId: string; deckId: string }[]
+export type GameInput = Pick<Game, 'result' | 'alternateWinCon'> & {
+  participants: { userId: string; deckId: string; startPosition: number; placement?: number; winner?: true; stillInGame?: boolean }[]
 }
 
 function isUuid(value: unknown): value is string {
@@ -392,28 +397,35 @@ function gameFrom(value: unknown, groupId: string, gameId?: string): Game {
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(value.recordedAt) ||
     !Number.isFinite(Date.parse(value.recordedAt)) || !Array.isArray(value.participants) ||
     value.participants.length < 2 || value.participants.length > 6 ||
-    (value.result !== 'WIN' && value.result !== 'DRAW')) {
+    (value.result !== 'WIN' && value.result !== 'DRAW') || typeof value.alternateWinCon !== 'boolean' || (value.result === 'DRAW' && value.alternateWinCon)) {
     throw new Error('The server returned invalid game data. Refresh games before continuing.')
   }
+  const participantCount = value.participants.length
   const participants = value.participants.map((participant: unknown): GameParticipant => {
     if (!isRecord(participant) || !isUuid(participant.userId) || !isUuid(participant.deckId) ||
       typeof participant.username !== 'string' || !participant.username || !isRecord(participant.deck) ||
-      typeof participant.deck.archived !== 'boolean') {
+      typeof participant.deck.archived !== 'boolean' ||
+      typeof participant.startPosition !== 'number' || !Number.isInteger(participant.startPosition) ||
+      participant.startPosition < 1 || participant.startPosition > participantCount ||
+      typeof participant.stillInGame !== 'boolean' ||
+      (value.result === 'DRAW' ? participant.placement !== null :
+        typeof participant.placement !== 'number' || !Number.isInteger(participant.placement) ||
+        participant.placement < 1 || participant.placement > participantCount)) {
       throw new Error('The server returned an invalid game participant.')
     }
     const deck = selectionFrom(participant.deck)
     if (deck.id !== participant.deckId) throw new Error('The server returned mismatched game deck data.')
-    return { userId: participant.userId, username: participant.username, deckId: deck.id,
+    return { startPosition: participant.startPosition, placement: participant.placement as number | null, stillInGame: participant.stillInGame, userId: participant.userId, username: participant.username, deckId: deck.id,
       deck: { ...deck, archived: participant.deck.archived } }
   })
   const userIds = participants.map((participant) => participant.userId)
-  if (new Set(userIds).size !== userIds.length ||
+  if (new Set(participants.map(p => p.startPosition)).size !== participants.length || new Set(userIds).size !== userIds.length ||
     (value.result === 'WIN' && (!isUuid(value.winnerUserId) || !userIds.includes(value.winnerUserId))) ||
     (value.result === 'DRAW' && value.winnerUserId !== null)) {
     throw new Error('The server returned an invalid game result.')
   }
   return { id: value.id, groupId, creatorId: value.creatorId, recordedAt: value.recordedAt,
-    participants, result: value.result, winnerUserId: value.winnerUserId as string | null }
+    participants, result: value.result, alternateWinCon: value.alternateWinCon, winnerUserId: value.winnerUserId as string | null }
 }
 
 const gamesPath = (groupId: string) => `/api/groups/${encodeURIComponent(groupId)}/games`
@@ -440,8 +452,7 @@ export async function listGames(groupId: string, signal?: AbortSignal): Promise<
 
 export async function saveGame(groupId: string, input: GameInput, gameId?: string, signal?: AbortSignal): Promise<Game> {
   // Construct the complete documented payload; identity and role are never writable.
-  const payload: GameInput = { participants: input.participants.map(({ userId, deckId }) => ({ userId, deckId })),
-    result: input.result, winnerUserId: input.winnerUserId }
+  const payload = gamePayload(input)
   const response = await checkedResponse(
     await unsafeRequest(gameId ? 'PUT' : 'POST', gamesPath(groupId) + (gameId ? `/${encodeURIComponent(gameId)}` : ''), payload, signal),
     gameId ? 200 : 201, 'Could not save the game.',

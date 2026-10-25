@@ -1,3 +1,4 @@
+import { selectGameWinner } from './test/gameEntry'
 import { gameAction, openGameDetails, selectGameDeck } from './test/gameEntry'
 import { showCode, selectTab } from './test/groupEntry'
 import { openExistingDeck, openDeckAction } from './test/editorEntry'
@@ -49,7 +50,7 @@ async function create() {
   fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 2' }), { target: { value: uid(2) } })
   await selectGameDeck(1, deckFor(1))
   await selectGameDeck(2, deckFor(2))
-  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(1) } })
+  selectGameWinner(uid(1))
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
   await screen.findByText('Game recorded.')
   await screen.findByRole('article')
@@ -213,14 +214,14 @@ test('game recording waits for the second member’s independently delayed deck 
   expect(api.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0)
   await act(async () => secondDecks.resolve(response([deckFor(2)])))
   await selectGameDeck(2, deckFor(2))
-  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(1) } })
+  selectGameWinner(uid(1))
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
   await screen.findByText('Game recorded.')
   await screen.findByRole('article')
   const writes = api.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')
   expect(writes).toHaveLength(1)
   expect(JSON.parse(writes[0][1]!.body as string)).toEqual({
-    participants: [1, 2].map(n => ({ userId: uid(n), deckId: deckFor(n).id })),
-    result: 'WIN', winnerUserId: uid(1),
+    participants: [1, 2].map(n => ({ userId: uid(n), deckId: deckFor(n).id, startPosition: n, placement: n })),
+    result: 'WIN', alternateWinCon: false,
   })
 })

@@ -26,3 +26,16 @@ export async function gameAction(name: 'Bearbeiten' | 'Löschen', open = true) {
   fireEvent.click(await screen.findByRole('button', { name: 'Spielaktionen' }))
   fireEvent.click(await screen.findByRole('menuitem', { name }))
 }
+
+// Select explicit final ranks using the editor's visible per-card controls.
+export function selectGameWinner(userId: string) {
+  const cards = screen.getAllByRole('region', { name: /^Spieler \d$/ }).filter(card =>
+    within(card).queryByRole('button', { name: 'Platz 1' }) && (within(card).queryByRole('button', { name: /bearbeiten$/ }) || (within(card).queryByRole('combobox', { name: /Deck für Spieler/ }) as HTMLSelectElement | null)?.value))
+  const number = Number(userId.slice(-12))
+  let rank = 2
+  for (const card of cards) {
+    const winner = within(card).queryByText(`Deck ${number}`) !== null ||
+      (within(card).queryByRole('combobox', { name: /^Spieler \d$/ }) as HTMLSelectElement | null)?.value === userId
+    fireEvent.click(within(card).getByRole('button', { name: `Platz ${winner ? 1 : rank++}` }))
+  }
+}

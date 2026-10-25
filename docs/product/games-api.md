@@ -192,6 +192,24 @@ error. It never reconstructs facts or deletes records. An owner may separately
 reset an explicitly isolated disposable local demo database; shared/production
 records require a separately approved retention/migration plan.
 
-The existing browser editor still uses the former write contract. Coordinate
-user-facing rollout with #117; this backend change does not implement that editor,
-read-only artwork details, new statistics or the comprehensive #123 demo redesign.
+## Browser game editor
+
+The editor records the final outcome after a completed match. Player cards are
+ordered by saved start seat; dragging the left grip (pointer/touch), its arrow
+keys, or the up/down buttons changes only start order. Fully blank placeholders
+are omitted and complete assignments receive contiguous seats. Partial cards
+block saving.
+
+Result controls remain visible outside the collapsible player/deck selection.
+Normal WIN uses manual numeric place buttons with competition ties and exactly
+one first place. Alternate WinCon, selected at the upper right, uses an explicit
+Winner marker and surviving opponents at derived place 2; only eliminated
+opponents select manual later ranks. DRAW records survivor status without ranks.
+Alternate victory requires a surviving opponent; DRAW requires a survivor.
+New Alternate opponents and DRAW participants default to still in the game.
+
+Each mode retains its own unsaved in-memory results while the editor is open.
+Only active-mode fields reach POST/PUT. A player change clears only that card's
+results across modes; a deck-only change preserves results. The leave guard
+includes seat order, mode and inactive cached results. No cross-session draft
+recovery, live match tracking or partial historical-game correction is provided.
