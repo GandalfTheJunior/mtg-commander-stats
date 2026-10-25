@@ -116,13 +116,15 @@ are loaded with a read-only query hint so converted color identities do not caus
 incidental dirty-checking writes; the locking deck mutation/usage queries remain
 writable. See [Games API](../product/games-api.md).
 
-`ReadGroupStatistics` in the game application layer derives group-scoped player
-and deck counts from the same repository's participant-fetching history query.
+`ReadGroupStatistics` in the game application layer derives group-scoped player,
+deck, table-size-separated seat and saved Mana-color appearance counts from the
+same repository's participant-fetching history query.
 It authorizes through `GameGroupAccess`, batches current public users and deck
 display through the existing feature boundaries, and returns sorted statistics
-DTOs with decimal HALF_UP percentages. There are no new tables, counters or
+DTOs with decimal HALF_UP percentages and null for zero observations. The optional
+`playerCount` filter applies to all four datasets. There are no new tables, counters or
 production dependencies. Empty history skips display lookups; nonempty history
-uses five queries regardless of game count. See [Statistics API](../product/statistics-api.md).
+uses six queries regardless of game count. See [Statistics API](../product/statistics-api.md).
 
 Game operations (including statistics reads and deck selection) lock the group row before
 checking current membership. Join, leave and code rotation use that same lock.
