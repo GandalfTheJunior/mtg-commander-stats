@@ -473,3 +473,52 @@ test.each([1, 4])('LAN HTTP logout and login as %s retire a game draft and its h
   expect(screen.queryByRole('form', { name: 'Spiel bearbeiten' })).not.toBeInTheDocument()
   expect(api.calls(gamePath, 'PUT')).toHaveLength(0)
 })
+
+test.each([
+  { mode: 'normal', ranks: [2, 4, 1, 2], seats: [4, 2, 3, 1], order: [3, 4, 1, 2] },
+  { mode: 'alternate', ranks: [4, 2, 4, 1, 2], seats: [2, 4, 5, 3, 1], order: [4, 5, 2, 1, 3] },
+  { mode: 'draw', ranks: [null, null, null, null], seats: [4, 2, 3, 1], order: [4, 2, 3, 1] },
+])('$mode orders by effective rank/start seat and labels results explicitly', async ({ mode, ranks, seats, order }) => {
+  const api = setup()
+  const participants = ranks.map((placement, i) => ({ ...recorded().participants[0], userId: uid(i + 1), username: `Player ${i + 1}`,
+    placement, startPosition: seats[i], stillInGame: mode === 'draw' ? i % 2 === 0 : placement === 1 || (mode === 'alternate' && placement === 2),
+  }))
+  api.state.history = [recorded({ result: mode === 'draw' ? 'DRAW' : 'WIN', alternateWinCon: mode === 'alternate',
+    winnerUserId: mode === 'draw' ? null : participants.find(p => p.placement === 1)!.userId, participants })]
+  show()
+  const list = await screen.findByRole('list', { name: 'Teilnehmende und Decks' })
+  const cards = within(list).getAllByRole('listitem')
+  expect(cards.map(card => within(card).getByRole('heading').textContent)).toEqual(order.map(i => `Player ${i}`))
+  cards.forEach((card, i) => expect(card).toHaveTextContent(`Startplatz: ${seats[order[i] - 1]}`))
+  if (mode === 'draw') {
+    expect(within(list).queryByText(/Platzierung:/)).not.toBeInTheDocument()
+    expect(within(list).queryByText(/Sieg/)).not.toBeInTheDocument()
+    expect(within(list).getAllByText('Noch im Spiel')).toHaveLength(2)
+    expect(within(list).getAllByText('Ausgeschieden')).toHaveLength(2)
+  } else {
+    expect(within(list).getAllByText('🏆 Sieg')).toHaveLength(1)
+    expect(within(cards[1]).getByText('Platzierung: 2')).toBeInTheDocument()
+    expect(within(cards[2]).getByText('Platzierung: 2')).toBeInTheDocument()
+    expect(getComputedStyle(cards[1]).marginLeft).toBe(getComputedStyle(cards[2]).marginLeft)
+  }
+})
+
+test('fresh details use current deck snapshots, including one to two commanders and missing artwork', async () => {
+  const api = setup(), game = recorded()
+  game.participants[0].deck.commanders[0].artCropUrl = 'https://cards.scryfall.io/old.jpg'
+  api.state.history = [game]
+  const first = show()
+  fireEvent.error(await screen.findByRole('img', { name: 'Illustration für Commander 2' }))
+  first.unmount()
+  const commander = game.participants[0].deck.commanders[0]
+  const deck = { ...game.participants[0].deck, id: uid(999), commanders: [
+    { ...commander, name: 'New first', artCropUrl: 'https://cards.scryfall.io/new.jpg' },
+    { ...commander, name: 'New second', oracleId: uid(998), position: 2, artCropUrl: null },
+  ] }
+  api.state.history = [{ ...game, participants: [{ ...game.participants[0], deckId: deck.id, deck }, game.participants[1]] }]
+  show()
+  expect(await screen.findByRole('img', { name: 'Illustration für New first' })).toHaveAttribute('src', 'https://cards.scryfall.io/new.jpg')
+  expect(screen.getByRole('img', { name: 'Keine Illustration für New second verfügbar' })).toBeInTheDocument()
+  expect(screen.queryByText('Commander: Commander 2')).not.toBeInTheDocument()
+  expect(api.fetchMock.mock.calls.some(([path]) => path.includes('scryfall'))).toBe(false)
+})
