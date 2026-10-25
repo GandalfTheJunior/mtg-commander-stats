@@ -11,6 +11,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CommanderInput;
 import io.github.gandalfthejunior.mtgcommanderstats.game.application.ManageGames.GameDetails;
@@ -303,6 +304,57 @@ class GameIntegrityTest extends GameTestSupport {
             case "commander" -> expect(f.creator(), "PUT", path, deckBody("Changed", "Atraxa", List.of("R")), status);
             default -> throw new AssertionError(operation);
         };
+    }
+
+    @ParameterizedTest
+    @CsvSource({"create,false", "replace,false", "delete,false", "leave,false",
+            "create,true", "replace,true", "delete,true", "leave,true"})
+    void statisticsWaitForGroupWritesAndObserveOnlyCommittedFacts(String operation, boolean rollback) throws Exception {
+        Fixture f = fixture();
+        GameDetails initial = createGame(f.owner().id(), f.groupId(), assignments(f), GameResult.WIN, f.creator().id());
+        AtomicReference<JsonNode> response = new AtomicReference<>();
+        race(() -> {
+            switch (operation) {
+                case "create" -> createGame(f.owner().id(), f.groupId(), assignments(f), GameResult.DRAW, null);
+                case "replace" -> replaceGame(f.owner().id(), f.groupId(), initial.id(), List.of(
+                        assignments(f).getFirst(), assignments(f).getLast(), assignment(f.owner().id(), f.ownerDeck())),
+                        GameResult.DRAW, null);
+                case "delete" -> gameService.delete(f.owner().id(), f.groupId(), initial.id());
+                case "leave" -> groupService.leave(f.member().id(), f.groupId());
+                default -> throw new AssertionError(operation);
+            }
+            return null;
+        }, () -> {
+            int status = operation.equals("leave") && !rollback ? FORBIDDEN.value() : OK.value();
+            response.set(expect(f.member(), "GET", "/api/groups/" + f.groupId() + "/statistics?playerCount=2", "", status));
+            return null;
+        }, "play_groups", rollback);
+        if (operation.equals("leave") && !rollback) {
+            return;
+        }
+        JsonNode result = response.get();
+        assertThat(result.size()).isEqualTo(4);
+        boolean empty = !rollback && (operation.equals("replace") || operation.equals("delete"));
+        long games = empty ? 0 : !rollback && operation.equals("create") ? 2 : 1;
+        assertThat(result.get("players").size()).isEqualTo(empty ? 0 : 2);
+        assertThat(result.get("decks").size()).isEqualTo(empty ? 0 : 2);
+        assertThat(result.get("startPositions").size()).isEqualTo(1);
+        JsonNode section = result.get("startPositions").get(0);
+        assertThat(section.get("playerCount").asInt()).isEqualTo(2);
+        assertThat(section.get("seats").size()).isEqualTo(2);
+        for (int i = 0; i < 2; i++) {
+            JsonNode seat = section.get("seats").get(i);
+            assertThat(seat.get("games").asLong()).isEqualTo(games);
+            assertThat(seat.get("wins").asLong()).isEqualTo(!empty && i == 0 ? 1 : 0);
+            assertThat(seat.get("winRatePercent").isNull()).isEqualTo(empty);
+        }
+        assertThat(result.get("manaColors").size()).isEqualTo(6);
+        for (JsonNode color : result.get("manaColors")) {
+            boolean red = color.get("color").asText().equals("R");
+            assertThat(color.get("games").asLong()).isEqualTo(red ? games * 2 : 0);
+            assertThat(color.get("wins").asLong()).isEqualTo(red && !empty ? 1 : 0);
+            assertThat(color.get("winRatePercent").isNull()).isEqualTo(!red || empty);
+        }
     }
 
     private void race(Callable<?> first, Callable<?> second, String table) throws Exception {

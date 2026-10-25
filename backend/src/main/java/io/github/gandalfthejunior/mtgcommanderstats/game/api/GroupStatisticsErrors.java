@@ -9,12 +9,18 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice(assignableTypes = GroupStatisticsController.class)
 public class GroupStatisticsErrors {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ProblemDetail invalidInput() {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Provide a valid group UUID.");
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ProblemDetail invalidFilter(ResponseStatusException exception) {
+        return exception.getBody();
     }
 
     @ExceptionHandler(GroupAccessDeniedException.class)
