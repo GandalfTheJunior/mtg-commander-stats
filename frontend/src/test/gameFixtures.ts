@@ -13,8 +13,8 @@ export const group: GroupDetails = { id: uid(10), name: 'Friday games', role: 'O
 export const deckFor = (n: number): DeckSelection => ({ id: uid(100 + n), name: `Deck ${n}`, commanders: [savedCommander(`Commander ${n}`)], colorIdentity: ['R'] })
 export function recorded(overrides: Partial<Game> = {}): Game {
   return { id: uid(20), groupId: group.id, creatorId: uid(2), recordedAt: '2026-10-16T08:00:00.123456Z',
-    result: 'WIN', winnerUserId: uid(2), participants: [2, 3].map((n) => ({
-      userId: uid(n), username: 'Same name', deckId: deckFor(n).id, deck: { ...deckFor(n), archived: false },
+    result: 'WIN', alternateWinCon: false, winnerUserId: uid(2), participants: [2, 3].map((n) => ({
+      startPosition: n - 1, placement: overrides.result === 'DRAW' ? null : n - 1, stillInGame: overrides.result === 'DRAW' || n === 2, userId: uid(n), username: 'Same name', deckId: deckFor(n).id, deck: { ...deckFor(n), archived: false },
     })), ...overrides }
 }
 export function response(body: unknown, status = 200) {
@@ -45,8 +45,10 @@ export function gameApi(initial: Game[] = []) {
     if (member) return response([deckFor(members.indexOf(member) + 1)])
     if (path.startsWith(`/api/groups/${group.id}/games`) && ['POST', 'PUT'].includes(method)) {
       const input = JSON.parse(init!.body as string) as GameInput
-      const game = recorded({ ...input, participants: input.participants.map((p) => ({
-        ...p, username: members.find((m) => m.userId === p.userId)?.username ?? 'Former',
+      const winner = input.result === 'DRAW' ? null : input.participants.find(p => input.alternateWinCon ? p.winner : p.placement === 1)?.userId ?? null
+      const game = recorded({ ...input, winnerUserId: winner, participants: input.participants.map((p) => ({
+        ...p, placement: input.result === 'DRAW' ? null : input.alternateWinCon ? p.winner ? 1 : p.stillInGame ? 2 : p.placement! : p.placement!,
+        stillInGame: input.result === 'DRAW' ? p.stillInGame! : input.alternateWinCon ? Boolean(p.winner || p.stillInGame) : p.placement === 1, username: members.find((m) => m.userId === p.userId)?.username ?? 'Former',
         deck: { ...deckFor(Number(p.userId.slice(-1))), id: p.deckId, archived: false },
       })) })
       state.history = [game]

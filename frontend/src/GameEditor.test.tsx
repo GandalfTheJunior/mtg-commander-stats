@@ -1,3 +1,4 @@
+import { EditorGuard } from './editorGuard'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import GameEditor from './GameEditor'
@@ -21,19 +22,19 @@ async function fill(slot: number, user: number) {
 const save = () => fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
-test.each([2, 3, 4, 6])('%s participants submit in visible order while untouched blank slots are omitted', async count => {
+test.each([2, 3, 4, 5, 6])('%s participants submit in visible order while untouched blank slots are omitted', async count => {
   const api = gameApi()
   const details = { ...group, members: [...group.members, ...[5, 6].map(n => ({ userId: uid(n), username: `Player ${n}`, role: 'MEMBER' as const }))] }
   for (const n of [5, 6]) api.next(`/api/groups/${group.id}/members/${uid(n)}/decks`, () => response([deckFor(n)]))
   const { onSubmit } = show(null, details)
   expect(screen.getAllByRole('combobox', { name: /^Spieler \d$/ })).toHaveLength(4)
   expect(player(1)).toHaveValue('')
-  expect(screen.getByRole('combobox', { name: 'Gewinner' })).toHaveValue('')
+  expect(screen.queryByRole('combobox', { name: 'Gewinner' })).not.toBeInTheDocument()
   while (screen.getAllByRole('heading', { name: /^Spieler \d$/ }).length < count) fireEvent.click(screen.getByRole('button', { name: 'Spieler hinzufügen' }))
   for (let n = 1; n <= count; n++) await fill(n, n)
-  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(count) } })
+  for (let n = 1; n <= count; n++) place(n, n)
   save()
-  expect(onSubmit).toHaveBeenCalledExactlyOnceWith({ participants: Array.from({ length: count }, (_, i) => ({ userId: uid(i + 1), deckId: deckFor(i + 1).id })), result: 'WIN', winnerUserId: uid(count) })
+  expect(onSubmit).toHaveBeenCalledExactlyOnceWith({ participants: Array.from({ length: count }, (_, i) => ({ userId: uid(i + 1), deckId: deckFor(i + 1).id, startPosition: i + 1, placement: i + 1 })), result: 'WIN', alternateWinCon: false })
 })
 
 test('completed summaries announce player, deck, commander, colors; collapsing and reopening move focus deliberately', async () => {
@@ -68,29 +69,7 @@ test('partial slots retain input, block save with field feedback and focus, and 
   fireEvent.click(screen.getByRole('button', { name: 'Spieler 3 leeren' }))
   expect(player(3)).toHaveFocus()
   save()
-  expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ participants: [2, 3].map(n => ({ userId: uid(n), deckId: deckFor(n).id })), winnerUserId: null }))
-})
-
-test('winner is explicit, complete and cleared when a deck, member, slot or result changes', async () => {
-  gameApi(); const { onSubmit } = show()
-  await fill(1, 2); await fill(2, 3)
-  save()
-  expect(onSubmit).not.toHaveBeenCalled()
-  expect(screen.getByRole('combobox', { name: 'Gewinner' })).toHaveFocus()
-  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(2) } })
-  reopen(1)
-  fireEvent.change(deck(1), { target: { value: '' } })
-  expect(screen.getByRole('combobox', { name: 'Gewinner' })).toHaveValue('')
-  expect(within(screen.getByRole('combobox', { name: 'Gewinner' })).queryByRole('option', { name: /0002/ })).not.toBeInTheDocument()
-  fireEvent.change(deck(1), { target: { value: deckFor(2).id } })
-  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(2) } })
-  fireEvent.click(screen.getByRole('button', { name: 'Spieler 1 entfernen' }))
-  expect(screen.getByRole('combobox', { name: 'Gewinner' })).toHaveValue('')
-  fireEvent.change(screen.getByRole('combobox', { name: 'Gewinner' }), { target: { value: uid(3) } })
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
-  expect(screen.queryByRole('combobox', { name: 'Gewinner' })).not.toBeInTheDocument()
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'WIN' } })
-  expect(screen.getByRole('combobox', { name: 'Gewinner' })).toHaveValue('')
+  expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ participants: [2, 3].map((n, i) => ({ userId: uid(n), deckId: deckFor(n).id, startPosition: i + 1, stillInGame: true })) }))
 })
 
 test('only the selected member’s decks are offered; member change resets the deck and fences old success/401', async () => {
@@ -144,9 +123,9 @@ test.each(['WIN', 'DRAW'] as const)('edit starts with exactly saved assignments 
   expect(screen.getByText(/Ehemaliges Mitglied:/)).toBeInTheDocument()
   expect(screen.getByText('Archiviertes Deck · nur erfasste Zuordnung')).toBeInTheDocument()
   expect(screen.getByRole('combobox', { name: 'Spielergebnis' })).toHaveValue(result)
-  if (result === 'WIN') expect(screen.getByRole('combobox', { name: 'Gewinner' })).toHaveValue(uid(2))
+  if (result === 'WIN') expect(card(1).getByRole('button', { name: 'Platz 1' })).toHaveAttribute('aria-pressed', 'true')
   save()
-  expect(onSubmit).toHaveBeenCalledWith({ participants: saved.participants.map(({ userId, deckId }) => ({ userId, deckId })), result, winnerUserId: saved.winnerUserId })
+  expect(onSubmit).toHaveBeenCalledWith({ participants: saved.participants.map(({ userId, deckId, startPosition, placement, stillInGame }) => ({ userId, deckId, startPosition, ...(result === 'DRAW' ? { stillInGame } : { placement }) })), result, alternateWinCon: false })
   reopen(1)
   expect(within(deck(1)).getAllByRole('option')).toHaveLength(2)
   expect(within(deck(1)).getByRole('option', { name: /nur erfasste Zuordnung.*Archiviertes Deck/ })).toBeInTheDocument()
@@ -184,7 +163,7 @@ test('an active historical player may replace the archived original with a curre
   expect(within(deck(1)).getByRole('option', { name: /Archiviertes Deck/ })).toBeInTheDocument()
   fireEvent.change(deck(1), { target: { value: current.id } })
   save()
-  expect(view.onSubmit).toHaveBeenCalledWith({ participants: [{ userId: uid(2), deckId: current.id }, { userId: uid(3), deckId: deckFor(3).id }], result: 'DRAW', winnerUserId: null })
+  expect(view.onSubmit).toHaveBeenCalledWith({ participants: [{ userId: uid(2), deckId: current.id, startPosition: 1, stillInGame: true }, { userId: uid(3), deckId: deckFor(3).id, startPosition: 2, stillInGame: true }], result: 'DRAW', alternateWinCon: false })
   view.unmount()
   const replacement = { ...saved, participants: [{ ...saved.participants[0], deckId: current.id, deck: { ...current, archived: false } }, saved.participants[1]] }
   api.next(`/api/groups/${group.id}/members/${uid(2)}/decks`, () => response([current]))
@@ -208,4 +187,125 @@ test('a forged deck outside the member’s eligible choices cannot be submitted 
   expect(deck(1)).toHaveAttribute('aria-invalid', 'true')
   expect(deck(1)).toHaveFocus()
   expect(screen.getByRole('alert')).toHaveTextContent('Dieses Deck ist nicht verfügbar')
+})
+
+const card = (n: number) => within(screen.getByRole('region', { name: `Spieler ${n}` }))
+const place = (n: number, rank: number) => fireEvent.click(card(n).getByRole('button', { name: `Platz ${rank}` }))
+const mode = (value: 'WIN' | 'DRAW') => fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value } })
+const alternate = () => fireEvent.click(screen.getByRole('checkbox', { name: 'Alternate WinCon' }))
+
+test('ties are manual, collapsed results remain operable, and invalid gaps/multiple winners block save', async () => {
+  gameApi(); const { onSubmit } = show()
+  for (let n = 1; n <= 4; n++) await fill(n, n)
+  for (const [i, rank] of [1, 2, 2, 3].entries()) place(i + 1, rank)
+  save(); expect(onSubmit).not.toHaveBeenCalled()
+  expect(card(4).getByRole('button', { name: 'Platz 3' })).toHaveAttribute('aria-pressed', 'true')
+  place(4, 4); save()
+  expect(onSubmit.mock.calls[0][0].participants.map((p: { placement: number }) => p.placement)).toEqual([1, 2, 2, 4])
+  place(2, 1); save(); expect(onSubmit).toHaveBeenCalledTimes(1)
+  expect(card(3).getByRole('button', { name: 'Platz 2' })).toHaveAttribute('aria-pressed', 'true')
+  reopen(3)
+  expect(card(3).getByRole('button', { name: 'Platz 2' })).toBeEnabled()
+})
+
+test('mode round trips preserve separate ranks and statuses and serialize only active result fields', async () => {
+  gameApi(); const { onSubmit } = show()
+  for (let n = 1; n <= 4; n++) await fill(n, n)
+  for (let n = 1; n <= 4; n++) place(n, n)
+  mode('DRAW')
+  expect(screen.queryByRole('button', { name: 'Platz 1' })).not.toBeInTheDocument()
+  for (let n = 1; n <= 4; n++) expect(card(n).getByRole('checkbox', { name: 'Noch im Spiel' })).toBeChecked()
+  fireEvent.click(card(4).getByRole('checkbox', { name: 'Noch im Spiel' }))
+  save()
+  expect(onSubmit.mock.lastCall![0]).toEqual({ result: 'DRAW', alternateWinCon: false, participants: [1, 2, 3, 4].map(n => ({
+    userId: uid(n), deckId: deckFor(n).id, startPosition: n, stillInGame: n !== 4,
+  })) })
+  mode('WIN')
+  expect(card(4).getByRole('button', { name: 'Platz 4' })).toHaveAttribute('aria-pressed', 'true')
+  alternate()
+  for (let n = 1; n <= 4; n++) expect(card(n).getByRole('checkbox', { name: 'Noch im Spiel' })).toBeChecked()
+  fireEvent.click(card(1).getByRole('checkbox', { name: 'Winner' }))
+  expect(card(1).queryByRole('checkbox', { name: 'Noch im Spiel' })).not.toBeInTheDocument()
+  fireEvent.click(card(4).getByRole('checkbox', { name: 'Noch im Spiel' }))
+  place(4, 4); save()
+  expect(onSubmit.mock.lastCall![0].participants).toEqual([
+    { userId: uid(1), deckId: deckFor(1).id, startPosition: 1, winner: true },
+    ...[2, 3].map(n => ({ userId: uid(n), deckId: deckFor(n).id, startPosition: n, stillInGame: true })),
+    { userId: uid(4), deckId: deckFor(4).id, startPosition: 4, stillInGame: false, placement: 4 },
+  ])
+  alternate()
+  expect(card(2).getByRole('button', { name: 'Platz 2' })).toHaveAttribute('aria-pressed', 'true')
+  alternate()
+  expect(card(1).getByRole('checkbox', { name: 'Winner' })).toBeChecked()
+  expect(card(4).getByRole('button', { name: 'Platz 4' })).toHaveAttribute('aria-pressed', 'true')
+  mode('DRAW'); expect(card(4).getByRole('checkbox', { name: 'Noch im Spiel' })).not.toBeChecked()
+  for (let n = 1; n <= 3; n++) fireEvent.click(card(n).getByRole('checkbox', { name: 'Noch im Spiel' }))
+  save(); expect(onSubmit).toHaveBeenCalledTimes(2)
+})
+
+test('edit uses saved seats, keyboard movement preserves result identity and deck-only changes retain results', async () => {
+  const api = gameApi(), saved = recorded()
+  saved.participants[0].startPosition = 2; saved.participants[1].startPosition = 1
+  api.next(`/api/groups/${group.id}/members/${uid(2)}/decks`, () => response([deckFor(2), deckFor(8)]))
+  const { onSubmit } = show(saved)
+  expect(card(1).getByText('Deck 3')).toBeInTheDocument()
+  fireEvent.keyDown(card(1).getByRole('button', { name: 'Spieler 1 verschieben' }), { key: 'ArrowDown' })
+  expect(card(1).getByText('Deck 2')).toBeInTheDocument()
+  reopen(1)
+  await screen.findByRole('option', { name: /Deck 8/ })
+  fireEvent.change(deck(1), { target: { value: deckFor(8).id } })
+  expect(card(1).getByRole('button', { name: 'Platz 1' })).toHaveAttribute('aria-pressed', 'true')
+  save()
+  expect(onSubmit.mock.lastCall![0].participants[0]).toEqual({ userId: uid(2), deckId: deckFor(8).id, startPosition: 1, placement: 1 })
+  mode('DRAW'); fireEvent.click(card(1).getByRole('checkbox', { name: 'Noch im Spiel' }))
+  mode('WIN'); alternate(); fireEvent.click(card(1).getByRole('checkbox', { name: 'Winner' }))
+  reopen(1)
+  fireEvent.change(player(1), { target: { value: uid(4) } })
+  await waitFor(() => expect(deck(1)).toBeEnabled())
+  fireEvent.change(deck(1), { target: { value: deckFor(4).id } })
+  expect(card(1).getByRole('checkbox', { name: 'Winner' })).not.toBeChecked()
+  alternate()
+  expect(card(1).getByText('Platz: Bitte auswählen')).toBeInTheDocument()
+  expect(card(2).getByRole('button', { name: 'Platz 2' })).toHaveAttribute('aria-pressed', 'true')
+  mode('DRAW'); expect(card(1).getByRole('checkbox', { name: 'Noch im Spiel' })).toBeChecked()
+})
+
+test('Alternate edit restores saved eliminated opponents and requires a survivor, without repairing their manual places', () => {
+  gameApi()
+  const saved = recorded({ alternateWinCon: true })
+  saved.participants.push({ ...saved.participants[1], userId: uid(4), deckId: deckFor(4).id, deck: { ...deckFor(4), archived: false }, startPosition: 3, placement: 3, stillInGame: false })
+  saved.participants[1].stillInGame = true
+  const { onSubmit } = show(saved)
+  expect(card(3).getByRole('checkbox', { name: 'Noch im Spiel' })).not.toBeChecked()
+  expect(card(3).getByRole('button', { name: 'Platz 3' })).toHaveAttribute('aria-pressed', 'true')
+  save(); expect(onSubmit).toHaveBeenCalledTimes(1)
+  fireEvent.click(card(2).getByRole('checkbox', { name: 'Noch im Spiel' }))
+  place(2, 3); save(); expect(onSubmit).toHaveBeenCalledTimes(1)
+})
+
+test('blank cards between complete assignments do not consume seats; move buttons retain the full card', async () => {
+  gameApi(); const { onSubmit } = show()
+  await fill(1, 2); await fill(3, 3)
+  mode('DRAW')
+  fireEvent.click(card(3).getByRole('button', { name: 'Spieler 3 nach oben' }))
+  expect(card(2).getByText('Deck 3')).toBeInTheDocument()
+  save()
+  expect(onSubmit.mock.lastCall![0].participants.map((p: { startPosition: number }) => p.startPosition)).toEqual([1, 2])
+})
+
+test('dirty guard includes changed seats and hidden mode-specific outcomes after returning to the original mode', () => {
+  gameApi()
+  const register = vi.fn<(blocked: boolean) => () => void>(() => () => {})
+  const renderGuarded = () => renderApp(<EditorGuard.Provider value={register}><GameEditor group={group} game={recorded()} busy={false} onSubmit={vi.fn()} onCancel={vi.fn()} onAccessError={vi.fn()} /></EditorGuard.Provider>)
+  const view = renderGuarded()
+  expect(register.mock.lastCall?.[0]).toBe(false)
+  mode('DRAW')
+  fireEvent.click(card(1).getByRole('checkbox', { name: 'Noch im Spiel' }))
+  mode('WIN')
+  expect(register.mock.lastCall?.[0]).toBe(true)
+  view.unmount()
+  renderGuarded()
+  expect(register.mock.lastCall?.[0]).toBe(false)
+  fireEvent.click(card(1).getByRole('button', { name: 'Spieler 1 nach unten' }))
+  expect(register.mock.lastCall?.[0]).toBe(true)
 })
