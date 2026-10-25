@@ -75,7 +75,12 @@ with sync_playwright() as p:
         expect(seats.get_by_text('Keine Daten vorhanden', exact=True)).to_be_visible()
         expect(seats.get_by_role('listitem')).to_have_count(0)
         expect(colors.get_by_text('0%', exact=True)).to_have_count(0)
+        expect(page.get_by_text('Keine Deckstatistiken für 6-Spieler-Partien vorhanden.', exact=True)).to_be_visible()
+        expect(page.get_by_text('Erfasse ein Spiel in dieser Gruppe', exact=False)).to_have_count(0)
         page.screenshot(path=str(OUTPUT / f'empty-{width}.png'), full_page=True)
+        page.get_by_role('button', name='Spieler', exact=True).click()
+        expect(page.get_by_text('Keine Spielerstatistiken für 6-Spieler-Partien vorhanden.', exact=True)).to_be_visible()
+        page.screenshot(path=str(OUTPUT / f'empty-players-{width}.png'), full_page=True)
         assert calls[-2:] == [f'groups/{uid(10)}/statistics?playerCount=4', f'groups/{uid(10)}/statistics?playerCount=6']
         assert not errors, errors
         print(f'PASS statistics viewport {width}')

@@ -767,7 +767,7 @@ test('shared filter replaces every view, hides stale charts, ignores retired res
   fireEvent.change(filter, { target: { value: '3' } })
   expect(screen.queryByRole('region', { name: 'Siegrate nach Startplatz' })).not.toBeInTheDocument()
   fireEvent.change(filter, { target: { value: '4' } })
-  await screen.findByText(/Noch keine Deckstatistiken/)
+  await screen.findByText('Keine Deckstatistiken für 4-Spieler-Partien vorhanden.')
   expect(screen.getByText('Deckstatistiken: Siege, Absteigend')).toBeInTheDocument()
   expect(screen.getByRole('region', { name: 'Siegrate nach Startplatz' })).toHaveTextContent('Keine Daten vorhanden')
   expect(screen.queryByText('Startplatz 1')).not.toBeInTheDocument()
@@ -775,4 +775,31 @@ test('shared filter replaces every view, hides stale charts, ignores retired res
   expect(screen.getByRole('region', { name: 'Siegrate nach Manafarbe' })).not.toHaveTextContent('25%')
   expect(screen.queryByRole('table')).not.toBeInTheDocument()
   expect(fetchMock.mock.calls.filter(([url]) => url.startsWith(path)).map(([url]) => url)).toEqual([path, `${path}?playerCount=3`, `${path}?playerCount=4`])
+})
+
+
+test('empty filtered statistics name the selected table size in both views despite existing group games', async () => {
+  const api = gameApi([recorded()]) // Existing two-player game, no four-player games.
+  api.state.statistics = statistics()
+  api.next(`${path}?playerCount=4`, () => response(emptyStatistics(4)))
+  show()
+  await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spielerzahl' }), { target: { value: '4' } })
+  await screen.findByText('Keine Spielerstatistiken für 4-Spieler-Partien vorhanden.')
+  selectView('Decks')
+  expect(screen.getByText('Keine Deckstatistiken für 4-Spieler-Partien vorhanden.')).toBeInTheDocument()
+  expect(screen.queryByText(/Erfasse ein Spiel in dieser Gruppe/)).not.toBeInTheDocument()
+  selectView('Spieler')
+  expect(screen.getByText('Keine Spielerstatistiken für 4-Spieler-Partien vorhanden.')).toBeInTheDocument()
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spielerzahl' }), { target: { value: '' } })
+  await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  expect(screen.queryByText(/für 4-Spieler-Partien vorhanden/)).not.toBeInTheDocument()
+})
+
+test('unfiltered empty statistics retain the original guidance for both views', async () => {
+  gameApi()
+  show()
+  await screen.findByText('Noch keine Spielerstatistiken. Erfasse ein Spiel in dieser Gruppe, um Ergebnisse zu sehen.')
+  selectView('Decks')
+  expect(screen.getByText('Noch keine Deckstatistiken. Erfasse ein Spiel in dieser Gruppe, um Ergebnisse zu sehen.')).toBeInTheDocument()
 })

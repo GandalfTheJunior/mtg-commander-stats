@@ -182,7 +182,9 @@ export default function GroupStatistics({ groupId, onAccessError, sort, onSort, 
         {label}: {selectedSort ? `${columns.find(column => column.column === selectedSort.column)?.label}, ${directionLabel(selectedSort.direction)}` : 'Standardreihenfolge'}
       </Typography>
       {state.status === 'ready' && (rows.length === 0 ? <Typography role="status">
-        {view === 'players' ? 'Noch keine Spielerstatistiken.' : 'Noch keine Deckstatistiken.'} Erfasse ein Spiel in dieser Gruppe, um Ergebnisse zu sehen.
+        {playerCount !== undefined
+          ? `Keine ${view === 'players' ? 'Spielerstatistiken' : 'Deckstatistiken'} für ${playerCount}-Spieler-Partien vorhanden.`
+          : `${view === 'players' ? 'Noch keine Spielerstatistiken.' : 'Noch keine Deckstatistiken.'} Erfasse ein Spiel in dieser Gruppe, um Ergebnisse zu sehen.`}
       </Typography> : desktop ? <Table aria-label={label} sx={{ width: '100%', tableLayout: 'fixed', '& th, & td': { px: 1, py: 1.5, verticalAlign: 'top', borderColor: 'divider', overflowWrap: 'anywhere' }, '& td': { fontVariantNumeric: 'tabular-nums' } }}>
         <TableHead><TableRow>{columns.map(({ column, label }, index) => <TableCell key={column} component="th" scope="col"
           sx={{ width: index === 0 ? view === 'players' ? '46%' : '28%' : column === 'ownerUsername' ? '21%' : undefined }}
