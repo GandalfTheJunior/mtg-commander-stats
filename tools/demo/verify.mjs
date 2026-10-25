@@ -81,11 +81,11 @@ command(['reset', '--destroy-demo-data']);
 assert.deepEqual(others(), before);
 command(['up']);
 command(['seed', '--allow-demo-seed']);
-assert.equal(counts(), '6|18|2|36');
+assert.equal(counts(), '7|21|2|32');
 await interactiveSignIn();
 for (const args of [['seed', '--allow-demo-seed'], ['seed'], ['reset'], ['seed', '--allow-demo-seed', '--base-url=http://localhost:8080'], ['seed', '--allow-demo-seed', '--base-url=https://example.com'], ['up', '--port=5432']]) {
   command(args, 1);
-  assert.equal(counts(), '6|18|2|36');
+  assert.equal(counts(), '7|21|2|32');
 }
 // Missing local status must still refuse an already populated database.
 const statusPath = resolve(root, '.demo/seed-status.json');
@@ -93,16 +93,16 @@ const status = readFileSync(statusPath);
 unlinkSync(statusPath);
 try {
   command(['seed', '--allow-demo-seed'], 1);
-  assert.equal(counts(), '6|18|2|36');
+  assert.equal(counts(), '7|21|2|32');
 } finally { writeFileSync(statusPath, status, {mode: 0o600}); }
 // Interrupted/partial runs are also explicitly refused, with no cleanup.
 writeFileSync(statusPath, JSON.stringify({status: 'started'}), {mode: 0o600});
 try {
   command(['seed', '--allow-demo-seed'], 1);
-  assert.equal(counts(), '6|18|2|36');
+  assert.equal(counts(), '7|21|2|32');
 } finally { writeFileSync(statusPath, status, {mode: 0o600}); }
 command(['stop']); command(['up']);
-assert.equal(counts(), '6|18|2|36');
+assert.equal(counts(), '7|21|2|32');
 assert.deepEqual(others(), before);
 command(['reset', '--destroy-demo-data']);
 assert.ok(!volumes().includes('mtg-commander-demo-data'));
@@ -110,7 +110,7 @@ assert.deepEqual(others(), before);
 // Repeat the supported full reset-and-seed path, including its offline-provider
 // acknowledgement and all API snapshot/history/statistics assertions.
 command(['up']); command(['seed', '--allow-demo-seed']);
-assert.equal(counts(), '6|18|2|36');
+assert.equal(counts(), '7|21|2|32');
 command(['reset', '--destroy-demo-data']);
 assert.deepEqual(others(), before);
 assert.equal(createHash('sha256').update(readFileSync(credentialsPath)).digest('hex'), credentialsDigest, 'Reset/reuse/reseed must retain existing credentials.');

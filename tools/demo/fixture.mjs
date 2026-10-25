@@ -14,14 +14,14 @@ function commander(card, chosenColor, gameplayFaceIndex, artworkFaceIndex) {
     effectiveColorIdentity: colors([...rules.color_identity, chosenColor])};
 }
 const c = commander;
-// Preserve the original twelve logical decks, seating and outcomes. Each owner's
-// third deck is unused; game outcomes are never rewritten to create unused data.
+// Each owner has two played decks and one unused artwork/pairing example.
 export const users = [
   ['ada', 'Ada', [['Dragon Engine', [c('The Ur-Dragon')]], ['Patient Constructs', [c('Karn, Silver Golem')]], ['A very long expedition name for Pir and Toothy beyond the edge of the map', [c('Pir, Imaginative Rascal'), c('Toothy, Imaginary Friend')]]]],
   ['bruno', 'Bruno', [['Goblin Workshop', [c('Krenko, Mob Boss')]], ['Forest Council', [c('The Prismatic Piper', 'G'), c('Gilanra, Caller of Wirewood')]], ['The Prismatic Bridge on the other side of Esika', [c('Esika, God of the Tree', undefined, undefined, 1)]]]],
   ['cleo', 'Cleo', [['Graveyard Shift', [c('Meren of Clan Nel Toth')]], ['Sea Stories', [c('Talrand, Sky Summoner')]], ['Avacyn and the back-side Purifier illustration', [c('Archangel Avacyn', undefined, undefined, 1)]]]],
   ['dara', 'Dara', [['Sunlit Tokens', [c('Faceless One', 'W'), c('Acolyte of Bahamut')]], ['Old Artifacts', [c('Breya, Etherium Shaper')]], ['Dragon Engine — a different illustration', [c('The Ur-Dragon (alternate art)')]]]],
   ['emil', 'Emil', [['Wild Lands', [c('Omnath, Locus of Rage')]], ['Spirit Parade', [c('Clara Oswald', 'W'), c('The Second Doctor')]], ['Zndrsplt: reversible printing, same Oracle identity', [c('Zndrsplt (reversible)', undefined, 0, 1)]]]],
+  ['gideon', 'Gideon', [['Dragon Encore', [c('The Ur-Dragon (alternate art)')]], ['Cloud Fleet', [c('Talrand, Sky Summoner')]], ['Goblin Encore', [c('Krenko, Mob Boss')]]]],
   ['faye', 'Faye', [['Night Court', [c('Queen Marchesa')]], ['Spore Garden', [c('The Mycotyrant')]], ['Friends forever across all five colors', [c('Cecily, Haunted Mage'), c('Othelm, Sigardian Outcast')]]]],
 ].map(([key, name, decks]) => ({key, name, email: `${key}@commander.example`, decks: decks.map(([name, commanders], index) => ({key: `${key}-${index}`, name, commanders, colorIdentity: colors(commanders.flatMap(c => c.effectiveColorIdentity))}))}));
 
@@ -30,40 +30,74 @@ export function deckRequest(deck) {
 }
 
 export const groups = [
-  {key: 'friday', name: 'Demo Friday Table', owner: 'ada', members: ['ada', 'bruno', 'cleo', 'dara', 'emil']},
+  {key: 'friday', name: 'Demo Friday Table', owner: 'ada', members: ['ada', 'bruno', 'cleo', 'dara', 'emil', 'gideon']},
   {key: 'sunday', name: 'Demo Sunday Table', owner: 'faye', members: ['cleo', 'dara', 'emil', 'faye']},
 ];
 
-// Twenty Friday games (rotating one seat), sixteen Sunday games. The first
-// twelve Friday games include Ada: her Dragons win six; Constructs never win.
-export const games = groups.flatMap(group => Array.from({length: group.key === 'friday' ? 20 : 16}, (_, i) => {
-  const members = group.key === 'friday'
-    ? (i < 12 ? ['ada', 'bruno', 'cleo', i % 3 === 0 ? 'emil' : 'dara'] : ['bruno', 'cleo', 'dara', 'emil'])
-    : group.members;
-  const participants = members.map(user => ({user, deck: `${user}-${i % 2}`}));
-  const draw = group.key === 'friday' ? i === 13 || i === 19 : i % 7 === 6;
-  const winner = draw ? null : group.key === 'friday' && i < 12 && i % 2 === 0 ? 'ada'
-    : members.filter(user => user !== 'ada')[i % (members.length - (members.includes('ada') ? 1 : 0))];
-  // Explicit fictional facts for freshly seeded games; never reconstruct existing rows.
-  let nextPlace = 2;
-  const complete = participants.map((p, index) => ({...p, startPosition: index + 1,
-    ...(draw ? {stillInGame: true} : {placement: p.user === winner ? 1 : nextPlace++})}));
-  return {key: `${group.key}-${i + 1}`, group: group.key, participants: complete,
-    result: draw ? 'DRAW' : 'WIN', alternateWinCon: false, winner};
-}));
+// Four complementary finished games per possible table size: normal victory,
+// manual competition tie (where possible), alternate victory and mixed-survivor draw.
+// Array order is deliberately different from start order.
+export const games = groups.flatMap(group => Array.from({length: group.members.length - 1}, (_, size) => {
+  const n = size + 2, members = group.members.slice(0, n);
+  return ['normal', 'tie', 'alternate', 'draw'].map((mode, variant) => {
+    const winner = mode === 'draw' ? null : members[mode === 'normal' ? 0 : 1];
+    const participants = members.map((user, index) => {
+      const position = (index + (mode === 'normal' ? n - 1 : 1 + variant % (n - 1))) % n + 1;
+      const order = [winner, ...members.filter(m => m !== winner)];
+      const rank = order.indexOf(user) + 1;
+      const placement = mode === 'tie' && n >= 4 && rank === 3 ? 2 : rank;
+      const outcome = mode === 'draw' ? {stillInGame: index <= variant % (n - 1)}
+        : mode === 'alternate' ? user === winner ? {winner: true}
+          : {stillInGame: rank <= Math.min(n, 3), ...(rank > 3 ? {placement: rank} : {})}
+        : {placement};
+      return {user, deck: `${user}-${mode === 'normal' ? 0 : 1}`, startPosition: position, ...outcome};
+    });
+    return {key: `${group.key}-${n}-${mode}`, group: group.key, participants,
+      result: mode === 'draw' ? 'DRAW' : 'WIN', alternateWinCon: mode === 'alternate', winner};
+  });
+}).flat());
+
+// Expected GET facts; writes retain only the mode-specific fields above.
+export function readOutcome(game, participant) {
+  return {placement: game.result === 'DRAW' ? null : game.alternateWinCon
+    ? participant.winner ? 1 : participant.stillInGame ? 2 : participant.placement : participant.placement,
+  stillInGame: game.result === 'DRAW' ? participant.stillInGame : game.alternateWinCon
+    ? participant.winner === true || participant.stillInGame : participant.placement === 1};
+}
 export const archivedDeck = 'dara-1';
 
-export function results(source = games) {
+export function results(source = games, playerCount) {
   return groups.map(group => {
-    const recorded = source.filter(game => game.group === group.key);
+    const recorded = source.filter(game => game.group === group.key && (playerCount === undefined || game.participants.length === playerCount));
     const rows = group.members.flatMap(user => [
       {kind: 'player', user, name: users.find(u => u.key === user).name},
       ...users.find(u => u.key === user).decks.map(deck => ({kind: 'deck', user, deck: deck.key, name: deck.name})),
     ]).map(row => {
       const appearances = recorded.filter(game => game.participants.some(p => p.user === row.user && (!row.deck || p.deck === row.deck)));
       const wins = appearances.filter(game => game.winner === row.user).length;
-      return {...row, games: appearances.length, wins, winRatePercent: appearances.length ? Number((100 * wins / appearances.length).toFixed(2)) : 0};
+      return {...row, games: appearances.length, wins, winRatePercent: appearances.length ? percentage(wins, appearances.length) : null};
     });
-    return {group: group.key, name: group.name, games: recorded.length, draws: recorded.filter(g => g.result === 'DRAW').length, rows};
+    const metric = appearances => {
+      const wins = appearances.filter(({game, p}) => game.winner === p.user).length;
+      return {games: appearances.length, wins, winRatePercent: percentage(wins, appearances.length)};
+    };
+    const appearances = recorded.flatMap(game => game.participants.map(p => ({game, p})));
+    const startPositions = (playerCount ? [playerCount] : [2, 3, 4, 5, 6]).map(n => ({playerCount: n,
+      seats: Array.from({length: n}, (_, i) => ({startPosition: i + 1,
+        ...metric(appearances.filter(({game, p}) => game.participants.length === n && p.startPosition === i + 1))}))}));
+    const order = ['W', 'U', 'B', 'R', 'G', 'C'];
+    const manaColors = order.map(color => ({color, ...metric(appearances.filter(({p}) => {
+      const identity = users.find(u => u.key === p.user).decks.find(d => d.key === p.deck).colorIdentity;
+      return color === 'C' ? identity.length === 0 : identity.includes(color);
+    }))})).sort((a, b) => {
+      if (!a.games || !b.games) return Boolean(b.games) - Boolean(a.games) || order.indexOf(a.color) - order.indexOf(b.color);
+      return b.wins * a.games - a.wins * b.games || b.games - a.games || order.indexOf(a.color) - order.indexOf(b.color);
+    });
+    return {group: group.key, name: group.name, games: recorded.length, draws: recorded.filter(g => g.result === 'DRAW').length, rows, startPositions, manaColors};
   });
+}
+
+// Integer arithmetic implements decimal HALF_UP to two places without binary ties.
+export function percentage(wins, games) {
+  return games ? Number((BigInt(wins) * 20000n + BigInt(games)) / (2n * BigInt(games))) / 100 : null;
 }

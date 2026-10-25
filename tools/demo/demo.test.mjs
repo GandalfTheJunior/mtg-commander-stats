@@ -4,18 +4,18 @@ import {readFileSync} from 'node:fs';
 import {createServer} from 'node:http';
 import {spawn, spawnSync} from 'node:child_process';
 import {dirname} from 'node:path';
-import {users, groups, games, archivedDeck, results, cards, deckRequest} from './fixture.mjs';
+import {users, groups, games, archivedDeck, results, cards, deckRequest, readOutcome, percentage} from './fixture.mjs';
 import {validateCommand, environment, backendEnvironment, backendArguments, generateCredentials, validateCredentials, checkContainer, checkVolume, checkDockerHost} from './demo.mjs';
 import {Session} from './api.mjs';
 
 test('fixture eligibility, ownership, outcomes, lifecycle and checkable manifest', () => {
-  assert.equal(users.length, 6);
+  assert.equal(users.length, 7);
   assert.equal(groups.length, 2);
-  assert.equal(new Set(users.map(u => u.email)).size, 6);
-  assert.equal(games.length, 36);
-  assert.equal(games.filter(g => g.result === 'DRAW').length, 4);
-  assert.equal(users.flatMap(u => u.decks).length, 18);
-  assert.equal(new Set(games.flatMap(g => g.participants.map(p => p.deck))).size, 12);
+  assert.equal(new Set(users.map(u => u.email)).size, 7);
+  assert.equal(games.length, 32);
+  assert.equal(games.filter(g => g.result === 'DRAW').length, 8);
+  assert.equal(users.flatMap(u => u.decks).length, 21);
+  assert.equal(new Set(games.flatMap(g => g.participants.map(p => p.deck))).size, 14);
   for (const user of users) {
     assert.match(user.email, /@commander\.example$/);
     assert.ok(user.decks.length >= 2 && user.decks.length <= 3);
@@ -23,17 +23,22 @@ test('fixture eligibility, ownership, outcomes, lifecycle and checkable manifest
   for (const game of games) {
     const group = groups.find(g => g.key === game.group);
     assert.ok(group.members.includes(group.owner));
-    assert.equal(game.participants.length, 4);
-    assert.equal(game.alternateWinCon, false);
-    assert.deepEqual(game.participants.map(p => p.startPosition).toSorted((a, b) => a - b), [1, 2, 3, 4]);
+    const n = game.participants.length;
+    assert.ok(n >= 2 && n <= group.members.length);
+    assert.deepEqual(game.participants.map(p => p.startPosition).toSorted((a, b) => a - b), Array.from({length: n}, (_, i) => i + 1));
+    assert.notDeepEqual(game.participants.map(p => p.startPosition), Array.from({length: n}, (_, i) => i + 1));
+    const facts = game.participants.map(p => readOutcome(game, p));
     if (game.result === 'DRAW') {
-      assert.ok(game.participants.every(p => p.stillInGame === true && !Object.hasOwn(p, 'placement')));
+      assert.ok(facts.some(p => p.stillInGame) && facts.some(p => !p.stillInGame));
+      assert.ok(game.participants.every(p => !Object.hasOwn(p, 'placement') && !Object.hasOwn(p, 'winner')));
     } else {
-      assert.deepEqual(game.participants.map(p => p.placement).toSorted((a, b) => a - b), [1, 2, 3, 4]);
-      assert.equal(game.participants.find(p => p.placement === 1).user, game.winner);
-      assert.ok(game.participants.every(p => !Object.hasOwn(p, 'stillInGame') && !Object.hasOwn(p, 'winner')));
+      const ranks = facts.map(p => p.placement).toSorted((a, b) => a - b);
+      assert.equal(ranks.filter(r => r === 1).length, 1);
+      ranks.forEach((rank, i) => assert.ok(rank === i + 1 || rank === ranks[i - 1]));
+      if (game.alternateWinCon && n >= 3) assert.equal(facts.filter(p => p.placement === 2 && p.stillInGame).length, 2);
+      if (!game.alternateWinCon) assert.ok(game.participants.every(p => !Object.hasOwn(p, 'stillInGame') && !Object.hasOwn(p, 'winner')));
     }
-    assert.equal(new Set(game.participants.map(p => p.user)).size, 4);
+    assert.equal(new Set(game.participants.map(p => p.user)).size, n);
     for (const p of game.participants) {
       assert.ok(group.members.includes(p.user));
       assert.ok(users.find(u => u.key === p.user).decks.some(d => d.key === p.deck));
@@ -46,9 +51,35 @@ test('fixture eligibility, ownership, outcomes, lifecycle and checkable manifest
   assert.deepEqual(expected.groups, results());
   const friday = results()[0];
   assert.equal(friday.games, 20);
-  assert.equal(friday.rows.find(r => r.deck === 'ada-0').wins, 6);
-  assert.equal(friday.rows.find(r => r.deck === 'ada-1').wins, 0);
-  assert.equal(friday.rows.find(r => r.user === 'ada' && r.kind === 'player').games, 12);
+  assert.deepEqual(friday.rows.filter(r => r.user === 'ada').map(r => [r.games, r.wins, r.winRatePercent]),
+    [[20, 5, 25], [5, 5, 100], [15, 0, 0], [0, 0, null]]);
+  assert.deepEqual(groups.map(g => g.members.length), [6, 4]);
+  assert.ok(!groups[0].members.includes('faye') && !groups[1].members.includes('gideon'));
+  assert.ok(games.some(g => g.participants.map(p => readOutcome(g, p).placement).sort().join(',') === '1,2,2,4'));
+  assert.deepEqual([...new Set(games.filter(g => g.winner).map(g => g.participants.find(p => p.user === g.winner).startPosition))].sort(), [1, 2, 3, 4, 5, 6]);
+  for (const n of [2, 3, 4, 5, 6]) assert.deepEqual(expected.filters[n], results(undefined, n));
+  // Independent, hand-counted sentinels: 2-player Friday has four games.
+  const two = expected.filters[2][0];
+  assert.deepEqual(two.startPositions, [{playerCount: 2, seats: [
+    {startPosition: 1, games: 4, wins: 2, winRatePercent: 50},
+    {startPosition: 2, games: 4, wins: 1, winRatePercent: 25},
+  ]}]);
+  assert.deepEqual(Object.fromEntries(two.manaColors.map(r => [r.color, [r.games, r.wins, r.winRatePercent]])),
+    {W: [1, 1, 100], U: [1, 1, 100], B: [1, 1, 100], R: [2, 1, 50], G: [4, 3, 75], C: [3, 0, 0]});
+  for (const n of [5, 6]) {
+    const absent = expected.filters[n][1];
+    assert.ok(absent.rows.every(r => r.games === 0 && r.winRatePercent === null));
+    assert.ok([...absent.startPositions[0].seats, ...absent.manaColors].every(r => r.games === 0 && r.wins === 0 && r.winRatePercent === null));
+  }
+  const alternate = games.find(g => g.key === 'friday-6-alternate');
+  assert.deepEqual(alternate.participants.map(p => readOutcome(alternate, p)), [
+    {placement: 2, stillInGame: true}, {placement: 1, stillInGame: true},
+    {placement: 2, stillInGame: true}, {placement: 4, stillInGame: false},
+    {placement: 5, stillInGame: false}, {placement: 6, stillInGame: false},
+  ]);
+  assert.deepEqual(games.find(g => g.key === 'friday-4-draw').participants.map(p => p.stillInGame), [true, false, false, false]);
+  assert.equal(percentage(1, 32), 3.13);
+  assert.equal(percentage(1, 12), 8.33);
   for (const group of results()) {
     assert.equal(group.rows.filter(r => r.kind === 'player').reduce((n, r) => n + r.wins, 0), group.games - group.draws);
     for (const user of groups.find(g => g.key === group.group).members) {

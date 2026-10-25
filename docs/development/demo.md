@@ -31,8 +31,8 @@ folder and restrict its inherited ACL if it is shared with other OS users.
 backend** on a random loopback port and random context path, supplies the demo
 connection explicitly, waits for startup, seeds, verifies the API results and
 stops it. It does not connect to an independently running backend. It may take
-about a minute on first startup. Success reports 6 accounts, 2 groups, 12 played plus 6 unused decks,
-36 games and the login/file locations, without printing any password.
+about a minute on first startup. Success reports 7 accounts, 2 groups, 14 played plus 7 unused decks,
+32 games and the login/file locations, without printing any password.
 
 `backend` then starts the ordinary application jar for interactive use on **127.0.0.1:8080**.
 Stop any other backend on 8080 first. The wrapper sets these variables in the
@@ -68,7 +68,7 @@ Open Vite's printed URL (normally http://localhost:5173). Its existing `/api`
 proxy reaches port 8080. Sign in as **ada@commander.example** with the value of
 **accountPassword** in `.demo/credentials.json`. Open that file privately in a
 text editor (for example `notepad .demo/credentials.json` from the root on
-Windows). All six fictional accounts share this randomly generated local-only
+Windows). All seven fictional accounts share this randomly generated local-only
 password. Newly generated account passwords are exactly **12 random URL-safe
 characters**, the shortest length accepted by the unchanged application policy
 (at least 12 Unicode code points). The independent database password remains
@@ -78,7 +78,7 @@ obtain fresh 12-character credentials, first stop the applications and perform
 `reset --destroy-demo-data`; only after successful deletion of the demo volume,
 remove the private `.demo/credentials.json`, then run `up` and explicitly seed.
 Never remove that file while retaining its initialized volume/users.
-Other emails are bruno, cleo, dara, emil and faye at `commander.example` (a reserved
+Other emails are bruno, cleo, dara, emil, faye and gideon at `commander.example` (a reserved
 example domain). This is local demo convenience, not a deployed account scheme.
 
 ## Opt-in iPhone verification over local WLAN HTTP
@@ -190,36 +190,79 @@ cannot rule out additional device-specific defects before the checklist is run.
 
 [fixture.mjs](../../tools/demo/fixture.mjs) defines stable logical identities,
 commanders, colors, seating and outcomes. Server UUIDs and recording timestamps
-are deliberately variable. All 36 games have four players; 4 are DRAWs.
-The minimal #116 contract adaptation assigns explicit fictional start seats 1–4,
-normal WIN places 1–4 preserving the existing winner, and four survivors for each
-DRAW. These facts apply only to newly seeded fixtures; no historic records are
-reconstructed. The comprehensive scenario redesign remains #123. A database with
-pre-V8 game rows must be retained for a separate migration plan or explicitly reset
-using the isolated disposable demo reset below before retrying the upgrade.
+are deliberately variable. The 32 complete games cover every possible table size
+for each group, with four outcomes per size:
 
-| Group | Owner | Members | Games | Draws |
-| --- | --- | --- | --- | --- |
-| Demo Friday Table | Ada | Ada, Bruno, Cleo, Dara, Emil | 20 | 2 |
-| Demo Sunday Table | Faye | Cleo, Dara, Emil, Faye | 16 | 2 |
+| Group | Owner | Members | Sizes | Games | Draws |
+| --- | --- | --- | --- | --- | --- |
+| Demo Friday Table | Ada | Ada, Bruno, Cleo, Dara, Emil, Gideon | 2–6 | 20 | 5 |
+| Demo Sunday Table | Faye | Cleo, Dara, Emil, Faye | 2–4 | 12 | 3 |
 
-Each player owns the original two played decks and one additional unused deck. Ada plays 12 Friday games: Dragon Engine wins 6/6
-(100%), Patient Constructs wins 0/6 (0%), and Ada's overall rate is 6/12 (50%).
-Friday seating varies participation counts. Dara's Old Artifacts is used and
-then archived, stays visible in history, and is unavailable for new assignments.
-Sign in as Dara to inspect its locked commander/colors and archive status.
-Ada/Bruno cannot see Sunday; Faye cannot see Friday. Cleo, Dara and Emil can see
-both. Group creation and code-based joining establish real OWNER/MEMBER roles.
+For each size N, the first N members in the table participate. Logical game keys
+are `<group>-<N>-normal`, `-tie`, `-alternate`, and `-draw`:
 
-[expected-results.json](../../tools/demo/expected-results.json) lists **every
-member and each of their decks per group**, with games, wins and win-rate percent.
-A DRAW adds one game to every participating player/deck and zero wins. The rate
-is `100 * wins / games`, rounded to two decimals (zero appearances => 0%). These
-are fixture expectations, not stored statistics. The seed verifies every nonzero
-row against the live statistics API as well as real game-history responses, plus
-fresh sign-in, own decks, membership/role and visibility scopes,
-archived history/selection, and rejection of an archived deck in a new game.
-It submits no placements, seasons or timestamp overrides.
+- Normal: first member wins using deck 0; subsequent places are sequential.
+- Tie: second member wins using deck 1; sizes ≥4 have ranks `1,2,2,4…`.
+- Alternate: second member wins using deck 1; up to two opponents survive at
+  effective rank 2, with earlier eliminations at ranks 4…N. Two-player games
+  have one surviving opponent. Three-player games have no eliminated opponent.
+- Draw: deck 1, no winner or placements; one or more survivors and at least one
+  elimination. Array order differs from contiguous saved start seats. Normal
+  winners cover every seat 2–6, other modes also cover seat 1.
+
+Each account owns two played decks and one unused deck. Ada's Dragon Engine
+wins 5/5 (100%), Patient Constructs wins 0/15 (0%), and Ada wins 5/20 (25%).
+Dara's Old Artifacts is played and then archived: visible in history/statistics,
+excluded from new-game deck selection. Gideon has genuine pinned alternate-art Ur-Dragon/Talrand
+decks and is Friday-only; Faye remains Sunday-only. Ada, Bruno and Gideon cannot
+read Sunday; Faye cannot read Friday. Ownership and joining use normal APIs.
+The catalog already contains all selected printings; no new card data is needed.
+
+[expected-results.json](../../tools/demo/expected-results.json) records All under
+`groups` and every `playerCount=2…6` under `filters`. Each includes all logical
+player/deck rows (including unused decks), complete starting-seat sections and
+all six Mana categories in API order. No observations means `winRatePercent: null`;
+measured zero wins means numeric 0. Percentages use two-place decimal HALF_UP.
+The seed compares all four API datasets, saved Commander/color/artwork snapshots,
+and POST/detail/list winner, placement, survival and seat fields. Unit tests add
+hand-counted seat/color and 0%/100% sentinels independent of the manifest formula.
+Every five-color appearance counts once in each WUBRG category; Karn counts only C.
+
+### Manual smoke scenarios (#117 / #120 / #122)
+
+Use the isolated demo only; manual writes change the manifest expectations.
+
+1. As Ada, inspect Friday games of each size. Open normal and tied games,
+   confirm saved start order differs from finish order, one winner and equal
+   rank-2 indentation for `1,2,2,4`. Open alternate 4–6-player games: winner
+   rank 1, two active opponents rank 2, eliminated opponents ranks 4…N.
+   DRAW shows saved seats and mixed survival with no winner/placement. API
+   detail/list responses must include explicit null winner/placement for DRAW.
+2. Inspect played dual Commanders, colorless Karn, five-color Dragons and
+   archived Old Artifacts. In Decks inspect unused alternate-art, back-face and
+   reversible examples. Block `cards.scryfall.io` in browser tools and reload:
+   artwork must fall back safely. Restore access to see hosted images. No image
+   files are downloaded by the seeder; browser host reachability is required.
+3. In Friday Statistics compare All and 2…6 with the manifest. For 2 players,
+   seat 1 wins 2/4 (50%), seat 2 wins 1/4 (25%); C appears 3 times with no wins,
+   W/U/B each appear once with one win, R is 1/2 (50%), G is 3/4 (75%).
+   All shows all five seat-chart sections. Ada's deck rows distinguish 100%,
+   measured 0% and omitted unused decks.
+4. As Faye inspect Sunday: All hides empty size-5/6 seat-chart sections;
+   selecting 5 or 6 shows **Keine Daten vorhanden**. The API still returns the
+   full selected seat section and six Mana slots with `0/0/null`, plus empty
+   players/decks. Check group isolation with Faye/Gideon.
+5. Create a separate valid game through the editor, reorder seats and save;
+   confirm GET facts and refreshed filtered statistics. Edit the result using
+   each mode's controls, save and inspect details again. Delete that manual
+   game with confirmation; counts should return to the seeded manifest. An
+   archived deck must not be offered for a new assignment. No live Game Client
+   or incomplete games are part of this workflow.
+
+A pre-V8 database containing games blocks upgrade without altering its records.
+Only an explicitly disposable isolated demo may be reset with the commands below;
+shared or retained data requires a separate approved migration plan. Startup,
+ordinary tests and seed retries never invoke a local demo reset.
 
 ## Pinned offline Scryfall metadata
 

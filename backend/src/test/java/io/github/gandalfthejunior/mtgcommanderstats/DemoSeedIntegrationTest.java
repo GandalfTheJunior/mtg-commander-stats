@@ -41,12 +41,12 @@ class DemoSeedIntegrationTest {
                 if (child.isAlive()) child.destroyForcibly().waitFor();
                 Files.deleteIfExists(log);
             }
-            assertThat(jdbc.queryForObject("SELECT count(*) FROM users", Integer.class)).isEqualTo(6);
-            assertThat(jdbc.queryForObject("SELECT count(*) FROM decks", Integer.class)).isEqualTo(18);
-            assertThat(jdbc.queryForObject("SELECT count(*) FROM decks WHERE ever_used", Integer.class)).isEqualTo(12);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM users", Integer.class)).isEqualTo(7);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM decks", Integer.class)).isEqualTo(21);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM decks WHERE ever_used", Integer.class)).isEqualTo(14);
             assertThat(jdbc.queryForObject("SELECT count(*) FROM decks WHERE archived", Integer.class)).isEqualTo(1);
             assertThat(jdbc.queryForObject("SELECT count(*) FROM play_groups", Integer.class)).isEqualTo(2);
-            assertThat(jdbc.queryForObject("SELECT count(*) FROM games", Integer.class)).isEqualTo(36);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM games", Integer.class)).isEqualTo(32);
         }
     }
 }
