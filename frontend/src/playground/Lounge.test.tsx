@@ -1,0 +1,76 @@
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { AppThemeProvider } from '../theme/AppThemeProvider'
+import { Lounge } from './Lounge'
+import { initialOrder, insert } from './ordering'
+
+beforeEach(() => {
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} })
+})
+afterEach(() => vi.unstubAllGlobals())
+const open = () => render(<AppThemeProvider><Lounge /></AppThemeProvider>)
+const names = () => within(screen.getByRole('list', { name: 'Demo-Spieler' })).getAllByRole('heading').map(n => n.textContent)
+
+test('insertion shifts intervening players in both directions, without swaps', () => {
+  expect(insert(initialOrder, 'mira', 3)).toEqual(['orin', 'lumi', 'fenn', 'mira'])
+  expect(insert(initialOrder, 'fenn', 0)).toEqual(['fenn', 'mira', 'orin', 'lumi'])
+})
+test('keyboard-accessible buttons reorder, announce and reset the local demo', () => {
+  open()
+  expect(screen.getByRole('button', { name: 'mira nach oben' })).toBeDisabled()
+  const down = screen.getByRole('button', { name: 'mira nach unten' })
+  down.focus()
+  fireEvent.click(down)
+  expect(names()).toEqual(['Orin', 'Mira', 'Lumi', 'Fenn'])
+  expect(screen.getByText('Mira: Position 2 von 4.')).toBeInTheDocument()
+  expect(down).toHaveFocus()
+  fireEvent.click(screen.getByRole('button', { name: 'mira nach oben' }))
+  expect(names()).toEqual(['Mira', 'Orin', 'Lumi', 'Fenn'])
+  fireEvent.click(screen.getByRole('button', { name: /zurücksetzen/ }))
+  expect(names()).toEqual(['Mira', 'Orin', 'Lumi', 'Fenn'])
+})
+test('buttons give meaningful local feedback; ambience toggles and intensity reset', () => {
+  const { container } = open()
+  expect(screen.getByRole('button', { name: 'Spiel starten' })).toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: 'Auswahl bestätigen' }))
+  expect(screen.getByRole('button', { name: /Auswahl bestätigt/ })).toHaveAttribute('aria-pressed', 'true')
+  fireEvent.click(screen.getByRole('button', { name: 'Spiel starten' }))
+  expect(screen.getByText(/Demo-Runde 1 gestartet/)).toBeVisible()
+  fireEvent.click(screen.getByRole('switch', { name: 'Kaminlicht' }))
+  expect(container.querySelector('.room-light')).toHaveAttribute('hidden')
+  fireEvent.click(screen.getByRole('switch', { name: 'Glühwürmchen' }))
+  expect(container.querySelector('.fireflies')).toHaveAttribute('hidden')
+  fireEvent.click(screen.getByRole('button', { name: 'Deutlich' }))
+  expect(container.querySelector('.lounge')).toHaveAttribute('data-intensity', 'strong')
+  fireEvent.click(screen.getByRole('button', { name: /zurücksetzen/ }))
+  expect(screen.getByRole('button', { name: 'Spiel starten' })).toBeDisabled()
+  expect(container.querySelector('.lounge')).toHaveAttribute('data-intensity', 'quiet')
+  expect(screen.getByRole('switch', { name: 'Kaminlicht' })).toBeChecked()
+})
+test('OS reduced motion overrides enabled decoration, including strong intensity', () => {
+  vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ matches: query.includes('prefers-reduced-motion'), media: query, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, onchange: null, dispatchEvent: () => true }))
+  const { container } = open()
+  fireEvent.click(screen.getByRole('button', { name: 'Deutlich' }))
+  expect(container.querySelector('.lounge')).toHaveAttribute('data-reduced', 'true')
+  expect(container.querySelector('.fireflies')).toHaveAttribute('hidden')
+  fireEvent.click(screen.getByRole('button', { name: 'mira nach unten' }))
+  expect(names()[1]).toBe('Mira')
+  vi.restoreAllMocks()
+})
+test('firefly work pauses while hidden and retires on disable/unmount', () => {
+  const raf = vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(42)
+  const cancel = vi.spyOn(window, 'cancelAnimationFrame')
+  const { unmount } = open()
+  expect(raf).toHaveBeenCalled()
+  Object.defineProperty(document, 'hidden', { configurable: true, value: true })
+  act(() => document.dispatchEvent(new Event('visibilitychange')))
+  expect(cancel).toHaveBeenCalledWith(42)
+  const count = raf.mock.calls.length
+  expect(raf.mock.calls.length).toBe(count)
+  fireEvent.click(screen.getByRole('switch', { name: 'Glühwürmchen' }))
+  unmount()
+  Object.defineProperty(document, 'hidden', { configurable: true, value: false })
+  act(() => document.dispatchEvent(new Event('visibilitychange')))
+  expect(raf.mock.calls.length).toBe(count)
+  vi.restoreAllMocks()
+})
