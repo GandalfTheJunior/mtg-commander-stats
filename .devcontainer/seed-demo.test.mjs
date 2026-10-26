@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {decideSeed, verifyTarget, verifySource, SeedError} from './seed-demo.mjs';
 
 const root = '/work/mtg';
@@ -56,4 +57,11 @@ test('demo import source must be the dedicated healthy isolated database', () =>
   assert.throws(() => verifySource({...source, Mounts: []}, id), SeedError);
   assert.throws(() => verifySource({...source, Labels: {...source.Labels,
     'com.docker.compose.project': 'another'}}, id), SeedError);
+});
+
+test('Codespaces initializes app schema before importing any demo records', () => {
+  const script = readFileSync(new URL('./start.sh', import.meta.url), 'utf8');
+  const flywayReady = script.indexOf('wait_service backend http://127.0.0.1:8080/api/csrf 120');
+  const demoRun = script.indexOf('node "$repo_root/.devcontainer/seed-demo.mjs"');
+  assert.ok(flywayReady !== -1 && demoRun > flywayReady);
 });
