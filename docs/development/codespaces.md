@@ -17,7 +17,8 @@ The preview database is independent and empty on creation.
 3. On startup, the status page starts first, frontend dependencies are installed
    if missing or the lockfile changed, and Vite starts on port 5173 **before**
    Docker/PostgreSQL (5432) and Spring Boot (8080). The first Maven run may
-   take time to download dependencies.
+   take time to download dependencies. `postStartCommand` runs automatically on
+   creation and each restart; no terminal command is needed for normal use.
 4. Open the **private** forwarded HTTPS URL for port **5174 – Status** in the
    Codespaces **Ports** panel. On an iPhone, the URL can also be formed from the
    Codespace name (shown in the editor URL):
@@ -64,15 +65,39 @@ branches can use the configuration on `main` when their branch contains it.
 - If a development terminal is available, the detailed logs remain in:
 
   ```bash
+  tail -n 80 ~/.local/state/mtg-commander-stats/startup.log
   tail -n 80 ~/.local/state/mtg-commander-stats/status-server.log
   tail -n 80 ~/.local/state/mtg-commander-stats/frontend.log
   tail -n 80 ~/.local/state/mtg-commander-stats/backend.log
   ```
 
-- To retry startup in an existing Codespace run `bash .devcontainer/start.sh`.
+- For an optional diagnostic retry in an existing Codespace, run
+  `bash .devcontainer/start.sh`. This is not a routine startup step.
+  Starts are serialized and reuse running services, including a backend that is
+  still warming up. Each server runs in its own session/process group using
+  `nohup setsid`, with redirected standard streams and no inherited startup lock.
+  `nohup` alone ignores hangup signals but does not detach the process group.
+  `startup.log` appends invocation context (user, working directory, terminal
+  availability, executable paths and Node version), service PIDs, startup phase,
+  failure line and exit status. Service logs append across restarts; the status
+  server records when it begins listening. These logs remain local and are not
+  served by the status page. Do not enable shell tracing or share raw logs
+  without checking for sensitive data.
   Do not run `docker compose down -v` unless the preview database should be
   deleted. A Codespace can stop automatically, and GitHub may eventually delete
   it according to account retention settings.
 - A successful status page is not proof of actual Safari compatibility or
   frontend/backend integration. An end-to-end test on an iPhone plus required CI
   checks are still needed before merging.
+
+## Startup regression checks (Linux)
+
+Run `python3 .devcontainer/test-start.py` with Node, Bash, curl, `setsid` and
+`flock` available and local ports 5173, 5174 and 8080 unused. The checks run the
+actual startup script and status server without a terminal, using temporary home
+and repository directories (including spaces). npm, Docker and Maven are replaced
+by fixtures; frontend/backend responses come from real Node HTTP processes.
+They cover first-install flow, repeated/concurrent starts, stale PID files after
+stopping services, lifecycle-group signals, DB failure isolation and early child
+exit diagnostics. This does not verify an actual Codespaces stop/start, private
+forwarded-port authentication, real Vite/Spring Boot/PostgreSQL or iPhone Safari.

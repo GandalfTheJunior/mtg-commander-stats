@@ -64,4 +64,6 @@ a{color:#1255b4;word-wrap:break-word}small{color:#555}</style></head><body>
 </body></html>`)
 })
 
-server.listen(5174, '0.0.0.0')
+server.listen(5174, '0.0.0.0', () => {
+  console.log(`[${new Date().toISOString()}] status-server pid=${process.pid} listening on HTTP 5174`)
+})
