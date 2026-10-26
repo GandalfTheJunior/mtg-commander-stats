@@ -905,24 +905,53 @@ test.each(['games', 'members', 'code', 'global'] as const)('dirty %s exit stays 
 
 test('native Back out of a dirty group stays on cancel; discard and Forward fetch a fresh group without resurrecting the draft', async () => {
   const api = setup(); show('/playgroups')
+  const listIndex = window.history.state.idx
   fireEvent.click(await screen.findByRole('button', { name: group.name }))
   await groupReady()
+  const groupIndex = window.history.state.idx
+  const historyLength = window.history.length
+  expect(groupIndex).toBe(listIndex + 1)
   fireEvent.click(await screen.findByRole('button', { name: 'Spiel erfassen' }))
-  const field = screen.getByRole('combobox', { name: 'Spieler 1' })
+  const field = screen.getByLabelText('Spieler 1', { exact: true, selector: 'select' })
   fireEvent.change(field, { target: { value: uid(2) } }); field.focus()
+  // Await both native restoration and the dialog's exit.
+  // Focus can return while the old dialog/buttons are still mounted in MUI.
   await act(async () => window.history.back())
-  fireEvent.click(await screen.findByRole('button', { name: 'Im Editor bleiben' }))
-  await waitFor(() => expect(field).toHaveFocus())
-  expect(window.location.pathname).toBe(groupUrl(group.id))
-  expect(field).toHaveValue(uid(2))
+  const dialog = await screen.findByRole('dialog')
+  const stay = within(dialog).getByRole('button', { name: 'Im Editor bleiben' })
+  const discard = within(dialog).getByRole('button', { name: 'Verwerfen und verlassen' })
+  fireEvent.click(stay)
+  expect(discard).toBeDisabled()
+  fireEvent.click(discard) // A click on the exiting dialog cannot retire the draft.
+  await waitFor(() => {
+    expect(discard).not.toBeInTheDocument()
+    expect(window.location.pathname).toBe(groupUrl(group.id))
+    expect(window.history.state.idx).toBe(groupIndex)
+    expect(field).toHaveFocus()
+    expect(field).toHaveValue(uid(2))
+    expect(field.closest('form')).toBeInTheDocument()
+  })
+  expect(window.history.length).toBe(historyLength)
   await act(async () => window.history.back())
-  fireEvent.click(await screen.findByRole('button', { name: 'Verwerfen und verlassen' }))
+  const nextDialog = await screen.findByRole('dialog')
+  fireEvent.click(within(nextDialog).getByRole('button', { name: 'Verwerfen und verlassen' }))
+  await waitFor(() => {
+    expect(field).not.toBeInTheDocument()
+    expect(window.location.pathname).toBe('/playgroups')
+    expect(window.history.state.idx).toBe(listIndex)
+  })
   await screen.findByRole('button', { name: 'Gruppe erstellen' })
+  await waitFor(() => expect(nextDialog).not.toBeInTheDocument())
   await act(async () => window.history.forward())
   await groupReady()
   await screen.findByRole('button', { name: 'Spiel erfassen' })
+  expect(window.location.pathname).toBe(groupUrl(group.id))
+  expect(window.history.state.idx).toBe(groupIndex)
+  expect(window.history.length).toBe(historyLength)
   expect(screen.queryByRole('form')).not.toBeInTheDocument()
   expect(api.calls(detailPath)).toHaveLength(2)
+  expect(api.calls(`/api/groups/${group.id}/games`)).toHaveLength(2)
+  expect(api.calls(`/api/groups/${group.id}/games`, 'POST')).toHaveLength(0)
 })
 
 test.each([1, 4])('late saved-game success/401 cannot mutate a replacement session (user %s), including same UUID re-login', async user => {
