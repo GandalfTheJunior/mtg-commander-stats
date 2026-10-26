@@ -86,6 +86,20 @@ branches can use the configuration on `main` when their branch contains it.
   Do not run `docker compose down -v` unless the preview database should be
   deleted. A Codespace can stop automatically, and GitHub may eventually delete
   it according to account retention settings.
+- After a failed PostgreSQL Compose start, a **single** automatic recovery is
+  allowed for `OCI runtime create failed: runc create failed: ... container with
+  given ID already exists`. The helper inspects the current Compose service ID,
+  requires `exited`, exit 128 and that exact error signature in Docker's state,
+  verifies repository/project/service labels, the PostgreSQL 18 image, and the
+  existing configured `postgres-data` named volume at `/var/lib/postgresql`.
+  It removes only that stopped container **by ID**, without force or volume
+  removal, then retries the original Compose start once. The named data volume
+  and local password are reused. Running/unhealthy/foreign containers, other
+  errors, ambiguous IDs or missing/mismatched volumes cause refusal. Failed
+  removal or a failed retry ends startup; status and frontend remain available.
+  No daemon restart, runtime-directory cleanup, prune, or blanket recreation is
+  performed. See `startup.log` for the recovery/refusal and actual final exit
+  code; the exit status is captured before timestamp formatting.
 - A successful status page is not proof of actual Safari compatibility or
   frontend/backend integration. An end-to-end test on an iPhone plus required CI
   checks are still needed before merging.
@@ -99,5 +113,29 @@ and repository directories (including spaces). npm, Docker and Maven are replace
 by fixtures; frontend/backend responses come from real Node HTTP processes.
 They cover first-install flow, repeated/concurrent starts, stale PID files after
 stopping services, lifecycle-group signals, DB failure isolation and early child
-exit diagnostics. This does not verify an actual Codespaces stop/start, private
-forwarded-port authentication, real Vite/Spring Boot/PostgreSQL or iPhone Safari.
+exit diagnostics. Recovery tests cover one successful retry, final retry failure,
+removal failure, refusal without mutation for unrelated/unsafe Docker metadata,
+and correct final exit logging. Docker metadata/errors are fixtures; these tests
+alone do not prove PostgreSQL data preservation or reproduce stale runc state.
+They do not verify an actual Codespaces stop/start, private forwarded-port
+authentication, real Vite/Spring Boot/PostgreSQL or iPhone Safari.
+
+### Why this recovery is narrow
+
+In [runc's container creation code](https://github.com/opencontainers/runc/blob/v1.2.0/libcontainer/factory_linux.go#L47-L54),
+an already-existing runtime state directory for a container ID produces
+[`ErrExist`](https://github.com/opencontainers/runc/blob/v1.2.0/libcontainer/error.go#L6).
+That is an OCI-runtime creation failure before PostgreSQL starts, rather than a
+PostgreSQL schema/migration error. A stale runtime state after Docker-in-Docker
+resumes is consistent with the reported error and successful manual container
+removal, but the underlying Codespaces/runtime cause is not established here.
+Recreating a verified stopped container gives it a new ID while mounting the
+same named data volume. Repeated starts of the same ID may hit the same runtime
+state; unconditional `--force-recreate` would also disrupt healthy databases.
+The helper is a bounded workaround, not a repair of Docker/runc itself.
+
+A real Codespaces stop/start with existing test data must still be checked:
+create a throwaway account or game, stop/restart the Codespace through GitHub,
+open private port 5174 and then the application, and confirm both readiness and
+the previously saved data without a terminal startup command. A local test with
+an injected OCI failure cannot replace this check.

@@ -35,7 +35,7 @@ on_error() {
   exit "$code"
 }
 trap 'on_error $LINENO' ERR
-trap 'printf "[%s] startup finished: exit=%s phase=%s\n" "$(date -Is)" "$?" "$phase"' EXIT
+trap 'startup_exit=$?; printf "[%s] startup finished: exit=%s phase=%s\n" "$(date -Is)" "$startup_exit" "$phase"' EXIT
 command -v node npm nohup setsid
 node --version
 
@@ -127,7 +127,21 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 cd "$repo_root"
-docker compose up -d --wait --wait-timeout 120 postgres
+start_postgres() {
+  local code
+  if docker compose up -d --wait --wait-timeout 120 postgres; then
+    return 0
+  else
+    code=$?
+  fi
+  # Only the inspected, stopped OCI-ID-collision container may be removed.
+  # Refusal preserves the first failure; a failed retry is final (no loop).
+  if ! node "$repo_root/.devcontainer/recover-postgres.mjs"; then
+    return "$code"
+  fi
+  docker compose up -d --wait --wait-timeout 120 postgres
+}
+start_postgres
 
 report "Spring Boot wird gestartet (Maven lädt beim ersten Mal Abhängigkeiten)"
 if ! curl --silent --fail --max-time 2 http://127.0.0.1:8080/api/csrf >/dev/null; then
