@@ -385,7 +385,13 @@ requests capture. The dispatcher delegates only to the mounted session's guard.
 On blocked POP, the guard suppresses router notification and restores the current
 indexed entry; stay keeps fields/focus, discard replays the original delta only
 after restoration. It inserts no sentinel entries. Repeated POPs during restoration
-are brought back to the editor. The bridge relies on the pinned router's history
+are brought back to the editor. Closing the discard dialog disables its decision
+buttons immediately; MUI keeps the dialog mounted through its exit transition.
+Discard requires a pending navigation, so a stale or duplicate click cannot retire
+a draft on its own. Tests must await dialog removal **and** restored URL/index,
+visible editor and draft values before the next independent traversal: focus
+restoration alone does not establish that either the dialog or native POP settled.
+The bridge relies on the pinned router's history
 `idx` and `UNSAFE_NavigationContext`; reverify actual Chrome history behavior when
 upgrading React/Router. MemoryRouter tests use the wrapped navigator for in-app
 exits; browser-history tests use the production AppRouter. No Data Router,

@@ -123,10 +123,13 @@ export function EditorNavigation({ children, onLogout }: { children: ReactNode; 
           Ungespeicherte Änderungen gehen verloren.{writePending && ' Ein bereits gesendeter Vorgang kann den Server trotzdem erreicht haben.'}
         </DialogContentText></DialogContent>
         <DialogActions sx={{ flexWrap: 'wrap' }}>
-          <Button ref={stayButton} autoFocus color="secondary" onClick={stay}>Im Editor bleiben</Button>
+          <Button ref={stayButton} disabled={!confirming} autoFocus color="secondary" onClick={stay}>Im Editor bleiben</Button>
           <Button color="inherit" onClick={onLogout}>Log out</Button>
-          <Button color="error" onClick={() => {
+          <Button color="error" disabled={!confirming} onClick={() => {
             const leave = pending.current
+            // The closing MUI dialog remains mounted during its exit transition.
+            // A stale/duplicate click must never discard without a navigation.
+            if (!leave) return
             pending.current = null
             blocked.current = false
             guardOptions.current?.onDiscard?.()
