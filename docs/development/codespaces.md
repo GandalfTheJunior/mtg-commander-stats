@@ -2,7 +2,7 @@
 
 This is an **opt-in**, temporary development preview, not a public deployment.
 It runs React/Vite, Spring Boot and PostgreSQL 18 inside one GitHub Codespace.
-The preview database is independent and empty on creation.
+The preview database is independent and initially empty on creation; an explicit Codespaces-only first-run bootstrap now populates the existing demo fixture in a fresh database. Existing databases and restarts retain their data.
 
 ## Create a preview
 
@@ -27,8 +27,7 @@ The preview database is independent and empty on creation.
    and links to the app on port **5173** when ready. The app address is
    `https://<codespace-name>-5173.app.github.dev/`.
 5. When both services report **Bereit**, tap **Anwendung jetzt öffnen**.
-   Register a throwaway test account: no demo credentials or existing user data
-   are present by default.
+   The first fresh Codespace populates the existing isolated demo fixture once: 7 fictional accounts, 21 decks, 2 groups and 32 games. Sign in as `ada@commander.example` using `accountPassword` from the Codespace-local, ignored `.demo/credentials.json` file. Never share the password or that file.
 6. When finished, visit <https://github.com/codespaces>, select the three-dot
    menu for the Codespace and choose **Stop codespace**. Closing Safari does
    **not** stop compute billing. Stopped Codespaces can still consume storage.
@@ -43,6 +42,15 @@ Codespace from the updated setup branch (or pull changes and rebuild the
 container). Recreating uses a fresh preview database; stop/delete old Codespaces
 separately. After the setup PR is merged, new Codespaces created from new PR
 branches can use the configuration on `main` when their branch contains it.
+
+## One-time demo initialization
+
+- A fresh Codespace sets `MTG_CODESPACE_DEMO_DATA=1` via its devcontainer configuration. After PostgreSQL becomes healthy and before the ordinary backend starts, `.devcontainer/seed-demo.mjs` checks every existing public application table for rows. **Only an entirely empty application database** is eligible. If any table contains data, it skips without changing it. Restarts never reset or re-seed accounts, groups, decks or games.
+- Initialization reuses the existing isolated offline demo tool and its pinning/verification logic. It starts its own localhost PostgreSQL on port 5433 and seeds that **separate** demo volume. After verification it imports application-table **data only**, transactionally, into the fresh Codespaces PostgreSQL volume. Source and target Flyway migration checksums must match; no Flyway history or schema DDL is copied. The isolated demo DB is stopped but its volume is retained.
+- Demo accounts use the same generated `accountPassword` in the private, ignored `.demo/credentials.json` file. No demo password is checked in; do not share the file or enable public port forwarding. This initialization is for private development, never for production or any arbitrary database.
+- If the operation is interrupted or fails after beginning, the state file `~/.local/state/mtg-commander-stats/demo-seed-once.json` remains `started`, and automatic retry **refuses** rather than risking duplicates or overwriting partial data. Create a fresh Codespace or investigate before manually recovering; do not delete volumes or status files casually. No automatic destructive reset occurs.
+- To opt out for future *new* Codespaces, change/remove `MTG_CODESPACE_DEMO_DATA` in `.devcontainer/devcontainer.json` before creation; existing Codespace data is never deleted by turning this off. The first seed may extend cold startup due to an additional Maven package build and separate demo backend.
+- Each Codespace retains its own PostgreSQL volume. A different feature-branch Codespace starts with independent baseline data and cannot see manual edits made in other Codespaces. Creating a fresh Codespace discards none of the old one until explicitly deleted.
 
 ## Security and troubleshooting
 
