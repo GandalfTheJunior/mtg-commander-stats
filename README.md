@@ -231,7 +231,7 @@ The named volume preserves local data.
 
 ## Populated local demo
 
-For an isolated PostgreSQL demo with six fictional accounts and 36 reproducible
+For an isolated PostgreSQL demo with seven fictional accounts and 32 reproducible
 Commander games, follow the [demo setup](docs/development/demo.md). It includes
 PowerShell commands, locally generated credentials, expected player/deck results,
 and an explicit demo-only reset. The regular development database is untouched.

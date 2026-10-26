@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {users, groups, games, archivedDeck, results, deckRequest, cards} from './fixture.mjs';
+import {users, groups, games, archivedDeck, results, deckRequest, cards, readOutcome} from './fixture.mjs';
 
 // One cookie jar per real session. Never log responses, cookies, tokens or bodies.
 export class Session {
@@ -29,7 +29,7 @@ export class Session {
 }
 
 export async function seed(base, password) {
-  const accounts = {}, decks = {}, tables = {};
+  const accounts = {}, decks = {}, tables = {}, recordedGames = {};
   for (const user of users) {
     const session = new Session(base);
     const registered = await session.call('POST', '/users', {email: user.email, username: user.name, password}, 201);
@@ -55,22 +55,18 @@ export async function seed(base, password) {
   }
   for (const game of games) {
     const group = groups.find(g => g.key === game.group);
-    const saved = await accounts[group.owner].session.call('POST', `/groups/${tables[game.group]}/games`, {
-      participants: game.participants.map(p => ({userId: accounts[p.user].id, deckId: decks[p.deck],
-        startPosition: p.startPosition, ...(game.result === 'DRAW' ? {stillInGame: p.stillInGame} : {placement: p.placement})})),
+    const payload = {
+      participants: game.participants.map(({user, deck, ...outcome}) => ({userId: accounts[user].id, deckId: decks[deck], ...outcome})),
       result: game.result, alternateWinCon: game.alternateWinCon,
-    }, 201);
-    assert.equal(saved.alternateWinCon, false);
-    assert.equal(saved.winnerUserId, game.winner ? accounts[game.winner].id : null);
-    for (const p of game.participants) {
-      const actual = saved.participants.find(row => row.userId === accounts[p.user].id);
-      assert.equal(actual.startPosition, p.startPosition);
-      assert.equal(actual.placement, game.result === 'DRAW' ? null : p.placement);
-      assert.equal(actual.stillInGame, game.result === 'DRAW' ? p.stillInGame : p.placement === 1);
-    }
+    };
+    const path = `/groups/${tables[game.group]}/games`;
+    const saved = await accounts[group.owner].session.call('POST', path, payload, 201);
+    recordedGames[saved.id] = game;
+    assertGame(saved, game, accounts);
+    assert.deepEqual(await accounts[group.owner].session.call('GET', `${path}/${saved.id}`), saved);
   }
   await accounts.dara.session.call('POST', `/decks/${decks[archivedDeck]}/archive`);
-  await verify(base, password, {accounts, decks, tables});
+  await verify(base, password, {accounts, decks, tables, recordedGames});
 }
 
 function verifyCommanders(actual, fixture) {
@@ -95,7 +91,7 @@ function verifyCommanders(actual, fixture) {
   }
 }
 
-async function verify(base, password, {accounts, decks, tables}) {
+async function verify(base, password, {accounts, decks, tables, recordedGames}) {
   const observed = [];
   for (const user of users) {
     // Fresh sign-in proves the documented credentials work independently of registration.
@@ -135,27 +131,34 @@ async function verify(base, password, {accounts, decks, tables}) {
       const eligible = await session.call('GET', `/groups/${id}/members/${accounts[member].id}/decks`);
       assert.deepEqual(eligible.map(d => d.id).sort(), users.find(u => u.key === member).decks.filter(d => d.key !== archivedDeck).map(d => decks[d.key]).sort());
     }
-    const statistics = await session.call('GET', `/groups/${id}/statistics`);
-    const expected = JSON.parse(readFileSync(new URL('./expected-results.json', import.meta.url)))
-      .groups.find(g => g.group === group.key).rows.filter(row => row.games > 0);
-    const expectedPlayers = expected.filter(row => row.kind === 'player').map(row => ({
-      userId: accounts[row.user].id, username: row.name, games: row.games, wins: row.wins, winRatePercent: row.winRatePercent,
-    }));
-    const expectedDecks = expected.filter(row => row.kind === 'deck').map(row => ({
-      deckId: decks[row.deck], ownerUserId: accounts[row.user].id, ownerUsername: users.find(u => u.key === row.user).name,
-      name: row.name,
-      archived: row.deck === archivedDeck, games: row.games, wins: row.wins, winRatePercent: row.winRatePercent,
-    }));
-    // Compare by stable IDs here; backend API tests separately enforce name/UUID ordering.
-    const byId = field => (a, b) => a[field].localeCompare(b[field]);
-    assert.deepEqual(statistics.players.toSorted(byId('userId')), expectedPlayers.toSorted(byId('userId')));
-    for (const deck of statistics.decks) {
-      const fixture = users.flatMap(u => u.decks).find(d => decks[d.key] === deck.deckId);
-      verifyCommanders(deck.commanders, fixture);
+    const manifest = JSON.parse(readFileSync(new URL('./expected-results.json', import.meta.url)));
+    for (const count of ['All', '2', '3', '4', '5', '6']) {
+      const statistics = await session.call('GET', `/groups/${id}/statistics${count === 'All' ? '' : `?playerCount=${count}`}`);
+      assert.deepEqual(Object.keys(statistics).sort(), ['decks', 'manaColors', 'players', 'startPositions']);
+      const expectedGroup = (count === 'All' ? manifest.groups : manifest.filters[count]).find(g => g.group === group.key);
+      const expected = expectedGroup.rows.filter(row => row.games > 0);
+      assert.deepEqual(statistics.startPositions, expectedGroup.startPositions);
+      assert.deepEqual(statistics.manaColors, expectedGroup.manaColors);
+      const expectedPlayers = expected.filter(row => row.kind === 'player').map(row => ({
+        userId: accounts[row.user].id, username: row.name, games: row.games, wins: row.wins, winRatePercent: row.winRatePercent,
+      }));
+      const expectedDecks = expected.filter(row => row.kind === 'deck').map(row => ({
+        deckId: decks[row.deck], ownerUserId: accounts[row.user].id, ownerUsername: users.find(u => u.key === row.user).name,
+        name: row.name,
+        archived: row.deck === archivedDeck, games: row.games, wins: row.wins, winRatePercent: row.winRatePercent,
+      }));
+      // Compare by stable IDs here; backend API tests separately enforce name/UUID ordering.
+      const byId = field => (a, b) => a[field].localeCompare(b[field]);
+      assert.deepEqual(statistics.players.toSorted(byId('userId')), expectedPlayers.toSorted(byId('userId')));
+      for (const deck of statistics.decks) {
+        const fixture = users.flatMap(u => u.decks).find(d => decks[d.key] === deck.deckId);
+        verifyCommanders(deck.commanders, fixture);
+      }
+      assert.deepEqual(statistics.decks.map(({commanders, ...row}) => row).toSorted(byId('deckId')), expectedDecks.toSorted(byId('deckId')));
     }
-    assert.deepEqual(statistics.decks.map(({commanders, ...row}) => row).toSorted(byId('deckId')), expectedDecks.toSorted(byId('deckId')));
     const history = await session.call('GET', `/groups/${id}/games`);
     for (const game of history) {
+      assertGame(game, recordedGames[game.id], accounts);
       assert.equal(game.groupId, id);
       assert.ok(game.recordedAt);
       const participants = game.participants.map(p => {
@@ -164,7 +167,7 @@ async function verify(base, password, {accounts, decks, tables}) {
         assert.equal(p.deck.archived, deck.key === archivedDeck);
         verifyCommanders(p.deck.commanders, deck);
         assert.deepEqual(p.deck.colorIdentity, deck.colorIdentity);
-        return {user: user.key, deck: deck.key};
+        return {user: user.key, deck: deck.key, startPosition: p.startPosition};
       });
       observed.push({group: group.key, participants, result: game.result, winner: game.winnerUserId ? users.find(u => accounts[u.key].id === game.winnerUserId).key : null});
     }
@@ -178,4 +181,19 @@ async function verify(base, password, {accounts, decks, tables}) {
   }, 400);
   assert.equal((await accounts[group.owner].session.call('GET', `/groups/${tables[group.key]}/games`)).length, games.filter(g => g.group === group.key).length);
   for (const {session} of Object.values(accounts)) await session.call('DELETE', '/session', undefined, 204);
+}
+
+function assertGame(actual, expected, accounts) {
+  assert.ok(expected, 'Unexpected historical game');
+  assert.equal(actual.result, expected.result);
+  assert.equal(actual.alternateWinCon, expected.alternateWinCon);
+  assert.equal(actual.winnerUserId, expected.winner ? accounts[expected.winner].id : null);
+  assert.equal(actual.participants.length, expected.participants.length);
+  for (const p of expected.participants) {
+    const row = actual.participants.find(r => r.userId === accounts[p.user].id);
+    assert.equal(row.startPosition, p.startPosition);
+    const outcome = readOutcome(expected, p);
+    assert.equal(row.placement, outcome.placement);
+    assert.equal(row.stillInGame, outcome.stillInGame);
+  }
 }

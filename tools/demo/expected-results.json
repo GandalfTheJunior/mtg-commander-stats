@@ -1,27 +1,26 @@
 {
-  "drawRule": "A DRAW counts as a game for each participant and deck, with no wins. Rate is wins / games * 100, rounded to two decimals; zero games => 0.",
   "groups": [
     {
       "group": "friday",
       "name": "Demo Friday Table",
       "games": 20,
-      "draws": 2,
+      "draws": 5,
       "rows": [
         {
           "kind": "player",
           "user": "ada",
           "name": "Ada",
-          "games": 12,
-          "wins": 6,
-          "winRatePercent": 50
+          "games": 20,
+          "wins": 5,
+          "winRatePercent": 25
         },
         {
           "kind": "deck",
           "user": "ada",
           "deck": "ada-0",
           "name": "Dragon Engine",
-          "games": 6,
-          "wins": 6,
+          "games": 5,
+          "wins": 5,
           "winRatePercent": 100
         },
         {
@@ -29,7 +28,7 @@
           "user": "ada",
           "deck": "ada-1",
           "name": "Patient Constructs",
-          "games": 6,
+          "games": 15,
           "wins": 0,
           "winRatePercent": 0
         },
@@ -40,33 +39,33 @@
           "name": "A very long expedition name for Pir and Toothy beyond the edge of the map",
           "games": 0,
           "wins": 0,
-          "winRatePercent": 0
+          "winRatePercent": null
         },
         {
           "kind": "player",
           "user": "bruno",
           "name": "Bruno",
           "games": 20,
-          "wins": 4,
-          "winRatePercent": 20
+          "wins": 10,
+          "winRatePercent": 50
         },
         {
           "kind": "deck",
           "user": "bruno",
           "deck": "bruno-0",
           "name": "Goblin Workshop",
-          "games": 10,
-          "wins": 2,
-          "winRatePercent": 20
+          "games": 5,
+          "wins": 0,
+          "winRatePercent": 0
         },
         {
           "kind": "deck",
           "user": "bruno",
           "deck": "bruno-1",
           "name": "Forest Council",
-          "games": 10,
-          "wins": 2,
-          "winRatePercent": 20
+          "games": 15,
+          "wins": 10,
+          "winRatePercent": 66.67
         },
         {
           "kind": "deck",
@@ -75,22 +74,22 @@
           "name": "The Prismatic Bridge on the other side of Esika",
           "games": 0,
           "wins": 0,
-          "winRatePercent": 0
+          "winRatePercent": null
         },
         {
           "kind": "player",
           "user": "cleo",
           "name": "Cleo",
-          "games": 20,
-          "wins": 3,
-          "winRatePercent": 15
+          "games": 16,
+          "wins": 0,
+          "winRatePercent": 0
         },
         {
           "kind": "deck",
           "user": "cleo",
           "deck": "cleo-0",
           "name": "Graveyard Shift",
-          "games": 10,
+          "games": 4,
           "wins": 0,
           "winRatePercent": 0
         },
@@ -99,9 +98,9 @@
           "user": "cleo",
           "deck": "cleo-1",
           "name": "Sea Stories",
-          "games": 10,
-          "wins": 3,
-          "winRatePercent": 30
+          "games": 12,
+          "wins": 0,
+          "winRatePercent": 0
         },
         {
           "kind": "deck",
@@ -110,33 +109,33 @@
           "name": "Avacyn and the back-side Purifier illustration",
           "games": 0,
           "wins": 0,
-          "winRatePercent": 0
+          "winRatePercent": null
         },
         {
           "kind": "player",
           "user": "dara",
           "name": "Dara",
-          "games": 16,
-          "wins": 4,
-          "winRatePercent": 25
+          "games": 12,
+          "wins": 0,
+          "winRatePercent": 0
         },
         {
           "kind": "deck",
           "user": "dara",
           "deck": "dara-0",
           "name": "Sunlit Tokens",
-          "games": 8,
-          "wins": 2,
-          "winRatePercent": 25
+          "games": 3,
+          "wins": 0,
+          "winRatePercent": 0
         },
         {
           "kind": "deck",
           "user": "dara",
           "deck": "dara-1",
           "name": "Old Artifacts",
-          "games": 8,
-          "wins": 2,
-          "winRatePercent": 25
+          "games": 9,
+          "wins": 0,
+          "winRatePercent": 0
         },
         {
           "kind": "deck",
@@ -145,22 +144,22 @@
           "name": "Dragon Engine — a different illustration",
           "games": 0,
           "wins": 0,
-          "winRatePercent": 0
+          "winRatePercent": null
         },
         {
           "kind": "player",
           "user": "emil",
           "name": "Emil",
-          "games": 12,
-          "wins": 1,
-          "winRatePercent": 8.33
+          "games": 8,
+          "wins": 0,
+          "winRatePercent": 0
         },
         {
           "kind": "deck",
           "user": "emil",
           "deck": "emil-0",
           "name": "Wild Lands",
-          "games": 6,
+          "games": 2,
           "wins": 0,
           "winRatePercent": 0
         },
@@ -170,8 +169,8 @@
           "deck": "emil-1",
           "name": "Spirit Parade",
           "games": 6,
-          "wins": 1,
-          "winRatePercent": 16.67
+          "wins": 0,
+          "winRatePercent": 0
         },
         {
           "kind": "deck",
@@ -179,6 +178,226 @@
           "deck": "emil-2",
           "name": "Zndrsplt: reversible printing, same Oracle identity",
           "games": 0,
+          "wins": 0,
+          "winRatePercent": null
+        },
+        {
+          "kind": "player",
+          "user": "gideon",
+          "name": "Gideon",
+          "games": 4,
+          "wins": 0,
+          "winRatePercent": 0
+        },
+        {
+          "kind": "deck",
+          "user": "gideon",
+          "deck": "gideon-0",
+          "name": "Dragon Encore",
+          "games": 1,
+          "wins": 0,
+          "winRatePercent": 0
+        },
+        {
+          "kind": "deck",
+          "user": "gideon",
+          "deck": "gideon-1",
+          "name": "Cloud Fleet",
+          "games": 3,
+          "wins": 0,
+          "winRatePercent": 0
+        },
+        {
+          "kind": "deck",
+          "user": "gideon",
+          "deck": "gideon-2",
+          "name": "Goblin Encore",
+          "games": 0,
+          "wins": 0,
+          "winRatePercent": null
+        }
+      ],
+      "startPositions": [
+        {
+          "playerCount": 2,
+          "seats": [
+            {
+              "startPosition": 1,
+              "games": 4,
+              "wins": 2,
+              "winRatePercent": 50
+            },
+            {
+              "startPosition": 2,
+              "games": 4,
+              "wins": 1,
+              "winRatePercent": 25
+            }
+          ]
+        },
+        {
+          "playerCount": 3,
+          "seats": [
+            {
+              "startPosition": 1,
+              "games": 4,
+              "wins": 1,
+              "winRatePercent": 25
+            },
+            {
+              "startPosition": 2,
+              "games": 4,
+              "wins": 0,
+              "winRatePercent": 0
+            },
+            {
+              "startPosition": 3,
+              "games": 4,
+              "wins": 2,
+              "winRatePercent": 50
+            }
+          ]
+        },
+        {
+          "playerCount": 4,
+          "seats": [
+            {
+              "startPosition": 1,
+              "games": 4,
+              "wins": 1,
+              "winRatePercent": 25
+            },
+            {
+              "startPosition": 2,
+              "games": 4,
+              "wins": 0,
+              "winRatePercent": 0
+            },
+            {
+              "startPosition": 3,
+              "games": 4,
+              "wins": 0,
+              "winRatePercent": 0
+            },
+            {
+              "startPosition": 4,
+              "games": 4,
+              "wins": 2,
+              "winRatePercent": 50
+            }
+          ]
+        },
+        {
+          "playerCount": 5,
+          "seats": [
+            {
+              "startPosition": 1,
+              "games": 4,
+              "wins": 0,
+              "winRatePercent": 0
+            },
+            {
+              "startPosition": 2,
+              "games": 4,
+              "wins": 0,
+              "winRatePercent": 0
+            },
+            {
+              "startPosition": 3,
+              "games": 4,
+              "wins": 0,
+              "winRatePercent": 0
+            },
+            {
+              "startPosition": 4,
+              "games": 4,
+              "wins": 1,
+              "winRatePercent": 25
+            },
+            {
+              "startPosition": 5,
+              "games": 4,
+              "wins": 2,
+              "winRatePercent": 50
+            }
+          ]
+        },
+        {
+          "playerCount": 6,
+          "seats": [
+            {
+              "startPosition": 1,
+              "games": 4,
+              "wins": 0,
+              "winRatePercent": 0
+            },
+            {
+              "startPosition": 2,
+              "games": 4,
+              "wins": 0,
+              "winRatePercent": 0
+            },
+            {
+              "startPosition": 3,
+              "games": 4,
+              "wins": 0,
+              "winRatePercent": 0
+            },
+            {
+              "startPosition": 4,
+              "games": 4,
+              "wins": 1,
+              "winRatePercent": 25
+            },
+            {
+              "startPosition": 5,
+              "games": 4,
+              "wins": 1,
+              "winRatePercent": 25
+            },
+            {
+              "startPosition": 6,
+              "games": 4,
+              "wins": 1,
+              "winRatePercent": 25
+            }
+          ]
+        }
+      ],
+      "manaColors": [
+        {
+          "color": "G",
+          "games": 30,
+          "wins": 15,
+          "winRatePercent": 50
+        },
+        {
+          "color": "B",
+          "games": 19,
+          "wins": 5,
+          "winRatePercent": 26.32
+        },
+        {
+          "color": "R",
+          "games": 22,
+          "wins": 5,
+          "winRatePercent": 22.73
+        },
+        {
+          "color": "W",
+          "games": 24,
+          "wins": 5,
+          "winRatePercent": 20.83
+        },
+        {
+          "color": "U",
+          "games": 36,
+          "wins": 5,
+          "winRatePercent": 13.89
+        },
+        {
+          "color": "C",
+          "games": 15,
           "wins": 0,
           "winRatePercent": 0
         }
@@ -187,15 +406,15 @@
     {
       "group": "sunday",
       "name": "Demo Sunday Table",
-      "games": 16,
-      "draws": 2,
+      "games": 12,
+      "draws": 3,
       "rows": [
         {
           "kind": "player",
           "user": "cleo",
           "name": "Cleo",
-          "games": 16,
-          "wins": 4,
+          "games": 12,
+          "wins": 3,
           "winRatePercent": 25
         },
         {
@@ -203,16 +422,16 @@
           "user": "cleo",
           "deck": "cleo-0",
           "name": "Graveyard Shift",
-          "games": 8,
-          "wins": 4,
-          "winRatePercent": 50
+          "games": 3,
+          "wins": 3,
+          "winRatePercent": 100
         },
         {
           "kind": "deck",
           "user": "cleo",
           "deck": "cleo-1",
           "name": "Sea Stories",
-          "games": 8,
+          "games": 9,
           "wins": 0,
           "winRatePercent": 0
         },
@@ -223,22 +442,22 @@
           "name": "Avacyn and the back-side Purifier illustration",
           "games": 0,
           "wins": 0,
-          "winRatePercent": 0
+          "winRatePercent": null
         },
         {
           "kind": "player",
           "user": "dara",
           "name": "Dara",
-          "games": 16,
-          "wins": 3,
-          "winRatePercent": 18.75
+          "games": 12,
+          "wins": 6,
+          "winRatePercent": 50
         },
         {
           "kind": "deck",
           "user": "dara",
           "deck": "dara-0",
           "name": "Sunlit Tokens",
-          "games": 8,
+          "games": 3,
           "wins": 0,
           "winRatePercent": 0
         },
@@ -247,9 +466,9 @@
           "user": "dara",
           "deck": "dara-1",
           "name": "Old Artifacts",
-          "games": 8,
-          "wins": 3,
-          "winRatePercent": 37.5
+          "games": 9,
+          "wins": 6,
+          "winRatePercent": 66.67
         },
         {
           "kind": "deck",
@@ -258,31 +477,31 @@
           "name": "Dragon Engine — a different illustration",
           "games": 0,
           "wins": 0,
-          "winRatePercent": 0
+          "winRatePercent": null
         },
         {
           "kind": "player",
           "user": "emil",
           "name": "Emil",
-          "games": 16,
-          "wins": 3,
-          "winRatePercent": 18.75
+          "games": 8,
+          "wins": 0,
+          "winRatePercent": 0
         },
         {
           "kind": "deck",
           "user": "emil",
           "deck": "emil-0",
           "name": "Wild Lands",
-          "games": 8,
-          "wins": 3,
-          "winRatePercent": 37.5
+          "games": 2,
+          "wins": 0,
+          "winRatePercent": 0
         },
         {
           "kind": "deck",
           "user": "emil",
           "deck": "emil-1",
           "name": "Spirit Parade",
-          "games": 8,
+          "games": 6,
           "wins": 0,
           "winRatePercent": 0
         },
@@ -293,22 +512,22 @@
           "name": "Zndrsplt: reversible printing, same Oracle identity",
           "games": 0,
           "wins": 0,
-          "winRatePercent": 0
+          "winRatePercent": null
         },
         {
           "kind": "player",
           "user": "faye",
           "name": "Faye",
-          "games": 16,
-          "wins": 4,
-          "winRatePercent": 25
+          "games": 4,
+          "wins": 0,
+          "winRatePercent": 0
         },
         {
           "kind": "deck",
           "user": "faye",
           "deck": "faye-0",
           "name": "Night Court",
-          "games": 8,
+          "games": 1,
           "wins": 0,
           "winRatePercent": 0
         },
@@ -317,9 +536,9 @@
           "user": "faye",
           "deck": "faye-1",
           "name": "Spore Garden",
-          "games": 8,
-          "wins": 4,
-          "winRatePercent": 50
+          "games": 3,
+          "wins": 0,
+          "winRatePercent": 0
         },
         {
           "kind": "deck",
@@ -328,9 +547,2726 @@
           "name": "Friends forever across all five colors",
           "games": 0,
           "wins": 0,
-          "winRatePercent": 0
+          "winRatePercent": null
+        }
+      ],
+      "startPositions": [
+        {
+          "playerCount": 2,
+          "seats": [
+            {
+              "startPosition": 1,
+              "games": 4,
+              "wins": 2,
+              "winRatePercent": 50
+            },
+            {
+              "startPosition": 2,
+              "games": 4,
+              "wins": 1,
+              "winRatePercent": 25
+            }
+          ]
+        },
+        {
+          "playerCount": 3,
+          "seats": [
+            {
+              "startPosition": 1,
+              "games": 4,
+              "wins": 1,
+              "winRatePercent": 25
+            },
+            {
+              "startPosition": 2,
+              "games": 4,
+              "wins": 0,
+              "winRatePercent": 0
+            },
+            {
+              "startPosition": 3,
+              "games": 4,
+              "wins": 2,
+              "winRatePercent": 50
+            }
+          ]
+        },
+        {
+          "playerCount": 4,
+          "seats": [
+            {
+              "startPosition": 1,
+              "games": 4,
+              "wins": 1,
+              "winRatePercent": 25
+            },
+            {
+              "startPosition": 2,
+              "games": 4,
+              "wins": 0,
+              "winRatePercent": 0
+            },
+            {
+              "startPosition": 3,
+              "games": 4,
+              "wins": 0,
+              "winRatePercent": 0
+            },
+            {
+              "startPosition": 4,
+              "games": 4,
+              "wins": 2,
+              "winRatePercent": 50
+            }
+          ]
+        },
+        {
+          "playerCount": 5,
+          "seats": [
+            {
+              "startPosition": 1,
+              "games": 0,
+              "wins": 0,
+              "winRatePercent": null
+            },
+            {
+              "startPosition": 2,
+              "games": 0,
+              "wins": 0,
+              "winRatePercent": null
+            },
+            {
+              "startPosition": 3,
+              "games": 0,
+              "wins": 0,
+              "winRatePercent": null
+            },
+            {
+              "startPosition": 4,
+              "games": 0,
+              "wins": 0,
+              "winRatePercent": null
+            },
+            {
+              "startPosition": 5,
+              "games": 0,
+              "wins": 0,
+              "winRatePercent": null
+            }
+          ]
+        },
+        {
+          "playerCount": 6,
+          "seats": [
+            {
+              "startPosition": 1,
+              "games": 0,
+              "wins": 0,
+              "winRatePercent": null
+            },
+            {
+              "startPosition": 2,
+              "games": 0,
+              "wins": 0,
+              "winRatePercent": null
+            },
+            {
+              "startPosition": 3,
+              "games": 0,
+              "wins": 0,
+              "winRatePercent": null
+            },
+            {
+              "startPosition": 4,
+              "games": 0,
+              "wins": 0,
+              "winRatePercent": null
+            },
+            {
+              "startPosition": 5,
+              "games": 0,
+              "wins": 0,
+              "winRatePercent": null
+            },
+            {
+              "startPosition": 6,
+              "games": 0,
+              "wins": 0,
+              "winRatePercent": null
+            }
+          ]
+        }
+      ],
+      "manaColors": [
+        {
+          "color": "B",
+          "games": 16,
+          "wins": 9,
+          "winRatePercent": 56.25
+        },
+        {
+          "color": "R",
+          "games": 12,
+          "wins": 6,
+          "winRatePercent": 50
+        },
+        {
+          "color": "W",
+          "games": 19,
+          "wins": 6,
+          "winRatePercent": 31.58
+        },
+        {
+          "color": "G",
+          "games": 11,
+          "wins": 3,
+          "winRatePercent": 27.27
+        },
+        {
+          "color": "U",
+          "games": 24,
+          "wins": 6,
+          "winRatePercent": 25
+        },
+        {
+          "color": "C",
+          "games": 0,
+          "wins": 0,
+          "winRatePercent": null
         }
       ]
     }
-  ]
+  ],
+  "filters": {
+    "2": [
+      {
+        "group": "friday",
+        "name": "Demo Friday Table",
+        "games": 4,
+        "draws": 1,
+        "rows": [
+          {
+            "kind": "player",
+            "user": "ada",
+            "name": "Ada",
+            "games": 4,
+            "wins": 1,
+            "winRatePercent": 25
+          },
+          {
+            "kind": "deck",
+            "user": "ada",
+            "deck": "ada-0",
+            "name": "Dragon Engine",
+            "games": 1,
+            "wins": 1,
+            "winRatePercent": 100
+          },
+          {
+            "kind": "deck",
+            "user": "ada",
+            "deck": "ada-1",
+            "name": "Patient Constructs",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "ada",
+            "deck": "ada-2",
+            "name": "A very long expedition name for Pir and Toothy beyond the edge of the map",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "bruno",
+            "name": "Bruno",
+            "games": 4,
+            "wins": 2,
+            "winRatePercent": 50
+          },
+          {
+            "kind": "deck",
+            "user": "bruno",
+            "deck": "bruno-0",
+            "name": "Goblin Workshop",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "bruno",
+            "deck": "bruno-1",
+            "name": "Forest Council",
+            "games": 3,
+            "wins": 2,
+            "winRatePercent": 66.67
+          },
+          {
+            "kind": "deck",
+            "user": "bruno",
+            "deck": "bruno-2",
+            "name": "The Prismatic Bridge on the other side of Esika",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "cleo",
+            "name": "Cleo",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-0",
+            "name": "Graveyard Shift",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-1",
+            "name": "Sea Stories",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-2",
+            "name": "Avacyn and the back-side Purifier illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "dara",
+            "name": "Dara",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-0",
+            "name": "Sunlit Tokens",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-1",
+            "name": "Old Artifacts",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-2",
+            "name": "Dragon Engine — a different illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "emil",
+            "name": "Emil",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-0",
+            "name": "Wild Lands",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-1",
+            "name": "Spirit Parade",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-2",
+            "name": "Zndrsplt: reversible printing, same Oracle identity",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "gideon",
+            "name": "Gideon",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "gideon",
+            "deck": "gideon-0",
+            "name": "Dragon Encore",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "gideon",
+            "deck": "gideon-1",
+            "name": "Cloud Fleet",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "gideon",
+            "deck": "gideon-2",
+            "name": "Goblin Encore",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          }
+        ],
+        "startPositions": [
+          {
+            "playerCount": 2,
+            "seats": [
+              {
+                "startPosition": 1,
+                "games": 4,
+                "wins": 2,
+                "winRatePercent": 50
+              },
+              {
+                "startPosition": 2,
+                "games": 4,
+                "wins": 1,
+                "winRatePercent": 25
+              }
+            ]
+          }
+        ],
+        "manaColors": [
+          {
+            "color": "W",
+            "games": 1,
+            "wins": 1,
+            "winRatePercent": 100
+          },
+          {
+            "color": "U",
+            "games": 1,
+            "wins": 1,
+            "winRatePercent": 100
+          },
+          {
+            "color": "B",
+            "games": 1,
+            "wins": 1,
+            "winRatePercent": 100
+          },
+          {
+            "color": "G",
+            "games": 4,
+            "wins": 3,
+            "winRatePercent": 75
+          },
+          {
+            "color": "R",
+            "games": 2,
+            "wins": 1,
+            "winRatePercent": 50
+          },
+          {
+            "color": "C",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          }
+        ]
+      },
+      {
+        "group": "sunday",
+        "name": "Demo Sunday Table",
+        "games": 4,
+        "draws": 1,
+        "rows": [
+          {
+            "kind": "player",
+            "user": "cleo",
+            "name": "Cleo",
+            "games": 4,
+            "wins": 1,
+            "winRatePercent": 25
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-0",
+            "name": "Graveyard Shift",
+            "games": 1,
+            "wins": 1,
+            "winRatePercent": 100
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-1",
+            "name": "Sea Stories",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-2",
+            "name": "Avacyn and the back-side Purifier illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "dara",
+            "name": "Dara",
+            "games": 4,
+            "wins": 2,
+            "winRatePercent": 50
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-0",
+            "name": "Sunlit Tokens",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-1",
+            "name": "Old Artifacts",
+            "games": 3,
+            "wins": 2,
+            "winRatePercent": 66.67
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-2",
+            "name": "Dragon Engine — a different illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "emil",
+            "name": "Emil",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-0",
+            "name": "Wild Lands",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-1",
+            "name": "Spirit Parade",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-2",
+            "name": "Zndrsplt: reversible printing, same Oracle identity",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "faye",
+            "name": "Faye",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "faye",
+            "deck": "faye-0",
+            "name": "Night Court",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "faye",
+            "deck": "faye-1",
+            "name": "Spore Garden",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "faye",
+            "deck": "faye-2",
+            "name": "Friends forever across all five colors",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          }
+        ],
+        "startPositions": [
+          {
+            "playerCount": 2,
+            "seats": [
+              {
+                "startPosition": 1,
+                "games": 4,
+                "wins": 2,
+                "winRatePercent": 50
+              },
+              {
+                "startPosition": 2,
+                "games": 4,
+                "wins": 1,
+                "winRatePercent": 25
+              }
+            ]
+          }
+        ],
+        "manaColors": [
+          {
+            "color": "B",
+            "games": 4,
+            "wins": 3,
+            "winRatePercent": 75
+          },
+          {
+            "color": "R",
+            "games": 3,
+            "wins": 2,
+            "winRatePercent": 66.67
+          },
+          {
+            "color": "W",
+            "games": 4,
+            "wins": 2,
+            "winRatePercent": 50
+          },
+          {
+            "color": "G",
+            "games": 2,
+            "wins": 1,
+            "winRatePercent": 50
+          },
+          {
+            "color": "U",
+            "games": 6,
+            "wins": 2,
+            "winRatePercent": 33.33
+          },
+          {
+            "color": "C",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          }
+        ]
+      }
+    ],
+    "3": [
+      {
+        "group": "friday",
+        "name": "Demo Friday Table",
+        "games": 4,
+        "draws": 1,
+        "rows": [
+          {
+            "kind": "player",
+            "user": "ada",
+            "name": "Ada",
+            "games": 4,
+            "wins": 1,
+            "winRatePercent": 25
+          },
+          {
+            "kind": "deck",
+            "user": "ada",
+            "deck": "ada-0",
+            "name": "Dragon Engine",
+            "games": 1,
+            "wins": 1,
+            "winRatePercent": 100
+          },
+          {
+            "kind": "deck",
+            "user": "ada",
+            "deck": "ada-1",
+            "name": "Patient Constructs",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "ada",
+            "deck": "ada-2",
+            "name": "A very long expedition name for Pir and Toothy beyond the edge of the map",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "bruno",
+            "name": "Bruno",
+            "games": 4,
+            "wins": 2,
+            "winRatePercent": 50
+          },
+          {
+            "kind": "deck",
+            "user": "bruno",
+            "deck": "bruno-0",
+            "name": "Goblin Workshop",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "bruno",
+            "deck": "bruno-1",
+            "name": "Forest Council",
+            "games": 3,
+            "wins": 2,
+            "winRatePercent": 66.67
+          },
+          {
+            "kind": "deck",
+            "user": "bruno",
+            "deck": "bruno-2",
+            "name": "The Prismatic Bridge on the other side of Esika",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "cleo",
+            "name": "Cleo",
+            "games": 4,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-0",
+            "name": "Graveyard Shift",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-1",
+            "name": "Sea Stories",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-2",
+            "name": "Avacyn and the back-side Purifier illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "dara",
+            "name": "Dara",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-0",
+            "name": "Sunlit Tokens",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-1",
+            "name": "Old Artifacts",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-2",
+            "name": "Dragon Engine — a different illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "emil",
+            "name": "Emil",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-0",
+            "name": "Wild Lands",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-1",
+            "name": "Spirit Parade",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-2",
+            "name": "Zndrsplt: reversible printing, same Oracle identity",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "gideon",
+            "name": "Gideon",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "gideon",
+            "deck": "gideon-0",
+            "name": "Dragon Encore",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "gideon",
+            "deck": "gideon-1",
+            "name": "Cloud Fleet",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "gideon",
+            "deck": "gideon-2",
+            "name": "Goblin Encore",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          }
+        ],
+        "startPositions": [
+          {
+            "playerCount": 3,
+            "seats": [
+              {
+                "startPosition": 1,
+                "games": 4,
+                "wins": 1,
+                "winRatePercent": 25
+              },
+              {
+                "startPosition": 2,
+                "games": 4,
+                "wins": 0,
+                "winRatePercent": 0
+              },
+              {
+                "startPosition": 3,
+                "games": 4,
+                "wins": 2,
+                "winRatePercent": 50
+              }
+            ]
+          }
+        ],
+        "manaColors": [
+          {
+            "color": "W",
+            "games": 1,
+            "wins": 1,
+            "winRatePercent": 100
+          },
+          {
+            "color": "G",
+            "games": 5,
+            "wins": 3,
+            "winRatePercent": 60
+          },
+          {
+            "color": "B",
+            "games": 2,
+            "wins": 1,
+            "winRatePercent": 50
+          },
+          {
+            "color": "R",
+            "games": 2,
+            "wins": 1,
+            "winRatePercent": 50
+          },
+          {
+            "color": "U",
+            "games": 4,
+            "wins": 1,
+            "winRatePercent": 25
+          },
+          {
+            "color": "C",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          }
+        ]
+      },
+      {
+        "group": "sunday",
+        "name": "Demo Sunday Table",
+        "games": 4,
+        "draws": 1,
+        "rows": [
+          {
+            "kind": "player",
+            "user": "cleo",
+            "name": "Cleo",
+            "games": 4,
+            "wins": 1,
+            "winRatePercent": 25
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-0",
+            "name": "Graveyard Shift",
+            "games": 1,
+            "wins": 1,
+            "winRatePercent": 100
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-1",
+            "name": "Sea Stories",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-2",
+            "name": "Avacyn and the back-side Purifier illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "dara",
+            "name": "Dara",
+            "games": 4,
+            "wins": 2,
+            "winRatePercent": 50
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-0",
+            "name": "Sunlit Tokens",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-1",
+            "name": "Old Artifacts",
+            "games": 3,
+            "wins": 2,
+            "winRatePercent": 66.67
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-2",
+            "name": "Dragon Engine — a different illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "emil",
+            "name": "Emil",
+            "games": 4,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-0",
+            "name": "Wild Lands",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-1",
+            "name": "Spirit Parade",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-2",
+            "name": "Zndrsplt: reversible printing, same Oracle identity",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "faye",
+            "name": "Faye",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "faye",
+            "deck": "faye-0",
+            "name": "Night Court",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "faye",
+            "deck": "faye-1",
+            "name": "Spore Garden",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "faye",
+            "deck": "faye-2",
+            "name": "Friends forever across all five colors",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          }
+        ],
+        "startPositions": [
+          {
+            "playerCount": 3,
+            "seats": [
+              {
+                "startPosition": 1,
+                "games": 4,
+                "wins": 1,
+                "winRatePercent": 25
+              },
+              {
+                "startPosition": 2,
+                "games": 4,
+                "wins": 0,
+                "winRatePercent": 0
+              },
+              {
+                "startPosition": 3,
+                "games": 4,
+                "wins": 2,
+                "winRatePercent": 50
+              }
+            ]
+          }
+        ],
+        "manaColors": [
+          {
+            "color": "B",
+            "games": 4,
+            "wins": 3,
+            "winRatePercent": 75
+          },
+          {
+            "color": "R",
+            "games": 4,
+            "wins": 2,
+            "winRatePercent": 50
+          },
+          {
+            "color": "G",
+            "games": 3,
+            "wins": 1,
+            "winRatePercent": 33.33
+          },
+          {
+            "color": "W",
+            "games": 7,
+            "wins": 2,
+            "winRatePercent": 28.57
+          },
+          {
+            "color": "U",
+            "games": 9,
+            "wins": 2,
+            "winRatePercent": 22.22
+          },
+          {
+            "color": "C",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          }
+        ]
+      }
+    ],
+    "4": [
+      {
+        "group": "friday",
+        "name": "Demo Friday Table",
+        "games": 4,
+        "draws": 1,
+        "rows": [
+          {
+            "kind": "player",
+            "user": "ada",
+            "name": "Ada",
+            "games": 4,
+            "wins": 1,
+            "winRatePercent": 25
+          },
+          {
+            "kind": "deck",
+            "user": "ada",
+            "deck": "ada-0",
+            "name": "Dragon Engine",
+            "games": 1,
+            "wins": 1,
+            "winRatePercent": 100
+          },
+          {
+            "kind": "deck",
+            "user": "ada",
+            "deck": "ada-1",
+            "name": "Patient Constructs",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "ada",
+            "deck": "ada-2",
+            "name": "A very long expedition name for Pir and Toothy beyond the edge of the map",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "bruno",
+            "name": "Bruno",
+            "games": 4,
+            "wins": 2,
+            "winRatePercent": 50
+          },
+          {
+            "kind": "deck",
+            "user": "bruno",
+            "deck": "bruno-0",
+            "name": "Goblin Workshop",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "bruno",
+            "deck": "bruno-1",
+            "name": "Forest Council",
+            "games": 3,
+            "wins": 2,
+            "winRatePercent": 66.67
+          },
+          {
+            "kind": "deck",
+            "user": "bruno",
+            "deck": "bruno-2",
+            "name": "The Prismatic Bridge on the other side of Esika",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "cleo",
+            "name": "Cleo",
+            "games": 4,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-0",
+            "name": "Graveyard Shift",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-1",
+            "name": "Sea Stories",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-2",
+            "name": "Avacyn and the back-side Purifier illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "dara",
+            "name": "Dara",
+            "games": 4,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-0",
+            "name": "Sunlit Tokens",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-1",
+            "name": "Old Artifacts",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-2",
+            "name": "Dragon Engine — a different illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "emil",
+            "name": "Emil",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-0",
+            "name": "Wild Lands",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-1",
+            "name": "Spirit Parade",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-2",
+            "name": "Zndrsplt: reversible printing, same Oracle identity",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "gideon",
+            "name": "Gideon",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "gideon",
+            "deck": "gideon-0",
+            "name": "Dragon Encore",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "gideon",
+            "deck": "gideon-1",
+            "name": "Cloud Fleet",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "gideon",
+            "deck": "gideon-2",
+            "name": "Goblin Encore",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          }
+        ],
+        "startPositions": [
+          {
+            "playerCount": 4,
+            "seats": [
+              {
+                "startPosition": 1,
+                "games": 4,
+                "wins": 1,
+                "winRatePercent": 25
+              },
+              {
+                "startPosition": 2,
+                "games": 4,
+                "wins": 0,
+                "winRatePercent": 0
+              },
+              {
+                "startPosition": 3,
+                "games": 4,
+                "wins": 0,
+                "winRatePercent": 0
+              },
+              {
+                "startPosition": 4,
+                "games": 4,
+                "wins": 2,
+                "winRatePercent": 50
+              }
+            ]
+          }
+        ],
+        "manaColors": [
+          {
+            "color": "G",
+            "games": 6,
+            "wins": 3,
+            "winRatePercent": 50
+          },
+          {
+            "color": "W",
+            "games": 5,
+            "wins": 1,
+            "winRatePercent": 20
+          },
+          {
+            "color": "B",
+            "games": 5,
+            "wins": 1,
+            "winRatePercent": 20
+          },
+          {
+            "color": "R",
+            "games": 5,
+            "wins": 1,
+            "winRatePercent": 20
+          },
+          {
+            "color": "U",
+            "games": 7,
+            "wins": 1,
+            "winRatePercent": 14.29
+          },
+          {
+            "color": "C",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          }
+        ]
+      },
+      {
+        "group": "sunday",
+        "name": "Demo Sunday Table",
+        "games": 4,
+        "draws": 1,
+        "rows": [
+          {
+            "kind": "player",
+            "user": "cleo",
+            "name": "Cleo",
+            "games": 4,
+            "wins": 1,
+            "winRatePercent": 25
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-0",
+            "name": "Graveyard Shift",
+            "games": 1,
+            "wins": 1,
+            "winRatePercent": 100
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-1",
+            "name": "Sea Stories",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-2",
+            "name": "Avacyn and the back-side Purifier illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "dara",
+            "name": "Dara",
+            "games": 4,
+            "wins": 2,
+            "winRatePercent": 50
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-0",
+            "name": "Sunlit Tokens",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-1",
+            "name": "Old Artifacts",
+            "games": 3,
+            "wins": 2,
+            "winRatePercent": 66.67
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-2",
+            "name": "Dragon Engine — a different illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "emil",
+            "name": "Emil",
+            "games": 4,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-0",
+            "name": "Wild Lands",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-1",
+            "name": "Spirit Parade",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-2",
+            "name": "Zndrsplt: reversible printing, same Oracle identity",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "faye",
+            "name": "Faye",
+            "games": 4,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "faye",
+            "deck": "faye-0",
+            "name": "Night Court",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "faye",
+            "deck": "faye-1",
+            "name": "Spore Garden",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "faye",
+            "deck": "faye-2",
+            "name": "Friends forever across all five colors",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          }
+        ],
+        "startPositions": [
+          {
+            "playerCount": 4,
+            "seats": [
+              {
+                "startPosition": 1,
+                "games": 4,
+                "wins": 1,
+                "winRatePercent": 25
+              },
+              {
+                "startPosition": 2,
+                "games": 4,
+                "wins": 0,
+                "winRatePercent": 0
+              },
+              {
+                "startPosition": 3,
+                "games": 4,
+                "wins": 0,
+                "winRatePercent": 0
+              },
+              {
+                "startPosition": 4,
+                "games": 4,
+                "wins": 2,
+                "winRatePercent": 50
+              }
+            ]
+          }
+        ],
+        "manaColors": [
+          {
+            "color": "R",
+            "games": 5,
+            "wins": 2,
+            "winRatePercent": 40
+          },
+          {
+            "color": "B",
+            "games": 8,
+            "wins": 3,
+            "winRatePercent": 37.5
+          },
+          {
+            "color": "W",
+            "games": 8,
+            "wins": 2,
+            "winRatePercent": 25
+          },
+          {
+            "color": "U",
+            "games": 9,
+            "wins": 2,
+            "winRatePercent": 22.22
+          },
+          {
+            "color": "G",
+            "games": 6,
+            "wins": 1,
+            "winRatePercent": 16.67
+          },
+          {
+            "color": "C",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          }
+        ]
+      }
+    ],
+    "5": [
+      {
+        "group": "friday",
+        "name": "Demo Friday Table",
+        "games": 4,
+        "draws": 1,
+        "rows": [
+          {
+            "kind": "player",
+            "user": "ada",
+            "name": "Ada",
+            "games": 4,
+            "wins": 1,
+            "winRatePercent": 25
+          },
+          {
+            "kind": "deck",
+            "user": "ada",
+            "deck": "ada-0",
+            "name": "Dragon Engine",
+            "games": 1,
+            "wins": 1,
+            "winRatePercent": 100
+          },
+          {
+            "kind": "deck",
+            "user": "ada",
+            "deck": "ada-1",
+            "name": "Patient Constructs",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "ada",
+            "deck": "ada-2",
+            "name": "A very long expedition name for Pir and Toothy beyond the edge of the map",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "bruno",
+            "name": "Bruno",
+            "games": 4,
+            "wins": 2,
+            "winRatePercent": 50
+          },
+          {
+            "kind": "deck",
+            "user": "bruno",
+            "deck": "bruno-0",
+            "name": "Goblin Workshop",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "bruno",
+            "deck": "bruno-1",
+            "name": "Forest Council",
+            "games": 3,
+            "wins": 2,
+            "winRatePercent": 66.67
+          },
+          {
+            "kind": "deck",
+            "user": "bruno",
+            "deck": "bruno-2",
+            "name": "The Prismatic Bridge on the other side of Esika",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "cleo",
+            "name": "Cleo",
+            "games": 4,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-0",
+            "name": "Graveyard Shift",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-1",
+            "name": "Sea Stories",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-2",
+            "name": "Avacyn and the back-side Purifier illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "dara",
+            "name": "Dara",
+            "games": 4,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-0",
+            "name": "Sunlit Tokens",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-1",
+            "name": "Old Artifacts",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-2",
+            "name": "Dragon Engine — a different illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "emil",
+            "name": "Emil",
+            "games": 4,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-0",
+            "name": "Wild Lands",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-1",
+            "name": "Spirit Parade",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-2",
+            "name": "Zndrsplt: reversible printing, same Oracle identity",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "gideon",
+            "name": "Gideon",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "gideon",
+            "deck": "gideon-0",
+            "name": "Dragon Encore",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "gideon",
+            "deck": "gideon-1",
+            "name": "Cloud Fleet",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "gideon",
+            "deck": "gideon-2",
+            "name": "Goblin Encore",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          }
+        ],
+        "startPositions": [
+          {
+            "playerCount": 5,
+            "seats": [
+              {
+                "startPosition": 1,
+                "games": 4,
+                "wins": 0,
+                "winRatePercent": 0
+              },
+              {
+                "startPosition": 2,
+                "games": 4,
+                "wins": 0,
+                "winRatePercent": 0
+              },
+              {
+                "startPosition": 3,
+                "games": 4,
+                "wins": 0,
+                "winRatePercent": 0
+              },
+              {
+                "startPosition": 4,
+                "games": 4,
+                "wins": 1,
+                "winRatePercent": 25
+              },
+              {
+                "startPosition": 5,
+                "games": 4,
+                "wins": 2,
+                "winRatePercent": 50
+              }
+            ]
+          }
+        ],
+        "manaColors": [
+          {
+            "color": "G",
+            "games": 7,
+            "wins": 3,
+            "winRatePercent": 42.86
+          },
+          {
+            "color": "B",
+            "games": 5,
+            "wins": 1,
+            "winRatePercent": 20
+          },
+          {
+            "color": "R",
+            "games": 6,
+            "wins": 1,
+            "winRatePercent": 16.67
+          },
+          {
+            "color": "W",
+            "games": 8,
+            "wins": 1,
+            "winRatePercent": 12.5
+          },
+          {
+            "color": "U",
+            "games": 10,
+            "wins": 1,
+            "winRatePercent": 10
+          },
+          {
+            "color": "C",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          }
+        ]
+      },
+      {
+        "group": "sunday",
+        "name": "Demo Sunday Table",
+        "games": 0,
+        "draws": 0,
+        "rows": [
+          {
+            "kind": "player",
+            "user": "cleo",
+            "name": "Cleo",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-0",
+            "name": "Graveyard Shift",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-1",
+            "name": "Sea Stories",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-2",
+            "name": "Avacyn and the back-side Purifier illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "dara",
+            "name": "Dara",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-0",
+            "name": "Sunlit Tokens",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-1",
+            "name": "Old Artifacts",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-2",
+            "name": "Dragon Engine — a different illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "emil",
+            "name": "Emil",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-0",
+            "name": "Wild Lands",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-1",
+            "name": "Spirit Parade",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-2",
+            "name": "Zndrsplt: reversible printing, same Oracle identity",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "faye",
+            "name": "Faye",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "faye",
+            "deck": "faye-0",
+            "name": "Night Court",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "faye",
+            "deck": "faye-1",
+            "name": "Spore Garden",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "faye",
+            "deck": "faye-2",
+            "name": "Friends forever across all five colors",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          }
+        ],
+        "startPositions": [
+          {
+            "playerCount": 5,
+            "seats": [
+              {
+                "startPosition": 1,
+                "games": 0,
+                "wins": 0,
+                "winRatePercent": null
+              },
+              {
+                "startPosition": 2,
+                "games": 0,
+                "wins": 0,
+                "winRatePercent": null
+              },
+              {
+                "startPosition": 3,
+                "games": 0,
+                "wins": 0,
+                "winRatePercent": null
+              },
+              {
+                "startPosition": 4,
+                "games": 0,
+                "wins": 0,
+                "winRatePercent": null
+              },
+              {
+                "startPosition": 5,
+                "games": 0,
+                "wins": 0,
+                "winRatePercent": null
+              }
+            ]
+          }
+        ],
+        "manaColors": [
+          {
+            "color": "W",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "color": "U",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "color": "B",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "color": "R",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "color": "G",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "color": "C",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          }
+        ]
+      }
+    ],
+    "6": [
+      {
+        "group": "friday",
+        "name": "Demo Friday Table",
+        "games": 4,
+        "draws": 1,
+        "rows": [
+          {
+            "kind": "player",
+            "user": "ada",
+            "name": "Ada",
+            "games": 4,
+            "wins": 1,
+            "winRatePercent": 25
+          },
+          {
+            "kind": "deck",
+            "user": "ada",
+            "deck": "ada-0",
+            "name": "Dragon Engine",
+            "games": 1,
+            "wins": 1,
+            "winRatePercent": 100
+          },
+          {
+            "kind": "deck",
+            "user": "ada",
+            "deck": "ada-1",
+            "name": "Patient Constructs",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "ada",
+            "deck": "ada-2",
+            "name": "A very long expedition name for Pir and Toothy beyond the edge of the map",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "bruno",
+            "name": "Bruno",
+            "games": 4,
+            "wins": 2,
+            "winRatePercent": 50
+          },
+          {
+            "kind": "deck",
+            "user": "bruno",
+            "deck": "bruno-0",
+            "name": "Goblin Workshop",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "bruno",
+            "deck": "bruno-1",
+            "name": "Forest Council",
+            "games": 3,
+            "wins": 2,
+            "winRatePercent": 66.67
+          },
+          {
+            "kind": "deck",
+            "user": "bruno",
+            "deck": "bruno-2",
+            "name": "The Prismatic Bridge on the other side of Esika",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "cleo",
+            "name": "Cleo",
+            "games": 4,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-0",
+            "name": "Graveyard Shift",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-1",
+            "name": "Sea Stories",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-2",
+            "name": "Avacyn and the back-side Purifier illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "dara",
+            "name": "Dara",
+            "games": 4,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-0",
+            "name": "Sunlit Tokens",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-1",
+            "name": "Old Artifacts",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-2",
+            "name": "Dragon Engine — a different illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "emil",
+            "name": "Emil",
+            "games": 4,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-0",
+            "name": "Wild Lands",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-1",
+            "name": "Spirit Parade",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-2",
+            "name": "Zndrsplt: reversible printing, same Oracle identity",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "gideon",
+            "name": "Gideon",
+            "games": 4,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "gideon",
+            "deck": "gideon-0",
+            "name": "Dragon Encore",
+            "games": 1,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "gideon",
+            "deck": "gideon-1",
+            "name": "Cloud Fleet",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          },
+          {
+            "kind": "deck",
+            "user": "gideon",
+            "deck": "gideon-2",
+            "name": "Goblin Encore",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          }
+        ],
+        "startPositions": [
+          {
+            "playerCount": 6,
+            "seats": [
+              {
+                "startPosition": 1,
+                "games": 4,
+                "wins": 0,
+                "winRatePercent": 0
+              },
+              {
+                "startPosition": 2,
+                "games": 4,
+                "wins": 0,
+                "winRatePercent": 0
+              },
+              {
+                "startPosition": 3,
+                "games": 4,
+                "wins": 0,
+                "winRatePercent": 0
+              },
+              {
+                "startPosition": 4,
+                "games": 4,
+                "wins": 1,
+                "winRatePercent": 25
+              },
+              {
+                "startPosition": 5,
+                "games": 4,
+                "wins": 1,
+                "winRatePercent": 25
+              },
+              {
+                "startPosition": 6,
+                "games": 4,
+                "wins": 1,
+                "winRatePercent": 25
+              }
+            ]
+          }
+        ],
+        "manaColors": [
+          {
+            "color": "G",
+            "games": 8,
+            "wins": 3,
+            "winRatePercent": 37.5
+          },
+          {
+            "color": "B",
+            "games": 6,
+            "wins": 1,
+            "winRatePercent": 16.67
+          },
+          {
+            "color": "R",
+            "games": 7,
+            "wins": 1,
+            "winRatePercent": 14.29
+          },
+          {
+            "color": "W",
+            "games": 9,
+            "wins": 1,
+            "winRatePercent": 11.11
+          },
+          {
+            "color": "U",
+            "games": 14,
+            "wins": 1,
+            "winRatePercent": 7.14
+          },
+          {
+            "color": "C",
+            "games": 3,
+            "wins": 0,
+            "winRatePercent": 0
+          }
+        ]
+      },
+      {
+        "group": "sunday",
+        "name": "Demo Sunday Table",
+        "games": 0,
+        "draws": 0,
+        "rows": [
+          {
+            "kind": "player",
+            "user": "cleo",
+            "name": "Cleo",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-0",
+            "name": "Graveyard Shift",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-1",
+            "name": "Sea Stories",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "cleo",
+            "deck": "cleo-2",
+            "name": "Avacyn and the back-side Purifier illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "dara",
+            "name": "Dara",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-0",
+            "name": "Sunlit Tokens",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-1",
+            "name": "Old Artifacts",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "dara",
+            "deck": "dara-2",
+            "name": "Dragon Engine — a different illustration",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "emil",
+            "name": "Emil",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-0",
+            "name": "Wild Lands",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-1",
+            "name": "Spirit Parade",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "emil",
+            "deck": "emil-2",
+            "name": "Zndrsplt: reversible printing, same Oracle identity",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "player",
+            "user": "faye",
+            "name": "Faye",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "faye",
+            "deck": "faye-0",
+            "name": "Night Court",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "faye",
+            "deck": "faye-1",
+            "name": "Spore Garden",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "kind": "deck",
+            "user": "faye",
+            "deck": "faye-2",
+            "name": "Friends forever across all five colors",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          }
+        ],
+        "startPositions": [
+          {
+            "playerCount": 6,
+            "seats": [
+              {
+                "startPosition": 1,
+                "games": 0,
+                "wins": 0,
+                "winRatePercent": null
+              },
+              {
+                "startPosition": 2,
+                "games": 0,
+                "wins": 0,
+                "winRatePercent": null
+              },
+              {
+                "startPosition": 3,
+                "games": 0,
+                "wins": 0,
+                "winRatePercent": null
+              },
+              {
+                "startPosition": 4,
+                "games": 0,
+                "wins": 0,
+                "winRatePercent": null
+              },
+              {
+                "startPosition": 5,
+                "games": 0,
+                "wins": 0,
+                "winRatePercent": null
+              },
+              {
+                "startPosition": 6,
+                "games": 0,
+                "wins": 0,
+                "winRatePercent": null
+              }
+            ]
+          }
+        ],
+        "manaColors": [
+          {
+            "color": "W",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "color": "U",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "color": "B",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "color": "R",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "color": "G",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          },
+          {
+            "color": "C",
+            "games": 0,
+            "wins": 0,
+            "winRatePercent": null
+          }
+        ]
+      }
+    ]
+  }
 }

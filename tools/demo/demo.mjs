@@ -197,7 +197,7 @@ export async function main(args) {
         await seed(base, cfg.accountPassword);
       });
       writeFileSync(marker, JSON.stringify({status: 'complete'}), {mode: 0o600});
-      console.log('Demo verified offline: 6 accounts, 2 groups, 12 played + 6 unused decks, 36 games. Login: ada@commander.example; password is accountPassword in .demo/credentials.json. Expected results: tools/demo/expected-results.json.');
+      console.log('Demo verified offline: 7 accounts, 2 groups, 14 played + 7 unused decks, 32 games. Login: ada@commander.example; password is accountPassword in .demo/credentials.json. Expected results: tools/demo/expected-results.json.');
     }
   } finally { unlinkSync(lock); }
 }
