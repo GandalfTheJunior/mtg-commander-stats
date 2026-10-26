@@ -203,6 +203,13 @@ start_postgres() {
 }
 start_postgres
 
+# Optional one-time demo data in a genuinely empty Codespace DB. A failure does
+# not erase data or auto-retry; private status remains available for diagnostics.
+if [[ "${MTG_CODESPACE_DEMO_DATA:-}" == "1" ]]; then
+  report "Demo-Testdaten werden geprüft"
+  node "$repo_root/.devcontainer/seed-demo.mjs"
+fi
+
 report "Spring Boot wird gestartet (Maven lädt beim ersten Mal Abhängigkeiten)"
 if ! curl --silent --fail --max-time 2 http://127.0.0.1:8080/api/csrf >/dev/null; then
   start_service backend bash -c 'cd "$1/backend"; exec ./mvnw spring-boot:run' bash "$repo_root"
