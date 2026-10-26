@@ -65,7 +65,8 @@ function safeRun(program, args, options = {}) {
   try {
     return execFileSync(program, args, {
       cwd: options.cwd ?? root, encoding: options.encoding === undefined ? 'utf8' : options.encoding,
-      maxBuffer, stdio: ['ignore', 'pipe', 'pipe'], input: options.input, env: options.env ?? process.env,
+      maxBuffer, stdio: [options.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
+      input: options.input, env: options.env ?? process.env,
     });
   } catch {
     // Never print database credentials, SQL results, cookies, or arbitrary child output.
