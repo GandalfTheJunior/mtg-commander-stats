@@ -30,5 +30,8 @@
       "onAutoForward": "ignore"
     }
   },
-  "postStartCommand": "bash .devcontainer/start.sh"
+  "postStartCommand": "bash .devcontainer/start.sh",
+  "containerEnv": {
+    "MTG_CODESPACE_DEMO_DATA": "1"
+  }
 }
