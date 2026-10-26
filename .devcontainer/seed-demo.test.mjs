@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {decideSeed, verifyTarget, verifySource, SeedError} from './seed-demo.mjs';
+import {decideSeed, verifyTarget, verifySource, decideRecovery, restorationSql, SeedError} from './seed-demo.mjs';
 
 const root = '/work/mtg';
 const id = 'a'.repeat(64);
@@ -64,4 +64,22 @@ test('Codespaces initializes app schema before importing any demo records', () =
   const flywayReady = script.indexOf('wait_service backend http://127.0.0.1:8080/api/csrf 120');
   const demoRun = script.indexOf('node "$repo_root/.devcontainer/seed-demo.mjs"');
   assert.ok(flywayReady !== -1 && demoRun > flywayReady);
+});
+
+test('explicit recovery checks interrupted marker, source verification and target emptiness', () => {
+  const empty = [{name: 'users', count: 0}, {name: 'decks', count: 0}];
+  assert.equal(decideRecovery('started', empty, 'complete'), 'recover');
+  assert.throws(() => decideRecovery(null, empty, 'complete'), SeedError);
+  assert.throws(() => decideRecovery('started', [{name:'users',count:1}], 'complete'), SeedError);
+  assert.throws(() => decideRecovery('started', empty, 'started'), SeedError);
+});
+test('restore SQL locks tables and restores public search path before constraints', () => {
+  const script = restorationSql('SELECT 1;', ['users', 'decks', 'play_groups']);
+  assert.ok(script.startsWith('BEGIN;'));
+  assert.ok(script.includes('LOCK TABLE public."users", public."decks", public."play_groups" IN ACCESS EXCLUSIVE MODE;'));
+  assert.ok(script.includes('EXISTS (SELECT 1 FROM public."decks")'));
+  assert.ok(script.indexOf('SET search_path TO public;') > script.indexOf('SELECT 1;'));
+  assert.ok(script.indexOf('SET search_path TO public;') < script.indexOf('SET CONSTRAINTS ALL IMMEDIATE;'));
+  assert.ok(script.endsWith('COMMIT;\n'));
+  assert.throws(() => restorationSql('', ['users']), SeedError);
 });
