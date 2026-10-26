@@ -38,36 +38,97 @@ trap 'on_error $LINENO' ERR
 trap 'startup_exit=$?; printf "[%s] startup finished: exit=%s phase=%s\n" "$(date -Is)" "$startup_exit" "$phase"' EXIT
 command -v node npm nohup setsid
 node --version
+cd "$repo_root"
+
+# Kernel-backed ownership, scoped to this user, repository and service. The log
+# descriptor also identifies still-running services from before service locks.
+service_process_matches() {
+  local name="$1" pid="$2" cwd="$repo_root"
+  [[ "$pid" =~ ^[1-9][0-9]*$ ]] && [[ "$pid" -gt 1 ]] || return 1
+  [[ "$pid" != "$$" ]] || return 1
+  [[ -O "/proc/$pid" ]] || return 1
+  [[ "/proc/$pid/fd/8" -ef "$state_dir/$name.lock" ||
+     "/proc/$pid/fd/1" -ef "$state_dir/$name.log" ]] || return 1
+  case "$name" in
+    frontend|backend) cwd="$repo_root/$name" ;;
+  esac
+  # The launch shell starts in repo_root before exec/cd into a service directory.
+  [[ "/proc/$pid/cwd" -ef "$repo_root" || "/proc/$pid/cwd" -ef "$cwd" ]]
+}
+
+service_pid_is_valid() {
+  local name="$1" pid="$2" status status_pattern='^[RSDI][<NLsl+]*$'
+  service_process_matches "$name" "$pid" || return 1
+  status="$(ps -o stat= -p "$pid" 2>/dev/null)" || return 1
+  status="${status//[[:space:]]/}"
+  [[ "$status" =~ $status_pattern ]]
+}
+
+launched_name=""
+launched_pid=""
 
 # nohup ignores HUP, but does not leave the lifecycle process group/session.
 # setsid also isolates the servers from signals sent to that group. With job
-# control off, $! stays the service PID. All standard streams and the lock close.
+# control off, $! stays the service PID. FD 9 (startup lock) closes in children;
+# FD 8 (service lock) stays open for their lifetime. Never unlink lock files.
 start_service() {
-  local name="$1" pid
+  local name="$1" pid candidate proc
   shift
   pid="$(cat "$state_dir/$name.pid" 2>/dev/null || true)"
-  if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null &&
-     [[ "$(ps -o stat= -p "$pid")" != *Z* ]]; then
+  if service_pid_is_valid "$name" "$pid"; then
     echo "$name: reusing running pid=$pid"
     return
+  fi
+  exec 8> "$state_dir/$name.lock"
+  if ! flock -n 8; then
+    exec 8>&-
+    echo "$name: service lock held; waiting for HTTP without trusting saved pid=$pid"
+    return
+  fi
+  # A legacy launch may lack the lifetime lock or its PID record. Its open files
+  # still prevent a duplicate launch. Do not guess which process is its leader.
+  for proc in /proc/[0-9]*; do
+    candidate="${proc##*/}"
+    if service_process_matches "$name" "$candidate"; then
+      echo "$name: matching service process found; saved PID is unverifiable; waiting for HTTP only"
+      exec 8>&-
+      return
+    fi
+  done
+  if [[ -s "$state_dir/$name.pid" ]]; then
+    echo "$name: ignoring unverifiable/stale pid=$pid; no signal sent"
+    mv "$state_dir/$name.pid" "$state_dir/$name.pid.stale"
   fi
   printf '[%s] launching %s\n' "$(date -Is)" "$name" >> "$state_dir/$name.log"
   nohup setsid "$@" >> "$state_dir/$name.log" 2>&1 < /dev/null 9>&- &
   pid=$!
   printf '%s\n' "$pid" > "$state_dir/$name.pid"
+  launched_name="$name"
+  launched_pid="$pid"
+  exec 8>&-
   echo "$name: launched pid=$pid"
 }
 
 wait_service() {
   local name="$1" url="$2" attempts="$3" pid code
   pid="$(cat "$state_dir/$name.pid" 2>/dev/null || true)"
+  if [[ "$launched_name" == "$name" ]]; then
+    pid="$launched_pid"
+  elif ! service_pid_is_valid "$name" "$pid"; then
+    pid=""
+  fi
   for ((attempt=0; attempt<attempts; attempt++)); do
     if curl --silent --fail --max-time 2 "$url" >/dev/null; then
       return 0
     fi
-    if [[ "$pid" =~ ^[0-9]+$ ]] && ! kill -0 "$pid" 2>/dev/null; then
+    if [[ -n "$pid" ]] && ! service_pid_is_valid "$name" "$pid"; then
       code=0
-      wait "$pid" || code=$?
+      if [[ "$launched_name" == "$name" ]] && ! kill -0 "$pid" 2>/dev/null; then
+        wait "$pid" || code=$?
+      else
+        echo "$name: process identity/status is no longer verifiable; no signal or restart attempted"
+        return 1
+      fi
       # 127 means a previous invocation owned the PID; no exit status available.
       echo "$name: pid=$pid exited before readiness; wait_exit=$code (127=not our child); log=$state_dir/$name.log"
       return 1
@@ -126,7 +187,6 @@ if ! docker info >/dev/null 2>&1; then
   report "Docker nicht bereit. Frontend und Statusseite bleiben erreichbar."
   exit 1
 fi
-cd "$repo_root"
 start_postgres() {
   local code
   if docker compose up -d --wait --wait-timeout 120 postgres; then

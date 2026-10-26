@@ -5,6 +5,7 @@ import copy
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import tempfile
 import time
@@ -150,6 +151,32 @@ class StartupTest(unittest.TestCase):
     def pids(self):
         return {p.stem: int(p.read_text()) for p in self.state.glob("*.pid")}
 
+    def own_fixture_process(self, args, **kwargs):
+        process = subprocess.Popen(args, start_new_session=True, **kwargs)
+
+        def cleanup():
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGTERM)
+            process.wait(timeout=5)
+
+        self.addCleanup(cleanup)
+        return process
+
+    def slow_backend(self):
+        self.script("bin/sleep", 'exec /bin/sleep 0.02')
+        self.script("backend/mvnw", 'echo launch >> "$TEST_ROOT/backend-launches"\n'
+                    'while [ ! -f "$TEST_ROOT/backend-release" ]; do /bin/sleep 0.05; done\n'
+                    'exec node "$TEST_REPO/server.mjs" 8080')
+
+    def ps_fixture(self, pid, code, output=""):
+        self.env["TEST_PS_TARGET"] = str(pid)
+        self.env["TEST_REAL_PS"] = shutil.which("ps")
+        self.env["TEST_PS_CODE"] = str(code)
+        self.env["TEST_PS_OUTPUT"] = output
+        self.script("bin/ps", 'if [[ "$*" = "-o stat= -p $TEST_PS_TARGET" ]]; then\n'
+                    '  printf "%s" "$TEST_PS_OUTPUT"\n  exit "$TEST_PS_CODE"\nfi\n'
+                    'exec "$TEST_REAL_PS" "$@"')
+
     def stop_services(self):
         for pid in self.pids().values():
             try:
@@ -183,6 +210,10 @@ class StartupTest(unittest.TestCase):
             self.assertEqual(os.getpgid(pid), pid)
             lock_fd = Path(f"/proc/{pid}/fd/9")
             self.assertFalse(lock_fd.exists() and lock_fd.samefile(self.state / "startup.lock"))
+        for name, pid in before.items():
+            self.assertTrue(Path(f"/proc/{pid}/fd/8").samefile(self.state / f"{name}.lock"))
+            lock_check = subprocess.run(["flock", "-n", str(self.state / f"{name}.lock"), "true"])
+            self.assertEqual(lock_check.returncode, 1)
         self.stop_services()  # Leave stale PID files, like a container restart.
         self.result(self.start())
         self.assertTrue(all(self.pids()[name] != pid for name, pid in before.items()))
@@ -244,6 +275,114 @@ class StartupTest(unittest.TestCase):
         (self.root / "backend-release").touch()
         self.result(retry)
         self.assertEqual(self.pids(), before)
+
+    def test_kill_zero_with_empty_or_failed_ps_replaces_all_three_stale_pids(self):
+        foreign = self.own_fixture_process(["sleep", "120"], cwd=self.repo,
+                                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for ps_exit in (0, 1):
+            with self.subTest(ps_exit=ps_exit):
+                self.ps_fixture(foreign.pid, ps_exit)
+                os.kill(foreign.pid, 0)  # Exactly the misleading liveness evidence.
+                for name in ("status-server", "frontend", "backend"):
+                    (self.state / f"{name}.pid").write_text(str(foreign.pid))
+                output = self.result(self.start())
+                self.assertIsNone(foreign.poll())
+                for name, pid in self.pids().items():
+                    self.assertNotEqual(pid, foreign.pid)
+                    self.assertIn(f"{name}: ignoring unverifiable/stale pid={foreign.pid}", output)
+                    self.assertEqual((self.state / f"{name}.pid.stale").read_text(), str(foreign.pid))
+                self.stop_services()
+
+    def test_foreign_live_pid_with_valid_ps_is_not_reused_or_signalled(self):
+        foreign = self.own_fixture_process(["sleep", "120"], cwd=self.repo,
+                                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for name in ("status-server", "frontend", "backend"):
+            (self.state / f"{name}.pid").write_text(str(foreign.pid))
+        output = self.result(self.start())
+        self.assertIsNone(foreign.poll())
+        self.assertTrue(all(pid != foreign.pid for pid in self.pids().values()))
+        self.assertNotIn(f"reusing running pid={foreign.pid}", output)
+
+    def test_another_service_pid_is_not_reused_as_backend(self):
+        self.result(self.start())
+        before = self.pids()
+        os.killpg(before["backend"], signal.SIGTERM)
+        eventually(lambda: not responds(8080))
+        (self.state / "backend.pid").write_text(str(before["status-server"]))
+        self.result(self.start())
+        after = self.pids()
+        self.assertEqual(after["status-server"], before["status-server"])
+        self.assertEqual(after["frontend"], before["frontend"])
+        self.assertNotIn(after["backend"], before.values())
+
+    def test_warming_backend_lock_prevents_duplicates_with_corrupt_pid(self):
+        self.slow_backend()
+        self.result(self.start(), 1)
+        backend = self.pids()["backend"]
+        foreign = self.own_fixture_process(["sleep", "120"], cwd=self.repo,
+                                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        (self.state / "backend.pid").write_text(str(foreign.pid))
+        # A permanently unready owned service stays bounded; do not launch over it.
+        output = self.result(self.start(), 1)
+        self.assertIn("backend: service lock held; waiting for HTTP", output)
+        self.assertIn("readiness timed out; pid=", output)
+        retry = self.start()
+        eventually(lambda: (self.state / "startup.log").read_text().count("backend: service lock held") == 2)
+        (self.root / "backend-release").touch()
+        output = self.result(retry)
+        self.assertNotIn(f"reusing running pid={foreign.pid}", output)
+        self.assertEqual((self.root / "backend-launches").read_text(), "launch\n")
+        self.assertIsNone(foreign.poll())
+        os.kill(backend, 0)
+        (self.state / "backend.pid").write_text(str(backend))  # Restore fixture cleanup record.
+
+    def test_legacy_warming_backend_without_pid_is_not_duplicated(self):
+        self.slow_backend()
+        with (self.state / "backend.log").open("ab") as log:
+            backend = self.own_fixture_process(["bash", "./mvnw"], cwd=self.repo / "backend",
+                                               env=self.env, stdout=log, stderr=log)
+        eventually(lambda: (self.root / "backend-launches").exists())
+        retry = self.start()  # No PID file and no lifetime lock from the legacy process.
+        eventually(lambda: (self.state / "startup.log").exists() and
+                   "backend: matching service process found" in (self.state / "startup.log").read_text())
+        (self.root / "backend-release").touch()
+        self.result(retry)
+        self.assertNotIn("backend", self.pids())
+        self.assertIsNone(backend.poll())
+        self.assertEqual((self.root / "backend-launches").read_text(), "launch\n")
+        (self.state / "backend.pid").write_text(str(backend.pid))  # Fixture cleanup only.
+
+    def check_owned_process_with_unverifiable_ps(self, code, status):
+        self.slow_backend()
+        with (self.state / "backend.log").open("ab") as log:
+            backend = self.own_fixture_process(["bash", "./mvnw"], cwd=self.repo / "backend",
+                                               env=self.env, stdout=log, stderr=log)
+        eventually(lambda: (self.root / "backend-launches").exists())
+        (self.state / "backend.pid").write_text(str(backend.pid))
+        self.ps_fixture(backend.pid, code, status)
+        retry = self.start()
+        eventually(lambda: (self.state / "startup.log").exists() and
+                   "matching service process found" in (self.state / "startup.log").read_text())
+        (self.root / "backend-release").touch()
+        output = self.result(retry)
+        self.assertNotIn(f"reusing running pid={backend.pid}", output)
+        self.assertEqual((self.root / "backend-launches").read_text(), "launch\n")
+        self.assertIsNone(backend.poll())
+
+    def test_empty_successful_ps_does_not_verify_an_owned_pid(self):
+        self.check_owned_process_with_unverifiable_ps(0, "")
+
+    def test_failed_ps_with_status_text_does_not_verify_an_owned_pid(self):
+        self.check_owned_process_with_unverifiable_ps(1, "Sl")
+
+    def test_foreign_repository_process_with_matching_log_is_not_reused(self):
+        with (self.state / "backend.log").open("ab") as log:
+            foreign = self.own_fixture_process(["sleep", "120"], cwd=self.root,
+                                               stdout=log, stderr=log)
+        (self.state / "backend.pid").write_text(str(foreign.pid))
+        self.result(self.start())
+        self.assertNotEqual(self.pids()["backend"], foreign.pid)
+        self.assertIsNone(foreign.poll())
 
     def test_lifecycle_group_signals_do_not_stop_services(self):
         (self.root / "hold").touch()

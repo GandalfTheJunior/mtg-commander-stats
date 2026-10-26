@@ -76,6 +76,19 @@ branches can use the configuration on `main` when their branch contains it.
   Starts are serialized and reuse running services, including a backend that is
   still warming up. Each server runs in its own session/process group using
   `nohup setsid`, with redirected standard streams and no inherited startup lock.
+  Each new service inherits its own lifetime lock on FD 8; FD 9 is the separate
+  startup lock and is closed in services. Never delete the lock files while
+  services are running: the locks belong to their kernel file objects.
+  A saved PID is reused only after a successful `ps` with a nonempty live status,
+  matching user/repository working directory, and an open service-specific lock
+  or log descriptor in `/proc`. `kill -0` and “not a zombie” alone are insufficient.
+  Unverifiable/stale/foreign records are archived as `*.pid.stale` before a new
+  launch; no tracked PID is terminated by startup. If a lifetime lock is held,
+  or matching service file descriptors identify an older launch whose PID record
+  is missing/unverifiable, startup waits for HTTP only instead of launching a
+  duplicate or guessing a leader PID. It does not restart a service on readiness
+  timeout. Readiness attempts remain bounded; restricted `/proc`/process visibility
+  can therefore leave a diagnostic failure rather than trigger duplicate servers.
   `nohup` alone ignores hangup signals but does not detach the process group.
   `startup.log` appends invocation context (user, working directory, terminal
   availability, executable paths and Node version), service PIDs, startup phase,
@@ -113,7 +126,11 @@ and repository directories (including spaces). npm, Docker and Maven are replace
 by fixtures; frontend/backend responses come from real Node HTTP processes.
 They cover first-install flow, repeated/concurrent starts, stale PID files after
 stopping services, lifecycle-group signals, DB failure isolation and early child
-exit diagnostics. Recovery tests cover one successful retry, final retry failure,
+exit diagnostics. PID tests cover positive `kill -0` with empty/failed `ps`, live
+foreign/cross-service PIDs, a foreign repository with the same log descriptor,
+verified reuse before readiness, corrupt/missing PID records while a service is
+warming, lifetime-lock inheritance, and a bounded failure without duplicate
+launches. Recovery tests cover one successful retry, final retry failure,
 removal failure, refusal without mutation for unrelated/unsafe Docker metadata,
 and correct final exit logging. Docker metadata/errors are fixtures; these tests
 alone do not prove PostgreSQL data preservation or reproduce stale runc state.
