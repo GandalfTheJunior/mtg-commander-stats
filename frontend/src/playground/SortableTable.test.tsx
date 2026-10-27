@@ -90,7 +90,7 @@ test('scroll preserves capture and overlay alignment; unmount cancels the edge l
 test('valid insertion commits immediately but keeps one whole overlay until the measured landing finishes', () => {
   const effects: { cancel: ReturnType<typeof vi.fn>; onfinish: (() => void) | null }[] = []
   Object.defineProperty(Element.prototype, 'animate', { configurable: true, value: vi.fn(() => {
-    const effect = { cancel: vi.fn(), onfinish: null }; effects.push(effect); return effect
+    const effect = { cancel: vi.fn(), pause: vi.fn(), onfinish: null }; effects.push(effect); return effect
   }) })
   const { container } = render(<Demo />)
   const grip = start()
@@ -110,7 +110,7 @@ test('valid insertion commits immediately but keeps one whole overlay until the 
 test.each(['resize', 'hidden', 'unmount', 'keyboard', 'new drag'])('settling interruption by %s cleans all effects and retains committed insertion', mode => {
   const effects: { cancel: ReturnType<typeof vi.fn>; onfinish: (() => void) | null }[] = []
   Object.defineProperty(Element.prototype, 'animate', { configurable: true, value: vi.fn(() => {
-    const effect = { cancel: vi.fn(), onfinish: null }; effects.push(effect); return effect
+    const effect = { cancel: vi.fn(), pause: vi.fn(), onfinish: null }; effects.push(effect); return effect
   }) })
   const { container, unmount } = render(<Demo />)
   const grip = start()
@@ -145,7 +145,7 @@ test('reduced motion commits insertion without a spatial landing effect', () => 
 test('a live reduced-motion change ends the landing without reverting committed order', () => {
   const effects: { cancel: ReturnType<typeof vi.fn>; onfinish: (() => void) | null }[] = []
   Object.defineProperty(Element.prototype, 'animate', { configurable: true, value: vi.fn(() => {
-    const effect = { cancel: vi.fn(), onfinish: null }; effects.push(effect); return effect
+    const effect = { cancel: vi.fn(), pause: vi.fn(), onfinish: null }; effects.push(effect); return effect
   }) })
   const { container, rerender } = render(<Demo />)
   const grip = start()
@@ -163,7 +163,7 @@ test('a live reduced-motion change ends the landing without reverting committed 
 test('release freezes the last rendered overlay instead of applying new pointer-up coordinates', () => {
   const effects: { cancel: ReturnType<typeof vi.fn>; onfinish: (() => void) | null }[] = []
   Object.defineProperty(Element.prototype, 'animate', { configurable: true, value: vi.fn(() => {
-    const e = { cancel: vi.fn(), onfinish: null }; effects.push(e); return e
+    const e = { cancel: vi.fn(), pause: vi.fn(), onfinish: null }; effects.push(e); return e
   }) })
   const { container } = render(<Demo />)
   const grip = start()
@@ -178,7 +178,7 @@ test('release freezes the last rendered overlay instead of applying new pointer-
 test('post-release scroll/toolbar movement retargets; stale pointer cancellation cannot end landing', () => {
   const effects: { cancel: ReturnType<typeof vi.fn>; onfinish: (() => void) | null }[] = []
   Object.defineProperty(Element.prototype, 'animate', { configurable: true, value: vi.fn(() => {
-    const e = { cancel: vi.fn(), onfinish: null }; effects.push(e); return e
+    const e = { cancel: vi.fn(), pause: vi.fn(), onfinish: null }; effects.push(e); return e
   }) })
   const { container } = render(<Demo />)
   const grip = start()

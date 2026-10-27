@@ -35,9 +35,12 @@ its code/assets. `/dev/theme.html` remains separate. Do not add either to build 
   The release pose is captured from the rendered CSS matrix before pointer-up
   coordinates update state. The filled animation endpoint remains until React
   reveals the real card; cancellation happens after that commit in a layout effect.
-  The temporary overlay requests transform compositing while mounted, including
-  partly offscreen edge-scroll releases. No new motion library is used; the
-  duration/easing remain 260ms/ease-out.
+  One temporary requestAnimationFrame clock supplies native animation currentTime
+  for the overlay and reflow together. It caps elapsed progress to 32ms per frame
+  so a WebKit/main-thread stall cannot consume the visible landing. Native WAAPI
+  still interpolates transforms/easing; the endpoint paints before React reveals
+  the card. The nominal duration/easing remain 260ms/ease-out, extending naturally
+  when frames stall. No new runtime motion library is used.
 - Scroll and height-only window/visual-viewport changes retarget the overlay from
   its current displayed matrix to the new measured slot, without revealing the
   card early. Keyed list reordering opts out of browser scroll anchoring. Drop-zone
@@ -227,8 +230,15 @@ transform reflow follows the principle in
 [Motion layout animations](https://motion.dev/docs/react-layout-animations).
 Repairing the existing lifecycle is smaller than replacing the accepted pointer
 sensor, live insertion and edge-scroll behavior. No runtime library was added.
-The measured 260ms ease-out now runs visibly through its endpoint; extending the
-duration would not fix the observed state/cleanup races.
+The nominal 260ms ease-out is driven by rendered frames, with a 32ms maximum
+progress step. Cold WebKit upward-edge captures repeatedly jumped from a release
+sample to +215ms, already near the wall-clock endpoint; observer changes and a
+compositing hint did not resolve this. The bounded clock preserves meaningful
+intermediate motion after such gaps, for the overlay and surrounding cards
+together. It pauses native WAAPI timelines and supplies currentTime without React
+updates or geometry reads per frame. Extending duration alone would not fix the
+state/cleanup races. The one clock exists only during landing and is retired on
+every finish/interruption/unmount path.
 
 ### Repeatable browser verification
 
@@ -242,7 +252,8 @@ npm run test:browser
 
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium` can use a locally installed
 Chromium. The dedicated CI job runs Chromium and WebKit with real browser layout,
-requestAnimationFrame and Web Animations; animations are neither paused nor mocked.
+requestAnimationFrame and Web Animations. The test harness does not pause, seek
+or mock them; it observes the production frame-driven clock.
 CI uses the matching official Playwright container with preinstalled browsers/OS
 libraries, avoiding the observed ~53-minute Ubuntu apt-mirror delay; the job has a
 10-minute bound. It uploads HTML reports, frame-position JSON, failure traces/screenshots and videos
@@ -252,7 +263,7 @@ Vitest and included in lint/typecheck. Existing frontend/backend checks still ap
 The suite checks upward/downward edge scrolling, unequal heights, exact release
 pose, surrounding-card continuity across DOM reorder and intermediate movement,
 unchanged insertion, stale pointer cancellation, scrolling during landing,
-rapid consecutive drags, outside/Escape rollback, native keyboard focus and
+rapid consecutive drags, an actual 180ms main-thread stall, outside/Escape rollback, native keyboard focus and
 reduced motion. Chromium additionally uses continuous native CDP touch input;
 WebKit runs the pointer/layout cases. Final-coordinate and stale-cancel scenarios
 synthesize only their terminal input; animation/layout remain native. This is not
@@ -285,9 +296,11 @@ Physical iPhone visual acceptance remains with the PO; do not merge this PR.
 - `npm run lint`, `npm run typecheck`, `npm run build`: passed. The existing
   production chunk-size advisory remains; production JS/CSS hashes are unchanged
   and no lounge/geometry/effect code is emitted.
-- `npm test`: 773 passed / 34 files.
+- Before the final clock refinement, `npm test`: 773 passed / 34 files.
+- Final focused `npm test -- src/playground`: 49 passed / 8 files, including
+  bounded progression after a 200ms frame gap and frame cancellation on retirement.
 - `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:browser -- --project=chromium`:
-  8 passed, with native unpaused layout/animation. Intermediate/finish samples
+  Chromium landing regressions passed with real layout/application animation. Intermediate/finish samples
   verify continuity and reveal; a deadline-based recorder supports consecutive
   releases without an earlier capture timer truncating later evidence. Observation
   stays inside the browser during landing. Removing repeated locator/trace DOM

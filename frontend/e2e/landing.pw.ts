@@ -211,3 +211,18 @@ test('outside drops and Escape roll back; native keyboard retains focus at the b
   await expect(page.getByRole('button', { name: 'orin nach unten' })).toBeFocused()
   await expect(page.locator('.table-cards h3')).toHaveText(['Mira', 'Orin', 'Lumi', 'Fenn'])
 })
+
+test('a stalled browser frame does not consume the visible landing', async ({ page }, info) => {
+  await page.setViewportSize({ width: 1280, height: 1500 })
+  const { x } = await begin(page, 'Mira'), r = (await page.locator('.table-cards').boundingBox())!
+  await page.mouse.move(x, r.y + r.height - 30)
+  await page.mouse.up()
+  // Reproduce the observed mobile rendering gap without changing animation
+  // timing in the harness. The application's clock must handle the real stall.
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => {
+    const end = performance.now() + 180
+    while (performance.now() < end) { /* Deliberate main-thread stall. */ }
+    resolve()
+  })))
+  await evidence(page, info, ['Orin', 'Lumi', 'Fenn', 'Mira'])
+})

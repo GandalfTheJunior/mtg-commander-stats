@@ -4,6 +4,7 @@ import { Button } from '@mui/material'
 
 import { players, insert } from './ordering'
 import { startEdgeScroll } from './edgeScroll'
+import { startLandingClock } from './landingClock'
 import { measureOverlay, withinDropZone } from './landingGeometry'
 import type { OverlayPose } from './landingGeometry'
 const gap = 12
@@ -24,8 +25,10 @@ export function SortableTable({ order, onChange, reduced }: { order: string[]; o
   const settlingRef = useRef<Settling | null>(null)
   const animations = useRef<Animation[]>([])
   const landing = useRef<Animation | null>(null)
-  const landingEnd = useRef(0)
+  const stopLandingClock = useRef<(() => void) | null>(null)
+  const landingTime = useRef({ elapsed: 0, start: 0, duration: settleOptions.duration, endpoint: null as Animation | null })
   const stopAnimations = useCallback(() => {
+    stopLandingClock.current?.(); stopLandingClock.current = null
     if (landing.current) { landing.current.onfinish = null; landing.current.cancel(); landing.current = null }
     for (const animation of animations.current) { animation.onfinish = null; animation.cancel() }
     animations.current = []
@@ -44,11 +47,15 @@ export function SortableTable({ order, onChange, reduced }: { order: string[]; o
     // of cancelling and revealing the real card at a different viewport position.
     node.style.transform = pose.transform
     if (landing.current) { landing.current.onfinish = null; landing.current.cancel() }
-    if (initial) landingEnd.current = performance.now() + settleOptions.duration
+    if (initial) landingTime.current.elapsed = 0
+    const time = landingTime.current
+    time.start = time.elapsed; time.duration = initial ? settleOptions.duration : Math.max(80, settleOptions.duration - time.elapsed)
+    time.endpoint = null
     const animation = node.animate([
       { transform: pose.transform },
       { transform: `translate(${target.left - pose.baseX}px, ${target.top - pose.baseY}px) rotate(0deg)` },
-    ], { ...settleOptions, duration: initial ? settleOptions.duration : Math.max(80, landingEnd.current - performance.now()) })
+    ], { ...settleOptions, duration: time.duration })
+    animation.pause(); animation.currentTime = 0
     landing.current = animation
     animation.onfinish = () => { if (settlingRef.current === pending) finishSettling() }
   }, [finishSettling])
@@ -67,11 +74,27 @@ export function SortableTable({ order, onChange, reduced }: { order: string[]; o
       const before = settling.before.get(id), after = node.getBoundingClientRect()
       if (!before) continue
       const x = before.left - after.left, y = before.top - after.top
-      if (Math.abs(x) + Math.abs(y) > .5) animations.current.push(node.animate([
-        { transform: `translate(${x}px, ${y}px)` }, { transform: 'translate(0px, 0px)' },
-      ], settleOptions))
+      if (Math.abs(x) + Math.abs(y) > .5) {
+        const animation = node.animate([
+          { transform: `translate(${x}px, ${y}px)` }, { transform: 'translate(0px, 0px)' },
+        ], settleOptions)
+        animation.pause(); animation.currentTime = 0
+        animations.current.push(animation)
+      }
     }
     animateLanding(true)
+    stopLandingClock.current = startLandingClock(elapsed => {
+      const animation = landing.current, time = landingTime.current
+      if (!animation || !settlingRef.current) return false
+      // Paint the endpoint before handing ownership back to React.
+      if (time.endpoint === animation) { finishSettling(); return false }
+      time.elapsed = elapsed
+      for (const effect of animations.current) effect.currentTime = Math.min(elapsed, settleOptions.duration)
+      const progress = Math.min(time.duration, elapsed - time.start)
+      animation.currentTime = progress
+      if (progress === time.duration) time.endpoint = animation
+      return true
+    })
   }, [settling, reduced, order, finishSettling, animateLanding, stopAnimations])
   const stopScroll = useRef<(() => void) | null>(null)
   const focusAfterMove = useRef<{ id: string; direction: 'up' | 'down' } | null>(null)
@@ -226,7 +249,7 @@ export function SortableTable({ order, onChange, reduced }: { order: string[]; o
         </div>
       </li>)}
     </ol>
-    {visualDrag && <div ref={overlay} className={`player-card drag-overlay ${settling ? 'settling-overlay' : ''}`} aria-hidden="true" style={{ willChange: reduced ? undefined : 'transform', left: settling?.release.left ?? visualDrag.x, top: settling?.release.top ?? visualDrag.y, width: settling?.release.width ?? visualDrag.width, height: settling?.release.height ?? visualDrag.height, transform: settling?.release.transform ?? (reduced ? 'none' : undefined), transformOrigin: settling?.release.transformOrigin }}><div className="card-face">{content(visualDrag.id)}</div><div className="overlay-controls"><span>⠿</span><span>↑</span><span>↓</span></div><div className="overlay-label">{visualDrag.valid ? 'Hier einfügen' : 'Außerhalb · Abbrechen'}</div></div>}
+    {visualDrag && <div ref={overlay} className={`player-card drag-overlay ${settling ? 'settling-overlay' : ''}`} aria-hidden="true" style={{ left: settling?.release.left ?? visualDrag.x, top: settling?.release.top ?? visualDrag.y, width: settling?.release.width ?? visualDrag.width, height: settling?.release.height ?? visualDrag.height, transform: settling?.release.transform ?? (reduced ? 'none' : undefined), transformOrigin: settling?.release.transformOrigin }}><div className="card-face">{content(visualDrag.id)}</div><div className="overlay-controls"><span>⠿</span><span>↑</span><span>↓</span></div><div className="overlay-label">{visualDrag.valid ? 'Hier einfügen' : 'Außerhalb · Abbrechen'}</div></div>}
     <p className="sr-only" role="status">{announcement}</p>
   </>
 }
