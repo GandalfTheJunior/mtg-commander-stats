@@ -285,7 +285,10 @@ Physical iPhone visual acceptance remains with the PO; do not merge this PR.
 - `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:browser -- --project=chromium`:
   8 passed, with native unpaused layout/animation. Intermediate/finish samples
   verify continuity and reveal; a deadline-based recorder supports consecutive
-  releases without an earlier capture timer truncating later evidence.
+  releases without an earlier capture timer truncating later evidence. Observation
+  stays inside the browser during landing: repeated Playwright locator/trace DOM
+  snapshots coincided with a 202ms cold WebKit sampling gap in the first CI run. Position
+  assertions still require intermediate movement, an exact start and final slot.
 - `node --test tools/demo/*.test.mjs`: 22 passed;
   `node --test .devcontainer/seed-demo.test.mjs`: 7 passed.
 - Rendered desktop/mobile captures and native-touch/desktop recordings were taken

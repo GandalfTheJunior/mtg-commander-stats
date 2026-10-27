@@ -53,13 +53,18 @@ async function begin(page: Page, name: string) {
 }
 
 async function evidence(page: Page, info: TestInfo, expected: string[]) {
-  await expect(page.locator('.settling-overlay')).toHaveCount(1)
+  // Observe inside the browser without repeated locator/trace DOM snapshots in
+  // the 260ms motion window. Those snapshots stalled cold WebKit for 202ms in CI.
+  const rows = await page.evaluate(() => new Promise<Sample[]>(resolve => {
+    const frame = () => {
+      if (document.querySelector('.drag-overlay')) { requestAnimationFrame(frame); return }
+      window.sampleLanding('handoff'); resolve(window.landingTrace)
+    }
+    requestAnimationFrame(frame)
+  }))
   await expect(page.locator('.drag-overlay')).toHaveCount(0)
   await expect(page.locator('.insertion')).toHaveCount(0)
   await expect(page.locator('.table-cards h3')).toHaveText(expected)
-  // One browser frame after handoff verifies the real card is in the landed slot.
-  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => { window.sampleLanding('handoff'); resolve() })))
-  const rows = await page.evaluate(() => window.landingTrace)
   const tracePath = info.outputPath('frame-position-trace.json')
   await writeFile(tracePath, JSON.stringify(rows, null, 2))
   await info.attach('frame-position-trace', { path: tracePath, contentType: 'application/json' })
