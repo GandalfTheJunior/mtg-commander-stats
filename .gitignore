@@ -21,3 +21,7 @@ Thumbs.db
 
 # Local demo credentials and run status
 .demo/
+
+# Playwright local reports and browser captures
+frontend/test-results/
+frontend/playwright-report/

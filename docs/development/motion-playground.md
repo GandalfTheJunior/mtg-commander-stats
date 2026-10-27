@@ -19,7 +19,7 @@ its code/assets. `/dev/theme.html` remains separate. Do not add either to build 
 
 ## Interaction implementation
 
-- No new dependencies. MUI and the existing theme; exploratory CSS is imported only
+- No new runtime dependencies. MUI and the existing theme; exploratory CSS is imported only
   by the development entry.
 - Only the grip has `touch-action: none` and pointer capture. Text/outside areas retain
   native touch scrolling. A 6px activation distance avoids converting taps to drags.
@@ -32,11 +32,18 @@ its code/assets. `/dev/theme.html` remains separate. Do not add either to build 
   rectangles and inverts each intervening card's pre-commit visual displacement
   (including an unfinished live preview). Web Animations then glide those cards to
   zero displacement and move/derotate the overlay onto the exact measured target.
-  The real dragged card stays hidden until the overlay finishes; there is no
-  double visual, remount gap or list collapse. No new motion library is used.
-- A new drag, keyboard action, changed order, actual scroll, resize, visibility
+  The release pose is captured from the rendered CSS matrix before pointer-up
+  coordinates update state. The filled animation endpoint remains until React
+  reveals the real card; cancellation happens after that commit in a layout effect.
+  No new motion library is used; the duration/easing remain 260ms/ease-out.
+- Scroll and height-only window/visual-viewport changes retarget the overlay from
+  its current displayed matrix to the new measured slot, without revealing the
+  card early. Keyed list reordering opts out of browser scroll anchoring. Drop-zone
+  bounds allow one CSS pixel for fractional native scroll rounding.
+- A new drag, keyboard action, changed order, width change/rotation, visibility
   change, blur, unmount or live reduced-motion change retires landing effects.
-  Post-release interruptions retain the already committed order; cancellation
+  Stale pointer cancellation after release is ignored. Post-release interruptions
+  retain the already committed order; cancellation
   before release still restores the original order. Reduced motion skips landing
   entirely. Keyboard alternatives retain their existing instant focus behavior.
 - An active gesture owns one requestAnimationFrame edge-scroll loop. Within 80px of
@@ -111,8 +118,9 @@ its code/assets. `/dev/theme.html` remains separate. Do not add either to build 
    the tallest card. This must insert/shift, rather than swap. Release while others
    are still reflowing: the whole dragged card should travel into its slot while
    intervening cards glide across the DOM commit. No flash, double card or ghost.
-   Repeat quickly; scroll/rotate/hide or use keyboard during landing and check
-   cleanup. These interruptions retain the order committed at release.
+   Repeat quickly, starting a new drag during landing. Scroll during landing: the
+   card must continue from its displayed position to the moving slot. Rotate/hide
+   or use keyboard during landing and check cleanup. Retain the committed order.
 3. On a short phone viewport, hold at the bottom edge: progressive scrolling should
    reveal offscreen cards while the overlay follows the finger. Repeat upward.
    Drop and verify immediate stop. Release horizontally outside the list and verify
@@ -190,3 +198,100 @@ layers, dependencies or changes to fireflies or card interactions.
 - Physical iPhone/Android, WebKit/Safari and screen-reader speech remain unverified.
   Final-revision CI and session-local screenshots/recording are in PR #136; PO
   phone visual approval and independent review remain required. No merge performed.
+
+
+## Release continuity follow-up (2026-10-27)
+
+The [latest PO feedback](https://github.com/GandalfTheJunior/mtg-commander-stats/pull/136#issuecomment-6441180932)
+is limited to release/landing; accepted fireplace, fireflies and design are unchanged.
+Actual unpaused Chromium traces exposed three distinct discontinuities:
+
+1. `move(pointerup)` could replace the last rendered overlay coordinates before
+   the landing layout effect. Capture/freeze the actual rendered pose first.
+2. Cancelling the filled Web Animation in its finish callback restored the release
+   transform before React removed the overlay. A sampled last frame jumped back
+   81–178 CSS px in the reproduced cases. Hold the endpoint through React's reveal
+   commit, then cancel effects in the layout effect. Mocked or paused animations
+   did not expose this frame; browser tests now require the last visible frame to
+   be within 2 CSS px of the real card's final position.
+3. At an upward edge-scroll stop, native pointer y=20 with list top=20.4375 was
+   rejected as outside, reverting the order. A one-pixel measured-bound tolerance
+   handles rounding. Real outside drops still cancel. Scroll/toolbar movement no
+   longer cancels a committed landing; it retargets from the current rendered pose.
+
+The persistent overlay follows the same ownership principle as
+[dnd-kit DragOverlay](https://dndkit.com/react/components/drag-overlay/); measured
+transform reflow follows the principle in
+[Motion layout animations](https://motion.dev/docs/react-layout-animations).
+Repairing the existing lifecycle is smaller than replacing the accepted pointer
+sensor, live insertion and edge-scroll behavior. No runtime library was added.
+The measured 260ms ease-out now runs visibly through its endpoint; extending the
+duration would not fix the observed state/cleanup races.
+
+### Repeatable browser verification
+
+Test-only `@playwright/test` is pinned in the lockfile. From `frontend/`:
+
+```sh
+npm ci
+npx playwright install --with-deps chromium webkit
+npm run test:browser
+```
+
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium` can use a locally installed
+Chromium. The dedicated CI job runs Chromium and WebKit with real browser layout,
+requestAnimationFrame and Web Animations; animations are neither paused nor mocked.
+It uploads HTML reports, frame-position JSON, failure traces/screenshots and videos
+as `playground-browser-evidence` (14-day retention). Browser tests are separate from
+Vitest and included in lint/typecheck. Existing frontend/backend checks still apply.
+
+The suite checks upward/downward edge scrolling, unequal heights, exact release
+pose, surrounding-card continuity across DOM reorder and intermediate movement,
+unchanged insertion, stale pointer cancellation, scrolling during landing,
+rapid consecutive drags, outside/Escape rollback, native keyboard focus and
+reduced motion. Chromium additionally uses continuous native CDP touch input;
+WebKit runs the pointer/layout cases. Final-coordinate and stale-cancel scenarios
+synthesize only their terminal input; animation/layout remain native. This is not
+physical iPhone evidence. Local WebKit download was blocked by the session's
+network allowlist; GitHub's browser job provides the separate WebKit run.
+
+### Physical iPhone Safari acceptance
+
+1. Open this branch's `/dev/lounge.html` with OS reduced motion disabled. Drag
+   Mira down and Fenn up, keeping the card under your finger; release in the
+   middle of a slot and immediately after edge scrolling stops.
+2. Watch the whole card through finger-up: no teleport at release, no flash back
+   at the endpoint, no early reveal. Surrounding cards must continue from their
+   current preview positions into their slots. Repeat with unequal heights,
+   unchanged placement, immediate release mid-preview and rapid consecutive drags.
+3. While a landing is running, scroll or collapse/expand Safari's toolbar. The
+   overlay must follow the moving slot without disappearing. Rotate, hide/reopen
+   the page or use keyboard controls: no leftover overlay or continued scrolling.
+4. Release clearly outside the list, cancel an active gesture and retry. Original
+   order remains for cancellation; a valid committed drop retains its new order.
+5. Turn reduced motion on, including a live change: landing is instantaneous.
+   Confirm selection, tap/return to the same position: Spiel starten stays enabled.
+   Test VoiceOver announcements and keyboard focus independently where available.
+
+Physical iPhone visual acceptance remains with the PO; do not merge this PR.
+
+### Local verification of the landing follow-up
+
+- Clean `npm ci --cache /tmp/mtg-npm-cache --no-audit --no-fund`: passed.
+- `npm run lint`, `npm run typecheck`, `npm run build`: passed. The existing
+  production chunk-size advisory remains; production JS/CSS hashes are unchanged
+  and no lounge/geometry/effect code is emitted.
+- `npm test`: 773 passed / 34 files.
+- `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:browser -- --project=chromium`:
+  8 passed, with native unpaused layout/animation. Intermediate/finish samples
+  verify continuity and reveal; a deadline-based recorder supports consecutive
+  releases without an earlier capture timer truncating later evidence.
+- `node --test tools/demo/*.test.mjs`: 22 passed;
+  `node --test .devcontainer/seed-demo.test.mjs`: 7 passed.
+- Rendered desktop/mobile captures and native-touch/desktop recordings were taken
+  after the last UI change. Observed release-to-animation displacement was below
+  .02 CSS px; final visible positions reached the target within .02 CSS px in the
+  sampled up/down/touch/unchanged cases. Shared-workspace artifacts and exact
+  final-revision CI outcomes are linked in PR #136.
+- Local backend verification was not run: this environment has JDK 21 rather
+  than the repository's JDK 25. The required backend CI remains mandatory.

@@ -4,9 +4,11 @@ import { Button } from '@mui/material'
 
 import { players, insert } from './ordering'
 import { startEdgeScroll } from './edgeScroll'
+import { measureOverlay, withinDropZone } from './landingGeometry'
+import type { OverlayPose } from './landingGeometry'
 const gap = 12
 
-type Settling = { drag: Drag; before: Map<string, DOMRect>; order: string[]; scrollX: number; scrollY: number }
+type Settling = { drag: Drag; before: Map<string, DOMRect>; order: string[]; release: OverlayPose; viewportWidth: number }
 const settleOptions = { duration: 260, easing: 'cubic-bezier(.2,.75,.25,1)', fill: 'both' as const }
 
 type Drag = { active: boolean; px: number; py: number; originX: number; originY: number; id: string; pointer: number; x: number; y: number; dx: number; dy: number; width: number; height: number; preview: string[]; valid: boolean }
@@ -21,14 +23,37 @@ export function SortableTable({ order, onChange, reduced }: { order: string[]; o
   const [settling, setSettling] = useState<Settling | null>(null)
   const settlingRef = useRef<Settling | null>(null)
   const animations = useRef<Animation[]>([])
+  const landing = useRef<Animation | null>(null)
+  const landingEnd = useRef(0)
   const stopAnimations = useCallback(() => {
+    if (landing.current) { landing.current.onfinish = null; landing.current.cancel(); landing.current = null }
     for (const animation of animations.current) { animation.onfinish = null; animation.cancel() }
     animations.current = []
     settlingRef.current = null
   }, [])
-  const finishSettling = useCallback(() => { stopAnimations(); setSettling(null) }, [stopAnimations])
+  // Hold the filled endpoint until React reveals the real card. Cancelling here
+  // would restore the release transform for a frame before the state commit.
+  const finishSettling = useCallback(() => { settlingRef.current = null; setSettling(null) }, [])
+  const animateLanding = useCallback((initial: boolean) => {
+    const pending = settlingRef.current, node = overlay.current
+    if (!pending || !node) return
+    const target = cards.current.get(pending.drag.id)?.getBoundingClientRect()
+    if (!target) { finishSettling(); return }
+    const pose = initial ? pending.release : measureOverlay(node)
+    // Rebase from the CURRENT displayed matrix on scroll/toolbar movement instead
+    // of cancelling and revealing the real card at a different viewport position.
+    node.style.transform = pose.transform
+    if (landing.current) { landing.current.onfinish = null; landing.current.cancel() }
+    if (initial) landingEnd.current = performance.now() + settleOptions.duration
+    const animation = node.animate([
+      { transform: pose.transform },
+      { transform: `translate(${target.left - pose.baseX}px, ${target.top - pose.baseY}px) rotate(0deg)` },
+    ], { ...settleOptions, duration: initial ? settleOptions.duration : Math.max(80, landingEnd.current - performance.now()) })
+    landing.current = animation
+    animation.onfinish = () => { if (settlingRef.current === pending) finishSettling() }
+  }, [finishSettling])
   useLayoutEffect(() => {
-    if (!settling) return
+    if (!settling) { stopAnimations(); return }
     if (reduced || settling.order.some((id, i) => id !== order[i]) || !overlay.current?.animate) {
       finishSettling()
       return
@@ -46,15 +71,8 @@ export function SortableTable({ order, onChange, reduced }: { order: string[]; o
         { transform: `translate(${x}px, ${y}px)` }, { transform: 'translate(0px, 0px)' },
       ], settleOptions))
     }
-    // Same overlay DOM node survives pointer release/DOM reorder. The real card
-    // remains hidden until this whole-card visual lands precisely on its slot.
-    const landing = overlay.current.animate([
-      { transform: 'translate(0px, 0px) rotate(-1deg)' },
-      { transform: `translate(${target.left - settling.drag.x}px, ${target.top - settling.drag.y}px) rotate(0deg)` },
-    ], settleOptions)
-    animations.current.push(landing)
-    landing.onfinish = () => { if (settlingRef.current === settling) finishSettling() }
-  }, [settling, reduced, order, finishSettling])
+    animateLanding(true)
+  }, [settling, reduced, order, finishSettling, animateLanding, stopAnimations])
   const stopScroll = useRef<(() => void) | null>(null)
   const focusAfterMove = useRef<{ id: string; direction: 'up' | 'down' } | null>(null)
   const geometry = useRef({ order, heights })
@@ -87,7 +105,17 @@ export function SortableTable({ order, onChange, reduced }: { order: string[]; o
     window.addEventListener('keydown', key)
     window.addEventListener('blur', retire)
     document.addEventListener('visibilitychange', retire)
-    window.addEventListener('resize', retire)
+    const resize = () => {
+      if (current.current) cancel()
+      const pending = settlingRef.current
+      if (!pending) return
+      if (window.innerWidth !== pending.viewportWidth) finishSettling()
+      else animateLanding(false)
+    }
+    window.addEventListener('resize', resize)
+    window.visualViewport?.addEventListener('resize', resize)
+    const viewportScroll = () => { if (settlingRef.current) animateLanding(false) }
+    window.visualViewport?.addEventListener('scroll', viewportScroll)
     return () => {
       stopScroll.current?.()
       stopAnimations()
@@ -95,9 +123,11 @@ export function SortableTable({ order, onChange, reduced }: { order: string[]; o
       window.removeEventListener('keydown', key)
       window.removeEventListener('blur', retire)
       document.removeEventListener('visibilitychange', retire)
-      window.removeEventListener('resize', retire)
+      window.removeEventListener('resize', resize)
+      window.visualViewport?.removeEventListener('resize', resize)
+      window.visualViewport?.removeEventListener('scroll', viewportScroll)
     }
-  }, [cancel, finishSettling, stopAnimations])
+  }, [cancel, finishSettling, stopAnimations, animateLanding])
   const positions = (ids: string[]) => {
     let y = 0
     return Object.fromEntries(ids.map(id => { const top = y; y += (heights[id] ?? 0) + gap; return [id, top] }))
@@ -109,7 +139,7 @@ export function SortableTable({ order, onChange, reduced }: { order: string[]; o
     const d = current.current
     if (!d?.active || !list.current) return
     const bounds = list.current.getBoundingClientRect()
-    const valid = d.px >= bounds.left && d.px <= bounds.right && d.py >= bounds.top && d.py <= bounds.bottom
+    const valid = withinDropZone(d.px, d.py, bounds)
     const { order: ids, heights: measured } = geometry.current
     const rest = ids.filter(id => id !== d.id)
     let top = 0, index = 0
@@ -124,12 +154,12 @@ export function SortableTable({ order, onChange, reduced }: { order: string[]; o
   useEffect(() => {
     const scroll = () => {
       const pending = settlingRef.current
-      if (pending && (pending.scrollX !== window.scrollX || pending.scrollY !== window.scrollY)) finishSettling()
+      if (pending) animateLanding(false)
       refresh()
     }
     window.addEventListener('scroll', scroll, true)
     return () => window.removeEventListener('scroll', scroll, true)
-  }, [refresh, finishSettling])
+  }, [refresh, animateLanding])
   const start = (event: ReactPointerEvent<HTMLButtonElement>, id: string) => {
     if (event.button !== 0 || current.current) return
     finishSettling()
@@ -155,14 +185,15 @@ export function SortableTable({ order, onChange, reduced }: { order: string[]; o
   const drop = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const d = current.current
     if (!d || d.pointer !== event.pointerId) return
+    const release = overlay.current ? measureOverlay(overlay.current) : null
     move(event)
     const final = current.current!
     stopScroll.current?.()
     stopScroll.current = null
     if (!final.active) { update(null); return }
     if (final.valid) {
-      if (!reduced && overlay.current?.animate) {
-        const next: Settling = { drag: final, order: final.preview, before: new Map(Array.from(cards.current, ([id, node]) => [id, node.getBoundingClientRect()])), scrollX: window.scrollX, scrollY: window.scrollY }
+      if (!reduced && release && overlay.current?.animate) {
+        const next: Settling = { drag: final, order: final.preview, before: new Map(Array.from(cards.current, ([id, node]) => [id, node.getBoundingClientRect()])), release, viewportWidth: window.innerWidth }
         settlingRef.current = next
         setSettling(next)
       }
@@ -185,17 +216,17 @@ export function SortableTable({ order, onChange, reduced }: { order: string[]; o
   const visualDrag = drag?.active ? drag : settling?.drag
   return <>
     <p id="reorder-help" className="quiet">Am Griff ziehen oder mit ↑ / ↓ verschieben. Nur eine Demo-Reihenfolge.</p>
-    <ol ref={list} className="table-cards" aria-label="Demo-Spieler" aria-describedby="reorder-help" style={{ minHeight: Object.values(heights).reduce((a, b) => a + b + gap, 0) }}>
+    <ol ref={list} className="table-cards" aria-label="Demo-Spieler" aria-describedby="reorder-help" style={{ overflowAnchor: 'none', minHeight: Object.values(heights).reduce((a, b) => a + b + gap, 0) }}>
       {order.map((id, index) => <li key={id} ref={node => { if (node) cards.current.set(id, node); else cards.current.delete(id) }} className={`player-card ${(drag?.active && drag.id === id) || settling?.drag.id === id ? 'insertion' : ''}`} style={{ transform: `translateY(${proposed[id] - original[id]}px)`, transition: reduced || !drag ? 'none' : undefined }}>
         <div className="card-face">{content(id)}</div>
         <div className="card-controls">
-          <Button className="grip" color="secondary" aria-label={`${players.find(p => p.id === id)!.name} ziehen`} aria-describedby="reorder-help" onPointerDown={e => start(e, id)} onPointerMove={move} onPointerUp={drop} onPointerCancel={() => { if (current.current) cancel(); else finishSettling() }} onLostPointerCapture={() => { if (current.current) cancel() }}>⠿</Button>
+          <Button className="grip" color="secondary" aria-label={`${players.find(p => p.id === id)!.name} ziehen`} aria-describedby="reorder-help" onPointerDown={e => start(e, id)} onPointerMove={move} onPointerUp={drop} onPointerCancel={event => { if (current.current?.pointer === event.pointerId) cancel() }} onLostPointerCapture={() => { if (current.current) cancel() }}>⠿</Button>
           <Button color="secondary" data-move="up" aria-label={`${id} nach oben`} disabled={index === 0 || !!drag?.active} onClick={() => moveByButton(id, index - 1, 'up')}>↑</Button>
           <Button color="secondary" data-move="down" aria-label={`${id} nach unten`} disabled={index === order.length - 1 || !!drag?.active} onClick={() => moveByButton(id, index + 1, 'down')}>↓</Button>
         </div>
       </li>)}
     </ol>
-    {visualDrag && <div ref={overlay} className={`player-card drag-overlay ${settling ? 'settling-overlay' : ''}`} aria-hidden="true" style={{ left: visualDrag.x, top: visualDrag.y, width: visualDrag.width, height: visualDrag.height }}><div className="card-face">{content(visualDrag.id)}</div><div className="overlay-controls"><span>⠿</span><span>↑</span><span>↓</span></div><div className="overlay-label">{visualDrag.valid ? 'Hier einfügen' : 'Außerhalb · Abbrechen'}</div></div>}
+    {visualDrag && <div ref={overlay} className={`player-card drag-overlay ${settling ? 'settling-overlay' : ''}`} aria-hidden="true" style={{ left: settling?.release.left ?? visualDrag.x, top: settling?.release.top ?? visualDrag.y, width: settling?.release.width ?? visualDrag.width, height: settling?.release.height ?? visualDrag.height, transform: settling?.release.transform ?? (reduced ? 'none' : undefined), transformOrigin: settling?.release.transformOrigin }}><div className="card-face">{content(visualDrag.id)}</div><div className="overlay-controls"><span>⠿</span><span>↑</span><span>↓</span></div><div className="overlay-label">{visualDrag.valid ? 'Hier einfügen' : 'Außerhalb · Abbrechen'}</div></div>}
     <p className="sr-only" role="status">{announcement}</p>
   </>
 }

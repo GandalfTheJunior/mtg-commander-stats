@@ -52,7 +52,7 @@ test.each(['escape', 'cancel', 'outside', 'capture', 'resize', 'blur', 'hidden']
   if (mode === 'cancel') fireEvent.pointerCancel(grip)
   if (mode === 'outside') fireEvent.pointerUp(grip, { clientX: 400, clientY: 630 })
   if (mode === 'capture') fireEvent.lostPointerCapture(grip)
-  if (mode === 'resize') fireEvent(window, new Event('resize'))
+  if (mode === 'resize') { vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1000); fireEvent(window, new Event('resize')) }
   if (mode === 'blur') fireEvent.blur(window)
   if (mode === 'hidden') fireEvent(document, new Event('visibilitychange'))
   expect(container.querySelector('.drag-overlay')).toBeNull()
@@ -107,7 +107,7 @@ test('valid insertion commits immediately but keeps one whole overlay until the 
   delete (Element.prototype as Partial<Element>).animate
 })
 
-test.each(['resize', 'scroll', 'hidden', 'unmount', 'keyboard', 'new drag'])('settling interruption by %s cleans all effects and retains committed insertion', mode => {
+test.each(['resize', 'hidden', 'unmount', 'keyboard', 'new drag'])('settling interruption by %s cleans all effects and retains committed insertion', mode => {
   const effects: { cancel: ReturnType<typeof vi.fn>; onfinish: (() => void) | null }[] = []
   Object.defineProperty(Element.prototype, 'animate', { configurable: true, value: vi.fn(() => {
     const effect = { cancel: vi.fn(), onfinish: null }; effects.push(effect); return effect
@@ -117,9 +117,8 @@ test.each(['resize', 'scroll', 'hidden', 'unmount', 'keyboard', 'new drag'])('se
   fireEvent.pointerMove(grip, { clientX: 30, clientY: 630 })
   fireEvent.pointerUp(grip, { clientX: 30, clientY: 630 })
   expect(container.querySelector('.settling-overlay')).not.toBeNull()
-  if (mode === 'resize') fireEvent(window, new Event('resize'))
+  if (mode === 'resize') { vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1000); fireEvent(window, new Event('resize')) }
   if (mode === 'hidden') fireEvent(document, new Event('visibilitychange'))
-  if (mode === 'scroll') { vi.spyOn(window, 'scrollY', 'get').mockReturnValue(10); fireEvent.scroll(window) }
   if (mode === 'unmount') unmount()
   if (mode === 'keyboard') fireEvent.click(screen.getByRole('button', { name: 'mira nach oben' }))
   if (mode === 'new drag') fireEvent.pointerDown(screen.getByRole('button', { name: 'Orin ziehen' }), { button: 0, clientX: 30, clientY: 30 })
@@ -158,4 +157,42 @@ test('a live reduced-motion change ends the landing without reverting committed 
   expect(effects.every(e => e.cancel.mock.calls.length === 1)).toBe(true)
   expect(Array.from(order()).map(n => n.textContent)).toEqual(['Orin', 'Lumi', 'Fenn', 'Mira'])
   delete (Element.prototype as Partial<Element>).animate
+})
+
+
+test('release freezes the last rendered overlay instead of applying new pointer-up coordinates', () => {
+  const effects: { cancel: ReturnType<typeof vi.fn>; onfinish: (() => void) | null }[] = []
+  Object.defineProperty(Element.prototype, 'animate', { configurable: true, value: vi.fn(() => {
+    const e = { cancel: vi.fn(), onfinish: null }; effects.push(e); return e
+  }) })
+  const { container } = render(<Demo />)
+  const grip = start()
+  fireEvent.pointerMove(grip, { clientX: 30, clientY: 600 })
+  const node = container.querySelector('.drag-overlay')!
+  expect(node).toHaveStyle({ left: '0px', top: '570px' })
+  fireEvent.pointerUp(grip, { clientX: 90, clientY: 630 })
+  expect(container.querySelector('.drag-overlay')).toBe(node)
+  expect(node).toHaveStyle({ left: '0px', top: '570px' })
+})
+
+test('post-release scroll/toolbar movement retargets; stale pointer cancellation cannot end landing', () => {
+  const effects: { cancel: ReturnType<typeof vi.fn>; onfinish: (() => void) | null }[] = []
+  Object.defineProperty(Element.prototype, 'animate', { configurable: true, value: vi.fn(() => {
+    const e = { cancel: vi.fn(), onfinish: null }; effects.push(e); return e
+  }) })
+  const { container } = render(<Demo />)
+  const grip = start()
+  fireEvent.pointerMove(grip, { clientX: 30, clientY: 630 })
+  fireEvent.pointerUp(grip, { clientX: 30, clientY: 630 })
+  fireEvent.pointerCancel(grip)
+  expect(container.querySelector('.settling-overlay')).not.toBeNull()
+  fireEvent.scroll(window)
+  expect(container.querySelector('.settling-overlay')).not.toBeNull()
+  expect(effects[0].cancel).toHaveBeenCalledOnce()
+  fireEvent(window, new Event('resize')) // Height-only toolbar resize, same width.
+  expect(container.querySelector('.settling-overlay')).not.toBeNull()
+  act(() => effects.at(-1)!.onfinish!())
+  expect(container.querySelector('.drag-overlay')).toBeNull()
+  expect(effects.every(e => e.cancel.mock.calls.length === 1)).toBe(true)
+  expect(Array.from(order()).map(n => n.textContent)).toEqual(['Orin', 'Lumi', 'Fenn', 'Mira'])
 })
