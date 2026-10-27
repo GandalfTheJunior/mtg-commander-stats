@@ -42,7 +42,7 @@ test('unequal measured cards reflow before drop, then commit insertion across mu
   expect(container.querySelector('.drag-overlay')).toBeNull()
 })
 
-test.each(['escape', 'cancel', 'outside', 'capture', 'resize', 'scroll'])('%s retires the overlay and restores order', mode => {
+test.each(['escape', 'cancel', 'outside', 'capture', 'resize', 'blur', 'hidden'])('%s retires the overlay and restores order', mode => {
   const { container } = render(<Demo />)
   const grip = start()
   fireEvent.pointerMove(grip, { clientX: 30, clientY: 630 })
@@ -51,7 +51,24 @@ test.each(['escape', 'cancel', 'outside', 'capture', 'resize', 'scroll'])('%s re
   if (mode === 'outside') fireEvent.pointerUp(grip, { clientX: 400, clientY: 630 })
   if (mode === 'capture') fireEvent.lostPointerCapture(grip)
   if (mode === 'resize') fireEvent(window, new Event('resize'))
-  if (mode === 'scroll') fireEvent.scroll(window)
+  if (mode === 'blur') fireEvent.blur(window)
+  if (mode === 'hidden') fireEvent(document, new Event('visibilitychange'))
   expect(container.querySelector('.drag-overlay')).toBeNull()
   expect(Array.from(order()).map(n => n.textContent)).toEqual(['Mira', 'Orin', 'Lumi', 'Fenn'])
+})
+
+test('unchanged grip tap does not notify the parent', () => {
+  const change = vi.fn()
+  render(<SortableTable order={initialOrder} onChange={change} reduced={false} />)
+  const grip = start()
+  fireEvent.pointerUp(grip, { clientX: 30, clientY: 30 })
+  expect(change).not.toHaveBeenCalled()
+})
+test('boundary moves transfer focus to the same card’s available direction', () => {
+  render(<Demo />)
+  const up = screen.getByRole('button', { name: 'orin nach oben' })
+  up.focus()
+  fireEvent.click(up)
+  expect(up).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'orin nach unten' })).toHaveFocus()
 })

@@ -1,9 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-// Both clocks use smooth interpolation, but independent random destinations and
-// durations. No recurring CSS particle paths; only six small DOM nodes are moved.
-const smooth = (t: number) => t * t * (3 - 2 * t)
-const random = (min: number, max: number) => min + Math.random() * (max - min)
+import { railPoint, smooth, random } from './flight'
 
 export function Ambience({ enabled }: { enabled: boolean }) {
   const frame = useRef<HTMLDivElement>(null)
@@ -14,7 +11,7 @@ export function Ambience({ enabled }: { enabled: boolean }) {
     const states = flies.map((_, i) => ({
       position: i / flies.length, from: i / flies.length, to: i / flies.length,
       start: 0, duration: random(2500, 6500),
-      glow: 0, glowFrom: 0, glowTo: random(.2, .85), glowStart: 0, glowDuration: random(1200, 4500),
+      glow: 0, glowFrom: 0, glowTo: random(.2, .85), glowStart: 0, glowDuration: random(1200, 4500), glowHold: random(500, 3000),
     }))
     let width = root.clientWidth, height = root.clientHeight
     const resize = new ResizeObserver(() => { width = root.clientWidth; height = root.clientHeight })
@@ -32,18 +29,15 @@ export function Ambience({ enabled }: { enabled: boolean }) {
           s.duration = random(2200, 7300)
         }
         s.position = s.from + (s.to - s.from) * smooth(Math.min(1, (elapsed - s.start) / s.duration))
-        if (elapsed - s.glowStart >= s.glowDuration) {
+        if (elapsed - s.glowStart >= s.glowDuration + s.glowHold) {
           s.glowFrom = s.glow
           s.glowTo = Math.random() < .4 ? 0 : random(.25, .9)
           s.glowStart = elapsed
-          s.glowDuration = random(1500, 6000)
+          s.glowDuration = random(1500, 4500)
+          s.glowHold = random(800, 4000)
         }
         s.glow = s.glowFrom + (s.glowTo - s.glowFrom) * smooth(Math.min(1, (elapsed - s.glowStart) / s.glowDuration))
-        const p = ((s.position % 1) + 1) % 1
-        // Rounded rectangular orbit stays inside the window's decorative rail.
-        const angle = p * Math.PI * 2
-        const x = width / 2 + (width / 2 - 13) * Math.sign(Math.cos(angle)) * Math.pow(Math.abs(Math.cos(angle)), .25)
-        const y = height / 2 + (height / 2 - 13) * Math.sign(Math.sin(angle)) * Math.pow(Math.abs(Math.sin(angle)), .25)
+        const { x, y } = railPoint(width, height, s.position)
         flies[i].style.transform = `translate(${x}px, ${y}px)`
         flies[i].style.opacity = String(s.glow)
       })
