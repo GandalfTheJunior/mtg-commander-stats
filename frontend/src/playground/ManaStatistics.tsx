@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { useMediaQuery } from '@mui/material'
+import { startLandingClock } from './landingClock'
 import { appTheme } from '../theme/theme'
 import { manaDataset, manaNames, manaPercent, type ManaFilter } from './manaData'
 import './mana.css'
@@ -45,24 +46,28 @@ export function ManaStatistics() {
       const old = positions.current[el.dataset.color!]
       const delta = old === undefined ? 0 : old - el.getBoundingClientRect().top
       if (!reduced && !hidden && delta && el.animate) {
-        moves.current.push(el.animate([{ transform: `translateY(${delta}px)` }, { transform: 'translateY(0)' }], { duration: 550, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }))
+        const animation = el.animate([{ transform: `translateY(${delta}px)` }, { transform: 'translateY(0)' }], { duration: 550, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'both' })
+        animation.pause()
+        animation.currentTime = 0
+        moves.current.push(animation)
       }
     })
     positions.current = {}
-    let frame = 0
+    let stop: (() => void) | undefined
     if (reduced || hidden) paint(1)
     else {
       paint(0)
-      let began: number | undefined
-      const tick = (now: number) => {
-        began ??= now
-        const t = Math.min(1, (now - began) / 550)
-        paint(1 - (1 - t) ** 3)
-        if (t < 1) frame = requestAnimationFrame(tick)
-      }
-      frame = requestAnimationFrame(tick)
+      // Reuse the lounge's bounded clock so a stalled frame cannot consume a
+      // whole transition. Numeric values and native row transforms share time.
+      stop = startLandingClock(elapsed => {
+        const time = Math.min(550, elapsed)
+        moves.current.forEach(animation => { animation.currentTime = time })
+        paint(1 - (1 - time / 550) ** 3)
+        if (time === 550) moves.current.forEach(animation => animation.cancel())
+        return time < 550
+      })
     }
-    return () => { cancelAnimationFrame(frame); moves.current.forEach(animation => animation.cancel()) }
+    return () => { stop?.(); moves.current.forEach(animation => animation.cancel()) }
   }, [filter, hidden, reduced])
 
   return <main className="mana-page" data-paused={hidden || reduced}>

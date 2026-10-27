@@ -33,7 +33,7 @@ test('counter and fill rebase on interruption, land exactly, cancel on hide and 
   fireEvent.click(screen.getByRole('radio', { name: '3' }))
   expect(fill()).toBe(mid)
   act(() => callback(now))
-  now += 550; act(() => callback(now))
+  for (let i = 0; i < 18; i++) { now += 32; act(() => callback(now)) }
   expect(fill()).toBe(20)
   expect(white.querySelector('.mana-counter')).toHaveTextContent('20 %')
   Object.defineProperty(document, 'hidden', { configurable: true, value: true })

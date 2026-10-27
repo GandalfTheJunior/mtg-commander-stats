@@ -22,17 +22,21 @@ test('native frames: growing/shrinking fill and counter, interrupted FLIP contin
       counter: row.querySelector('.mana-counter')!.textContent!,
     }]))
     const change = (value: string) => (document.querySelector(`input[value="${value}"]`) as HTMLInputElement).click()
-    const frames = async (duration: number) => {
+    const frames = async (until: (value: number) => boolean) => {
       const start = performance.now(); const samples = []
-      while (performance.now() - start < duration) { await new Promise(requestAnimationFrame); samples.push(sample()) }
+      do {
+        await new Promise(requestAnimationFrame)
+        samples.push(sample())
+        if (performance.now() - start > 5000) throw new Error('Mana transition did not progress within 5 seconds')
+      } while (!until(samples.at(-1)!.W.value))
       return samples
     }
     const before = sample()
     change('2')
-    const grow = await frames(220)
+    const grow = await frames(value => value > 50)
     const interrupted = sample()
     change('3')
-    const shrink = await frames(750)
+    const shrink = await frames(value => value === 20)
     return { before, grow, interrupted, shrink }
   })
   expect(trace.grow.length).toBeGreaterThan(2)

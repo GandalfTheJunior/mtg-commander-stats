@@ -337,7 +337,11 @@ view, retires its effects and resets its temporary demo state when reopened.
   rectangles (including interrupted transforms) are captured. A layout effect
   inverts the new positions with WAAPI, then eases to the final order over 550ms.
 - One temporary RAF clock interpolates every numeric percentage and fluid width
-  with the same cubic ease-out over 550ms. Interruptions start from the last
+  with the same cubic ease-out over nominally 550ms. The existing bounded landing
+  clock also drives paused WAAPI row animations: a frame gap advances at most
+  32ms, extending wall time under stalls rather than skipping visible motion.
+  Browser tests follow actual progress/endpoints rather than a fixed sampling
+  window (cold WebKit can delay its first frame beyond 220ms). Interruptions start from the last
   painted values. Source data is never interpolated. Missing data has no fluid
   and is never announced as measured zero. Accessible text exposes final values;
   only the concise filter status is live, not the frame-by-frame counter.
