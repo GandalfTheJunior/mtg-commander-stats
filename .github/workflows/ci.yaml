@@ -74,3 +74,31 @@ jobs:
         run: ./mvnw.cmd -B -Dtest=OfflineDemoShutdownTest test
       - name: Smoke-check Docker Compose discovery without a daemon
         run: node tools/demo/compose-smoke.mjs
+
+  playground-browser:
+    name: playground browser (Chromium + WebKit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Match the pinned test package; browsers/OS libraries are preinstalled.
+    # Avoid apt mirror stalls in playwright install --with-deps.
+    container: mcr.microsoft.com/playwright:v1.64.1-noble
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run test:browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playground-browser-evidence
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 14

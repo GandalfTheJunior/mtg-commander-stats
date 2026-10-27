@@ -47,3 +47,9 @@ Disclose required checks that could not run and their blockers in the PR. Never
 claim an unexecuted or unsuccessful check passed. Follow the
 [workflow handoff standard](workflow.md#verification-and-handoff); required CI
 checks remain required even when local verification is limited.
+
+
+The development-only motion playground also has real Chromium/WebKit landing
+regressions. See [browser setup and evidence](motion-playground.md#repeatable-browser-verification)
+for commands and physical Safari acceptance checks; component mocks alone cannot
+verify animation continuity across React commits.
