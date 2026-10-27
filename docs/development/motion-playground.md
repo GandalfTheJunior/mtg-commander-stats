@@ -321,3 +321,51 @@ Physical iPhone visual acceptance remains with the PO; do not merge this PR.
   final-revision CI outcomes are linked in PR #136.
 - Local backend verification was not run: this environment has JDK 21 rather
   than the repository's JDK 25. The required backend CI remains mandatory.
+
+## Mana statistics experiment (#138)
+
+Choose **Die Farben des Manas** in the experiment switch at `/dev/lounge.html`.
+The original lounge remains the default; switching experiments unmounts the old
+view, retires its effects and resets its temporary demo state when reopened.
+`/dev/theme.html` and production entry points are unchanged.
+
+- `manaData.ts` owns synthetic aggregate snapshots for exactly 2–6 participants.
+  All is their sum, percentages use integer HALF_UP rounding, and the existing
+  `rankedColors` comparator orders by exact ratio, games, then WUBRGC. These are
+  overlapping deck/color appearances, not distinct matches or live records.
+- Six keyed rows retain identity. Before changing a filter, the current visual
+  rectangles (including interrupted transforms) are captured. A layout effect
+  inverts the new positions with WAAPI, then eases to the final order over 550ms.
+- One temporary RAF clock interpolates every numeric percentage and fluid width
+  with the same cubic ease-out over 550ms. Interruptions start from the last
+  painted values. Source data is never interpolated. Missing data has no fluid
+  and is never announced as measured zero. Accessible text exposes final values;
+  only the concise filter status is live, not the frame-by-frame counter.
+- Three small independently phased CSS bubbles per channel are clipped inside
+  the changing fluid width. No React frame updates, new dependency, external
+  assets, API calls or storage. Six shallow width updates cause bounded local
+  layout; bubbles use transforms/opacity. This is not a real-device FPS claim.
+- Reduced motion (including live changes) immediately paints final values/order
+  and disables bubbles. Hidden tabs finalize/cancel transitions and disable
+  bubbles; switching experiments or unmount cancels scheduled work.
+- Warm parchment/brass, burgundy controls, semantic Mana tokens and explicit
+  letter/name identifiers follow the kickoff reference. The narrowest phones
+  use a 3×2 radio layout; other widths use six columns. Native radios support
+  arrow-key navigation and retain focus during row reordering.
+
+Repeatable checks: `npm test -- src/playground`, and
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:browser` with
+`--project=chromium` for the system browser, or the normal browser command for
+installed Chromium/WebKit. `e2e/mana.pw.ts` samples actual browser frames for
+up/down interpolation, interruption and reorder continuity; also checks all
+filters, exact results, reduced motion, cleanup, 320/375/390/1280px overflow,
+keyboard focus and captures screenshots. CI retains browser videos/screenshots
+in the `playground-browser-evidence` artifact.
+
+For PO iPhone review: open the branch in the development environment, forward the
+Vite port privately, then visit `/dev/lounge.html` and select the Mana experiment.
+Try Alle → 2 → 3 quickly, 5 (measured white zero), and 6 (missing white/black).
+Watch bubbles, shrinking/growing counters and entire-row movement; scroll and
+rotate, hide/reopen Safari, enable OS reduced motion, and check VoiceOver.
+Physical iPhone/Safari rendering, thermal performance and speech require device
+acceptance; desktop Chromium and CI WebKit do not substitute for that decision.
