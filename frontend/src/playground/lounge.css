@@ -64,7 +64,7 @@ body { margin: 0; }
   .lounge-wordmark span { font-size: 9px; }
   .prototype { font-size: 8px; letter-spacing: .12em; border: 0; padding: 0; }
 }
-@media (prefers-reduced-motion: reduce) { .lounge *, .lounge *::before { animation: none !important; transition: none !important; }.lounge .fireflies { display: none; }.lounge .MuiButton-root:active { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .lounge { --warm-a: .4 !important; --warm-b: .3 !important; } .lounge *, .lounge *::before { animation: none !important; transition: none !important; }.lounge .fireflies { display: none; }.lounge .MuiButton-root:active { transform: none; } }
 
 .overlay-controls { display: flex; gap: 4px; margin-top: 8px; color: #dbb977; }
 .overlay-controls span { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid #bb95513d; border-radius: 12px; }

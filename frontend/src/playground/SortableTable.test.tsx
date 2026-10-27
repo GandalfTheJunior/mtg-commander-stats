@@ -17,6 +17,8 @@ beforeEach(() => {
     disconnect() {}
   })
   Element.prototype.setPointerCapture = vi.fn()
+  vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(77)
+  vi.spyOn(window, 'cancelAnimationFrame')
   vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
     const height = this.tagName === 'OL' ? 658 : ({ mira: 120, orin: 220, lumi: 100, fenn: 170 }[this.querySelector('h3')?.textContent?.toLowerCase() ?? ''] ?? 0)
     return { x: 0, y: 0, left: 0, top: 0, width: 300, height, right: 300, bottom: height, toJSON() {} }
@@ -54,6 +56,7 @@ test.each(['escape', 'cancel', 'outside', 'capture', 'resize', 'blur', 'hidden']
   if (mode === 'blur') fireEvent.blur(window)
   if (mode === 'hidden') fireEvent(document, new Event('visibilitychange'))
   expect(container.querySelector('.drag-overlay')).toBeNull()
+  expect(window.cancelAnimationFrame).toHaveBeenCalledWith(77)
   expect(Array.from(order()).map(n => n.textContent)).toEqual(['Mira', 'Orin', 'Lumi', 'Fenn'])
 })
 
@@ -71,4 +74,15 @@ test('boundary moves transfer focus to the same card’s available direction', (
   fireEvent.click(up)
   expect(up).toBeDisabled()
   expect(screen.getByRole('button', { name: 'orin nach unten' })).toHaveFocus()
+})
+
+test('scroll preserves capture and overlay alignment; unmount cancels the edge loop', () => {
+  const { container, unmount } = render(<Demo />)
+  const grip = start()
+  fireEvent.pointerMove(grip, { clientX: 30, clientY: 600 })
+  fireEvent.scroll(window)
+  expect(container.querySelector('.drag-overlay')).toHaveStyle({ top: '570px' })
+  expect(window.cancelAnimationFrame).not.toHaveBeenCalled()
+  unmount()
+  expect(window.cancelAnimationFrame).toHaveBeenCalledWith(77)
 })

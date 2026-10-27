@@ -74,3 +74,39 @@ test('firefly work pauses while hidden and retires on disable/unmount', () => {
   expect(raf.mock.calls.length).toBe(count)
   vi.restoreAllMocks()
 })
+
+test('a confirmed selection survives an unchanged grip tap', () => {
+  vi.stubGlobal('PointerEvent', class extends MouseEvent { pointerId = 1 })
+  Element.prototype.setPointerCapture = vi.fn()
+  open()
+  fireEvent.click(screen.getByRole('button', { name: 'Auswahl bestätigen' }))
+  const grip = screen.getByRole('button', { name: 'Mira ziehen' })
+  fireEvent.pointerDown(grip, { clientX: 30, clientY: 30, button: 0 })
+  fireEvent.pointerUp(grip, { clientX: 30, clientY: 30 })
+  expect(screen.getByRole('button', { name: /Auswahl bestätigt/ })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByRole('button', { name: 'Spiel starten' })).toBeEnabled()
+})
+test('a live OS preference change overrides strong ambience and stops scheduled motion', () => {
+  const original = window.matchMedia
+  const changes = new EventTarget()
+  let reduced = false
+  const mql = {
+    get matches() { return reduced }, media: '(prefers-reduced-motion: reduce)', onchange: null,
+    addEventListener: changes.addEventListener.bind(changes), removeEventListener: changes.removeEventListener.bind(changes),
+    addListener() {}, removeListener() {}, dispatchEvent: changes.dispatchEvent.bind(changes),
+  }
+  vi.spyOn(window, 'matchMedia').mockImplementation(q => q.includes('prefers-reduced-motion') ? mql : original(q))
+  const raf = vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(89)
+  const cancel = vi.spyOn(window, 'cancelAnimationFrame')
+  const { container } = open()
+  fireEvent.click(screen.getByRole('button', { name: 'Deutlich' }))
+  const before = raf.mock.calls.length
+  act(() => { reduced = true; changes.dispatchEvent(new Event('change')) })
+  expect(container.querySelector('.lounge')).toHaveAttribute('data-reduced', 'true')
+  expect(container.querySelector('.fireflies')).toHaveAttribute('hidden')
+  expect(cancel).toHaveBeenCalledWith(89)
+  fireEvent.click(screen.getByRole('switch', { name: 'Kaminlicht' }))
+  fireEvent.click(screen.getByRole('switch', { name: 'Kaminlicht' }))
+  expect(raf.mock.calls.length).toBe(before)
+  vi.restoreAllMocks()
+})

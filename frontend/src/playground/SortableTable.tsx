@@ -24,7 +24,8 @@ export function SortableTable({ order, onChange, reduced }: { order: string[]; o
     const card = cards.current.get(pending.id)
     const intended = card?.querySelector<HTMLButtonElement>(`[data-move="${pending.direction}"]`)
     const fallback = card?.querySelector<HTMLButtonElement>(`[data-move="${pending.direction === 'up' ? 'down' : 'up'}"]`)
-    ;(intended?.disabled ? fallback : intended)?.focus({ preventScroll: true })
+    const target = intended?.disabled ? fallback : intended
+    target?.focus()
     focusAfterMove.current = null
   }, [order])
   const [announcement, announce] = useState('')
