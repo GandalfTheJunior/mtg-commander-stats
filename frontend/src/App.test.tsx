@@ -33,6 +33,7 @@ async function logOutBeforeLogin() {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
 })
 
 test('identifies the application and shows separate auth forms', async () => {
@@ -46,8 +47,22 @@ test('identifies the application and shows separate auth forms', async () => {
   expect(await screen.findByText('Not signed in.')).toBeInTheDocument()
   expect(registrationForm().getByLabelText('Username')).toBeInTheDocument()
   expect(loginForm().queryByLabelText('Username')).not.toBeInTheDocument()
+  const playgroundLink = screen.getByRole('link', { name: 'Open Tech Playground' })
+  expect(playgroundLink).toHaveAttribute('href', '/dev/lounge.html')
+  expect(playgroundLink.closest('form')).toBeNull()
   expect(screen.queryByRole('heading', { name: 'Meine Decks' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Deck erstellen' })).not.toBeInTheDocument()
+})
+
+test('hides the tech playground link outside development mode', async () => {
+  vi.stubEnv('DEV', false)
+  expect(import.meta.env.DEV).toBe(false)
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 401)))
+  render(<App />)
+
+  expect(await screen.findByText('Not signed in.')).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: 'Open Tech Playground' })).toBeNull()
 })
 
 test('restores the authenticated session and loads its decks', async () => {

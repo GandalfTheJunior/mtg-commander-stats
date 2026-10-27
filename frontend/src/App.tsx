@@ -418,6 +418,11 @@ export default function App() {
                     {loggingIn ? 'Signing in…' : 'Sign in'}
                   </Button>
                 </Stack>
+                {import.meta.env.DEV && (
+                  <Button component="a" href="/dev/lounge.html" variant="outlined" fullWidth sx={{ mt: 2 }}>
+                    Open Tech Playground
+                  </Button>
+                )}
                 <Typography role="status" sx={{ mt: loggingIn ? 2 : 0 }}>{loggingIn ? 'Signing in…' : ''}</Typography>
               </Card>
             </Box>
