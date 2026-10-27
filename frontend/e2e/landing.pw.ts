@@ -91,8 +91,13 @@ test.beforeEach(async ({ page }) => instrument(page))
 
 test('upward edge release survives fractional bounds and glides to the first slot', async ({ page }, info) => {
   const { x } = await begin(page, 'Fenn')
+  const travel = Math.max(0, 20 - (await page.locator('.table-cards').boundingBox())!.y)
+  // At y=20 the edge ramp requests 480*(60/80)^2 = 270px/s. Allow
+  // two travel periods plus 2s for cold WebKit rendering/poll overhead. This
+  // budget is only for reaching the edge, never for relaxing landing continuity.
+  const scrollTimeout = 2000 + 2 * Math.ceil(travel / 270 * 1000)
   await page.mouse.move(x, 20)
-  await expect.poll(async () => (await page.locator('.table-cards').boundingBox())!.y).toBeGreaterThan(18)
+  await expect.poll(async () => (await page.locator('.table-cards').boundingBox())!.y, { timeout: scrollTimeout }).toBeGreaterThan(18)
   await expect(page.locator('.overlay-label')).toHaveText('Hier einfügen')
   await page.mouse.up()
   await evidence(page, info, ['Fenn', 'Mira', 'Orin', 'Lumi'])

@@ -265,7 +265,10 @@ pose, surrounding-card continuity across DOM reorder and intermediate movement,
 unchanged insertion, stale pointer cancellation, scrolling during landing,
 rapid consecutive drags, an actual 180ms main-thread stall, outside/Escape rollback, native keyboard focus and
 reduced motion. Chromium additionally uses continuous native CDP touch input;
-WebKit runs the pointer/layout cases. Final-coordinate and stale-cancel scenarios
+WebKit runs the pointer/layout cases. The upward-edge setup wait derives from
+measured travel at the 270px/s edge ramp, allowing two travel periods plus 2s
+for cold WebKit rendering/poll overhead; the default 5s expired just before the
+list reached the edge in a recorded run. Landing position assertions are unchanged. Final-coordinate and stale-cancel scenarios
 synthesize only their terminal input; animation/layout remain native. This is not
 physical iPhone evidence. Local WebKit download was blocked by the session's
 network allowlist; GitHub's browser job provides the separate WebKit run.
