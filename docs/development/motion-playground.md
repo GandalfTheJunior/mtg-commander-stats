@@ -35,7 +35,9 @@ its code/assets. `/dev/theme.html` remains separate. Do not add either to build 
   The release pose is captured from the rendered CSS matrix before pointer-up
   coordinates update state. The filled animation endpoint remains until React
   reveals the real card; cancellation happens after that commit in a layout effect.
-  No new motion library is used; the duration/easing remain 260ms/ease-out.
+  The temporary overlay requests transform compositing while mounted, including
+  partly offscreen edge-scroll releases. No new motion library is used; the
+  duration/easing remain 260ms/ease-out.
 - Scroll and height-only window/visual-viewport changes retarget the overlay from
   its current displayed matrix to the new measured slot, without revealing the
   card early. Keyed list reordering opts out of browser scroll anchoring. Drop-zone
@@ -241,7 +243,9 @@ npm run test:browser
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium` can use a locally installed
 Chromium. The dedicated CI job runs Chromium and WebKit with real browser layout,
 requestAnimationFrame and Web Animations; animations are neither paused nor mocked.
-It uploads HTML reports, frame-position JSON, failure traces/screenshots and videos
+CI uses the matching official Playwright container with preinstalled browsers/OS
+libraries, avoiding the observed ~53-minute Ubuntu apt-mirror delay; the job has a
+10-minute bound. It uploads HTML reports, frame-position JSON, failure traces/screenshots and videos
 as `playground-browser-evidence` (14-day retention). Browser tests are separate from
 Vitest and included in lint/typecheck. Existing frontend/backend checks still apply.
 
@@ -286,9 +290,10 @@ Physical iPhone visual acceptance remains with the PO; do not merge this PR.
   8 passed, with native unpaused layout/animation. Intermediate/finish samples
   verify continuity and reveal; a deadline-based recorder supports consecutive
   releases without an earlier capture timer truncating later evidence. Observation
-  stays inside the browser during landing: repeated Playwright locator/trace DOM
-  snapshots coincided with a 202ms cold WebKit sampling gap in the first CI run. Position
-  assertions still require intermediate movement, an exact start and final slot.
+  stays inside the browser during landing. Removing repeated locator/trace DOM
+  snapshots did not resolve the cold WebKit upward-edge failure; it is not treated
+  as a proven sampling-only issue. Position assertions still require intermediate
+  movement, an exact start and final slot.
 - `node --test tools/demo/*.test.mjs`: 22 passed;
   `node --test .devcontainer/seed-demo.test.mjs`: 7 passed.
 - Rendered desktop/mobile captures and native-touch/desktop recordings were taken

@@ -226,7 +226,7 @@ export function SortableTable({ order, onChange, reduced }: { order: string[]; o
         </div>
       </li>)}
     </ol>
-    {visualDrag && <div ref={overlay} className={`player-card drag-overlay ${settling ? 'settling-overlay' : ''}`} aria-hidden="true" style={{ left: settling?.release.left ?? visualDrag.x, top: settling?.release.top ?? visualDrag.y, width: settling?.release.width ?? visualDrag.width, height: settling?.release.height ?? visualDrag.height, transform: settling?.release.transform ?? (reduced ? 'none' : undefined), transformOrigin: settling?.release.transformOrigin }}><div className="card-face">{content(visualDrag.id)}</div><div className="overlay-controls"><span>⠿</span><span>↑</span><span>↓</span></div><div className="overlay-label">{visualDrag.valid ? 'Hier einfügen' : 'Außerhalb · Abbrechen'}</div></div>}
+    {visualDrag && <div ref={overlay} className={`player-card drag-overlay ${settling ? 'settling-overlay' : ''}`} aria-hidden="true" style={{ willChange: reduced ? undefined : 'transform', left: settling?.release.left ?? visualDrag.x, top: settling?.release.top ?? visualDrag.y, width: settling?.release.width ?? visualDrag.width, height: settling?.release.height ?? visualDrag.height, transform: settling?.release.transform ?? (reduced ? 'none' : undefined), transformOrigin: settling?.release.transformOrigin }}><div className="card-face">{content(visualDrag.id)}</div><div className="overlay-controls"><span>⠿</span><span>↑</span><span>↓</span></div><div className="overlay-label">{visualDrag.valid ? 'Hier einfügen' : 'Außerhalb · Abbrechen'}</div></div>}
     <p className="sr-only" role="status">{announcement}</p>
   </>
 }
