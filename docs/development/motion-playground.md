@@ -81,18 +81,23 @@ its code/assets. `/dev/theme.html` remains separate. Do not add either to build 
   short-leg safeguards avoid accidentally slow near flies. Instantaneous speeds
   naturally approach zero during pauses; the hierarchy is perceptual over flight.
   Separate irregular glow clocks include long bright holds and full fades.
-- The existing room/glass/brass gradient composition, colors and placement are
-  unchanged. A broad warm swell alternates irregular troughs/crests over roughly
-  2.6–5.7s legs, combined with two smaller asynchronous .8–2.3s flicker envelopes
-  and occasional modest peaks/falloffs. Only the existing intensity variables
-  change. Dezent remains restrained, Deutlich compares the stronger pulse, and
-  off hides every light surface. No flames, strobe or animated screen blur.
+- The existing room/glass/brass gradients, colors, placement and CSS are unchanged.
+  Firelight uses a persistent base, a wandering low-frequency baseline with no
+  compulsory high/low alternation, two small smoothly interpolated flutter signals,
+  and up to three overlapping flare events. Typical attacks take 150–350ms and
+  releases 550–1200ms, with some shorter rounded releases. Variable waits allow
+  clusters and quiet gaps. The two light variables share the same source signal.
+- Dezent gently modulates the existing .4/.3 base. Deutlich uses a wider temporal
+  excursion and reserves headroom for the existing 2.1× CSS gain: soft compression
+  keeps room-layer A below .9765 opacity after gain, avoiding flattened clipped
+  peaks. Changing intensity repaints the same phase without restarting clocks.
+  Off hides every light surface. No flames, strobe or animated screen blur.
 - Hidden tabs stop decorative scheduling. Disable/unmount cleans up frames,
   observers and listeners. Reduced motion, including a live OS change, removes
   fireflies and light updates, restoring static light even at strong intensity.
   Functional drag, edge scrolling, keyboard reorder and buttons remain usable.
 - Performance: one bounded six-point loop plus layered light envelopes (CSS writes capped
-  near 16Hz), only during enabled visible ambience. A separate scroll loop exists
+  near 30Hz), only during enabled visible ambience. A separate scroll loop exists
   only during dragging. No React updates per decorative frame, animated viewport
   blur, particle engine, WebGL or remote requests. SVG patterns/shadows are static.
 
@@ -125,7 +130,10 @@ its code/assets. `/dev/theme.html` remains separate. Do not add either to build 
    should move more slowly than larger/brighter/soft-halo near points, with natural
    pauses/holds/full fades. Resize preserves confinement. Compare Dezent/Deutlich.
    Look for visible organic light brightening/dimming over several seconds without
-   a metronomic pulse. Compare off/static reduced motion; spatial gradients stay the same.
+   a metronomic pulse. Watch 15–30s for persistent low glow, continuous small flutter
+   and brief faster-rise/softer-decay flare moments. Switch intensity during a flare:
+   phase should continue and Deutlich should not flatten at full opacity. Compare
+   off/static reduced motion; spatial gradients stay the same.
 7. Change OS reduced motion **while open** at strong intensity: no decorative
    flight/fade/light updates; static light and instant functional states. Hide/reopen,
    toggle effects and navigate away/back; no duplicate loops.
@@ -136,31 +144,49 @@ Physical iPhone/Android touch, Safari rendering and screen-reader speech remain
 unverified unless separately recorded. Chromium touch emulation is not a device
 claim. Visual approval and independent review remain the PO's decisions.
 
-## Current polish verification (2026-10-27)
+## Reference analysis and approved temporal model
+
+The PO supplied `fireplace-reference-for-iphone.zip` in Codex chat. Its MP4 decoded
+without errors: 25s, 640×360 H.264, 30fps, 750 frames. The reference remains in temporary
+storage; **neither ZIP nor MP4 is committed, bundled, or added to the PR**.
+
+Analysis used a timestamped overview throughout 0–24s, 10fps visual sequences at
+4.2–5.8s and 11.8–13.6s, and a warm-pixel brightness proxy over all 750 frames.
+The strong peak near 4.93s had a ~0.30s half-prominence rise and ~0.91s fall; the
+12.67s peak was shorter and nearly symmetric. Activity was generally quieter at
+16–25s. These observations informed distributions, not an exact waveform replay.
+Camera exposure, flame motion/clipping and the crop prevent treating image
+luminance as calibrated wall illuminance. Indirect lighting therefore retains a
+positive floor and compresses the observed variations for a calm readable UI.
+
+The findings and proposed model were presented before implementation. The PO then
+explicitly approved implementation in Codex chat, following the gate in
+[the PR handoff](https://github.com/GandalfTheJunior/mtg-commander-stats/pull/136#issuecomment-6440134337).
+`firelightModel.ts` implements that approved model; injected random input permits
+repeatable tests. It reuses existing opacity variables with no new rendering
+layers, dependencies or changes to fireflies or card interactions.
+
+## Reference-model verification (2026-10-27)
 
 - `npm ci --cache /tmp/mtg-npm-cache --no-audit --no-fund`: passed.
-- `npm run lint`, `npm run typecheck`, `npm run build`: passed. Existing production
-  bundle size advisory remains.
-- `npm test`: 765 passed / 32 files. `npm test -- src/playground`: 39 passed / 5 files.
-- New regressions cover exterior confinement, coupled depth/speed budgets, bounded
-  curved legs, observable yet bounded light intensity changes, post-commit landing,
-  settled insertion state, live reduced motion and interruption/cleanup. The retired
-  rail-specific tests were replaced because flies now inhabit the exterior scene.
-- Chromium: real Web Animations measured a released overlay ~109px from its target,
-  ~7.7px away at half-time and exactly aligned at completion; three intervening
-  cards had FLIP effects. Final order/height matched committed insertion, with no
-  remaining overlay/placeholder. Reduced motion bypassed landing.
-- Chromium + CDP touch: retained offscreen first→last insertion, upward edge travel,
-  cancel/stop behavior, native Space/Enter boundary focus and confirmed grip taps.
-  Mouse cancellation/retry, live OS changes and decorative frame cleanup passed.
-  Visibility/capture interruptions were simulated, not a physical-device claim.
-- Final screenshots at 320/375/390/1280px: no document overflow; design/proportions
-  retained. Twenty-second mobile motion sample: average far/mid/near travel roughly
-  2.2 / 4.3 / 7.7 CSS px/s, zero rim/bar/caption intersections, flies inside the
-  exterior clip. Observed light intensity ranged ~.35–.78 during a separate sample.
-- `rg --files frontend/dist`: ordinary index/assets only. Search for playground
-  identifiers/text (`fireflies`, `Bleib noch`, `window-art`, `exteriorRegions`,
-  `settling-overlay`, `Cozy Commander`): no matches. Prototype assets remain excluded.
-- WebKit is not installed. Physical iPhone/Android, Safari rendering and screen-reader
-  speech remain unverified. Final-revision CI and new session-local screenshots/
-  clips are recorded in PR #136 for another PO phone check and independent review.
+- `npm run lint`, `npm run typecheck`, `npm run build`: passed (existing production
+  bundle size advisory remains).
+- `npm test`: 771 passed / 33 files. Focused playground suite: 45 passed / 6 files.
+- Seeded regressions cover asymmetric flare envelopes, irregular event intervals,
+  persistent glow, bounded frame changes, soft headroom after the 2.1 gain,
+  phase-preserving intensity changes, hidden-time pause, disable/reduced-motion
+  cleanup and listener retirement. The old large alternating-swell range test was
+  replaced with a post-gain variation/headroom check for the newly approved model.
+- Chromium: a 12s Dezent sample measured ~.372–.473 room-layer A opacity; a 25s
+  Deutlich sample measured ~.602–.946 after gain, with no clipped plateau. Off hid
+  all light surfaces. A live OS reduced-motion change stopped decorative scheduling
+  and retained the unchanged static lighting. Fresh 320/375/390/1280px captures
+  showed no horizontal overflow. The isolated firelight clip uses the existing
+  firefly toggle to turn fireflies off for inspection; their implementation is unchanged.
+- Gradient CSS, firefly modules and drag/drop modules have no diff in this follow-up.
+  Only the Firelight intensity prop is added to the Lounge composition.
+- Production output remains ordinary index/assets, with the same asset hashes and
+  no playground/model identifiers. No reference or recording media is committed.
+- Physical iPhone/Android, WebKit/Safari and screen-reader speech remain unverified.
+  Final-revision CI and session-local screenshots/recording are in PR #136; PO
+  phone visual approval and independent review remain required. No merge performed.

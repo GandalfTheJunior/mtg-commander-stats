@@ -21,7 +21,7 @@ export function Lounge() {
   }, [])
   const reset = () => { setOrder(initialOrder); setSelected(false); setRound(0); setFire(true); setFlies(true); setIntensity('quiet') }
   return <div className="lounge" data-intensity={intensity} data-reduced={reduced} data-hidden={hidden} data-fire={fire}>
-    <Firelight enabled={fire} animated={!reduced} />
+    <Firelight enabled={fire} animated={!reduced} strong={intensity === 'strong'} />
     <main className="lounge-main">
       <header className="lounge-header"><a href="/dev/lounge.html" className="lounge-wordmark">CC <span>COZY COMMANDER</span></a><span className="prototype">MOTION PLAYGROUND · NUR DEMO</span></header>
       <div className="lounge-intro"><span className="overline">Ein Tisch. Vier Geschichten.</span><h1>Bleib noch eine Runde.</h1><p>Ein ruhiger Ort für große Züge und kleine Experimente.</p></div>
