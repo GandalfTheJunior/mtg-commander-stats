@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Button, FormControlLabel, Switch, ToggleButton, ToggleButtonGroup, useMediaQuery } from '@mui/material'
-import { Ambience } from './Ambience'
+import { LoungeWindow } from './LoungeWindow'
+import { Firelight } from './Firelight'
 import { initialOrder } from './ordering'
 import { SortableTable } from './SortableTable'
 
@@ -19,8 +20,8 @@ export function Lounge() {
     return () => document.removeEventListener('visibilitychange', change)
   }, [])
   const reset = () => { setOrder(initialOrder); setSelected(false); setRound(0); setFire(true); setFlies(true); setIntensity('quiet') }
-  return <div className="lounge" data-intensity={intensity} data-reduced={reduced} data-hidden={hidden}>
-    <div className="room-light" aria-hidden="true" hidden={!fire} />
+  return <div className="lounge" data-intensity={intensity} data-reduced={reduced} data-hidden={hidden} data-fire={fire}>
+    <Firelight enabled={fire} animated={!reduced} />
     <main className="lounge-main">
       <header className="lounge-header"><a href="/dev/lounge.html" className="lounge-wordmark">CC <span>COZY COMMANDER</span></a><span className="prototype">MOTION PLAYGROUND · NUR DEMO</span></header>
       <div className="lounge-intro"><span className="overline">Ein Tisch. Vier Geschichten.</span><h1>Bleib noch eine Runde.</h1><p>Ein ruhiger Ort für große Züge und kleine Experimente.</p></div>
@@ -31,7 +32,7 @@ export function Lounge() {
           <p className="demo-feedback" role="status">{round ? `Demo-Runde ${round} gestartet. Es wird kein Spiel gespeichert.` : selected ? 'Reihenfolge bestätigt. Bereit für eine Demo-Runde.' : 'Macht es euch gemütlich. Welche Reihenfolge fühlt sich gut an?'}</p>
         </section>
         <aside className="room-aside">
-          <section className="lounge-window" aria-label="Messinggerahmtes Abendfenster"><div className="window-pane" aria-hidden="true"><span className="moon"/><div className="hills"/><div className="window-bars"/></div><div className="window-caption"><span className="overline">Die Commander Lounge</span><h2>Der Abend gehört euch.</h2><p>Draußen wird es still.<br/>Hier ist noch ein Platz frei.</p></div><Ambience enabled={flies && !reduced} /></section>
+          <LoungeWindow flies={flies && !reduced} />
           <section className="ambience-controls" aria-labelledby="ambience-title"><span className="overline">Die Stimmung im Raum</span><h2 id="ambience-title">Ein wenig Atmosphäre</h2><div className="switches"><FormControlLabel control={<Switch color="secondary" checked={fire} onChange={(_, checked) => setFire(checked)} />} label="Kaminlicht"/><FormControlLabel control={<Switch color="secondary" checked={flies} onChange={(_, checked) => setFlies(checked)} />} label="Glühwürmchen"/></div>
             <ToggleButtonGroup size="small" color="secondary" exclusive value={intensity} onChange={(_, value: string | null) => { if (value) setIntensity(value) }} aria-label="Intensität"><ToggleButton value="quiet">Dezent</ToggleButton><ToggleButton value="strong">Deutlich</ToggleButton></ToggleButtonGroup>
             <p className="quiet">{reduced ? 'Reduzierte Bewegung aktiv: statisches Licht, keine Glühwürmchen.' : 'Sanftes Licht, freie Gedanken. Alles bleibt lokal.'}</p><Button color="secondary" variant="text" onClick={reset}>↺ Demo zurücksetzen</Button>

@@ -8,11 +8,13 @@ export function Ambience({ enabled }: { enabled: boolean }) {
     if (!enabled || !frame.current) return
     const root = frame.current
     const flies = Array.from(root.children) as HTMLElement[]
-    const states = flies.map((_, i) => ({
+    const states = flies.map((_, i) => {
+      const initialGlow = i % 3 === 2 ? 0 : random(.45, .85)
+      return ({
       position: i / flies.length, from: i / flies.length, to: i / flies.length,
       start: 0, duration: random(2500, 6500),
-      glow: 0, glowFrom: 0, glowTo: random(.2, .85), glowStart: 0, glowDuration: random(1200, 4500), glowHold: random(500, 3000),
-    }))
+      glow: initialGlow, glowFrom: initialGlow, glowTo: random(.55, 1), glowStart: 0, glowDuration: random(1200, 4500), glowHold: random(500, 3000),
+    }) })
     let width = root.clientWidth, height = root.clientHeight
     const resize = new ResizeObserver(() => { width = root.clientWidth; height = root.clientHeight })
     resize.observe(root)
@@ -31,7 +33,7 @@ export function Ambience({ enabled }: { enabled: boolean }) {
         s.position = s.from + (s.to - s.from) * smooth(Math.min(1, (elapsed - s.start) / s.duration))
         if (elapsed - s.glowStart >= s.glowDuration + s.glowHold) {
           s.glowFrom = s.glow
-          s.glowTo = Math.random() < .4 ? 0 : random(.25, .9)
+          s.glowTo = Math.random() < .4 ? 0 : random(.55, 1)
           s.glowStart = elapsed
           s.glowDuration = random(1500, 4500)
           s.glowHold = random(800, 4000)
