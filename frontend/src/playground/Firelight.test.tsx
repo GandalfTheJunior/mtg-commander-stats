@@ -23,3 +23,17 @@ test('independent reflected light updates retire on off, reduced motion and unmo
   expect(raf.mock.calls.length).toBe(count)
   unmount()
 })
+
+test('existing gradients receive a visible swell with bounded asynchronous flicker', () => {
+  let next: FrameRequestCallback = () => {}
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => { next = cb; return 52 })
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {})
+  vi.spyOn(Math, 'random').mockReturnValue(.6)
+  const { container } = render(<div><Firelight enabled animated /></div>)
+  const room = container.firstElementChild as HTMLElement
+  const samples: number[] = []
+  act(() => { for (let t = 0; t <= 16000; t += 64) { next(t); samples.push(Number(room.style.getPropertyValue('--warm-a'))) } })
+  expect(Math.max(...samples) - Math.min(...samples)).toBeGreaterThan(.3)
+  expect(samples.every(n => n >= .14 && n <= .9)).toBe(true)
+  expect(samples.slice(1).every((n, i) => Math.abs(n - samples[i]) < .04)).toBe(true)
+})

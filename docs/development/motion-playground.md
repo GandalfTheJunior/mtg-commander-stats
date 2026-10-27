@@ -27,6 +27,18 @@ its code/assets. `/dev/theme.html` remains separate. Do not add either to build 
 - ResizeObserver measures unequal card dimensions. A fixed whole-card overlay tracks
   viewport coordinates; compacted-list midpoint thresholds determine insertion.
   CSS transforms preview reflow before drop, independent of animated DOM bounds.
+- A valid release commits insertion immediately, but retains the same whole-card
+  overlay for a 260ms measured landing. A layout effect records the new keyed DOM
+  rectangles and inverts each intervening card's pre-commit visual displacement
+  (including an unfinished live preview). Web Animations then glide those cards to
+  zero displacement and move/derotate the overlay onto the exact measured target.
+  The real dragged card stays hidden until the overlay finishes; there is no
+  double visual, remount gap or list collapse. No new motion library is used.
+- A new drag, keyboard action, changed order, actual scroll, resize, visibility
+  change, blur, unmount or live reduced-motion change retires landing effects.
+  Post-release interruptions retain the already committed order; cancellation
+  before release still restores the original order. Reduced motion skips landing
+  entirely. Keyboard alternatives retain their existing instant focus behavior.
 - An active gesture owns one requestAnimationFrame edge-scroll loop. Within 80px of
   the visible viewport edge, a quadratic ramp increases to at most 480px/s. Actual
   elapsed time is capped at 32ms. Instant native scroll increments and live list
@@ -58,22 +70,29 @@ its code/assets. `/dev/theme.html` remains separate. Do not add either to build 
   and were **not inspected**.
 - Mobile uses 16px gutters and an actual window near 1.2:1 width:height. At
   320/375/390px it measures roughly 288×240 / 343×286 / 358×298 CSS px.
-- Six independent fireflies (three on phones) follow an arc-length rounded frame
-  rail, avoiding fractional-power velocity spikes. Rounded top turns and small
-  bottom corners keep trajectories outside the caption. Each leg eases to/from
-  rest with independent destinations/durations. Brightness has a separate fade/hold
-  clock, including long bright and fully dark holds. Warm 4px points/soft halos
-  become 5px with clearer halos in Deutlich.
-- Firelight has two independent random low-frequency channels, not a repeating
-  cycle. Gentle 3–8s and 6.5–14s interpolation affects room gradients, glass and brass
-  reflections. Dezent is restrained; Deutlich increases comparison intensity. Off
-  hides all three reflected-light surfaces.
+- Six independent exterior fireflies render **inside** the glass clip, behind glass
+  reflections, mullions and frame. Two measured upper exterior pockets avoid the
+  arch/rim, both glazing bars and the live HTML caption; insufficient space hides
+  flies instead of allowing overlaps. ResizeObserver watches SVG and caption.
+- Far/mid/near bands couple radius (.75/1.15/1.65 CSS px), brightness, halo and
+  non-overlapping nominal screen-speed budgets (2–2.6 / 4.3–5.2 / 8–9.5 px/s).
+  Individual curved legs ease into near-pauses and have independent destinations.
+  Durations derive from measured CSS-pixel travel and the selected depth budget;
+  short-leg safeguards avoid accidentally slow near flies. Instantaneous speeds
+  naturally approach zero during pauses; the hierarchy is perceptual over flight.
+  Separate irregular glow clocks include long bright holds and full fades.
+- The existing room/glass/brass gradient composition, colors and placement are
+  unchanged. A broad warm swell alternates irregular troughs/crests over roughly
+  2.6–5.7s legs, combined with two smaller asynchronous .8–2.3s flicker envelopes
+  and occasional modest peaks/falloffs. Only the existing intensity variables
+  change. Dezent remains restrained, Deutlich compares the stronger pulse, and
+  off hides every light surface. No flames, strobe or animated screen blur.
 - Hidden tabs stop decorative scheduling. Disable/unmount cleans up frames,
   observers and listeners. Reduced motion, including a live OS change, removes
   fireflies and light updates, restoring static light even at strong intensity.
   Functional drag, edge scrolling, keyboard reorder and buttons remain usable.
-- Performance: one bounded six-point loop plus two light channels (CSS writes capped
-  near 12.5Hz), only during enabled visible ambience. A separate scroll loop exists
+- Performance: one bounded six-point loop plus layered light envelopes (CSS writes capped
+  near 16Hz), only during enabled visible ambience. A separate scroll loop exists
   only during dragging. No React updates per decorative frame, animated viewport
   blur, particle engine, WebGL or remote requests. SVG patterns/shadows are static.
 
@@ -84,7 +103,11 @@ its code/assets. `/dev/theme.html` remains separate. Do not add either to build 
    On iPhone Safari, inspect at native scale and after rotation/zoom.
 2. Drag Mira past several unequal cards. **Before release**, see intervening cards
    reflow and a dashed whole-card insertion slot. Drop at both ends and repeat with
-   the tallest card. This must insert/shift, rather than swap.
+   the tallest card. This must insert/shift, rather than swap. Release while others
+   are still reflowing: the whole dragged card should travel into its slot while
+   intervening cards glide across the DOM commit. No flash, double card or ghost.
+   Repeat quickly; scroll/rotate/hide or use keyboard during landing and check
+   cleanup. These interruptions retain the order committed at release.
 3. On a short phone viewport, hold at the bottom edge: progressive scrolling should
    reveal offscreen cards while the overlay follows the finger. Repeat upward.
    Drop and verify immediate stop. Release horizontally outside the list and verify
@@ -97,9 +120,12 @@ its code/assets. `/dev/theme.html` remains separate. Do not add either to build 
    Confirm selection then tap a grip: Spiel starten stays enabled. Reorder: confirmation
    resets. Test rapid mouse/touch/keyboard activation of both action styles and reset.
    No actual game is saved or request sent.
-6. Watch 30+ seconds: perceptible independent points near rails, no speed spikes,
-   pauses/bright holds/full fades, no paths over text/buttons. Resize preserves anchors.
-   Compare irregular firelight on brass/glass, Dezent/Deutlich and both off toggles.
+6. Watch 30+ seconds at all viewports: six points live in the exterior night scene,
+   behind the glass, avoiding rim/bars/caption. Smaller/dimmer/tight-halo far points
+   should move more slowly than larger/brighter/soft-halo near points, with natural
+   pauses/holds/full fades. Resize preserves confinement. Compare Dezent/Deutlich.
+   Look for visible organic light brightening/dimming over several seconds without
+   a metronomic pulse. Compare off/static reduced motion; spatial gradients stay the same.
 7. Change OS reduced motion **while open** at strong intensity: no decorative
    flight/fade/light updates; static light and instant functional states. Hide/reopen,
    toggle effects and navigate away/back; no duplicate loops.
@@ -110,24 +136,31 @@ Physical iPhone/Android touch, Safari rendering and screen-reader speech remain
 unverified unless separately recorded. Chromium touch emulation is not a device
 claim. Visual approval and independent review remain the PO's decisions.
 
-## Verification record (2026-10-27)
+## Current polish verification (2026-10-27)
 
 - `npm ci --cache /tmp/mtg-npm-cache --no-audit --no-fund`: passed.
-- `npm run lint`, `npm run typecheck`, `npm run build`: passed (existing production
-  bundle size advisory remains).
-- `npm test`: 750 passed / 31 files. `npm test -- src/playground`: 24 passed / 4 files.
-- Chromium + CDP touch emulation: downward offscreen insertion first→last, upward
-  edge travel, cancellation and immediate scroll retirement; live preview before
-  drop; native Space/Enter boundary focus and confirmed grip tap passed.
-- Chromium harness: live reduced-motion loop retirement, off-state reflections,
-  mouse cancellation/retry for each exit, and scheduled-frame cleanup passed.
-  Visibility interruptions were simulated; this is not a real-device/tab claim.
-- Screenshots at 320/375/390 and 1280 CSS px: no document horizontal overflow;
-  continuous arch inspected. Thirty-second mobile firefly sample: up to three
-  visible points, including dark phases, no caption intersections.
-- `rg --files frontend/dist`: only ordinary index/assets. Search for `fireflies`,
-  `Bleib noch`, `window-art`, `glass-grain`, `edgeVelocity`, `Cozy Commander`: no
-  matches. No prototype-only assets copied to output.
-- WebKit launch attempted: executable not installed. Physical iPhone/Android,
-  Safari's rendering of the replacement frame and screen-reader speech unverified.
-  Final-revision GitHub CI results and session-local screenshots/clips are in PR #136.
+- `npm run lint`, `npm run typecheck`, `npm run build`: passed. Existing production
+  bundle size advisory remains.
+- `npm test`: 765 passed / 32 files. `npm test -- src/playground`: 39 passed / 5 files.
+- New regressions cover exterior confinement, coupled depth/speed budgets, bounded
+  curved legs, observable yet bounded light intensity changes, post-commit landing,
+  settled insertion state, live reduced motion and interruption/cleanup. The retired
+  rail-specific tests were replaced because flies now inhabit the exterior scene.
+- Chromium: real Web Animations measured a released overlay ~109px from its target,
+  ~7.7px away at half-time and exactly aligned at completion; three intervening
+  cards had FLIP effects. Final order/height matched committed insertion, with no
+  remaining overlay/placeholder. Reduced motion bypassed landing.
+- Chromium + CDP touch: retained offscreen first→last insertion, upward edge travel,
+  cancel/stop behavior, native Space/Enter boundary focus and confirmed grip taps.
+  Mouse cancellation/retry, live OS changes and decorative frame cleanup passed.
+  Visibility/capture interruptions were simulated, not a physical-device claim.
+- Final screenshots at 320/375/390/1280px: no document overflow; design/proportions
+  retained. Twenty-second mobile motion sample: average far/mid/near travel roughly
+  2.2 / 4.3 / 7.7 CSS px/s, zero rim/bar/caption intersections, flies inside the
+  exterior clip. Observed light intensity ranged ~.35–.78 during a separate sample.
+- `rg --files frontend/dist`: ordinary index/assets only. Search for playground
+  identifiers/text (`fireflies`, `Bleib noch`, `window-art`, `exteriorRegions`,
+  `settling-overlay`, `Cozy Commander`): no matches. Prototype assets remain excluded.
+- WebKit is not installed. Physical iPhone/Android, Safari rendering and screen-reader
+  speech remain unverified. Final-revision CI and new session-local screenshots/
+  clips are recorded in PR #136 for another PO phone check and independent review.

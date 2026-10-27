@@ -37,11 +37,9 @@ body { margin: 0; }
 .fire-glass { opacity: calc(var(--warm-b) * .18 * var(--fire-strength)); }
 .fire-brass { opacity: calc(var(--warm-a) * .6 * var(--fire-strength)); }
 [data-fire='false'] .fire-glass, [data-fire='false'] .fire-brass { display: none; }
-.fireflies { position: absolute; inset: 0; pointer-events: none; }
-.fireflies[hidden] { display: none; }
-.fireflies i { position: absolute; top: -2px; left: -2px; width: 4px; height: 4px; border-radius: 50%; background: #ffe8a8; box-shadow: 0 0 4px 1px #f5c85dbb, 0 0 9px 2px #edb84940; opacity: 0; }
-[data-intensity='strong'] { --fire-strength: 2.1; }
-[data-intensity='strong'] .fireflies i { width: 5px; height: 5px; background: #fff1b8; box-shadow: 0 0 5px 2px #f5c85dcc, 0 0 11px 3px #edb84966; }
+.fireflies { pointer-events: none; }
+.firefly { opacity: calc(var(--fly-alpha, 0) * var(--fly-strength, 1)); }
+[data-intensity='strong'] { --fire-strength: 2.1; --fly-strength: 1.25; }
 [data-reduced='true'] .MuiButton-root:active, [data-reduced='true'] .MuiToggleButton-root:active { transform: none; }
 [data-reduced='true'] * { transition-duration: .001ms !important; }
 .lounge footer { margin-top: 38px; padding-top: 24px; border-top: 1px solid #c6a05e30; color: #cdbfb3; font-size: 11px; line-height: 2; }.lounge footer span { color: #dbb977; font-family: Georgia, serif; font-style: italic; font-size: 14px; }.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
@@ -58,7 +56,6 @@ body { margin: 0; }
   .window-caption p { font-size: 12px; line-height: 1.6; }
   .window-caption .overline { font-size: 8px; letter-spacing: .12em; }
   .ambience-controls { padding: 0; }
-  .fireflies i:nth-child(n+4) { display: none; }
   .player-card { padding: 14px; }
   .card-face { gap: 12px; }
   .lounge-wordmark span { font-size: 9px; }

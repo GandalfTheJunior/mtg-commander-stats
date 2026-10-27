@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useRef } from 'react'
 import { Ambience } from './Ambience'
 
 // Original procedural artwork, drawn as separate materials and geometry. One
@@ -6,6 +6,7 @@ import { Ambience } from './Ambience'
 const arch = 'M56 766 Q38 766 38 748 V310 C38 148 180 38 360 38 H640 C820 38 962 148 962 310 V748 Q962 766 944 766 Z'
 
 export function LoungeWindow({ flies }: { flies: boolean }) {
+  const caption = useRef<HTMLDivElement>(null)
   const id = useId().replaceAll(':', '')
   const url = (name: string) => `url(#${id}-${name})`
   return <section className="lounge-window" aria-label="Messinggerahmtes Abendfenster">
@@ -34,6 +35,7 @@ export function LoungeWindow({ flies }: { flies: boolean }) {
         <path d="M0 530Q140 400 340 480T640 440T1000 425V800H0Z" fill="#1a3032"/>
         <path d="M0 590Q180 500 390 540T760 500T1000 540V800H0Z" fill="#112729"/>
         <path d="M95 540l20-70 20 70h-13v35h-14v-35 M817 480l23-95 23 95h-16v46h-14v-46 M864 505l16-68 16 68h-10v30h-12v-30" fill="#102529"/>
+        <Ambience enabled={flies} caption={caption} />
         <path d="M220 0H330L590 800H460Z M380 0h30L680 800h-35Z" fill={url('reflection')}/>
         <path d="M0 415H1000" stroke="#0d191b" strokeWidth="18"/><path d="M0 410H1000" stroke="#8d794f" strokeOpacity=".5" strokeWidth="5"/>
         <path d="M500 0V800" stroke="#0e191c" strokeWidth="17"/><path d="M496 0V800" stroke="#9f8b5e" strokeOpacity=".6" strokeWidth="4"/>
@@ -50,7 +52,6 @@ export function LoungeWindow({ flies }: { flies: boolean }) {
       <use className="fire-brass" href={`#${id}-arch`} fill="none" stroke={url('amber')} strokeWidth="22"/>
       <use href={`#${id}-arch`} fill="none" stroke="#f3d697" strokeOpacity=".35" strokeWidth="2"/>
     </svg>
-    <div className="window-caption"><span className="overline">Die Commander Lounge</span><h2>Der Abend gehört euch.</h2><p>Draußen wird es still. Hier ist noch ein Platz frei.</p></div>
-    <Ambience enabled={flies} />
+    <div ref={caption} className="window-caption"><span className="overline">Die Commander Lounge</span><h2>Der Abend gehört euch.</h2><p>Draußen wird es still. Hier ist noch ein Platz frei.</p></div>
   </section>
 }

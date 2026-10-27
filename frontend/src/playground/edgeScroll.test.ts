@@ -1,6 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { edgeVelocity, startEdgeScroll } from './edgeScroll'
-import { railPoint } from './flight'
 
 afterEach(() => vi.restoreAllMocks())
 test('edge speed increases progressively, remains bounded and is zero in the middle', () => {
@@ -31,14 +30,4 @@ test('invalid horizontal pointer never scrolls', () => {
   next(10); next(26)
   expect(scroll).not.toHaveBeenCalled()
   stop()
-})
-test.each([[300, 250], [450, 410]])('rail has bounded displacement at every corner (%i × %i)', (w, h) => {
-  let last = railPoint(w, h, 0)
-  for (let i = 1; i <= 10000; i++) {
-    const p = railPoint(w, h, i / 10000)
-    expect(Math.hypot(p.x - last.x, p.y - last.y)).toBeLessThan(2 * (w + h) / 10000 + .001)
-    expect(p.x).toBeGreaterThanOrEqual(14.99)
-    expect(p.y).toBeGreaterThanOrEqual(14.99)
-    last = p
-  }
 })
