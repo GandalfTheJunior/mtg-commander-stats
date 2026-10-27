@@ -304,8 +304,10 @@ Physical iPhone visual acceptance remains with the PO; do not merge this PR.
   bounded progression after a 200ms frame gap and frame cancellation on retirement.
 - `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:browser -- --project=chromium`:
   Chromium landing regressions passed with real layout/application animation. Intermediate/finish samples
-  verify continuity and reveal; a deadline-based recorder supports consecutive
-  releases without an earlier capture timer truncating later evidence. Observation
+  verify continuity and reveal. Recording follows the overlay lifecycle through
+  handoff, including consecutive releases. A former 700ms window clipped evidence
+  when cold WebKit stalled and the bounded clock extended wall time to ~1041ms;
+  it no longer truncates the actual landing. Observation
   stays inside the browser during landing. Removing repeated locator/trace DOM
   snapshots did not resolve the cold WebKit upward-edge failure; it is not treated
   as a proven sampling-only issue. Position assertions still require intermediate

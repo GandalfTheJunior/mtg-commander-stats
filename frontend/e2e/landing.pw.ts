@@ -30,12 +30,18 @@ async function instrument(page: Page) {
       return animation
     }
     document.addEventListener('pointerdown', e => { window.activePointerId = e.pointerId }, true)
-    let recordUntil = 0
+    let recording = false
     document.addEventListener('pointerup', () => {
       if (!document.querySelector('.drag-overlay') || document.querySelector('.settling-overlay')) return
-      window.sampleLanding('release'); recordUntil = performance.now() + 700
+      window.sampleLanding('release'); recording = true
     }, true)
-    const frame = () => { if (performance.now() < recordUntil) window.sampleLanding('frame'); requestAnimationFrame(frame) }
+    const frame = () => {
+      if (recording) {
+        window.sampleLanding('frame')
+        if (!document.querySelector('.drag-overlay')) recording = false
+      }
+      requestAnimationFrame(frame)
+    }
     requestAnimationFrame(frame)
   })
   await page.goto('/dev/lounge.html')
