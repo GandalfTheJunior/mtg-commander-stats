@@ -298,3 +298,8 @@ Tests terminate without watch mode. GitHub Actions runs separate `backend` and
 - [Reviewing principles](docs/development/reviewing.md)
 - [Agent bootstrap](AGENTS.md) and [role registry](docs/agents/README.md)
 - [Agent harness verification scenarios](docs/agents/harness-verification.md)
+
+### Motion playground (development only)
+
+For the isolated Cozy Commander experiment, open `/dev/lounge.html` with the frontend
+Vite dev server. See [run instructions and review checklist](docs/development/motion-playground.md).
