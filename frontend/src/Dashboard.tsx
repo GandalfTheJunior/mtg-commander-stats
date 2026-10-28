@@ -57,7 +57,14 @@ export default function Dashboard({ onUnauthorized, onOpen }: {
   const sortedDecks = [...decks.items].sort((a, b) => deckNames.compare(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   return (
     <Stack component="section" aria-labelledby="dashboard-heading" sx={{ gap: 4, minWidth: 0 }}>
-      <Typography component="h2" variant="h4" id="dashboard-heading">Dashboard</Typography>
+      <Stack direction="row" useFlexGap sx={{ gap: 2, flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Typography component="h2" variant="h4" id="dashboard-heading">Dashboard</Typography>
+        {import.meta.env.DEV && (
+          <Button component="a" href="/dev/lounge.html" variant="outlined" color="secondary">
+            Tech Playground öffnen
+          </Button>
+        )}
+      </Stack>
       <Box component="section" aria-labelledby="dashboard-groups-heading">
         <Stack direction="row" useFlexGap sx={{ gap: 1, flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography component="h3" variant="h5" id="dashboard-groups-heading">Playgroups</Typography>

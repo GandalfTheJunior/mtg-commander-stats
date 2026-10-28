@@ -17,6 +17,10 @@ Open **http://localhost:5173/dev/lounge.html** (or the private forwarded Vite UR
 No backend/login is needed. The ordinary build imports/emits neither this HTML nor
 its code/assets. `/dev/theme.html` remains separate. Do not add either to build inputs.
 
+In development, the authenticated Dashboard also links here via **Tech Playground
+öffnen**. The signed-out **Open Tech Playground** link remains available; both
+entries are hidden in production builds.
+
 ## Interaction implementation
 
 - No new runtime dependencies. MUI and the existing theme; exploratory CSS is imported only
