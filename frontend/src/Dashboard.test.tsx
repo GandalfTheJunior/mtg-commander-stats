@@ -82,7 +82,38 @@ async function signIn() {
   fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
   await screen.findByText('Login successful.')
 }
-afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState(null, '', '/') })
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); window.history.replaceState(null, '', '/') })
+
+test.each([true, false])('after login, the Dashboard playground entry is development-only (DEV=%s)', async dev => {
+  vi.stubEnv('DEV', dev)
+  const api = setup()
+  api.state.user = null
+  show()
+  await screen.findByRole('heading', { name: 'Sign in' })
+  await signIn()
+  await loaded()
+
+  expect(window.location.pathname).toBe('/dashboard')
+  const dashboard = within(screen.getByRole('region', { name: 'Dashboard' }))
+  if (dev) {
+    expect(dashboard.getByRole('link', { name: 'Tech Playground öffnen' })).toHaveAttribute('href', '/dev/lounge.html')
+  } else {
+    expect(dashboard.queryByRole('link', { name: 'Tech Playground öffnen' })).not.toBeInTheDocument()
+  }
+  expect(screen.queryByRole('link', { name: 'Open Tech Playground' })).not.toBeInTheDocument()
+  expect(within(screen.getByRole('navigation')).getAllByRole('link').map(link => link.getAttribute('href')))
+    .toEqual(['/dashboard', '/playgroups', '/decks'])
+})
+
+test('a restored authenticated session can open the playground from the development Dashboard', async () => {
+  vi.stubEnv('DEV', true)
+  setup()
+  show()
+  await loaded()
+
+  expect(screen.getByRole('link', { name: 'Tech Playground öffnen' })).toHaveAttribute('href', '/dev/lounge.html')
+  expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument()
+})
 
 test.each([0, 1, 3, 5])('%s groups retain API order, role labels and expand only beyond three', async count => {
   const api = setup()
