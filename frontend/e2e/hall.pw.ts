@@ -1,15 +1,13 @@
 import { expect, test } from '@playwright/test'
 
-test('gallery controls, responsive geometry, original artwork and motion lifecycle', async ({ page }, info) => {
-  const external: string[] = []
-  page.on('request', req => { if (!req.url().startsWith('http://127.0.0.1:5173')) external.push(req.url()) })
+test.beforeEach(async ({ page }) => {
   await page.goto('/dev/lounge.html')
   await page.getByRole('button', { name: 'Die Ruhmeshalle', exact: true }).click()
-  const hall = page.locator('.hall')
-  await expect(hall).toHaveAttribute('data-animated', 'true')
-  for (const width of [320, 375, 390, 1280]) {
+})
+
+for (const width of [320, 375, 390, 1280]) {
+  test(`landscape portraits and no overflow at ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 950 })
-    await page.evaluate(() => window.scrollTo(0, 0))
     await expect(page.getByRole('img')).toHaveCount(6)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     const geometry = await page.locator('.hall-art').evaluateAll(images => images.map(image => {
@@ -19,7 +17,17 @@ test('gallery controls, responsive geometry, original artwork and motion lifecyc
     for (const image of geometry) { expect(image.width).toBeGreaterThan(150); expect(image.ratio).toBeCloseTo(12/7, 1); expect(image.filter).toBe('none') }
     const screenshot = await page.screenshot({ path: info.outputPath(`hall-${width}.png`), fullPage: true })
     await info.attach(`hall-${width}`, { body: screenshot, contentType: 'image/png' })
-  }
+  })
+}
+
+test('independent controls, sparse wall, keyboard focus and motion lifecycle', async ({ page }, info) => {
+  const external: string[] = []
+  page.on('request', req => { if (!req.url().startsWith('http://127.0.0.1:5173')) external.push(req.url()) })
+  await page.reload()
+  await page.getByRole('button', { name: 'Die Ruhmeshalle', exact: true }).click()
+  await page.setViewportSize({ width: 1280, height: 950 })
+  const hall = page.locator('.hall')
+  await expect(hall).toHaveAttribute('data-animated', 'true')
   const mira = page.getByRole('combobox', { name: 'Schmuck für Mira' })
   await mira.focus()
   await expect(mira).toBeFocused()
