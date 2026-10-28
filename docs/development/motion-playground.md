@@ -490,17 +490,19 @@ the PO. CI WebKit/emulation is not real-device approval. Keep PR #145 draft; no 
 
 ## Die Ruhmeshalle (#147)
 
-The fourth selector at `/dev/lounge.html` opens a backend-free visual study.
+The fourth selector at `/dev/lounge.html` opens an offline-first visual study.
+The optional online mode below was explicitly requested in the PO follow-up on PR #148.
 `hallData.ts` defines six deterministic fictional decks (all with at least five
 fictional games), owners, mana identities and captions. The sparse snapshot has
 three unique decks and three vacant wall hooks in the same six physical slots.
 It deliberately encodes no future ranking, tie-breaking or small-group allocation
-rule. No API, storage, authentication or production gallery is involved.
+rule. This default mode uses no API or authentication. Neither mode uses storage
+or a production gallery.
 
 `HallArtwork.tsx` contains original lightweight vector illustrations and three
 separate raised-gold honor ornaments: laurel, heraldic banner/shield and rune
-crown. No third-party artwork, textures, fonts or runtime asset requests are
-used. Every portrait composes the existing, unchanged `ArtworkFrame` and
+crown. The default mode uses no third-party artwork, textures, fonts or runtime
+asset requests. Every portrait composes the existing, unchanged `ArtworkFrame` and
 `frameFinish` mapping. Each winning slot independently selects A/B/C (initially
 one each); fixture changes preserve its trial choice, leaving the view resets
 it. Losers have static -3/+4/-5 degree whole-frame rotations and metal-only
@@ -533,3 +535,50 @@ by HTTP 403 domain policy; the browser CI job supplies WebKit verification.
 Physical iPhone Safari, VoiceOver and real-device performance remain unverified.
 PO visual approval and independent review are required; green tests do not
 constitute aesthetic approval.
+
+
+### Optional real Commander artwork mode (PR #148 PO follow-up)
+
+Enable **Echte Commander-Artworks** to preview real MTG art crops. Sign into the
+main application first (same browser/session); the notice links there in a new
+tab. The default SVG wall still works entirely without backend/login. This
+explicit PO extension permits read-only backend calls in this dev experiment.
+
+`hallCommanders.ts` owns 14 fully named, distinct standalone Commanders without
+chosen-color requirements. A Fisher–Yates draw picks six names without replacement;
+**Neu mischen** excludes the previous six, guaranteeing a different set. The
+selection survives fixture/ornament/light changes and off/on, until another mix
+or leaving the view. Fixtures still control which slots are occupied: sparse
+slots remain empty hooks. The batch prepares six stable slot assignments, even
+when some are not currently hung; fixture changes make no requests.
+
+One sequential batch makes at most six `searchCommanders` and six `listArtworks`
+reads. Exact name, standalone eligibility, no chosen-color requirement and unique
+printing identity are checked before artwork discovery; both image and source
+URLs must pass `safeArtworkUrl`. No browser Scryfall API calls, new endpoints,
+backend changes, dependencies, persistence or downloaded art files are added.
+AbortController plus per-request result identity retire rapid rerolls, mode
+changes and unmount; stale results cannot repaint another generation. A 401
+stops the remaining batch and explains sign-in. Other errors, empty/unsafe crops
+and image errors leave each affected slot's original SVG. No automatic retries.
+The explicit mix control can request a fresh round after login or recovery.
+
+Real images use intrinsic width/height ratio with no crop, tint, overlay or
+filter. While loading/failed, the local image and its fictional frame colors
+remain; after successful image load the frame uses that Commander's actual
+`colorIdentity`. Name, artist, artwork mana identity and safe Scryfall link sit
+outside the tilted frame. The mode explains that these are random art samples,
+not actual Commanders/color identities of the fictional players' decks; plaques
+are explicitly labelled fictional. Copyright and unofficial Fan Content notice
+appear in the footer. Honor choices, fixed tilts and light remain independent.
+
+`hallCommanders.test.ts` and `HallOfFame.test.tsx` test unique draws, exact metadata
+validation, bounded errors, original SVG fallback, image failure, real colors,
+independent controls, sparse hooks, aborts and stale generations.
+`e2e/hall-online.pw.ts` stubs backend JSON **and synthetic image bytes** at varying
+600×440 / 900×300 dimensions. It checks mode/mix/fixture/focus-independent controls,
+source attribution, intrinsic ratio, no filter/crop, 401/503/image fallback,
+late responses and 320/375/390/1280px overflow in Chromium and WebKit. Screenshots
+from these tests are clearly synthetic layout evidence, not live Scryfall art.
+Use the existing browser CI artifact for both engines. Physical iPhone Safari
+and a live authenticated provider session still require PO visual acceptance.

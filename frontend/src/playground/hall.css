@@ -42,3 +42,12 @@
 .hall footer { max-width: 780px; margin: 30px auto 0; text-align: center; font: 12px/1.9 system-ui, sans-serif; color: #d3c1a6; }
 @media (max-width: 850px) { .hall-gallery { grid-template-columns: 1fr; max-width: 480px; margin: auto; gap: 45px; padding: 28px 18px 42px; }.hall-plaque { min-height: 0; }.hall-honor { height: 74px; }.hall { padding: 28px 14px; }.hall-wall { border-width: 7px; }.hall-header { margin-bottom: 26px; }.hall-controls { align-items: stretch; }.hall-vacancy { min-height: 280px; } }
 @media (prefers-reduced-motion: reduce) { .hall { --warm-a: .4 !important; --warm-b: .3 !important; } }
+.hall .hall-mode { flex-direction: row; align-items: center; min-height: 44px; gap: 8px; }
+.hall-mode input { width: 20px; height: 20px; accent-color: #d4b074; }
+.hall input:focus-visible, .hall a:focus-visible { outline: 3px solid #ffe3a3; outline-offset: 4px; }
+.hall-online-notice { max-width: 780px; margin: 0 auto 30px; text-align: center; font: 13px/1.7 system-ui, sans-serif; color: #e1d1ba; }
+.hall a { color: #f0cf8e; overflow-wrap: anywhere; }
+.hall-art-credit { font: 12px/1.6 system-ui, sans-serif; margin: 0 6px 16px; overflow-wrap: anywhere; }
+.hall-art-credit p { margin: 3px 0; }
+.hall .hall-online-image { width: 100%; height: auto; display: block; }
+.hall .hall-online-image[hidden] { display: none; }
