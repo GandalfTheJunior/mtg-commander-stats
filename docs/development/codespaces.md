@@ -164,3 +164,84 @@ create a throwaway account or game, stop/restart the Codespace through GitHub,
 open private port 5174 and then the application, and confirm both readiness and
 the previously saved data without a terminal startup command. A local test with
 an injected OCI failure cannot replace this check.
+
+## Optional stable test login (personal secret)
+
+In GitHub **Settings → Codespaces → Codespaces secrets → New secret**, create
+`MTG_CODESPACE_TEST_PASSWORD` and grant access to **GandalfTheJunior/mtg-commander-stats
+only**. Choose a strong, unique test passphrase of at least 12 Unicode code
+points. Never paste it into an issue, conversation, command line or committed file.
+This optional runtime secret is not needed at image build time. Without it,
+startup reports “optional test login not configured” and the original demo works.
+
+Create private Codespaces from trusted branches. For an existing Codespace,
+**stop and restart** it after adding/changing repository access or the secret.
+Post-start automatically provisions `tester@commander.example` / `Codespace Tester`
+after the demo import. A non-secret `test-login: created and verified test login`
+(or `verified existing test login`) message in the private startup log confirms
+success. No recurring terminal command or password-file edit is needed.
+
+The GitHub CLI must be authenticated with permission to inspect this Codespace
+and its forwarded ports. Both 5173 and 5174 must already be **Private**, and
+8080/5432 must not be forwarded. Inability to prove privacy causes refusal, never
+an automatic visibility change. The provisioner checks GitHub identity, local
+Docker socket, Compose/container/volume identity and completed import, then proves
+the loopback backend matches the database with a normal Ada login and its stored
+per-Codespace password. Keep `.demo/credentials.json` protected and unchanged.
+
+On iPhone Safari, sign in with the fixed test email and chosen passphrase.
+Apple Passwords may offer saved credentials; explicitly selecting the saved
+password is acceptable. Automatic autofill across different
+`<codespace>-5173.app.github.dev` hostnames is **not guaranteed**.
+
+The extra account starts without decks or group membership. Group history and
+statistics require legitimately joining with an owner's join code. Ada still
+provides the complete seeded history. The seven original accounts, their generated
+passwords, 21 decks, two groups, 32 games and canonical fixture remain unchanged.
+
+### Trust and secret lifecycle
+
+Code running in a Codespace can read its personal Codespaces secrets. Only run
+trusted, reviewed branches with this secret; never reuse a real-user/production
+password. Edit or delete/revoke the secret and repository access in GitHub Settings.
+Stop/restart existing Codespaces to refresh the runtime environment. Changing the
+GitHub secret **does not rotate** a previously registered application's password.
+Removing the secret disables automatic verification, not the existing account.
+Long-lived frontend/backend/status processes started by this script do not inherit
+the optional password. Previously running services are reused; stop/restart the
+Codespace when adopting this tooling if older services inherited broad environments.
+
+### Test login recovery
+
+Configured provisioning failures leave overall startup failed even when servers
+are reachable. Diagnostics contain no passwords, HTTP bodies, cookies or tokens.
+Fix transient GitHub/backend readiness or private-port problems and restart.
+A completed marker requires the real account ID and successful current login on
+every run. A changed secret, missing/stale/partial marker, conflicting email, or
+uncertain registration response is never repaired automatically. In particular,
+a `started` marker is written before registration and blocks every subsequent
+attempt, even if registration succeeded but verification or shutdown failed.
+Concurrent invocations share a kernel lock; do not delete lock files.
+
+Preserve `~/.local/state/mtg-commander-stats/test-login.json` and any `.tmp` file
+for independent inspection. Do not delete markers to force another attempt,
+reset the database, edit demo credentials, or update SQL password hashes.
+The safe default is a **new trusted private Codespace**, retaining the old one
+for its data, or restore the previous GitHub secret to verify a completed account.
+Any recovery of an interrupted/conflicting existing account needs separate,
+explicitly authorized inspection and a guarded recovery procedure; this tool
+provides no reset/adoption switch. Never share raw credentials or raw logs.
+
+Verification before merge still includes two actual independent private
+Codespaces on trusted branches, adding the secret to an older Codespace followed
+by stop/start, and physical iPhone Safari sign-in. Simulated tests cannot establish
+these platform/device results.
+
+For deterministic provisioner checks, run
+`node --test .devcontainer/*.test.mjs tools/demo/*.test.mjs` from the repository
+root, then `python3 .devcontainer/test-start.py` separately. The full CLI simulation
+uses local port 8080; lifecycle tests use 5173/5174/8080. Keep these ports unused
+and do not run the two suites concurrently. The simulation exercises GitHub and
+Docker provenance fixtures plus real loopback HTTP, cookies, CSRF, session login,
+`/api/me`, concurrent CLI invocation and unchanged demo credentials. It does not
+replace the actual private Codespaces and iPhone acceptance described above.

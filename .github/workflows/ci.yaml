@@ -46,7 +46,9 @@ jobs:
       - name: Verify isolated demo tooling
         run: node --test ../tools/demo/*.test.mjs
       - name: Verify one-time Codespaces seed guards
-        run: node --test ../.devcontainer/seed-demo.test.mjs
+        run: node --test ../.devcontainer/*.test.mjs
+      - name: Verify Codespaces startup lifecycle and secret isolation
+        run: python3 ../.devcontainer/test-start.py
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck

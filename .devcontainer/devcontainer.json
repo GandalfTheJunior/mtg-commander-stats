@@ -5,7 +5,8 @@
     "ghcr.io/devcontainers/features/node:2": {
       "version": "24"
     },
-    "ghcr.io/devcontainers/features/docker-in-docker:4": {}
+    "ghcr.io/devcontainers/features/docker-in-docker:4": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "remoteUser": "vscode",
   "forwardPorts": [

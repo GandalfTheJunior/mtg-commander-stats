@@ -130,6 +130,27 @@ class StartupTest(unittest.TestCase):
                         TEST_REPO=str(self.repo), PATH=f"{self.repo}/bin:{os.environ['PATH']}")
         self.calls = []
 
+    def test_optional_password_only_reaches_short_lived_provisioner(self):
+        self.env["MTG_CODESPACE_TEST_PASSWORD"] = "lifecycle-private-sentinel"
+        (self.repo / ".devcontainer/provision-test-login.mjs").write_text(
+            "if (!process.env.MTG_CODESPACE_TEST_PASSWORD) process.exit(1);\n"
+            "console.log('test-login: verified');\n")
+        output = self.result(self.start())
+        self.assertIn("test-login: verified", output)
+        self.assertNotIn(self.env["MTG_CODESPACE_TEST_PASSWORD"], output)
+        for pid in self.pids().values():
+            environment = Path(f"/proc/{pid}/environ").read_bytes()
+            self.assertNotIn(b"MTG_CODESPACE_TEST_PASSWORD=", environment)
+
+    def test_unresolved_configured_provisioning_cannot_report_ready(self):
+        self.env["MTG_CODESPACE_TEST_PASSWORD"] = "lifecycle-private-sentinel"
+        (self.repo / ".devcontainer/provision-test-login.mjs").write_text(
+            "console.error('test-login: provisioning unresolved'); process.exit(1);\n")
+        output = self.result(self.start(), expected=1)
+        self.assertNotIn("Vorschau bereit", output)
+        self.assertNotIn(self.env["MTG_CODESPACE_TEST_PASSWORD"], output)
+        self.assertIn("Start fehlgeschlagen: Optionaler Testzugang", (self.state / "startup-status.txt").read_text())
+
     def script(self, name, body):
         path = self.repo / name
         path.write_text("#!/bin/bash\nset -eu\n" + body + "\n")
