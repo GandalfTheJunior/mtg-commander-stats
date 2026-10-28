@@ -487,3 +487,49 @@ For PO review on the branch's Codespace/iPhone:
 
 Physical iPhone Safari, VoiceOver speech and final visual acceptance remain with
 the PO. CI WebKit/emulation is not real-device approval. Keep PR #145 draft; no merge.
+
+## Die Ruhmeshalle (#147)
+
+The fourth selector at `/dev/lounge.html` opens a backend-free visual study.
+`hallData.ts` defines six deterministic fictional decks (all with at least five
+fictional games), owners, mana identities and captions. The sparse snapshot has
+three unique decks and three vacant wall hooks in the same six physical slots.
+It deliberately encodes no future ranking, tie-breaking or small-group allocation
+rule. No API, storage, authentication or production gallery is involved.
+
+`HallArtwork.tsx` contains original lightweight vector illustrations and three
+separate raised-gold honor ornaments: laurel, heraldic banner/shield and rune
+crown. No third-party artwork, textures, fonts or runtime asset requests are
+used. Every portrait composes the existing, unchanged `ArtworkFrame` and
+`frameFinish` mapping. Each winning slot independently selects A/B/C (initially
+one each); fixture changes preserve its trial choice, leaving the view resets
+it. Losers have static -3/+4/-5 degree whole-frame rotations and metal-only
+rail oxidation/pitting; the artwork surface has no tint/filter/overlay. These
+angles and embellishments are design samples, not production performance rules.
+
+The warm panelled wall has timber divisions, mounting wires/hooks, material
+variation and contact shadows. Desktop has two groups of three; below 850px
+portraits flow vertically at readable widths. Local native controls expose
+fixture, independent honors and Kaminlicht ein/aus with visible keyboard focus.
+Labels/captions identify category, condition, identity, owner and sample results.
+
+The existing `Firelight`/`firelightModel` supplies irregular low-frequency light
+without coupling to Lounge interactions. Light surfaces sit behind portraits;
+frame reflections use the same signal. Off shows neutral static lighting;
+reduced motion shows warm static lighting, including live OS changes.
+IntersectionObserver pauses scheduling when the hall leaves the viewport; the
+shared light component stops in hidden tabs and cleans up on disable/unmount.
+No React state is updated per animation frame.
+
+Verification: `HallOfFame.test.tsx` covers independent controls, fixture uniqueness,
+empty hooks, light/offscreen/reduced-motion cleanup and navigation state reset.
+`e2e/hall.pw.ts` checks 320/375/390/1280px overflow, landscape ratios, controls,
+light variation, live reduced motion, unmount and no external requests, with
+full-wall screenshots for both browser projects and extra sparse/off/static
+captures. Run `npm run test:browser -- e2e/hall.pw.ts`; for system Chromium set
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium` and `--project=chromium`.
+Chromium passed locally at all four widths. Local WebKit installation was blocked
+by HTTP 403 domain policy; the browser CI job supplies WebKit verification.
+Physical iPhone Safari, VoiceOver and real-device performance remain unverified.
+PO visual approval and independent review are required; green tests do not
+constitute aesthetic approval.

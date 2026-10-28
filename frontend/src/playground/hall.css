@@ -1,0 +1,44 @@
+.hall { --warm-a: .4; --warm-b: .3; position: relative; isolation: isolate; color: #eee0c6; background: #211d1a; min-height: 100vh; font-family: Georgia, serif; padding: 42px max(20px, calc((100% - 1280px) / 2)); background-image: repeating-linear-gradient(0deg, transparent 0 117px, #100d0b66 118px 121px, #d1aa7420 122px 123px), repeating-linear-gradient(90deg, #332c25 0 190px, #171513 192px 196px, #3e3429 198px 395px); }
+.hall::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: repeating-linear-gradient(173deg, transparent 0 7px, #c7aa8110 8px, transparent 9px 17px), radial-gradient(ellipse at 20% 10%, #bc987225, transparent 60%); box-shadow: inset 0 0 100px #080605b0; }
+.hall .room-light { z-index: -1; }
+.hall .room-light i { background: radial-gradient(ellipse at 0% 75%, #ffb44eaa, transparent 80%); opacity: var(--warm-a); transform: none; }
+.hall .room-light i + i { background: radial-gradient(ellipse at 100% 95%, #ec722c88, transparent 70%); opacity: var(--warm-b); }
+.hall-header { text-align: center; max-width: 850px; margin: 0 auto 35px; }
+.hall-eyebrow { text-transform: uppercase; letter-spacing: .23em; color: #d2b780; font: 11px/1.6 system-ui, sans-serif; }
+.hall h1 { font-weight: 400; font-size: clamp(38px, 6vw, 70px); margin: 14px 0; color: #f2ddb1; text-shadow: 0 3px 3px #000; }
+.hall-header > p:not(.hall-eyebrow) { color: #dbcbb1; line-height: 1.6; }
+.hall-controls { display: flex; justify-content: center; align-items: end; flex-wrap: wrap; gap: 16px; margin-top: 24px; }
+.hall label { display: flex; flex-direction: column; gap: 6px; font: 12px/1.5 system-ui, sans-serif; }
+.hall select, .hall button { font: 14px/1.5 system-ui, sans-serif; color: #f5e6ca; background: #30241f; border: 1px solid #9f8054; border-radius: 4px; min-height: 44px; padding: 8px 12px; max-width: 100%; }
+.hall :is(select, button):focus-visible { outline: 3px solid #ffe3a3; outline-offset: 4px; }
+.hall button { cursor: pointer; background: #603b2c; }
+.hall [role=status] { font: 12px/1.5 system-ui, sans-serif; min-height: 20px; }
+.hall-wall { border-left: 12px ridge #4d3325; border-right: 12px ridge #4d3325; box-shadow: -8px 0 14px #100a0780, 8px 0 14px #100a0780; }
+.hall-section-title { text-align: center; padding: 20px 16px; border-top: 14px ridge #493125; background: linear-gradient(90deg, #160f0b66, #3d2b1e88, #160f0b66); }
+.hall-section-title > span { color: #ceac66; }
+.hall h2 { color: #ecd3a0; font-size: 27px; font-weight: 400; margin: 8px 0; }
+.hall-section-title p { color: #cdbb9d; margin: 0; font-size: 14px; font-style: italic; }
+.hall-gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); list-style: none; margin: 0; padding: 28px 18px 42px; gap: 26px; }
+.hall-slot { min-width: 0; position: relative; text-align: center; padding-top: 36px; }
+.hall-hook { position: absolute; top: 2px; left: calc(50% - 4px); width: 8px; height: 12px; border-radius: 50%; background: #171310; box-shadow: inset 1px 2px 1px #e2c38a80, 2px 3px 2px #000; }
+.hall-hook::after { content: ''; position: absolute; width: 60px; height: 48px; top: 5px; left: -26px; border: 1px solid #ad9271; border-bottom: 0; transform: rotate(45deg) skew(8deg,8deg); opacity: .6; }
+.hall-hanging { position: relative; transform: rotate(var(--hall-tilt)); transform-origin: 50% 0; margin: 0 5px 18px; }
+.hall .art-frame-space { --frame-rail: clamp(12px, 1.6vw, 20px); }
+.hall .art-frame { box-shadow: 5px 13px 14px #080604bd, -3px 0 8px rgb(255 173 67 / calc(var(--warm-a) * .5)); }
+.hall[data-light=false] .art-frame { box-shadow: 5px 13px 14px #080604bd; }
+.hall-art { display: block; width: 100%; height: auto; aspect-ratio: 12 / 7; }
+.hall-honor { position: absolute; top: -36px; left: 18%; width: 64%; height: 68px; overflow: visible; filter: drop-shadow(1px 4px 2px #100804); pointer-events: none; }
+.hall-plaque { position: relative; padding: 12px 10px; background: linear-gradient(110deg, #30231b, #473224 50%, #30231b); border: 1px solid #96744c; box-shadow: 0 4px 7px #0008, inset 0 0 0 3px #201a16; min-height: 144px; }
+.hall-plaque > span { text-transform: uppercase; letter-spacing: .08em; font: 10px/1.5 system-ui,sans-serif; color: #e4c083; }
+.hall h3 { font-weight: 400; font-size: 19px; line-height: 1.3; margin: 8px 0; }
+.hall-plaque p { font: 12px/1.6 system-ui, sans-serif; color: #e1d1ba; margin: 4px 0; }
+.hall-selector { text-align: left; margin: 14px 5px 0; color: #e9d5b5; }
+/* Patina touches metal DOM only, never the artwork opening. */
+.hall-aged .frame-rail::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 22% 70%, #9f5525c9 0 4%, transparent 18%), radial-gradient(ellipse at 80% 30%, #3d7361aa 0 3%, transparent 20%), repeating-radial-gradient(ellipse at 40% 60%, transparent 0 3px, #4c281d88 4px, transparent 6px 12px); }
+.hall-aged .frame-corner { filter: sepia(.45) saturate(.8); }
+.hall-aged .frame-inner-rim { border-color: #997958; }
+.hall-vacancy { min-height: 335px; color: #d9c6aa; font: 13px/1.5 system-ui, sans-serif; }
+.hall-vacancy > div { aspect-ratio: 12/8; border: 1px dashed #bca47e66; margin: 20px 15px; box-shadow: inset 0 0 28px #120d0830; }
+.hall footer { max-width: 780px; margin: 30px auto 0; text-align: center; font: 12px/1.9 system-ui, sans-serif; color: #d3c1a6; }
+@media (max-width: 850px) { .hall-gallery { grid-template-columns: 1fr; max-width: 480px; margin: auto; gap: 45px; padding: 28px 18px 42px; }.hall-plaque { min-height: 0; }.hall-honor { height: 74px; }.hall { padding: 28px 14px; }.hall-wall { border-width: 7px; }.hall-header { margin-bottom: 26px; }.hall-controls { align-items: stretch; }.hall-vacancy { min-height: 280px; } }
+@media (prefers-reduced-motion: reduce) { .hall { --warm-a: .4 !important; --warm-b: .3 !important; } }
