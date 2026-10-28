@@ -245,3 +245,47 @@ and do not run the two suites concurrently. The simulation exercises GitHub and
 Docker provenance fixtures plus real loopback HTTP, cookies, CSRF, session login,
 `/api/me`, concurrent CLI invocation and unchanged demo credentials. It does not
 replace the actual private Codespaces and iPhone acceptance described above.
+
+### Diagnosing an interrupted source seed
+
+The outer bootstrap accepts only a closed diagnostic vocabulary from its child
+process. A source failure now names `backend-startup`, `source-empty-check`,
+`accounts-and-decks`, `playgroups`, `games`, `fixture-verification` or
+`backend-shutdown`. HTTP failures include only method, resource category and
+numeric actual/expected status; transport/timeout/assertion failures have fixed
+categories. Java exit code/signal is reported separately. Arbitrary exception
+text, API bodies, SQL output, URLs, account data, cookies and secrets remain hidden.
+The first failure is retained even if cooperative shutdown also fails.
+
+For example, `Demo initialization failed during isolated demo seed` followed by
+`demo-failure: accounts-and-decks method=POST resource=users status=403 expected=201`
+identifies a rejected registration without revealing the request or response.
+A `kind=timeout` or a JVM exit signal is evidence to investigate, not permission
+to repeat a possibly completed write. These messages never reset a database,
+remove a marker or authorize recovery.
+
+The first real PR #141 Codespace failed before the optional tester step, with
+both seed markers `started` and zero target users. The exact underlying cause
+was not recorded by the old wrapper. A fresh local PostgreSQL 18 source seed
+using the unchanged launcher, random loopback port/context and ordinary generated
+demo password completed successfully. This does **not** reproduce or explain the
+reported Codespace failure. The correction preserves the missing diagnostics;
+real platform acceptance and the downstream GitHub CLI/privacy gate remain open.
+
+After this correction, test a **new private Codespace** on the updated PR branch:
+
+1. Keep ports 5173/5174 Private and 8080/5432 unforwarded. Use only the existing
+   personal test secret, granted to this repository; no broad extra token.
+2. Look for the completed 7-account/21-deck/2-group/32-game import message, then
+   `test-login: created and verified test login` and final preview readiness.
+3. Sign in as the separate tester on iPhone. It starts without decks or groups;
+   Ada's existing generated credentials still provide the seeded history.
+4. Stop/restart and confirm `verified existing test login`, unchanged data and
+   the same tester password. Repeat in a second trusted-branch Codespace.
+5. If initialization fails again, preserve both markers and volumes. Record only
+   the sanitized `Demo initialization failed ... [demo-failure: ...; demo-exit: ...]`
+   line and marker statuses, not credentials or raw HTTP/process logs.
+
+The already interrupted Codespace stays untouched and non-retryable. Updating
+its branch cannot turn either `started` marker into proof of completion. Do not
+delete its markers, credentials or volumes to force it through initialization.

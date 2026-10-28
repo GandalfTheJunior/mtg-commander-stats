@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {DemoApiError} from './diagnostics.mjs';
 import {users, groups, games, archivedDeck, results, deckRequest, cards, readOutcome} from './fixture.mjs';
 
 // One cookie jar per real session. Never log responses, cookies, tokens or bodies.
@@ -15,7 +16,7 @@ export class Session {
       const name = pair.slice(0, at), value = pair.slice(at + 1);
       if (value) this.cookies.set(name, value); else this.cookies.delete(name);
     }
-    if (response.status !== expected) throw new Error(`Demo API ${method} ${path.split('/')[1] || '/'} returned ${response.status}; expected ${expected}. No automatic retry; see demo recovery instructions.`);
+    if (response.status !== expected) throw new DemoApiError(method, path, response.status, expected);
     return expected === 204 || expected >= 400 ? undefined : response.json();
   }
   async login(email, password) {
@@ -28,7 +29,8 @@ export class Session {
   }
 }
 
-export async function seed(base, password) {
+export async function seed(base, password, onStage = () => {}) {
+  onStage('accounts-and-decks');
   const accounts = {}, decks = {}, tables = {}, recordedGames = {};
   for (const user of users) {
     const session = new Session(base);
@@ -44,6 +46,7 @@ export async function seed(base, password) {
       }
     }
   }
+  onStage('playgroups');
   for (const group of groups) {
     const owner = accounts[group.owner].session;
     const created = await owner.call('POST', '/groups', {name: group.name}, 201);
@@ -53,6 +56,7 @@ export async function seed(base, password) {
       await accounts[member].session.call('POST', '/groups/join', {code});
     }
   }
+  onStage('games');
   for (const game of games) {
     const group = groups.find(g => g.key === game.group);
     const payload = {
@@ -66,6 +70,7 @@ export async function seed(base, password) {
     assert.deepEqual(await accounts[group.owner].session.call('GET', `${path}/${saved.id}`), saved);
   }
   await accounts.dara.session.call('POST', `/decks/${decks[archivedDeck]}/archive`);
+  onStage('fixture-verification');
   await verify(base, password, {accounts, decks, tables, recordedGames});
 }
 

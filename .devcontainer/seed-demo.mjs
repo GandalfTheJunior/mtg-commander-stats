@@ -4,6 +4,7 @@ import {execFileSync} from 'node:child_process';
 import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
+import {summarizeDiagnostics} from '../tools/demo/diagnostics.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const postgres = 'mtg_commander_stats';
@@ -61,16 +62,18 @@ export function decideSeed(markerStatus, counts) {
   return counts.some(row => row.count > 0) ? 'existing-data' : 'seed';
 }
 
-function safeRun(program, args, options = {}) {
+export function safeRun(program, args, options = {}) {
   try {
     return execFileSync(program, args, {
       cwd: options.cwd ?? root, encoding: options.encoding === undefined ? 'utf8' : options.encoding,
       maxBuffer, stdio: [options.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
       input: options.input, env: options.env ?? process.env,
     });
-  } catch {
+  } catch (error) {
     // Never print database credentials, SQL results, cookies, or arbitrary child output.
-    throw new SeedError('Demo initialization failed during ' + (options.stage ?? 'setup') + '. Check private Codespace logs.');
+    const diagnostic = options.demoDiagnostics ? summarizeDiagnostics(error.stdout, error.stderr) : '';
+    throw new SeedError('Demo initialization failed during ' + (options.stage ?? 'setup') +
+      (diagnostic ? ' [' + diagnostic + ']' : '') + '. No automatic retry; preserve initialization markers.');
   }
 }
 
@@ -137,7 +140,7 @@ function runtimeEnv() {
     .map(k => [k, process.env[k]]));
 }
 function nodeDemo(action, extra = []) {
-  safeRun(process.execPath, [join(root, 'tools/demo/demo.mjs'), action, ...extra], {env: runtimeEnv()});
+  safeRun(process.execPath, [join(root, 'tools/demo/demo.mjs'), action, ...extra], {env: runtimeEnv(), stage: 'isolated demo ' + action, demoDiagnostics: true});
 }
 function demoId() {
   const ids = textDocker(['ps', '--no-trunc', '-q',
