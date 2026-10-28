@@ -3,12 +3,13 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { AppThemeProvider } from '../theme/AppThemeProvider'
 import { CommanderArt } from './CommanderArt'
 import { Playground } from './Playground'
+import type { MagicColor } from '../api'
 
 const firstId = '11111111-1111-4111-8111-111111111111'
 const secondId = '22222222-2222-4222-8222-222222222222'
-const choice = (name = 'Atraxa', id = firstId, gameplayFaceIndex?: number) => ({ name, scryfallCardId: id,
+const choice = (name = 'Atraxa', id = firstId, gameplayFaceIndex?: number, colorIdentity: MagicColor[] = ['W']) => ({ name, scryfallCardId: id,
   selectionRef: { scryfallCardId: id, ...(gameplayFaceIndex === undefined ? {} : { gameplayFaceIndex }) },
-  canBeSoleCommander: true, requiresChosenColor: false, colorIdentity: ['W'], thumbnailUrl: null,
+  canBeSoleCommander: true, requiresChosenColor: false, colorIdentity, thumbnailUrl: null,
   pairing: { roles: [], partnerWith: [], variants: [] } })
 const artwork = (artist = 'Artist One', id = firstId) => ({ scryfallCardId: id, artworkFaceIndex: null,
   artCropUrl: `https://cards.scryfall.io/art_crop/front/${id}.jpg`, illustrationId: null, artist, scryfallUri: `https://scryfall.com/card/test/${id}` })
@@ -159,10 +160,37 @@ test('all three experiments remain available and artwork state resets after leav
   fireEvent.click(nav.getByRole('button', { name: 'Die Farben des Manas' }))
   expect(screen.getByRole('heading', { name: 'Die Farben des Manas' })).toBeVisible()
   expect(fetcher).not.toHaveBeenCalled()
-  fireEvent.click(nav.getByRole('button', { name: 'Commander-Artwork' }))
+  fireEvent.click(nav.getByRole('button', { name: 'Commander-Rahmen' }))
   await select(); await screen.findAllByRole('radio')
   fireEvent.click(nav.getByRole('button', { name: 'Die Lounge' }))
-  fireEvent.click(nav.getByRole('button', { name: 'Commander-Artwork' }))
+  fireEvent.click(nav.getByRole('button', { name: 'Commander-Rahmen' }))
   await waitFor(() => expect(screen.getByRole('combobox')).toHaveValue(''))
   expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+})
+
+
+test('Commander base colours change the frame immediately; artwork reselect preserves the frame', async () => {
+  api(url => url.includes('/artworks') ? json([artwork(), artwork('Different Printing', secondId)])
+    : json([url.includes('Blue') ? choice('Blue', firstId, undefined, ['U'])
+      : url.includes('Two') ? choice('Two', secondId, undefined, ['U', 'R'])
+        : choice('Colourless', firstId, undefined, [])]))
+  const { container } = show()
+  await select('Blue'); await screen.findAllByRole('radio')
+  const frame = container.querySelector('.art-frame')!
+  expect(frame).toHaveAttribute('data-left', 'U')
+  expect(frame).toHaveAttribute('data-right', 'U')
+  expect(screen.getByText('Mana-Identität: Blau (U)')).toBeVisible()
+  fireEvent.click(screen.getAllByRole('radio')[1])
+  expect(container.querySelector('.art-frame')).toBe(frame)
+  expect(screen.getByText('Illustration: Different Printing')).toBeVisible()
+  expect(frame).toHaveAttribute('data-left', 'U')
+  fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Two' } })
+  expect(container.querySelector('.art-frame')).not.toBeInTheDocument()
+  await select('Two'); await screen.findAllByRole('radio')
+  expect(container.querySelector('.art-frame')).toHaveAttribute('data-left', 'U')
+  expect(container.querySelector('.art-frame')).toHaveAttribute('data-right', 'R')
+  expect(screen.getByText('Rahmen: Blau links · Rot rechts')).toBeVisible()
+  await select('Colourless'); await screen.findAllByRole('radio')
+  expect(screen.getByText('Mana-Identität: Farblos')).toBeVisible()
+  expect(screen.getByText('Rahmen: Silber')).toBeVisible()
 })

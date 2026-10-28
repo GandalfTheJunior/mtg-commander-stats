@@ -3,6 +3,8 @@ import { ApiError, listArtworks, scryfallUnavailable, type Artwork, type Command
 import { CommanderSearch } from '../CommanderSearch'
 import { CommanderArtwork } from '../CommanderArtwork'
 import { safeArtworkUrl } from '../artworkUrl'
+import { ArtworkFrame } from './ArtworkFrame'
+import { frameFinish } from './frameFinish'
 import './commanderArt.css'
 
 export function CommanderArt() {
@@ -12,8 +14,8 @@ export function CommanderArt() {
   const [searchAttempt, setSearchAttempt] = useState(0)
   const input = useRef<HTMLInputElement>(null)
   return <main className="commander-art">
-    <header><p className="overline">Cozy Commander · Atelier</p><h1>Commander-Artwork</h1>
-      <p>Ein Bild für deine Chronik. Entdecke die Illustrationen deines Commanders auf warmem Pergament.</p>
+    <header><p className="overline">Cozy Commander · Atelier</p><h1>Commander-Rahmen</h1>
+      <p>Ein Platz für deinen Commander. Originale Illustrationen, gefasst in Metall und Mana.</p>
     </header>
     <div className="art-workspace">
       <section className="art-controls" aria-label="Commander und Illustration wählen">
@@ -27,7 +29,7 @@ export function CommanderArt() {
         <p className="art-note">Live-Suche mit deiner Anmeldung aus der Hauptanwendung. Die Auswahl bleibt nur bis zum Verlassen dieses Experiments erhalten.</p>
       </section>
       {selection ? <ArtworkDiscovery key={JSON.stringify(selection.selectionRef)} commander={selection} />
-        : <section className="art-parchment art-waiting" aria-label="Pergament-Vorschau"><p>Deine Chronik beginnt mit einem Commander.</p><p>Wähle einen Suchtreffer, um seine Illustrationen zu entdecken.</p></section>}
+        : <section className="art-waiting" aria-label="Rahmen-Vorschau"><span aria-hidden="true">◇</span><h2>Welcher Commander zieht ein?</h2><p>Wähle einen Suchtreffer und entdecke seine Illustrationen im manafarbenen Rahmen.</p></section>}
     </div>
     <footer>Illustrationen © Wizards of the Coast · Scryfall</footer>
   </main>
@@ -69,6 +71,7 @@ function ArtworkChoices({ commander, options }: { commander: CommanderChoice; op
   const [selected, setSelected] = useState(0)
   const artwork = options[selected]
   const source = safeArtworkUrl(artwork.scryfallUri, true)
+  const finish = frameFinish(commander.colorIdentity)
   return <>
     <fieldset className="art-choices"><legend>Illustration wählen · {options.length} verfügbar</legend>
       <div className="art-options">{options.map((option, index) => <label key={`${option.scryfallCardId}-${option.artworkFaceIndex}`}>
@@ -77,16 +80,16 @@ function ArtworkChoices({ commander, options }: { commander: CommanderChoice; op
         <span>Illustration {index + 1}<small>{option.artist || 'Künstlerangabe nicht verfügbar'}</small></span>
       </label>)}</div>
     </fieldset>
-    <figure className="art-parchment">
-      <div className="art-mount"><ParchmentImage key={JSON.stringify([artwork.scryfallCardId, artwork.artworkFaceIndex, artwork.artCropUrl])} name={commander.name} src={safeArtworkUrl(artwork.artCropUrl)!} /></div>
-      <figcaption><h3>{commander.name}</h3><p>{artwork.artist ? `Illustration: ${artwork.artist}` : 'Künstlerangabe nicht verfügbar'}</p>
+    <figure className="art-portrait">
+      <ArtworkFrame colors={commander.colorIdentity}><FramedImage key={JSON.stringify([artwork.scryfallCardId, artwork.artworkFaceIndex, artwork.artCropUrl])} name={commander.name} src={safeArtworkUrl(artwork.artCropUrl)!} /></ArtworkFrame>
+      <figcaption><p className="art-identity">Mana-Identität: {finish.identityLabel}</p><h3>{commander.name}</h3><p className="art-finish">Rahmen: {finish.label}</p><p>{artwork.artist ? `Illustration: ${artwork.artist}` : 'Künstlerangabe nicht verfügbar'}</p>
         {source && <a href={source} target="_blank" rel="noopener noreferrer">Original auf Scryfall (neuer Tab)</a>}
       </figcaption>
     </figure>
   </>
 }
 
-function ParchmentImage({ name, src }: { name: string; src: string }) {
+function FramedImage({ name, src }: { name: string; src: string }) {
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
   return failed ? <div role="status" className="art-image-fallback"><p>Bild nicht verfügbar. Es konnte nicht geladen werden oder wurde blockiert.</p>

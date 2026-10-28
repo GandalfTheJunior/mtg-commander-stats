@@ -21,30 +21,17 @@
 .art-options input { accent-color: #eed09b; flex-shrink: 0; width: 18px; height: 18px; margin: 0; }
 .art-options small { display: block; color: #dfd0c1; line-height: 1.4; }
 .art-option-preview { display: block; flex: 0 0 52px; height: 42px; border-radius: 3px; overflow: hidden; }
-.art-parchment {
-  margin: 0; padding: clamp(18px, 4vw, 38px); border: 1px solid #baa077;
-  border-radius: 5px 10px 7px 4px; color: #382619;
-  /* Only the material is textured; nothing overlays or filters the artwork. */
-  background-color: #eedcba;
-  background-image:
-    url('./assets/parchment-grain.svg'),
-    radial-gradient(ellipse at 2% 18%, #9b703b26, transparent 42%),
-    radial-gradient(ellipse at 97% 76%, #a4783f20, transparent 37%),
-    radial-gradient(ellipse at 72% 0, #c39c5d24, transparent 32%),
-    radial-gradient(ellipse at 34% 61%, #fff6df80, transparent 65%);
-  background-size: 384px 384px, auto, auto, auto, auto;
-  background-repeat: repeat, no-repeat, no-repeat, no-repeat, no-repeat;
-  box-shadow: inset 3px 0 13px #9b733f14, inset -1px -4px 18px #9b733f1a, 0 12px 32px #0003;
-}
-.art-mount { border: 1px solid #785331; padding: 5px; background: #573b2926; }
-.art-mount > img { display: block; width: 100%; height: auto; }
-.art-parchment h3 { font: normal clamp(24px, 4vw, 32px)/1.3 Georgia, serif; margin: 20px 0 8px; overflow-wrap: anywhere; }
-.art-parchment figcaption p { margin: 0 0 8px; }
-.art-parchment a { color: #65263a; font-weight: 600; }
-.art-parchment a:focus-visible { outline-color: #65263a; }
-.art-image-fallback { min-height: 180px; display: grid; place-content: center; justify-items: start; padding: 16px; }
-.art-waiting { min-height: 280px; display: grid; align-content: center; }
-.art-waiting p:first-child { font: normal 28px/1.3 Georgia, serif; }
+.art-portrait { margin: 0; }
+.art-portrait figcaption { padding: 12px 0 0; border-top: 1px solid #b3935940; margin-top: 18px; }
+.art-portrait h3 { font: normal clamp(24px, 4vw, 32px)/1.3 Georgia, serif; margin: 8px 0; overflow-wrap: anywhere; }
+.art-portrait figcaption p { margin: 0 0 8px; }
+.art-identity { font-size: 13px; color: #dfc18c; }
+.art-finish { color: #d8cbbd; font-size: 13px; }
+.art-image-fallback { min-height: 180px; display: grid; place-content: center; justify-items: start; padding: 16px; color: #f4ebdf; }
+.art-waiting { min-height: 280px; display: grid; align-content: center; justify-items: center; padding: 28px; text-align: center; border: 1px solid #b3935944; background: radial-gradient(ellipse at 50% 10%, #b3935912, transparent 75%), #251c21; }
+.art-waiting > span { font: 64px Georgia, serif; color: #d2b57c; margin-bottom: 24px; }
+.art-waiting h2 { color: #ead6b3; }
+.art-waiting p { color: #cdbfb3; margin: 0; }
 .commander-art footer { margin-top: 32px; font-size: 13px; color: #d8cbbd; }
 @media (min-width: 850px) { .art-workspace { grid-template-columns: minmax(0, .8fr) minmax(0, 1.4fr); gap: 40px; } .art-options { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 374px) { .commander-art { padding: 24px 12px; } .art-controls { padding: 16px; } }
