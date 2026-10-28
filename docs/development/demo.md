@@ -513,3 +513,18 @@ reseeding and the explicit demo-only verification/reset command. Confirm the
 normal PostgreSQL on 5432 and its data are unchanged, with the demo on its own
 5433 port/volume. Record actual results in the PR; successful unit/IPC tests are
 not evidence that this complete manual path passed.
+
+### Separate reusable Codespaces tester
+
+Private Codespaces optionally provision a separate `tester@commander.example`
+using a personal runtime Codespaces secret. See [one-time setup, trust and recovery](codespaces.md#optional-stable-test-login-personal-secret).
+This is not a new canonical fixture account: all seven demo passwords and the
+fixture manifest remain unchanged. The tester initially has no decks or groups;
+use Ada for the seeded history or legitimately join via an owner's join code.
+
+Source-seed failures report fixed phase/category diagnostics (and safe HTTP
+status or Java exit metadata) without forwarding arbitrary child output.
+The original failure remains visible when shutdown also fails. See
+[interrupted Codespaces source seeding](codespaces.md#diagnosing-an-interrupted-source-seed)
+for the evidence limits and new-Codespace acceptance checklist; this does not
+authorize automatic recovery of interrupted fixtures.

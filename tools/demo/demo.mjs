@@ -5,6 +5,7 @@ import {fileURLToPath, pathToFileURL} from 'node:url';
 import {delimiter, resolve} from 'node:path';
 import {seed} from './api.mjs';
 import {trackBackend} from './backend-process.mjs';
+import {failureLine, processLine} from './diagnostics.mjs';
 
 export class DemoError extends Error {}
 
@@ -126,7 +127,10 @@ async function backend(cfg, action) {
   const child = spawn('java', args, {cwd: root, env: backendEnvironment(cfg), stdio: [action ? 'pipe' : 'ignore', 'pipe', 'pipe'], windowsHide: true});
   const lifecycle = trackBackend(child, {seed: Boolean(action)});
   const unwatch = watchBackendShutdown(lifecycle.stop);
-  let timer;
+  let timer, failed = false;
+  let stage = 'backend-startup';
+  const setStage = value => { stage = value; console.log('demo-stage: ' + stage); };
+  if (action) setStage(stage);
   try {
     const port = await new Promise((resolve, reject) => {
       timer = setTimeout(() => reject(new DemoError('Demo backend startup timed out; verify the jar, Java 25, Docker and credentials.')), 120000);
@@ -141,19 +145,26 @@ async function backend(cfg, action) {
       lifecycle.exited.then(() => reject(new DemoError('Demo backend exited before startup; rebuild the jar and check the demo database.')));
     });
     clearTimeout(timer);
-    if (action) await action(`http://127.0.0.1:${port}${context}`);
+    if (action) await action(`http://127.0.0.1:${port}${context}`, setStage);
     else {
       console.log('Demo backend ready on http://localhost:8080; PostgreSQL is 127.0.0.1:5433/mtg_commander_demo. Ctrl+C stops it.');
       const {code} = await lifecycle.exited;
       if (code !== 0 && !lifecycle.stopping) throw new DemoError('Demo backend stopped unexpectedly.');
     }
+  } catch (error) {
+    failed = true;
+    if (action) console.error(failureLine(stage, error));
+    throw error;
   } finally {
     clearTimeout(timer); lifecycle.stop();
     try {
       await lifecycle.finish();
-    } catch {
-      throw new DemoError('Offline seed shutdown/fixture acknowledgement failed; no completed marker written. Use explicit demo reset before retrying.');
+    } catch (error) {
+      if (action) console.error(failureLine('backend-shutdown', error));
+      // Preserve the primary failure; cleanup must never replace its diagnosis.
+      if (!failed) throw new DemoError('Offline seed shutdown/fixture acknowledgement failed; no completed marker written. No automatic retry; preserve markers and inspect the failure.');
     } finally {
+      if (action) console.error(processLine(child.exitCode, child.signalCode));
       unwatch();
       if (process.connected) process.disconnect();
     }
@@ -188,13 +199,14 @@ export async function main(args) {
       target(cfg);
       if (existsSync(marker)) throw new DemoError('Seed already attempted/completed. No writes performed. For partial recovery use the explicit demo-only reset in the documentation.');
       console.log('Starting temporary demo backend; seeding and verifying through the real APIs.');
-      await backend(cfg, async base => {
+      await backend(cfg, async (base, setStage) => {
+        setStage('source-empty-check');
         const id = target(cfg);
         // Read-only safety check: reject ANY existing accounts, even if local status was lost.
         const table = run(['exec', id, 'psql', '-U', db, '-d', db, '-Atc', "SELECT to_regclass('public.users')"]);
         if (table !== 'users' || run(['exec', id, 'psql', '-U', db, '-d', db, '-Atc', 'SELECT count(*) FROM public.users']) !== '0') throw new DemoError('Demo database is not empty; refusing to seed or clean up existing data.');
         writeFileSync(marker, JSON.stringify({status: 'started'}), {flag: 'wx', mode: 0o600});
-        await seed(base, cfg.accountPassword);
+        await seed(base, cfg.accountPassword, setStage);
       });
       writeFileSync(marker, JSON.stringify({status: 'complete'}), {mode: 0o600});
       console.log('Demo verified offline: 7 accounts, 2 groups, 14 played + 7 unused decks, 32 games. Login: ada@commander.example; password is accountPassword in .demo/credentials.json. Expected results: tools/demo/expected-results.json.');

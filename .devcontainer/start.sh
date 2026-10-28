@@ -3,6 +3,10 @@ set -Eeuo pipefail
 # Keep async children from becoming process-group leaders before setsid.
 set +m
 
+# Keep the optional password out of every service/npm/Docker/seed child.
+codespace_test_password="${MTG_CODESPACE_TEST_PASSWORD:-}"
+unset MTG_CODESPACE_TEST_PASSWORD
+
 if [[ -z "${CODESPACE_NAME:-}" ]]; then
   echo "This automatic preview startup is intended for GitHub Codespaces only." >&2
   exit 1
@@ -217,5 +221,13 @@ if [[ "${MTG_CODESPACE_DEMO_DATA:-}" == "1" ]]; then
   report "Demo-Testdaten werden geprüft"
   node "$repo_root/.devcontainer/seed-demo.mjs"
 fi
+
+if [[ -n "$codespace_test_password" ]]; then
+  report "Optionaler Testzugang wird geprüft"
+  MTG_CODESPACE_TEST_PASSWORD="$codespace_test_password" node "$repo_root/.devcontainer/provision-test-login.mjs"
+else
+  echo "test-login: optional test login not configured."
+fi
+unset codespace_test_password
 
 report "Vorschau bereit"

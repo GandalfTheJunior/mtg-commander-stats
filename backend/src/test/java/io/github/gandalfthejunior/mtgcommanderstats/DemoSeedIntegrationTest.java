@@ -15,7 +15,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** Entire Node seed through real sessions/CSRF/validators, backed by PostgreSQL 18. */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "server.servlet.context-path=/demo-0123456789abcdef0123456789abcdef")
 @Import({MtgCommanderStatsApplicationTest.DatabaseConfiguration.class, OfflineDemoSeedApplication.Fixtures.class})
 class DemoSeedIntegrationTest {
     @Value("${local.server.port}")
@@ -31,7 +32,7 @@ class DemoSeedIntegrationTest {
             Path log = Files.createTempFile("offline-demo-test-", ".log");
             Process child = new ProcessBuilder("node", "--input-type=module", "-e",
                     "import {seed} from './tools/demo/api.mjs'; import {randomBytes} from 'node:crypto'; "
-                    + "await seed('http://127.0.0.1:" + port + "', randomBytes(9).toString('base64url'));")
+                    + "await seed('http://127.0.0.1:" + port + "/demo-0123456789abcdef0123456789abcdef', randomBytes(9).toString('base64url'));")
                     .directory(Path.of("..").toFile()).redirectErrorStream(true).redirectOutput(log.toFile()).start();
             try {
                 assertThat(child.waitFor(90, TimeUnit.SECONDS)).as("Node demo seed must terminate").isTrue();

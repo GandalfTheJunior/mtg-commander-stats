@@ -83,3 +83,18 @@ test('restore SQL locks tables and restores public search path before constraint
   assert.ok(script.endsWith('COMMIT;\n'));
   assert.throws(() => restorationSql('', ['users']), SeedError);
 });
+
+test('real failed child retains only closed stage/HTTP/exit diagnostics', async () => {
+  const {safeRun} = await import('./seed-demo.mjs');
+  const script = `console.log('credentials-and-private-body');
+    console.error('credentials-and-private-body');
+    console.error('demo-failure: games method=POST resource=groups status=500 expected=201');
+    console.error('demo-exit: code=1 signal=none'); process.exitCode = 1;`;
+  assert.throws(() => safeRun(process.execPath, ['-e', script],
+    {stage: 'isolated demo seed', demoDiagnostics: true}), error => {
+    assert.match(error.message, /isolated demo seed.*games method=POST resource=groups status=500 expected=201/);
+    assert.match(error.message, /demo-exit: code=1 signal=none/);
+    assert.doesNotMatch(error.message, /credentials-and-private-body/);
+    return true;
+  });
+});
