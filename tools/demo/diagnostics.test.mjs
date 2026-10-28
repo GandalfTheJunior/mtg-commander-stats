@@ -1,6 +1,7 @@
 import test from 'node:test';
+import {Session} from './api.mjs';
 import assert from 'node:assert/strict';
-import {DemoApiError, failureLine, processLine, summarizeDiagnostics} from './diagnostics.mjs';
+import {DemoApiError, DemoRequestError, failureLine, processLine, summarizeDiagnostics} from './diagnostics.mjs';
 
 const secret = 'sensitive-sentinel-never-print';
 test('safe HTTP diagnostics contain only method, resource and numeric status', () => {
@@ -12,7 +13,7 @@ test('safe HTTP diagnostics contain only method, resource and numeric status', (
     'demo-failure: games method=GET resource=unknown status=0 expected=0');
 });
 test('timeouts, transport, verification and shutdown are classified without exception bodies', () => {
-  for (const [error, kind] of [[{name: 'TimeoutError', message: secret}, 'timeout'], [new TypeError(secret), 'transport'],
+  for (const [error, kind] of [[new DemoRequestError('timeout'), 'timeout'], [new DemoRequestError('transport'), 'transport'], [new TypeError(secret), 'unknown'],
     [{code: 'ERR_ASSERTION', actual: secret, expected: secret}, 'verification'], [new Error(secret), 'unknown']]) {
     assert.equal(failureLine('fixture-verification', error), 'demo-failure: fixture-verification kind=' + kind);
   }
@@ -33,4 +34,15 @@ test('child text, malformed protocols, paths and extra fields never cross the bo
   }
   assert.equal(summarizeDiagnostics('demo-stage: backend-startup\ndemo-stage: games', ''), 'demo-stage: games');
   assert.equal(processLine(secret, secret), 'demo-exit: code=none signal=none');
+});
+
+test('only actual fetch failures become transport/timeout diagnostics; child details stay private', async () => {
+  for (const [error, kind] of [[{name: 'TimeoutError', message: secret}, 'timeout'], [new TypeError(secret), 'transport']]) {
+    const session = new Session('http://127.0.0.1:1', async () => { throw error; });
+    await assert.rejects(session.call('GET', '/csrf'), failure => {
+      assert.equal(failureLine('accounts-and-decks', failure), 'demo-failure: accounts-and-decks kind=' + kind);
+      assert.ok(!failure.message.includes(secret));
+      return true;
+    });
+  }
 });

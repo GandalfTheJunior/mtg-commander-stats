@@ -14,11 +14,16 @@ export class DemoApiError extends Error {
     this.message = `Demo API ${this.method} ${this.resource} returned ${this.status}; expected ${this.expected}. No automatic retry.`;
   }
 }
+export class DemoRequestError extends Error {
+  constructor(kind) {
+    super('Demo HTTP request failed; details suppressed. No automatic retry.');
+    this.kind = kind === 'timeout' ? 'timeout' : 'transport';
+  }
+}
 export function failureLine(stage, error) {
   if (!stages.includes(stage)) return 'demo-failure: backend-startup kind=unknown';
   if (error instanceof DemoApiError) return `demo-failure: ${stage} method=${error.method} resource=${error.resource} status=${error.status} expected=${error.expected}`;
-  const kind = stage === 'backend-shutdown' ? 'shutdown' : error?.name === 'TimeoutError' ? 'timeout' :
-    error?.name === 'TypeError' ? 'transport' : error?.code === 'ERR_ASSERTION' ? 'verification' : 'unknown';
+  const kind = stage === 'backend-shutdown' ? 'shutdown' : error instanceof DemoRequestError ? error.kind : error?.code === 'ERR_ASSERTION' ? 'verification' : 'unknown';
   return `demo-failure: ${stage} kind=${kind}`;
 }
 export function processLine(code, signal) {

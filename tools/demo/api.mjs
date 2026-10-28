@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {DemoApiError} from './diagnostics.mjs';
+import {DemoApiError, DemoRequestError} from './diagnostics.mjs';
 import {users, groups, games, archivedDeck, results, deckRequest, cards, readOutcome} from './fixture.mjs';
 
 // One cookie jar per real session. Never log responses, cookies, tokens or bodies.
@@ -9,7 +9,12 @@ export class Session {
   async call(method, path, body, expected = 200) {
     const headers = {'Content-Type': 'application/json', Cookie: [...this.cookies].map(([k, v]) => `${k}=${v}`).join('; ')};
     if (this.csrf && method !== 'GET') headers[this.csrf.headerName] = this.csrf.token;
-    const response = await this.fetch(`${this.base}/api${path}`, {method, headers, body: body === undefined ? undefined : JSON.stringify(body), redirect: 'error', signal: AbortSignal.timeout(15000)});
+    let response;
+    try {
+      response = await this.fetch(`${this.base}/api${path}`, {method, headers, body: body === undefined ? undefined : JSON.stringify(body), redirect: 'error', signal: AbortSignal.timeout(15000)});
+    } catch (error) {
+      throw new DemoRequestError(error?.name === 'TimeoutError' ? 'timeout' : 'transport');
+    }
     for (const cookie of response.headers.getSetCookie()) {
       const pair = cookie.split(';')[0];
       const at = pair.indexOf('=');
