@@ -469,8 +469,10 @@ in its original colours, without an overlay, blend mode or image filter. Native
 focus, attribution, responsive layout and all lookup/error behavior are retained.
 
 For visual acceptance compare the before/after empty surface and selected-artwork
-composition at 320/375/390 px and desktop. Browser evidence uses a clearly marked
-synthetic artwork swatch while the cloud browser's proxy-CA trust remains blocked;
-it establishes material/layout appearance, not the real artwork composition.
-WebKit regression checks complement Chromium; physical iPhone Safari and PO
-visual acceptance still need device review.
+composition at 320/375/390 px and desktop. Automated browser tests use a clearly
+marked synthetic artwork swatch and mocked application endpoints. Separate visual
+captures can load original Scryfall images directly in the browser with normal TLS
+verification; they assess the real artwork composition, while mocked metadata
+does not establish a live authenticated-backend flow. WebKit regression checks
+complement Chromium; physical iPhone Safari and PO visual acceptance still need
+device review.
