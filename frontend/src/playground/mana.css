@@ -1,0 +1,49 @@
+.playground-nav { display:flex; justify-content:center; gap:8px; padding:12px; background:#24191d; border-bottom:1px solid #806342; }
+.playground-nav button { min-height:44px; padding:8px 18px; border:1px solid #b69662; border-radius:24px; background:transparent; color:#f4ebdf; font:600 14px system-ui; cursor:pointer; }
+.playground-nav button[aria-pressed=true] { background:#e4c58c; color:#301f19; }
+.playground-nav button:focus-visible { outline:3px solid #fff; outline-offset:3px; }
+.mana-page { min-height:100vh; padding:0 16px 48px; background:radial-gradient(ellipse at 50% 0,#57332c,#241b20 80%); color:#352517; font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
+.mana-brand { max-width:720px; margin:auto; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:28px 8px; color:#e6c68b; font:17px Georgia,serif; letter-spacing:.13em; }
+.mana-brand small { display:block; font:11px system-ui; letter-spacing:.08em; color:#d7bfa6; margin-top:7px; }
+.mana-monogram { font-size:36px; letter-spacing:-.24em; padding-right:10px; }
+.mana-parchment { max-width:720px; margin:auto; padding:36px 40px 24px; border:1px solid #c9a366; outline:1px solid #80623b; outline-offset:5px; border-radius:4px; box-shadow:0 14px 45px #0005,inset 0 0 60px #8d572633; background:radial-gradient(ellipse at 20% 10%,#fff0cc99,transparent 60%),repeating-linear-gradient(17deg,#65441903 0 1px,transparent 1px 4px),repeating-linear-gradient(97deg,#65441905 0 1px,transparent 1px 3px),#e5c796; }
+.mana-eyebrow { font-size:10px; letter-spacing:.16em; font-weight:700; color:#6c452b; }
+.mana-parchment h1 { margin:14px 0 4px; color:#352517; font:normal clamp(28px,5vw,42px)/1.1 Georgia,serif; letter-spacing:-.035em; }
+.mana-subtitle { margin:10px 0 16px; font-size:16px; }
+.mana-info { border-bottom:1px solid #a48050; padding-bottom:14px; font-size:13px; line-height:1.65; }
+.mana-info summary { cursor:pointer; min-height:44px; display:list-item; align-content:center; color:#593521; font-weight:600; }
+.mana-info p { margin:4px 0 0; }
+.mana-info summary:focus-visible,.mana-filters input:focus-visible + span { outline:3px solid #642e3e; outline-offset:3px; }
+.mana-filters { border:0; padding:0; margin:20px 0 24px; min-width:0; }
+.mana-filters legend { font-size:12px; font-weight:600; margin-bottom:10px; }
+.mana-filters > div { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); padding:4px; gap:3px; border:1px solid #937044; background:#bd925a22; border-radius:12px; }
+.mana-filters label { position:relative; cursor:pointer; min-width:0; }
+.mana-filters input { position:absolute; opacity:0; width:100%; height:100%; margin:0; }
+.mana-filters span { display:grid; place-items:center; min-height:44px; font-size:14px; border-radius:8px; }
+.mana-filters input:checked + span { background:#592c38; color:#fff0d7; box-shadow:inset 0 1px #be8b6c; }
+.mana-list-label { display:flex; justify-content:space-between; color:#6a482c; font-size:10px; letter-spacing:.12em; padding:0 4px 10px; }
+.mana-list { list-style:none; margin:0; padding:0; display:grid; gap:10px; overflow-anchor:none; }
+.mana-row { display:flex; align-items:center; gap:16px; padding:16px; border:1px solid #a7804d88; border-radius:14px 4px 14px 4px; background:linear-gradient(110deg,#fff2d03d,#c39b6220); box-shadow:inset 0 1px #fff0cc88,0 2px 3px #6f431008; }
+.mana-seal { display:grid; place-items:center; flex:0 0 46px; height:46px; border-radius:50%; border:2px solid #927041; background:radial-gradient(circle at 35% 25%,#fff7,var(--mana-color) 65%); box-shadow:inset 0 0 0 3px #fff2,0 2px 3px #64451f25; color:#261c18; font:600 23px Georgia,serif; }
+.mana-row[data-color=B] .mana-seal { color:#f3dfc7; background:radial-gradient(circle at 35% 25%,#79667d,var(--mana-color)); }
+.mana-data { flex:1; min-width:0; }
+.mana-row-heading { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:9px; }
+.mana-row h2 { margin:0; font-size:18px; font-weight:650; color:#352517; }
+.mana-counter { font-size:19px; font-weight:650; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.mana-channel { height:23px; position:relative; overflow:hidden; border-radius:8px; border:1px solid #876741; background:linear-gradient(#694f38,#9b7b55); box-shadow:inset 0 2px 4px #2e201766,0 1px 1px #fff1c6; }
+.mana-channel::after { content:''; position:absolute; inset:0; pointer-events:none; border-radius:inherit; box-shadow:inset 0 1px 1px #fff9,inset 0 -1px 2px #29190b55; }
+.mana-volume { position:absolute; inset:0 auto 0 0; overflow:hidden; border-radius:6px; }
+.mana-liquid { position:absolute; inset:0; background:linear-gradient(180deg,#fff6,transparent 30%,#0002 85%,#fff2),var(--mana-color); }
+.mana-row[data-color=B] .mana-liquid { background:linear-gradient(180deg,#b29bb5,#65516f 38%,#29222f); }
+.mana-bubble { position:absolute; bottom:-5px; width:4px; height:4px; border:1px solid #fff9; border-radius:50%; background:#fff2; animation:mana-rise var(--duration) linear var(--delay) infinite; }
+.mana-bubble:nth-of-type(2) { width:3px; height:3px; }
+@keyframes mana-rise { 0% { transform:translate(0,0); opacity:0; } 20% { opacity:.65; } 80% { opacity:.45; } 100% { transform:translate(3px,-28px); opacity:0; } }
+.mana-page[data-paused=true] .mana-bubble { animation:none; display:none; }
+.mana-counts { margin:7px 0 0; font-size:12px; color:#62452c; font-variant-numeric:tabular-nums; }
+.mana-empty { display:block; font-size:11px; margin-top:3px; }
+.mana-footnote { text-align:center; margin-top:26px; padding-top:18px; border-top:1px solid #a4805066; font:italic 16px Georgia,serif; color:#63432b; }
+.mana-footnote span { display:block; font:10px system-ui; margin-top:10px; letter-spacing:.04em; }
+.mana-sr { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
+@media (max-width:480px) { .mana-page { padding:0 12px 30px; } .mana-brand { padding:22px 8px; font-size:13px; gap:12px; } .mana-parchment { padding:25px 16px 20px; outline-offset:3px; } .mana-row { padding:13px 10px; gap:10px; } .mana-seal { flex-basis:36px; height:36px; font-size:20px; } .mana-row h2 { font-size:16px; } .mana-counter { font-size:17px; } .mana-eyebrow { font-size:9px; } }
+@media (prefers-reduced-motion:reduce) { .mana-bubble { animation:none; display:none; } }
+@media (max-width:360px) { .mana-filters > div { grid-template-columns:repeat(3,minmax(0,1fr)); } }
