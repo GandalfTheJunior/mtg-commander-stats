@@ -1,0 +1,31 @@
+/* Original scalable metalwork, interpreting the PO's uploaded gold frame reference.
+   Only decoration is split/tinted. The artwork opening has no overlay or filter. */
+.art-frame-space { --frame-rail: clamp(12px, 2.8vw, 27px); padding: var(--frame-rail); }
+.art-frame { position: relative; isolation: isolate; padding: var(--frame-rail); box-shadow: 0 8px 18px #0008; }
+.art-frame-opening { position: relative; background: #151316; }
+.art-frame-opening > img { display: block; width: 100%; height: auto; }
+.frame-metalwork { position: absolute; inset: 0; pointer-events: none; }
+.frame-metalwork--left { clip-path: inset(-100px 50% -100px -100px); }
+.frame-metalwork--right { clip-path: inset(-100px -100px -100px 50%); }
+.frame-definitions { position: absolute; overflow: hidden; }
+.frame-rail { position: absolute; background: linear-gradient(var(--rail-angle), var(--metal-dark), var(--metal-light) 3%, var(--metal-glint) 6%, var(--metal-shadow) 10%, var(--metal-base) 16%, var(--metal-light) 20%, var(--metal-base) 26%, var(--metal-shadow) 34%, var(--metal-dark) 39%, var(--metal-base) 46%, var(--metal-base) 65%, var(--metal-light) 73%, var(--metal-dark) 79%, var(--metal-glint) 84%, var(--metal-base) 90%, var(--metal-dark) 97%, var(--metal-light)); }
+.frame-rail--top, .frame-rail--bottom { left: 0; right: 0; height: var(--frame-rail); }
+.frame-rail--left, .frame-rail--right { top: 0; bottom: 0; width: var(--frame-rail); }
+.frame-rail--top { top: 0; --rail-angle: 180deg; clip-path: polygon(0 0, 100% 0, calc(100% - var(--frame-rail)) 100%, var(--frame-rail) 100%); }
+.frame-rail--bottom { bottom: 0; --rail-angle: 0deg; clip-path: polygon(var(--frame-rail) 0, calc(100% - var(--frame-rail)) 0, 100% 100%, 0 100%); }
+.frame-rail--left { left: 0; --rail-angle: 90deg; clip-path: polygon(0 0, 100% var(--frame-rail), 100% calc(100% - var(--frame-rail)), 0 100%); }
+.frame-rail--right { right: 0; --rail-angle: 270deg; clip-path: polygon(0 var(--frame-rail), 100% 0, 100% 100%, 0 calc(100% - var(--frame-rail))); }
+.frame-engraving { position: absolute; left: 0; top: 40%; width: 100%; height: 30%; overflow: hidden; }
+.frame-rail--left .frame-engraving, .frame-rail--right .frame-engraving { inset: 0 37%; width: 26%; height: 100%; }
+.frame-outer-rim { position: absolute; inset: 0; border: 1px solid var(--metal-light); box-shadow: 0 0 0 1px var(--metal-dark); }
+.frame-inner-rim { position: absolute; inset: calc(var(--frame-rail) - 2px); border: 1px solid var(--metal-glint); box-shadow: 0 0 0 1px var(--metal-dark); }
+.frame-corner { position: absolute; width: calc(var(--frame-rail) * 3.7); height: calc(var(--frame-rail) * 3.7); overflow: visible; }
+.frame-corner--tl { top: calc(var(--frame-rail) * -.7); left: calc(var(--frame-rail) * -.7); }
+.frame-corner--tr { top: calc(var(--frame-rail) * -.7); right: calc(var(--frame-rail) * -.7); transform: scaleX(-1); }
+.frame-corner--br { bottom: calc(var(--frame-rail) * -.7); right: calc(var(--frame-rail) * -.7); transform: scale(-1); }
+.frame-corner--bl { bottom: calc(var(--frame-rail) * -.7); left: calc(var(--frame-rail) * -.7); transform: scaleY(-1); }
+.frame-crest { position: absolute; width: calc(var(--frame-rail) * 4); height: calc(var(--frame-rail) * 2); left: 50%; overflow: visible; }
+.frame-crest--top { top: calc(var(--frame-rail) * -1); transform: translateX(-50%); }
+.frame-crest--bottom { bottom: calc(var(--frame-rail) * -1); transform: translateX(-50%) scaleY(-1); }
+.frame-side { position: absolute; width: calc(var(--frame-rail) * .9); height: calc(var(--frame-rail) * 3.375); top: 50%; transform: translateY(-50%); overflow: visible; }
+.frame-side--left { left: calc(var(--frame-rail) * .05); }.frame-side--right { right: calc(var(--frame-rail) * .05); }

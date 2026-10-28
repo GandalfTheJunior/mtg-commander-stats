@@ -3,7 +3,8 @@
 An isolated experiment for #135 and the PO feedback on PR #136. This does **not**
 change `docs/product/frontend-redesign.md` or implement #134. Production adoption
 requires a separate PO decision/specification. No production routes, GameEditor,
-game details, backend, authentication or persistence are involved.
+game details, production backend or persistence changes are involved. The frame experiment
+added in #140 reuses the authenticated read-only lookup described below.
 
 ## Open locally
 
@@ -14,8 +15,9 @@ npm run dev
 ```
 
 Open **http://localhost:5173/dev/lounge.html** (or the private forwarded Vite URL).
-No backend/login is needed. The ordinary build imports/emits neither this HTML nor
-its code/assets. `/dev/theme.html` remains separate. Do not add either to build inputs.
+Lounge and Mana work without a backend or login. Commander-Rahmen requires the
+regular application session and online lookup (see below). The ordinary build
+imports/emits neither this HTML nor its code/assets. `/dev/theme.html` remains separate. Do not add either to build inputs.
 
 In development, the authenticated Dashboard also links here via **Tech Playground
 öffnen**. The signed-out **Open Tech Playground** link remains available; both
@@ -377,3 +379,111 @@ Watch bubbles, shrinking/growing counters and entire-row movement; scroll and
 rotate, hide/reopen Safari, enable OS reduced motion, and check VoiceOver.
 Physical iPhone/Safari rendering, thermal performance and speech require device
 acceptance; desktop Chromium and CI WebKit do not substitute for that decision.
+
+
+## Commander frame atelier (#140 / draft PR #145)
+
+Choose **Commander-Rahmen** at `/dev/lounge.html`. The [revised issue](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/140)
+supersedes the parchment experiment. Its old material and unused texture are
+removed; there is one frame view. Lounge and Mana keep their existing behavior.
+
+### Search, artwork and authentication
+
+`CommanderSearch` retains its English-name search, two-character minimum, 300 ms
+debounce, bounded results and loading/empty/error/retry feedback. Selection calls
+`listArtworks` with the complete gameplay reference, including `gameplayFaceIndex`
+when present. Native radio options select an illustration; the first usable image
+is selected automatically. Selection is in memory and resets on leaving the view.
+Aborted/keyed request lifetimes ignore old results and late 401s after reselect,
+retry or unmount. Safe image/source URL validation, image retry and attribution
+remain in use. These are existing same-origin read-only GETs; no deck writes,
+storage, additional endpoints or backend/security changes are involved.
+
+Lounge and Mana work without login/backend. This experiment needs the normal
+backend/database and a session established by signing into the **regular app on
+the same browser origin**. Vite proxies `/api` to `localhost:8080`. A 401 links to
+the main app in a new tab and offers retry after sign-in. No separate login or
+auth bypass exists. The backend needs HTTPS access to `api.scryfall.com`, while
+the browser needs `cards.scryfall.io` for images and `scryfall.com` for source links.
+Offline fixtures/mocked application routes do not prove live backend/provider
+availability. Network/503, empty/unsafe imagery and blocked/broken images retain
+explicit feedback and retries.
+
+### One landscape frame, with mana metal finishes
+
+The [PO-uploaded gold reference](https://github.com/GandalfTheJunior/mtg-commander-stats/pull/145#issuecomment-6478427614)
+is the visual direction: profiled gold/brass rails, curling acanthus/scroll corner
+ornaments, cabochons, top/bottom crests and smaller side accents. The implementation
+is an original local SVG/CSS interpretation, not the uploaded PNG copied into the
+UI. No reference image bytes or third-party assets are bundled. No dependencies,
+external frame requests, raster processing, script-driven graphics or animation.
+
+`ArtworkFrame.tsx` owns one geometry, with mirrored/reused SVG ornament definitions
+and beveled CSS rails. Corners/crests keep square/proportional view boxes rather
+than stretching a single SVG over an arbitrary rectangle. CSS rail size and outer
+ornament clearance scale down on phones. The opening follows the original image's
+natural dimensions (`width: 100%; height: auto`), including unusual aspect ratios;
+no universal 4:3 crop or full-card portrait is imposed. Corner decoration is
+clipped away from the opening, and captions/identity labels sit outside the frame.
+SVG relief filters and metallic gradients belong only to decorative geometry;
+there is no overlay, blend, tint or filter on the original Scryfall image.
+
+`frameFinish.ts` uses only the selected **single Commander's base color identity**,
+in canonical WUBRG order. It never samples image colours or derives a deck/partner
+identity. All finishes share precisely the same frame design:
+
+| Base identity | Frame finish |
+| --- | --- |
+| 0 colours | Silver; text label **Farblos** |
+| W / U / B / R / G | Pearl / blue / dark metal / red / green |
+| 2 colours | First WUBRG colour on the left half, second on the right half |
+| 3, 4 or 5 colours | Gold |
+
+The two identical decoration layers are clipped at the exact horizontal midpoint,
+including the top/bottom rails and central crests. Only their material palette
+differs. The split never applies to the picture. Selecting another illustration
+of the same Commander preserves the finish; changing Commander recomputes it.
+Identity and finish are readable text, with existing keyboard focus indicators.
+This is a single portrait in a landscape picture frame, not a gallery, tier/rank,
+partner, achievement or playgroup-performance feature.
+
+### Verification and PO visual review
+
+From `frontend/`, run:
+
+```sh
+npm run lint
+npm run typecheck
+npm test -- src/playground/CommanderArt.test.tsx src/playground/frameFinish.test.ts
+npm run build
+npm run test:browser -- e2e/commander-art.pw.ts
+```
+
+Use `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium` with
+`--project=chromium` for a system browser; CI runs Chromium and WebKit. Behavior
+tests cover 0–5 colours, canonical half order, colourless text, Commander/artwork
+reselection and existing request/auth/error/fallback behavior. Browser tests cover
+320/375/390/1280 px, natural and panoramic image proportions, identical ornament
+geometry across finishes, no overflow/animation/image filters, keyboard radios,
+401/503 and blocked-image retry. Automated artwork responses are synthetic and
+application routes are mocked. Separate visual captures can use unchanged real
+Scryfall images directly in the browser with ordinary TLS verification; mocked
+metadata does not establish a live authenticated-backend flow.
+
+For PO review on the branch's Codespace/iPhone:
+
+1. Sign in through the main app and open the frame experiment. Compare silver,
+   all five mono finishes, W/U or U/R split, and several 3–5-colour gold identities.
+   Assess relief/patina, balanced ornaments and image size against the reference.
+2. At 320/375/390 px and desktop, inspect the whole landscape frame, source/artist
+   text and focus. Change artwork: preserve mana finish. Change Commander while
+   requests are pending: old art/colour must disappear without stale restoration.
+3. Scroll/rotate and try touch plus radio arrow keys. Compare ordinary and unusually
+   wide crops; the full source illustration must remain visible and undistorted.
+4. Exercise signed-out/unavailable/empty/broken-image states and retry. Switch to
+   Lounge/Mana and back; temporary selection resets and the offline demos still work.
+5. Build production: only normal index/assets, no `Commander-Rahmen`, `art-frame`,
+   `frame-metalwork`, ornament definitions or development HTML in `dist`.
+
+Physical iPhone Safari, VoiceOver speech and final visual acceptance remain with
+the PO. CI WebKit/emulation is not real-device approval. Keep PR #145 draft; no merge.
