@@ -414,9 +414,9 @@ starts a fresh request lifetime. Empty or unsafe imagery produces a retryable
 empty state; backend/network/503 errors show the existing Scryfall message.
 Failed or blocked images retain attribution and offer an image retry.
 
-The parchment uses experiment-local static gradients for subtle warm-brown grain,
-with brass and burgundy accents. The original Scryfall art crop is displayed at
-its natural aspect ratio, without filters, conversion, processing or animation.
+The parchment uses a small experiment-local static material tile, soft uneven
+edge shading, and brass/burgundy accents (see the texture follow-up below).
+The original Scryfall art crop is displayed at its natural aspect ratio, without filters, conversion, processing or animation.
 Previews reuse `CommanderArtwork`; URLs and optional authoritative source links
 use `safeArtworkUrl`. Artist metadata and copyright remain readable HTML.
 
@@ -447,3 +447,30 @@ provider images for PO visual evidence load directly in the browser and are neve
 bundled or saved as separate image assets. Physical iPhone/Safari rendering and
 screen-reader speech still require device review. Visual approval remains with
 the PO; this experiment does not approve the Visual Identity Charter.
+
+
+### Parchment texture refinement (PR #145 PO feedback)
+
+The [PO visual feedback](https://github.com/GandalfTheJunior/mtg-commander-stats/pull/145#issuecomment-6475637557)
+requests lighter, more natural material. `assets/parchment-grain.svg` replaces the
+regular CSS stripes. It is an original procedural SVG authored for this repository,
+not a download or derivative of the linked style-reference photographs. It
+contains no third-party material or additional third-party license. The references
+remain style guidance; none of their bytes are included.
+
+The ~7.4 KB, 384×384 tile combines fixed-seed, stitched multiscale noise with fine
+irregular short fibres. Its transparent marks sit over a pale warm base; broad
+uneven edge shading stays separate from the grain. The browser renders/caches
+one small static image. No script, animation, extra dependency or remote texture
+request is involved. The SVG has no external resources. It is referenced only
+from the development experiment's CSS and does not enter the production bundle.
+All material layers paint behind the figure contents: the Scryfall image remains
+in its original colours, without an overlay, blend mode or image filter. Native
+focus, attribution, responsive layout and all lookup/error behavior are retained.
+
+For visual acceptance compare the before/after empty surface and selected-artwork
+composition at 320/375/390 px and desktop. Browser evidence uses a clearly marked
+synthetic artwork swatch while the cloud browser's proxy-CA trust remains blocked;
+it establishes material/layout appearance, not the real artwork composition.
+WebKit regression checks complement Chromium; physical iPhone Safari and PO
+visual acceptance still need device review.
