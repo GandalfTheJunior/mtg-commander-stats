@@ -61,7 +61,9 @@ test('401, unavailable lookup, retry and blocked image remain readable', async (
   await page.route('**/api/**', route => route.fulfill(stage === 401 ? { status: 401, json: {} }
     : route.request().url().includes('/artworks') ? stage === 503 ? { status: 503, json: {} } : { json: [art(0)] }
       : { json: [choice] }))
-  await page.route('https://cards.scryfall.io/**', route => route.abort('blockedbyclient'))
+  // WebKit maps blockedbyclient to Cancellation, which suppresses img.onerror.
+  // A blocked response reports an image load failure in both browser engines.
+  await page.route('https://cards.scryfall.io/**', route => route.abort('blockedbyresponse'))
   await page.goto('/dev/lounge.html')
   await page.getByRole('button', { name: 'Commander-Artwork', exact: true }).click()
   await page.getByRole('combobox').fill('Ur')
