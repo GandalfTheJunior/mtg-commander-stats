@@ -1,4 +1,4 @@
-.playground-nav { display:flex; justify-content:center; gap:8px; padding:12px; background:#24191d; border-bottom:1px solid #806342; }
+.playground-nav { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; padding:12px; background:#24191d; border-bottom:1px solid #806342; }
 .playground-nav button { min-height:44px; padding:8px 18px; border:1px solid #b69662; border-radius:24px; background:transparent; color:#f4ebdf; font:600 14px system-ui; cursor:pointer; }
 .playground-nav button[aria-pressed=true] { background:#e4c58c; color:#301f19; }
 .playground-nav button:focus-visible { outline:3px solid #fff; outline-offset:3px; }

@@ -1,0 +1,36 @@
+/* Local to the development-only artwork experiment. Images remain unchanged. */
+.commander-art { max-width: 1160px; margin: auto; padding: 32px 20px 40px; color: #f4ebdf; line-height: 1.6; }
+.commander-art h1 { font: normal clamp(32px, 5vw, 48px)/1.15 Georgia, serif; margin: 12px 0 18px; }
+.commander-art h2 { font: normal 26px/1.3 Georgia, serif; margin: 0 0 16px; overflow-wrap: anywhere; }
+.commander-art header { max-width: 680px; margin-bottom: 32px; }
+.commander-art header > p:last-child, .art-controls > p { color: #d8cbbd; }
+.art-workspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; align-items: start; }
+.art-workspace > * { min-width: 0; }
+.art-controls { padding: 20px; border: 1px solid #b3935966; border-radius: 12px; background: #30232a; }
+.commander-art .art-note { font-size: 13px; margin: 20px 0 0; }
+.commander-art button { min-height: 44px; padding: 10px 14px; border: 1px solid #bc9b64; border-radius: 6px; background: #612c3d; color: #fff3df; font: inherit; cursor: pointer; }
+.commander-art a { color: #edd09b; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.commander-art button:focus-visible, .commander-art a:focus-visible, .art-choices label:has(input:focus-visible) { outline: 3px solid #e6b65f; outline-offset: 4px; }
+.art-feedback { margin-top: 16px; display: grid; justify-items: start; gap: 12px; }
+.art-feedback p { margin: 0; }
+.art-choices { padding: 0; margin: 0 0 24px; border: 0; min-width: 0; }
+.art-choices legend { padding: 0; margin-bottom: 12px; color: #e6c58e; }
+.art-options { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; max-height: 340px; overflow-y: auto; padding: 6px; }
+.art-options label { display: flex; align-items: center; gap: 10px; padding: 10px; min-height: 64px; border: 2px solid #997c5555; border-radius: 8px; cursor: pointer; background: #30232a; overflow-wrap: anywhere; }
+.art-options label:has(input:checked) { border-color: #e2bb75; background: #573240; }
+.art-options input { accent-color: #eed09b; flex-shrink: 0; width: 18px; height: 18px; margin: 0; }
+.art-options small { display: block; color: #dfd0c1; line-height: 1.4; }
+.art-option-preview { display: block; flex: 0 0 52px; height: 42px; border-radius: 3px; overflow: hidden; }
+.art-parchment { margin: 0; padding: clamp(18px, 4vw, 38px); border: 1px solid #a27c45; border-radius: 5px 10px 7px 4px; color: #382619; background: radial-gradient(ellipse at 25% 20%, #f6e0ae77, transparent 65%), repeating-linear-gradient(8deg, #67431f06 0 1px, transparent 1px 4px), radial-gradient(ellipse at center, #dfc393 45%, #ad895b 100%); box-shadow: inset 0 0 28px #73451b40, 0 12px 32px #0003; }
+.art-mount { border: 1px solid #785331; padding: 5px; background: #573b2926; }
+.art-mount > img { display: block; width: 100%; height: auto; }
+.art-parchment h3 { font: normal clamp(24px, 4vw, 32px)/1.3 Georgia, serif; margin: 20px 0 8px; overflow-wrap: anywhere; }
+.art-parchment figcaption p { margin: 0 0 8px; }
+.art-parchment a { color: #65263a; font-weight: 600; }
+.art-parchment a:focus-visible { outline-color: #65263a; }
+.art-image-fallback { min-height: 180px; display: grid; place-content: center; justify-items: start; padding: 16px; }
+.art-waiting { min-height: 280px; display: grid; align-content: center; }
+.art-waiting p:first-child { font: normal 28px/1.3 Georgia, serif; }
+.commander-art footer { margin-top: 32px; font-size: 13px; color: #d8cbbd; }
+@media (min-width: 850px) { .art-workspace { grid-template-columns: minmax(0, .8fr) minmax(0, 1.4fr); gap: 40px; } .art-options { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 374px) { .commander-art { padding: 24px 12px; } .art-controls { padding: 16px; } }

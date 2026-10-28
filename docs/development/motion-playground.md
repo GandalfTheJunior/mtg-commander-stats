@@ -3,7 +3,8 @@
 An isolated experiment for #135 and the PO feedback on PR #136. This does **not**
 change `docs/product/frontend-redesign.md` or implement #134. Production adoption
 requires a separate PO decision/specification. No production routes, GameEditor,
-game details, backend, authentication or persistence are involved.
+game details, production backend or persistence changes are involved. The artwork experiment
+added in #140 reuses the authenticated read-only lookup described below.
 
 ## Open locally
 
@@ -14,8 +15,9 @@ npm run dev
 ```
 
 Open **http://localhost:5173/dev/lounge.html** (or the private forwarded Vite URL).
-No backend/login is needed. The ordinary build imports/emits neither this HTML nor
-its code/assets. `/dev/theme.html` remains separate. Do not add either to build inputs.
+Lounge and Mana work without a backend or login. Commander-Artwork requires the
+regular application session and online lookup (see below). The ordinary build
+imports/emits neither this HTML nor its code/assets. `/dev/theme.html` remains separate. Do not add either to build inputs.
 
 In development, the authenticated Dashboard also links here via **Tech Playground
 öffnen**. The signed-out **Open Tech Playground** link remains available; both
@@ -377,3 +379,71 @@ Watch bubbles, shrinking/growing counters and entire-row movement; scroll and
 rotate, hide/reopen Safari, enable OS reduced motion, and check VoiceOver.
 Physical iPhone/Safari rendering, thermal performance and speech require device
 acceptance; desktop Chromium and CI WebKit do not substitute for that decision.
+
+
+## Commander artwork on parchment (#140)
+
+Choose **Commander-Artwork** in the experiment switch. Search uses the existing
+`CommanderSearch` (two characters, 300 ms debounce, bounded backend suggestions,
+loading/empty/error/retry feedback). Selecting a result calls `listArtworks` with
+its complete gameplay selection reference, including `gameplayFaceIndex` when
+present. Native radios show available illustrations; the first usable artwork
+is selected automatically, including a single-artwork response. Change the search
+or illustration as often as needed. Leaving the experiment discards all state.
+
+### Real online lookup and authentication
+
+1. Run the regular backend and its database using the normal development setup.
+   Vite forwards `/api` to `localhost:8080`; keep the app and playground on the
+   **same browser origin** so their existing session cookie is shared.
+2. Sign in through the **regular application**, then open `/dev/lounge.html`
+   (the development Dashboard links to it). No separate playground login exists.
+   Without a session, live lookups return `401`; the experiment links to the main
+   app in another tab and offers an explicit retry after sign-in.
+3. The backend needs real HTTPS access to `api.scryfall.com`. The browser needs
+   HTTPS image access to `cards.scryfall.io` and source-link access to
+   `scryfall.com`. Offline fixture/demo mode cannot establish live Scryfall
+   availability. Browser component/route mocks are deterministic tests, not proof
+   of live authentication or upstream availability.
+
+Only existing same-origin **GET** endpoints are called. There are no deck writes,
+new endpoints, auth/security changes, stored images, persistent preferences, or
+runtime dependencies. Requests abort on replacement/unmount; retired promises
+cannot restore previous choices or surface a late `401`. Each artwork retry
+starts a fresh request lifetime. Empty or unsafe imagery produces a retryable
+empty state; backend/network/503 errors show the existing Scryfall message.
+Failed or blocked images retain attribution and offer an image retry.
+
+The parchment uses experiment-local static gradients for subtle warm-brown grain,
+with brass and burgundy accents. The original Scryfall art crop is displayed at
+its natural aspect ratio, without filters, conversion, processing or animation.
+Previews reuse `CommanderArtwork`; URLs and optional authoritative source links
+use `safeArtworkUrl`. Artist metadata and copyright remain readable HTML.
+
+### PO visual review
+
+- At **320 / 375 / 390 px and desktop**, search and select a Commander, then choose
+  another illustration using touch or radio arrow keys. Check visible focus,
+  selection, legible artist/source text, natural image proportions and no
+  horizontal overflow. Try one illustration and a Commander with many options.
+- Change Commander repeatedly while responses are pending. The old preview must
+  disappear immediately; no late result may replace the current selection.
+- Sign out through the main app, trigger a lookup, inspect the sign-in guidance,
+  sign in there again, then retry here. Exercise unavailable lookup/503, no
+  matches, no usable art and browser-blocked/broken images with retry.
+- Switch to Lounge and Mana: both remain offline-capable; returning to artwork
+  starts with a blank temporary selection. Inspect the normal production build:
+  no `Commander-Artwork`, `art-parchment`, `commander-illustration` or dev HTML.
+- Judge whether unchanged original art on aged parchment suits the magical
+  chronicle identity and whether attribution feels balanced. Sepia/ink conversion
+  or drawing animation requires a separate future experiment and PO decision.
+
+Repeatable behavior coverage: `npm test -- src/playground/CommanderArt.test.tsx`.
+Browser checks: `npm run test:browser -- e2e/commander-art.pw.ts` (Chromium/WebKit;
+use `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium` for a system Chromium).
+Browser layout tests use explicitly synthetic image responses and mocked read-only
+application routes; screenshots from those tests are layout evidence only. Live
+provider images for PO visual evidence load directly in the browser and are never
+bundled or saved as separate image assets. Physical iPhone/Safari rendering and
+screen-reader speech still require device review. Visual approval remains with
+the PO; this experiment does not approve the Visual Identity Charter.
