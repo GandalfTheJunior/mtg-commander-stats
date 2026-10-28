@@ -19,7 +19,7 @@ export function verifyContext(env, space, ports) {
   requireSafe(env.CODESPACES === 'true' && /^[a-z0-9-]+$/.test(env.CODESPACE_NAME ?? '') &&
     env.GITHUB_REPOSITORY === repo && env.MTG_CODESPACE_DEMO_DATA === '1', 'Not the opted-in repository Codespace.');
   requireSafe(space.name === env.CODESPACE_NAME && space.repository?.full_name === repo &&
-    space.state === 'Available', 'GitHub Codespace identity could not be verified.');
+    ['Available', 'Starting'].includes(space.state), 'GitHub Codespace identity could not be verified.');
   requireSafe([5173, 5174].every(port => ports.some(p => p.port_number === port && p.visibility === 'private')) &&
     !ports.some(p => [5432, 8080].includes(p.port_number)), 'Expected private preview ports only; backend/database forwarding is forbidden.');
 }

@@ -16,6 +16,8 @@ const space = {name: env.CODESPACE_NAME, state: 'Available', repository: {full_n
 const ports = [5173, 5174].map(port_number => ({port_number, visibility: 'private'}));
 test('GitHub context, repository and actual private ports fail closed', () => {
   verifyContext(env, space, ports);
+  verifyContext(env, {...space, state: 'Starting'}, ports);
+  assert.throws(() => verifyContext(env, {...space, state: 'Shutdown'}, ports));
   for (const patch of [{CODESPACES: ''}, {CODESPACE_NAME: '../other'}, {GITHUB_REPOSITORY: 'other/repo'}, {MTG_CODESPACE_DEMO_DATA: '0'}]) {
     assert.throws(() => verifyContext({...env, ...patch}, space, ports));
   }
