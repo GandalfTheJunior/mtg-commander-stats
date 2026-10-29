@@ -1,12 +1,24 @@
-# MTG Commander Stats
+# MTG Commander Stats (working title)
 
-A Commander statistics application and a learning project for AI-assisted
-software engineering. The application supports user registration, session
-authentication, authenticated deck management, and browser play-group management
-with join-code membership. The browser records Commander games, shows group history, and handles permanent
-deck usage and explicit archival through the backend API. Opened groups show
-basic player and deck [statistics](docs/product/statistics-api.md). Profiles remain
-planned.
+The idea for this application came from my own MTG Commander playgroup. We used to keep track of our games in an Excel spreadsheet, which worked, but became tedious over time.
+
+I wanted to turn this process into something more enjoyable. Instead of just collecting numbers, the goal is to create a fun and engaging companion for Commander nights, with a warm and cozy design, intuitive interactions, and interesting statistics brought to life through visualizations.
+
+The application already supports creating and joining playgroups, managing Commander decks, recording games, and viewing player and deck statistics. In the future, I want to expand on these features and make exploring your playgroup's history even more interesting.
+
+## Why AI-assisted development?
+
+On a personal level, this project is also my way of exploring the changing landscape of software development.
+
+Having worked as a Java backend developer, I was initially quite skeptical about using AI for software development. However, the more I experimented with coding agents, the more potential I began to see in this technology.
+
+Rather than simply prompting AI to build an application, I wanted to explore how agents could be integrated into a structured software development process.
+
+Together with AI agents, I designed the application's architecture and developed a workflow built around clearly defined responsibilities, requirements, automated testing, and review processes.
+
+The application code is written by AI agents, while I focus on product decisions, architectural direction, and continuously improving the development workflow.
+
+This project is an ongoing experiment in understanding both the possibilities and limitations of agent-based software development.
 
 ## Agent entry point
 
