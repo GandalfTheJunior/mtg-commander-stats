@@ -42,7 +42,16 @@ is the final merge authority. Squash merge is the normal merge method and is
 required by the current `protect-main` ruleset.
 
 The current `protect-main` ruleset requires PRs, resolution of review conversations,
-squash merging, and successful `backend` and `frontend` status checks. It does
+squash merging, and successful `backend` and `frontend` status checks.
+
+The CI classifies changed files for pull requests and pushes to `main`.
+When the **only** changed path is the repository-root `README.md`, the
+required `backend` and `frontend` jobs still run and report a successful
+README-only acknowledgement, without building or testing the application;
+Windows demo-tooling and playground-browser jobs are skipped. Any other change,
+including workflow files, agent instructions, or other documentation, runs the
+full CI. If changed files cannot be determined reliably, the full CI runs.
+ It does
 not currently require an approving review count. Independent Senior Reviewer
 and PO review remains part of the documented human process.
 

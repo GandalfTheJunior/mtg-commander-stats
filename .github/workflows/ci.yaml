@@ -10,57 +10,114 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Detect README-only changes
+    runs-on: ubuntu-latest
+    outputs:
+      readme_only: ${{ steps.diff.outputs.readme_only }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check whether only the root README changed
+        id: diff
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          # Use the complete PR diff or push range, not only the latest commit.
+          # On missing/invalid refs or diff errors, run the complete CI.
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            changed_files=$(git diff --no-renames --name-only "$BASE_SHA...$HEAD_SHA") || changed_files=""
+          else
+            changed_files=$(git diff --no-renames --name-only "$BASE_SHA" "$HEAD_SHA") || changed_files=""
+          fi
+          if [[ "$changed_files" == "README.md" ]]; then
+            echo "readme_only=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "readme_only=false" >> "$GITHUB_OUTPUT"
+          fi
+
   backend:
     name: backend
+    needs: changes
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
     steps:
+      - name: README-only fast path
+        if: needs.changes.outputs.readme_only == 'true'
+        working-directory: .
+        run: echo "README-only change; no backend build or tests needed."
       - uses: actions/checkout@v4
+        if: needs.changes.outputs.readme_only != 'true'
       - uses: actions/setup-java@v4
+        if: needs.changes.outputs.readme_only != 'true'
         with:
           distribution: temurin
           java-version: '25'
           cache: maven
           cache-dependency-path: backend/pom.xml
       - uses: actions/setup-node@v4
+        if: needs.changes.outputs.readme_only != 'true'
         with:
           node-version: '24'
       - name: Verify backend with PostgreSQL Testcontainers
+        if: needs.changes.outputs.readme_only != 'true'
         run: ./mvnw verify
 
   frontend:
     name: frontend
+    needs: changes
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
     steps:
+      - name: README-only fast path
+        if: needs.changes.outputs.readme_only == 'true'
+        working-directory: .
+        run: echo "README-only change; no frontend build or tests needed."
       - uses: actions/checkout@v4
+        if: needs.changes.outputs.readme_only != 'true'
       - uses: actions/setup-java@v4
+        if: needs.changes.outputs.readme_only != 'true'
         with:
           distribution: temurin
           java-version: '25'
       - uses: actions/setup-node@v4
+        if: needs.changes.outputs.readme_only != 'true'
         with:
           node-version: '24'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Verify isolated demo tooling
+        if: needs.changes.outputs.readme_only != 'true'
         run: node --test ../tools/demo/*.test.mjs
       - name: Verify one-time Codespaces seed guards
+        if: needs.changes.outputs.readme_only != 'true'
         run: node --test ../.devcontainer/*.test.mjs
       - name: Verify Codespaces startup lifecycle and secret isolation
+        if: needs.changes.outputs.readme_only != 'true'
         run: python3 ../.devcontainer/test-start.py
       - run: npm ci
+        if: needs.changes.outputs.readme_only != 'true'
       - run: npm run lint
+        if: needs.changes.outputs.readme_only != 'true'
       - run: npm run typecheck
+        if: needs.changes.outputs.readme_only != 'true'
       - run: npm run test
+        if: needs.changes.outputs.readme_only != 'true'
       - run: npm run build
+        if: needs.changes.outputs.readme_only != 'true'
 
   demo-tooling-windows:
     name: demo tooling (Windows)
+    needs: changes
+    if: needs.changes.outputs.readme_only != 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -83,6 +140,8 @@ jobs:
 
   playground-browser:
     name: playground browser (Chromium + WebKit)
+    needs: changes
+    if: needs.changes.outputs.readme_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Match the pinned test package; browsers/OS libraries are preinstalled.
