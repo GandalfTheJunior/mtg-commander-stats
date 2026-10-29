@@ -268,11 +268,19 @@ ordinary tests and seed retries never invoke a local demo reset.
 
 The explicit seed process uses `OfflineDemoSeedApplication` and
 `PinnedScryfallClient` from **test classes only**, built with `-Pdemo-seed`.
-The profile writes `backend/target/demo-classpath.txt`; keep the build outputs
-and Maven dependencies locally. The ordinary application jar contains neither
+The profile writes `backend/target/demo-classpath.txt` and a `*-tests.jar`; keep
+these, the ordinary packaged jar, its `.jar.original` and Maven dependencies
+locally. Each seed launch copies the completed plain application archive and
+test archive to a private `.demo/runtime-*` directory. Its classpath contains
+these two archives and dependency-cache jars, never mutable `target/classes` or
+`target/test-classes`. A preflight opens every packaged migration stream and
+compares it byte-for-byte with source before Java/Spring startup. It records the
+SQL count and SHA-256 fingerprint. Retained runtime copies are local diagnostic
+artifacts; no database or marker is deleted to manage them.
+The ordinary application jar contains neither
 launcher, fixture provider nor test resources and has no fixture/profile switch.
 The wrapper still validates the local Docker context, fixed container/volume,
-loopback database, empty users and explicit opt-in before API writes. The test
+loopback database, every application table empty and explicit opt-in before API writes. The test
 launcher additionally rejects arbitrary arguments/targets and requires the
 random temporary loopback context and ephemeral HTTP port. No direct SQL inserts
 or relaxed Commander validators are used.

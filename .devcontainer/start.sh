@@ -209,7 +209,7 @@ start_postgres
 
 report "Spring Boot wird gestartet (Maven lädt beim ersten Mal Abhängigkeiten)"
 if ! curl --silent --fail --max-time 2 http://127.0.0.1:8080/api/csrf >/dev/null; then
-  start_service backend bash -c 'cd "$1/backend"; exec ./mvnw spring-boot:run' bash "$repo_root"
+  start_service backend bash -c 'cd "$1/backend"; exec node "$1/.devcontainer/run-backend.mjs"' bash "$repo_root"
 fi
 wait_service backend http://127.0.0.1:8080/api/csrf 120
 

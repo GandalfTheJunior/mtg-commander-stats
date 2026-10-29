@@ -110,6 +110,12 @@ class StartupTest(unittest.TestCase):
             (self.repo / name).mkdir(parents=True)
         for name in ("start.sh", "status-server.mjs", "recover-postgres.mjs"):
             (self.repo / ".devcontainer" / name).write_bytes((SOURCE / name).read_bytes())
+        # Preserve the real service boundary; Maven/Java behavior is covered by
+        # archive and real PostgreSQL checks, not these lifecycle fixtures.
+        (self.repo / ".devcontainer/run-backend.mjs").write_text(
+            "import {spawnSync} from 'node:child_process';\n"
+            "const child = spawnSync('./mvnw', {stdio: 'inherit'});\n"
+            "process.exitCode = child.status ?? 1;\n")
         lock = b"fixture lockfile"
         (self.repo / "frontend/package-lock.json").write_bytes(lock)
         (self.state / "frontend-lock.sha256").write_text(hashlib.sha256(lock).hexdigest())

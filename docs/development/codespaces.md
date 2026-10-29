@@ -48,9 +48,61 @@ branches can use the configuration on `main` when their branch contains it.
 - A fresh Codespace sets `MTG_CODESPACE_DEMO_DATA=1` via its devcontainer configuration. After PostgreSQL and the ordinary backend (including Flyway migrations) become healthy, `.devcontainer/seed-demo.mjs` checks every existing public application table for rows. **Only an entirely empty application database** is eligible. If any table contains data, it skips without changing it. Restarts never reset or re-seed accounts, groups, decks or games.
 - Initialization reuses the existing isolated offline demo tool and its pinning/verification logic. It starts its own localhost PostgreSQL on port 5433 and seeds that **separate** demo volume. After verification it imports application-table **data only**, transactionally, into the fresh Codespaces PostgreSQL volume. Source and target Flyway migration checksums must match; no Flyway history or schema DDL is copied. The isolated demo DB is stopped but its volume is retained.
 - Demo accounts use the same generated `accountPassword` in the private, ignored `.demo/credentials.json` file. No demo password is checked in; do not share the file or enable public port forwarding. This initialization is for private development, never for production or any arbitrary database.
-- If the operation is interrupted or fails after beginning, the state file `~/.local/state/mtg-commander-stats/demo-seed-once.json` remains `started`, and automatic retry **refuses** rather than risking duplicates or overwriting partial data. An explicitly requested recovery is possible using `node .devcontainer/seed-demo.mjs --resume-existing-demo`, **only** if the original demo seed is marked `complete`, the target contains no application records, and matching Flyway checksums plus container/volume identity checks pass. The import locks and rechecks the tables, applies records transactionally and restores `public` as the search path before deferred PostgreSQL checks. Run recovery only after investigating the cause, while the app is not accepting writes. Do not delete volumes or status files casually. No automatic destructive reset occurs.
+- The state file `~/.local/state/mtg-commander-stats/demo-seed-once.json` now separates **preparing** from **started**. A new version-2 `preparing` marker records the Codespace, repository, Compose project and target volume before build/start preparation. A later invocation may continue only if this ownership still matches, every target application table is empty, no source seed marker exists, and the source tool independently proves every source application table empty under its existing operation lock and Docker/credential checks. An absent source marker alone is never proof of safety. A source startup may have applied Flyway schema migrations; those are retained. Build/start failure is not retried in a loop.
+- Immediately before the actual transactional import, the target marker is durably changed to `started`. Failed/ambiguous imports continue to **refuse automatic retry**. Old `started` markers also remain blocked, including the incident with a missing `.demo/seed-status.json`; no ownership or safe phase is inferred retroactively. Partial/unknown source markers, stale source operation locks, unreadable state or interrupted `.tmp` marker transitions fail closed and are preserved.
+- Explicit recovery uses `node .devcontainer/seed-demo.mjs --resume-existing-demo`, **only** if the source seed is marked `complete`, the target marker is `started` or `preparing`, the target contains no application records, and matching Flyway checksums plus container/volume identity checks pass. This includes interruption after a verified source seed but before import. The import locks and rechecks target tables, applies records transactionally and restores `public` before deferred constraints. Direct/manual seed invocations share a kernel lock. Investigate first and prevent concurrent app writes. Never delete either marker, credentials or volumes to force retry. No automatic destructive reset occurs.
 - To opt out for future *new* Codespaces, change/remove `MTG_CODESPACE_DEMO_DATA` in `.devcontainer/devcontainer.json` before creation; existing Codespace data is never deleted by turning this off. The first seed may extend cold startup due to an additional Maven package build and separate demo backend.
 - Each Codespace retains its own PostgreSQL volume. A different feature-branch Codespace starts with independent baseline data and cannot see manual edits made in other Codespaces. Creating a fresh Codespace discards none of the old one until explicitly deleted.
+
+## Build and resource availability
+
+Codespaces starts the ordinary backend with a completed Maven `package` followed
+by a private application-JAR copy, rather than `spring-boot:run` against mutable
+`target/classes`. The isolated source seed likewise copies the completed plain
+application and test archives; its remaining classpath entries are immutable
+Maven dependency jars. A later build (including demo preparation) cannot rewrite
+resources underneath either running backend. Existing services still reuse their
+lifetime locks and PID/provenance checks; no failed service is restarted blindly.
+The normal production jar, Flyway migrations, Hibernate validation and interactive
+local `spring-boot:run` workflow are unchanged.
+
+Before launch, `CheckRuntimeResources.java` opens every SQL stream from the actual
+private archive, compares its bytes to source, and emits only the readable count
+and SHA-256 fingerprint (`runtime-resources`). A missing/unreadable/mismatched
+archive fails before Spring or demo writes. Private runtime copies are retained
+for inspection in the state directory and `.demo/runtime-*`; startup does not
+remove old evidence or database state. Ordinary backend diagnostics remain in
+`backend.log`; the source records sanitized cause types, migration counts and
+fixed startup error categories in `.demo/startup-diagnostics.log`. The outer
+bootstrap accepts only this bounded vocabulary, fingerprints and stage/exit
+codes. Exception messages, stack arguments, URLs, SQL and credentials are omitted.
+
+### Evidence and limits for issue #146
+
+The Maven lifecycle processes resources before compilation and packages before
+launch. Both old paths used the shared build output; a later demo `package`
+processes that output again while the ordinary backend is alive. This establishes
+a mutable runtime boundary, **not proof that it caused the reported incidents**.
+A Java 25 / Flyway 12.4 / PostgreSQL 18 fault-injection regression distinguishes:
+
+- An empty classpath location produces zero discovered/validated migrations.
+- V2 removed after validation leaves eight discovered descriptors, but opening
+  its stream fails with `Unable to obtain inputstream for resource`.
+- A completed archive still finds, opens and migrates all eight SQL resources
+  when the exploded build resources disappear.
+
+These controlled faults demonstrate mechanisms and the archive mitigation; they
+do not reproduce a spontaneous Codespaces race. The historical isolated source
+exit was not recorded with sufficient causes to attribute it to either Flyway
+symptom. Its state-machine defect is independently established: the old target
+marker was written before Maven/source startup and therefore blocked even pure
+preparation failure. This repair preserves legacy evidence and prevents that
+failure mode for newly recorded, verifiably safe preparation.
+
+Actual new private Codespace creation, repeated startup and GitHub stop/start
+with retained app/source data still require PO acceptance. A local real-stack
+smoke or fixture-only Docker test cannot establish Codespaces lifecycle, private
+forwarding, tester-secret access or physical Safari results.
 
 ## Security and troubleshooting
 
