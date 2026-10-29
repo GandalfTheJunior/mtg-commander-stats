@@ -29,6 +29,15 @@ jobs:
           node-version: '24'
       - name: Verify backend with PostgreSQL Testcontainers
         run: ./mvnw verify
+      - name: Report backend coverage
+        if: always()
+        run: python3 ../tools/backend-coverage-summary.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage
+          path: backend/target/site/jacoco/
+          retention-days: 14
 
   frontend:
     name: frontend
@@ -56,7 +65,20 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm run test
+      - run: npm run test:coverage-reporter
+      - run: npm run test:coverage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-app-coverage
+          path: frontend/coverage/app/
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-playground-coverage
+          path: frontend/coverage/playground/
+          retention-days: 14
       - run: npm run build
 
   demo-tooling-windows:
