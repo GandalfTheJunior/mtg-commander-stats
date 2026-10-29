@@ -6,6 +6,7 @@ import {delimiter, dirname, join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {snapshotRuntime} from './runtime.mjs';
+import {environment} from './demo.mjs';
 
 test('completed private archives retain all SQL bytes when Maven output is replaced', () => {
   const temp = mkdtempSync(join(tmpdir(), 'mtg runtime '));
@@ -23,7 +24,17 @@ test('completed private archives retain all SQL bytes when Maven output is repla
     copyFileSync(original, dependency);
     writeFileSync(join(target, 'demo-classpath.txt'), dependency);
     const normal = snapshotRuntime(target, join(temp, 'normal'));
-    const seed = snapshotRuntime(target, join(temp, 'seed'), true);
+    const ambientOptions = process.env.JDK_JAVA_OPTIONS;
+    let seed;
+    try {
+      // The *preflight* Java process must obey the source launcher's existing
+      // environment filter too, before any backendEnvironment is constructed.
+      process.env.JDK_JAVA_OPTIONS = '--mtg-forbidden-ambient-option';
+      seed = snapshotRuntime(target, join(temp, 'seed'), true, {env: environment()});
+    } finally {
+      if (ambientOptions === undefined) delete process.env.JDK_JAVA_OPTIONS;
+      else process.env.JDK_JAVA_OPTIONS = ambientOptions;
+    }
     assert.deepEqual(normal.args, ['-jar', normal.jar]);
     assert.equal(seed.args[0], '-cp');
     assert.equal(seed.args[1].split(delimiter).length, 3);

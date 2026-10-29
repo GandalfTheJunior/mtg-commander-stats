@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
-export function snapshotRuntime(target, state, seed = false, log = console.log) {
+export function snapshotRuntime(target, state, seed = false, {log = console.log, env = process.env} = {}) {
   const jars = readdirSync(target).filter(name => name.endsWith('.jar') && !name.endsWith('-tests.jar'));
   if (jars.length !== 1) throw new Error('Expected exactly one packaged application.');
   mkdirSync(state, {recursive: true, mode: 0o700});
@@ -16,7 +16,7 @@ export function snapshotRuntime(target, state, seed = false, log = console.log) 
   // compares its bytes to source, and logs only counts and a SHA-256 fingerprint.
   try {
     const output = execFileSync('java', [resolve(root, 'tools/demo/CheckRuntimeResources.java'), jar,
-      resolve(root, 'backend/src/main/resources/db/migration')], {encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']});
+      resolve(root, 'backend/src/main/resources/db/migration')], {env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']});
     if (!/^runtime-resources: readable=\d{1,4} sha256=[a-f0-9]{64}\r?\n$/.test(output)) throw new Error();
     log(output.trim());
   } catch {

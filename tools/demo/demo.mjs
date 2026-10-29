@@ -134,7 +134,7 @@ export const BACKEND_STOP = 'stop-demo-backend';
 export function backendArguments(jar, context = '') {
   const settings = ['--spring.config.location=classpath:/application.yaml', '--server.address=127.0.0.1', `--server.port=${context ? 0 : 8080}`, `--server.servlet.context-path=${context || '/'}`, '--spring.datasource.url=jdbc:postgresql://127.0.0.1:5433/mtg_commander_demo', '--spring.datasource.username=mtg_commander_demo'];
   if (!context) return ['-jar', jar, ...settings];
-  const runtime = snapshotRuntime(resolve(root, 'backend/target'), stateDir, true, startupLog);
+  const runtime = snapshotRuntime(resolve(root, 'backend/target'), stateDir, true, {log: startupLog, env: environment()});
   startupLog('runtime-classpath: private-demo-archives-and-dependency-jars');
   return [...runtime.args, '--allow-isolated-demo-seed', ...settings];
 }
