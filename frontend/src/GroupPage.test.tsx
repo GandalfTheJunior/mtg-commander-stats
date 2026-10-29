@@ -1,4 +1,3 @@
-import { selectGameWinner } from './test/gameEntry'
 import { stubLanHttpCrypto } from './test/lanHttp'
 import { StrictMode } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
