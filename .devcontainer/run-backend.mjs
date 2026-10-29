@@ -13,7 +13,7 @@ try {
   const child = spawn('java', runtime.args, {stdio: ['ignore', 'pipe', 'pipe', 'ignore', 'ignore', 'ignore', 'ignore', 'ignore', 8]});
   const diagnostics = startupDiagnostics(line => console.error(line));
   child.stdout.on('data', chunk => { process.stdout.write(chunk); diagnostics.feed(chunk); });
-  child.stderr.on('data', chunk => { process.stderr.write(chunk); diagnostics.feed(chunk); });
+  child.stderr.on('data', chunk => { process.stderr.write(chunk); diagnostics.feed(chunk, 'stderr'); });
   for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => child.kill(signal));
   child.on('error', () => { console.error('java-startup: kind=classpath'); process.exitCode = 1; });
   child.on('close', code => { diagnostics.finish(); process.exitCode = code ?? 1; });

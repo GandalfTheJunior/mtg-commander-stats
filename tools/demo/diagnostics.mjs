@@ -23,9 +23,10 @@ const causeTypes = ['org.springframework.beans.factory.BeanCreationException',
 // Incremental parser: no raw line, exception message, URL, path or SQL is emitted.
 // Preserve each cause in order, including unknown causes as a fixed token.
 export function startupDiagnostics(emit) {
-  let pending = '', kind = 'unknown';
+  const pending = {stdout: '', stderr: ''};
+  let kind = 'unknown';
   const line = value => {
-    const cause = value.match(/^(?:Caused by: |Exception in thread "main" )([\w.$]+)(?::|$)/);
+    const cause = value.match(/^\s*(?:(?:Caused by: |Suppressed: |Exception in thread "main" ))?([\w.$]+)(?::|$)/);
     if (cause) emit('java-cause: type=' + (causeTypes.includes(cause[1]) ? cause[1] : 'other'));
     const validated = value.match(/Successfully validated (\d{1,4}) migrations/);
     if (validated) emit('java-migrations: validated=' + Number(validated[1]));
@@ -46,13 +47,19 @@ export function startupDiagnostics(emit) {
     }
   };
   return {
-    feed(chunk) {
-      pending += chunk.toString();
-      const lines = pending.split(/\r?\n/);
-      pending = lines.pop().slice(-16000);
+    feed(chunk, stream = 'stdout') {
+      if (!Object.hasOwn(pending, stream)) return;
+      pending[stream] += chunk.toString();
+      const lines = pending[stream].split(/\r?\n/);
+      pending[stream] = lines.pop().slice(-16000);
       lines.forEach(line);
     },
-    finish() { if (pending) line(pending); pending = ''; },
+    finish() {
+      for (const stream of Object.keys(pending)) {
+        if (pending[stream]) line(pending[stream]);
+        pending[stream] = '';
+      }
+    },
     get kind() { return kind; },
   };
 }

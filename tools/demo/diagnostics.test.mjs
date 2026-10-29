@@ -27,6 +27,15 @@ test('Java startup preserves sanitized causes and distinguishes the two Flyway s
   healthy.feed('INFO org.flywaydb.core.FlywayExecutor : Database ready\nSuccessfully validated 8 migrations\n');
   healthy.finish();
   assert.deepEqual(normal, ['java-migrations: validated=8']);
+  const causes = [];
+  const interleaved = startupDiagnostics(line => causes.push(line));
+  interleaved.feed('Successfully validated ');
+  interleaved.feed('org.springframework.beans.factory.BeanCreationException: ' + secret + '\nCaused by: java.io.IOException: ', 'stderr');
+  interleaved.feed('8 migrations\n');
+  interleaved.feed(secret + '\n\tSuppressed: java.lang.IllegalStateException: ' + secret + '\n', 'stderr');
+  interleaved.finish();
+  assert.deepEqual(causes, ['java-cause: type=org.springframework.beans.factory.BeanCreationException',
+    'java-migrations: validated=8', 'java-cause: type=java.io.IOException', 'java-cause: type=java.lang.IllegalStateException']);
 });
 test('safe HTTP diagnostics contain only method, resource and numeric status', () => {
   const error = new DemoApiError('POST', '/users/' + secret, 403, 201);

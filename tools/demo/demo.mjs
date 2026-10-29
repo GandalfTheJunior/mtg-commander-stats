@@ -160,7 +160,7 @@ async function backend(cfg, action) {
   const lifecycle = trackBackend(child, {seed: Boolean(action)});
   const diagnostics = startupDiagnostics(startupLog);
   child.stdout.on('data', chunk => diagnostics.feed(chunk));
-  child.stderr.on('data', chunk => diagnostics.feed(chunk));
+  child.stderr.on('data', chunk => diagnostics.feed(chunk, 'stderr'));
   const unwatch = watchBackendShutdown(lifecycle.stop);
   let timer, failed = false;
   let stage = 'backend-startup';
