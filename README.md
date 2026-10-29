@@ -1,12 +1,17 @@
-# MTG Commander Stats
+# MTG Commander Stats (working title)
 
-A Commander statistics application and a learning project for AI-assisted
-software engineering. The application supports user registration, session
-authentication, authenticated deck management, and browser play-group management
-with join-code membership. The browser records Commander games, shows group history, and handles permanent
-deck usage and explicit archival through the backend API. Opened groups show
-basic player and deck [statistics](docs/product/statistics-api.md). Profiles remain
-planned.
+This App Idea has it's roots in my personal MTG Commander Playgroup. We used to collect Data
+of our Matches in an Excel Sheet. This was a tidieous process. This App is supposed to become a tool
+to make that exact process fun and interesting. With a warm and cozy Design, Intuitive and Fun 
+UI/UX elements and interesting statistics with exciting visualisation.
+
+Features will include setting up your own playgroup, join other peoples playgroups, save games after
+you played them to gather data and later, when enough data has been collected, your group can view lots 
+of different fun statistics.
+
+Personally This Project is also my way of dealing with the ever changing world of Software Development.
+As AI is here and won't be leaving any time soon I am using this as a Playground to experience the
+capabilities of current AI-Models and Agent Based Development.
 
 ## Agent entry point
 
