@@ -41,13 +41,24 @@ function setup() {
   return { ...api, fetchMock, server: state, other }
 }
 async function open(name = group.name) {
-  await goTo('Playgroups')
+  // The initial render already targets Playgroups; don't navigate there again
+  // while its session bootstrap is completing.
+  if (screen.queryByText('Checking your session…')) await screen.findByRole('heading', { name: 'Playgroups' })
+  if (!screen.queryByRole('heading', { name: 'Playgroups' })) await goTo('Playgroups')
   fireEvent.click(await screen.findByRole('button', { name }))
 }
 async function create() {
   fireEvent.click(await screen.findByRole('button', { name: 'Spiel erfassen' }))
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 1' }), { target: { value: uid(1) } })
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 2' }), { target: { value: uid(2) } })
+  const editor = within(screen.getByRole('form', { name: 'Spiel erfassen' }))
+  // This scenario records two players; remove unused cards through the real UI.
+  for (const slot of [4, 3]) {
+    const card = within(editor.getByRole('region', { name: `Spieler ${slot}` }))
+    fireEvent.click(card.getByRole('button', { name: `Spieler ${slot} entfernen` }))
+  }
+  for (const slot of [1, 2]) {
+    const card = within(editor.getByRole('region', { name: `Spieler ${slot}` }))
+    fireEvent.change(card.getByRole('combobox', { name: `Spieler ${slot}` }), { target: { value: uid(slot) } })
+  }
   await selectGameDeck(1, deckFor(1))
   await selectGameDeck(2, deckFor(2))
   selectGameWinner(uid(1))
@@ -114,12 +125,13 @@ test('App refreshes permanent own-deck usage after recording and retains it afte
   setup(); render(<App />); await open(); await create()
   await goTo('Decks'); await openExistingDeck()
   await openDeckAction('Archivieren')
-  expect(screen.getByRole('button', { name: 'Archivieren bestätigen' })).toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+  const archive = within(await screen.findByRole('dialog'))
+  expect(archive.getByRole('button', { name: 'Archivieren bestätigen' })).toBeInTheDocument()
+  fireEvent.click(archive.getByRole('button', { name: 'Abbrechen' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   await open(); await screen.findByRole('article')
   await gameAction('Löschen')
-  fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Endgültig löschen' }))
   await screen.findByText('No recorded games yet.')
   await goTo('Decks'); await openExistingDeck()
   expect(screen.getByRole('combobox', { name: /Commander/ })).toHaveAttribute('readonly')

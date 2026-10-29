@@ -1,4 +1,3 @@
-import { selectGameWinner } from './test/gameEntry'
 import { stubLanHttpCrypto } from './test/lanHttp'
 import { StrictMode } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -759,14 +758,22 @@ test('acknowledged game save refreshes sorted statistics even while the replacem
   fireEvent.click(within(table).getByRole('button', { name: 'Siege' }))
   await selectTab('Spiele')
   fireEvent.click(await screen.findByRole('button', { name: 'Spiel erfassen' }))
-  for (const n of [1, 2]) fireEvent.change(screen.getByRole('combobox', { name: `Spieler ${n}` }), { target: { value: uid(n + 1) } })
+  const editor = within(screen.getByRole('form', { name: 'Spiel erfassen' }))
+  for (const slot of [4, 3]) {
+    const card = within(editor.getByRole('region', { name: `Spieler ${slot}` }))
+    fireEvent.click(card.getByRole('button', { name: `Spieler ${slot} entfernen` }))
+  }
+  for (const n of [1, 2]) {
+    const card = within(editor.getByRole('region', { name: `Spieler ${n}` }))
+    fireEvent.change(card.getByRole('combobox', { name: `Spieler ${n}` }), { target: { value: uid(n + 1) } })
+  }
   for (const n of [1, 2]) await selectGameDeck(n, deckFor(n + 1))
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Spiel speichern' })).toBeEnabled())
+  fireEvent.change(editor.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
+  await waitFor(() => expect(editor.getByRole('button', { name: 'Spiel speichern' })).toBeEnabled())
   api.next(`/api/groups/${group.id}/games`, () => response(recorded({ result: 'DRAW', winnerUserId: null }), 201), 'POST')
   api.next(`/api/groups/${group.id}/games`, () => history.promise)
   api.games.state.statistics = { ...statistics(), players: [{ ...statistics().players[0], wins: 0, winRatePercent: 0 }] }
-  fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
+  fireEvent.click(editor.getByRole('button', { name: 'Spiel speichern' }))
   await screen.findByText('Game recorded.')
   await selectTab('Statistiken')
   const refreshed = await screen.findByRole('table', { name: 'Spielerstatistiken' })
@@ -810,17 +817,29 @@ test('statistics authorization denial retires pending history and requires manua
 test('visible tabs and native same-group Back/Forward preserve summaries, expansion, winner and validation without a prompt', async () => {
   const api = setup(); show(); await groupReady()
   fireEvent.click(await screen.findByRole('button', { name: 'Spiel erfassen' }))
+  const editor = within(screen.getByRole('form', { name: 'Spiel erfassen' }))
+  fireEvent.click(within(editor.getByRole('region', { name: 'Spieler 4' })).getByRole('button', { name: 'Spieler 4 entfernen' }))
+  // No card movement in this scenario: retain roots, but re-query controls after each render.
+  const cards = editor.getAllByRole('region', { name: /^Spieler \d$/ }).map((root, index) => {
+    expect(root).toHaveAccessibleName(`Spieler ${index + 1}`)
+    return within(root)
+  })
+  expect(cards).toHaveLength(3)
+  const card = (n: number) => cards[n - 1]
   for (const n of [1, 2]) {
-    fireEvent.change(screen.getByRole('combobox', { name: `Spieler ${n}` }), { target: { value: uid(n + 1) } })
-    await waitFor(() => expect(screen.getByRole('combobox', { name: `Deck für Spieler ${n}` })).toBeEnabled())
-    fireEvent.change(screen.getByRole('combobox', { name: `Deck für Spieler ${n}` }), { target: { value: deckFor(n + 1).id } })
+    fireEvent.change(card(n).getByRole('combobox', { name: `Spieler ${n}` }), { target: { value: uid(n + 1) } })
+    await waitFor(() => expect(card(n).getByRole('combobox', { name: `Deck für Spieler ${n}` })).toBeEnabled())
+    fireEvent.change(card(n).getByRole('combobox', { name: `Deck für Spieler ${n}` }), { target: { value: deckFor(n + 1).id } })
   }
-  fireEvent.click(screen.getByRole('button', { name: 'Spieler 2 bearbeiten' }))
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 3' }), { target: { value: uid(4) } })
-  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Deck für Spieler 3' })).toBeEnabled())
-  selectGameWinner(uid(2))
-  fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
-  expect(screen.getByRole('combobox', { name: 'Deck für Spieler 3' })).toHaveFocus()
+  fireEvent.click(card(2).getByRole('button', { name: 'Spieler 2 bearbeiten' }))
+  fireEvent.change(card(3).getByRole('combobox', { name: 'Spieler 3' }), { target: { value: uid(4) } })
+  await waitFor(() => expect(card(3).getByRole('combobox', { name: 'Deck für Spieler 3' })).toBeEnabled())
+  for (const n of [1, 2]) {
+    const placement = within(card(n).getByRole('group', { name: 'Platzierung' }))
+    fireEvent.click(placement.getByRole('button', { name: `Platz ${n}` }))
+  }
+  fireEvent.click(editor.getByRole('button', { name: 'Spiel speichern' }))
+  expect(card(3).getByRole('combobox', { name: 'Deck für Spieler 3' })).toHaveFocus()
   await selectTab('Statistiken'); await selectTab('Mitglieder')
   expect(screen.getAllByRole('tab')).toHaveLength(3)
   expect(screen.queryByRole('form')).not.toBeInTheDocument()
@@ -830,11 +849,14 @@ test('visible tabs and native same-group Back/Forward preserve summaries, expans
   await act(async () => window.history.back())
   await screen.findByRole('tab', { name: 'Spiele', selected: true })
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Spieler 1 bearbeiten' })).toBeInTheDocument()
-  expect(screen.getByRole('combobox', { name: 'Spieler 2' })).toHaveValue(uid(3))
-  expect(screen.getByRole('combobox', { name: 'Deck für Spieler 2' })).toHaveValue(deckFor(3).id)
-  expect(screen.getByRole('combobox', { name: 'Deck für Spieler 3' })).toHaveAttribute('aria-invalid', 'true')
-  expect(within(screen.getByRole('region', { name: 'Spieler 1' })).getByRole('button', { name: 'Platz 1' })).toHaveAttribute('aria-pressed', 'true')
+  // Resolve new roots from the visible document after native history traversal.
+  const restored = within(screen.getByRole('form', { name: 'Spiel erfassen' }))
+  const restoredCard = (n: number) => within(restored.getByRole('region', { name: `Spieler ${n}` }))
+  expect(restoredCard(1).getByRole('button', { name: 'Spieler 1 bearbeiten' })).toBeInTheDocument()
+  expect(restoredCard(2).getByRole('combobox', { name: 'Spieler 2' })).toHaveValue(uid(3))
+  expect(restoredCard(2).getByRole('combobox', { name: 'Deck für Spieler 2' })).toHaveValue(deckFor(3).id)
+  expect(restoredCard(3).getByRole('combobox', { name: 'Deck für Spieler 3' })).toHaveAttribute('aria-invalid', 'true')
+  expect(restoredCard(1).getByRole('button', { name: 'Platz 1' })).toHaveAttribute('aria-pressed', 'true')
   expect(screen.getAllByRole('form')).toHaveLength(1)
   expect(screen.getByRole('alert')).toHaveTextContent('Spieler 3:')
   await act(async () => window.history.forward())
@@ -847,21 +869,24 @@ test('visible tabs and native same-group Back/Forward preserve summaries, expans
 test('empty slot edits and reverted values stay clean; material changes guard unload and cancellation with focus restoration', async () => {
   setup(); show(); await groupReady()
   fireEvent.click(await screen.findByRole('button', { name: 'Spiel erfassen' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Spieler hinzufügen' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Spieler 1 entfernen' }))
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'WIN' } })
+  const editor = within(screen.getByRole('form', { name: 'Spiel erfassen' }))
+  fireEvent.click(editor.getByRole('button', { name: 'Spieler hinzufügen' }))
+  fireEvent.click(within(editor.getByRole('region', { name: 'Spieler 1' })).getByRole('button', { name: 'Spieler 1 entfernen' }))
+  const firstCard = within(editor.getByRole('region', { name: 'Spieler 1' }))
+  fireEvent.change(editor.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
+  fireEvent.change(editor.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'WIN' } })
   let unload = new Event('beforeunload', { cancelable: true })
   window.dispatchEvent(unload); expect(unload.defaultPrevented).toBe(false)
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 1' }), { target: { value: uid(2) } })
+  fireEvent.change(firstCard.getByRole('combobox', { name: 'Spieler 1' }), { target: { value: uid(2) } })
   unload = new Event('beforeunload', { cancelable: true })
   window.dispatchEvent(unload); expect(unload.defaultPrevented).toBe(true)
-  const cancel = screen.getByRole('button', { name: 'Abbrechen' }); cancel.focus(); fireEvent.click(cancel)
-  fireEvent.click(await screen.findByRole('button', { name: 'Im Editor bleiben' }))
+  const cancel = editor.getByRole('button', { name: 'Abbrechen' }); cancel.focus(); fireEvent.click(cancel)
+  const dialog = within(await screen.findByRole('dialog'))
+  fireEvent.click(dialog.getByRole('button', { name: 'Im Editor bleiben' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   await waitFor(() => expect(cancel).toHaveFocus())
-  expect(screen.getByRole('combobox', { name: 'Spieler 1' })).toHaveValue(uid(2))
-  fireEvent.click(screen.getByRole('button', { name: 'Spieler 1 leeren' }))
+  expect(firstCard.getByRole('combobox', { name: 'Spieler 1' })).toHaveValue(uid(2))
+  fireEvent.click(firstCard.getByRole('button', { name: 'Spieler 1 leeren' }))
   unload = new Event('beforeunload', { cancelable: true })
   window.dispatchEvent(unload); expect(unload.defaultPrevented).toBe(false)
   fireEvent.click(cancel)
@@ -958,10 +983,15 @@ test.each([1, 4])('late saved-game success/401 cannot mutate a replacement sessi
   const api = setup(), late = deferred()
   show(); await groupReady()
   fireEvent.click(await screen.findByRole('button', { name: 'Spiel erfassen' }))
+  const editor = within(screen.getByRole('form', { name: 'Spiel erfassen' }))
+  for (const slot of [4, 3]) {
+    const card = within(editor.getByRole('region', { name: `Spieler ${slot}` }))
+    fireEvent.click(card.getByRole('button', { name: `Spieler ${slot} entfernen` }))
+  }
   for (const n of [1, 2]) {
-    fireEvent.change(screen.getByRole('combobox', { name: `Spieler ${n}` }), { target: { value: uid(n + 1) } })
-    await waitFor(() => expect(screen.getByRole('combobox', { name: `Deck für Spieler ${n}` })).toBeEnabled())
-    fireEvent.change(screen.getByRole('combobox', { name: `Deck für Spieler ${n}` }), { target: { value: deckFor(n + 1).id } })
+    const card = within(editor.getByRole('region', { name: `Spieler ${n}` }))
+    fireEvent.change(card.getByRole('combobox', { name: `Spieler ${n}` }), { target: { value: uid(n + 1) } })
+    await selectGameDeck(n, deckFor(n + 1))
   }
   fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
   api.next(`/api/groups/${group.id}/games`, () => late.promise, 'POST')

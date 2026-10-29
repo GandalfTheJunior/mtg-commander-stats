@@ -19,11 +19,20 @@ function show(details: GroupDetails = group, actorId = uid(1)) {
   return renderApp(<App />, `/playgroups/${group.id}`)
 }
 async function start() {
-  fireEvent.click(await screen.findByRole('button', { name: 'Spiel erfassen' }))
+  const games = within(await screen.findByRole('tabpanel', { name: 'Spiele' }))
+  fireEvent.click(await games.findByRole('button', { name: 'Spiel erfassen' }))
 }
-async function selectPlayers(first = 2, second = 3) {
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 1' }), { target: { value: uid(first) } })
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 2' }), { target: { value: uid(second) } })
+async function selectPlayers(first = 2, second = 3, options: { keepEmptyCards?: boolean } = {}) {
+  const editor = within(screen.getByRole('form', { name: 'Spiel erfassen' }))
+  // This fixture records two players; omit unused cards through the real UI.
+  for (const slot of options.keepEmptyCards ? [] : [4, 3]) {
+    const card = within(editor.getByRole('region', { name: `Spieler ${slot}` }))
+    fireEvent.click(card.getByRole('button', { name: `Spieler ${slot} entfernen` }))
+  }
+  for (const [slot, user] of [[1, first], [2, second]]) {
+    const card = within(editor.getByRole('region', { name: `Spieler ${slot}` }))
+    fireEvent.change(card.getByRole('combobox', { name: `Spieler ${slot}` }), { target: { value: uid(user) } })
+  }
   await selectGameDeck(1, deckFor(first))
   await selectGameDeck(2, deckFor(second))
 }
@@ -54,7 +63,7 @@ test('validates incomplete results, disables duplicates, limits player count, an
   await waitFor(() => expect(screen.getByRole('button', { name: 'Spiel speichern' })).not.toBeDisabled())
   fireEvent.submit(screen.getByRole('form', { name: 'Spiel erfassen' }))
   await screen.findByRole('alert')
-  await selectPlayers()
+  await selectPlayers(2, 3, { keepEmptyCards: true })
   fireEvent.click(screen.getByRole('button', { name: 'Spieler 2 bearbeiten' }))
   expect(within(screen.getByRole('combobox', { name: 'Spieler 2' })).getByRole('option', { name: /Same name.*0002.*bereits gewählt/ })).toBeDisabled()
   expect(screen.queryByRole('combobox', { name: 'Gewinner' })).not.toBeInTheDocument()

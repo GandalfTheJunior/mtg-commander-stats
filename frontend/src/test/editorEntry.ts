@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 
 /** Integration tests retain their session assertions while following the new screens. */
 export async function openNewDeck() {
@@ -6,10 +6,13 @@ export async function openNewDeck() {
   return screen.findByRole('textbox', { name: /Deckname/ })
 }
 export async function openExistingDeck() {
-  fireEvent.click(await screen.findByRole('button', { name: /bearbeiten$/ }))
+  const decks = within(await screen.findByRole('region', { name: 'Meine Decks' }))
+  fireEvent.click(await decks.findByRole('button', { name: /bearbeiten$/ }))
   await screen.findByRole('textbox', { name: /Deckname/ })
 }
 export async function openDeckAction(action: string) {
-  fireEvent.click(await screen.findByRole('button', { name: 'Deckaktionen' }))
-  fireEvent.click(await screen.findByRole('menuitem', { name: action }))
+  const editor = within(await screen.findByRole('region', { name: 'Deck bearbeiten' }))
+  fireEvent.click(await editor.findByRole('button', { name: 'Deckaktionen' }))
+  const menu = within(await screen.findByRole('menu'))
+  fireEvent.click(menu.getByRole('menuitem', { name: action }))
 }

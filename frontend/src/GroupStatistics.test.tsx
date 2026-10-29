@@ -25,19 +25,21 @@ function show() {
   return { ...renderApp(<Harness />), ...handlers }
 }
 async function games() {
-  const trigger = screen.queryByRole('button', { name: 'Show games' })
-  if (trigger) fireEvent.click(trigger)
+  // Detect the tiny harness without computing every App button's accessible name.
+  if (screen.queryByText('Show games', { selector: 'button' })) fireEvent.click(screen.getByRole('button', { name: 'Show games' }))
   else await selectTab('Spiele')
 }
 async function stats() {
-  const trigger = screen.queryByRole('button', { name: 'Show statistics' })
-  if (trigger) fireEvent.click(trigger)
+  if (screen.queryByText('Show statistics', { selector: 'button' })) fireEvent.click(screen.getByRole('button', { name: 'Show statistics' }))
   else await selectTab('Statistiken')
 }
 const playerTable = () => { selectView('Spieler'); return screen.getByRole('table', { name: 'Spielerstatistiken' }) }
 const deckTable = () => { selectView('Decks'); return screen.getByRole('table', { name: 'Deckstatistiken' }) }
 const viewButton = (name: 'Spieler' | 'Decks') => within(screen.getByRole('group', { name: 'Statistikansicht' })).getByRole('button', { name })
-function selectView(name: 'Spieler' | 'Decks') { if (viewButton(name).getAttribute('aria-pressed') !== 'true') fireEvent.click(viewButton(name)) }
+function selectView(name: 'Spieler' | 'Decks') {
+  const button = viewButton(name)
+  if (button.getAttribute('aria-pressed') !== 'true') fireEvent.click(button)
+}
 const statsCalls = (api: ReturnType<typeof gameApi>) => api.fetchMock.mock.calls.filter(([url]) => url === path)
 
 function appSetup() {
@@ -162,17 +164,25 @@ test('only acknowledged game creation refreshes visited statistics; canceled cre
   await screen.findByText(/Noch keine (Spieler|Deck)statistiken/)
   await games()
   fireEvent.click(screen.getByRole('button', { name: 'Spiel erfassen' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+  fireEvent.click(within(screen.getByRole('form', { name: 'Spiel erfassen' })).getByRole('button', { name: 'Abbrechen' }))
   expect(statsCalls(api)).toHaveLength(1)
   expect(api.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0)
   fireEvent.click(screen.getByRole('button', { name: 'Spiel erfassen' }))
-  for (const n of [1, 2]) fireEvent.change(screen.getByRole('combobox', { name: `Spieler ${n}` }), { target: { value: uid(n + 1) } })
+  const editor = within(screen.getByRole('form', { name: 'Spiel erfassen' }))
+  for (const slot of [4, 3]) {
+    const card = within(editor.getByRole('region', { name: `Spieler ${slot}` }))
+    fireEvent.click(card.getByRole('button', { name: `Spieler ${slot} entfernen` }))
+  }
+  for (const n of [1, 2]) {
+    const card = within(editor.getByRole('region', { name: `Spieler ${n}` }))
+    fireEvent.change(card.getByRole('combobox', { name: `Spieler ${n}` }), { target: { value: uid(n + 1) } })
+  }
   for (const n of [1, 2]) await selectGameDeck(n, deckFor(n + 1))
   selectGameWinner(uid(2))
   const pending = deferred()
   api.next(`/api/groups/${group.id}/games`, () => pending.promise, 'POST')
-  fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
-  await screen.findByRole('button', { name: 'Spiel wird gespeichert…' })
+  fireEvent.click(editor.getByRole('button', { name: 'Spiel speichern' }))
+  await editor.findByRole('button', { name: 'Spiel wird gespeichert…' })
   await stats()
   expect(statsCalls(api)).toHaveLength(1)
   expect(screen.getByText(/Noch keine (Spieler|Deck)statistiken/)).toBeInTheDocument()
@@ -193,28 +203,29 @@ test('only acknowledged game edits refresh visited statistics; canceled edits do
   await stats()
   await screen.findByRole('table', { name: 'Spielerstatistiken' })
   await games()
-  fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+  fireEvent.click(within(screen.getByRole('form', { name: 'Spiel bearbeiten' })).getByRole('button', { name: 'Abbrechen' }))
   expect(statsCalls(api)).toHaveLength(1)
   expect(api.fetchMock.mock.calls.filter(([, init]) => init?.method === 'PUT')).toHaveLength(0)
   await gameAction('Bearbeiten')
   await screen.findByRole('form', { name: 'Spiel bearbeiten' })
   await stats()
   await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  expect(within(playerTable()).getByRole('row', { name: /Ada/ })).toHaveTextContent('12650%')
+  expect(within(screen.getByRole('table', { name: 'Spielerstatistiken' })).getByRole('row', { name: /Ada/ })).toHaveTextContent('12650%')
   await games()
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
+  const editor = within(screen.getByRole('form', { name: 'Spiel bearbeiten' }))
+  fireEvent.change(editor.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
   const pending = deferred()
   api.next(`/api/groups/${group.id}/games/${uid(20)}`, () => pending.promise, 'PUT')
-  fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
-  await screen.findByRole('button', { name: 'Spiel wird gespeichert…' })
+  fireEvent.click(editor.getByRole('button', { name: 'Spiel speichern' }))
+  await editor.findByRole('button', { name: 'Spiel wird gespeichert…' })
   await stats()
   expect(statsCalls(api)).toHaveLength(2)
-  expect(within(playerTable()).getByRole('row', { name: /Ada/ })).toHaveTextContent('12650%')
+  expect(within(screen.getByRole('table', { name: 'Spielerstatistiken' })).getByRole('row', { name: /Ada/ })).toHaveTextContent('12650%')
   expect(screen.queryByText('Game updated.')).not.toBeInTheDocument()
   api.state.history = [recorded({ result: 'DRAW', winnerUserId: null })]
   api.state.statistics = { ...statistics(), players: [{ ...statistics().players[0], wins: 0, winRatePercent: 0 }] }
   await act(async () => pending.resolve(response(api.state.history[0])))
-  await waitFor(() => expect(within(playerTable()).getByRole('row', { name: /Ada/ })).toHaveTextContent('1200%'))
+  await waitFor(() => expect(within(screen.getByRole('table', { name: 'Spielerstatistiken' })).getByRole('row', { name: /Ada/ })).toHaveTextContent('1200%'))
   expect(statsCalls(api)).toHaveLength(3)
   expect(api.fetchMock.mock.calls.filter(([, init]) => init?.method === 'PUT')).toHaveLength(1)
 })
@@ -520,11 +531,19 @@ test('an acknowledged game write retains the chosen sort and applies it to newly
   api.state.statistics = updated
   await games()
   fireEvent.click(await screen.findByRole('button', { name: 'Spiel erfassen' }))
-  for (const n of [1, 2]) fireEvent.change(screen.getByRole('combobox', { name: `Spieler ${n}` }), { target: { value: uid(n + 1) } })
+  const editor = within(screen.getByRole('form', { name: 'Spiel erfassen' }))
+  for (const slot of [4, 3]) {
+    const card = within(editor.getByRole('region', { name: `Spieler ${slot}` }))
+    fireEvent.click(card.getByRole('button', { name: `Spieler ${slot} entfernen` }))
+  }
+  for (const n of [1, 2]) {
+    const card = within(editor.getByRole('region', { name: `Spieler ${n}` }))
+    fireEvent.change(card.getByRole('combobox', { name: `Spieler ${n}` }), { target: { value: uid(n + 1) } })
+  }
   for (const n of [1, 2]) await selectGameDeck(n, deckFor(n + 1))
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Spiel speichern' })).not.toBeDisabled())
-  fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
+  fireEvent.change(editor.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
+  await waitFor(() => expect(editor.getByRole('button', { name: 'Spiel speichern' })).not.toBeDisabled())
+  fireEvent.click(editor.getByRole('button', { name: 'Spiel speichern' }))
   await screen.findByText('Game recorded.')
   await stats()
   await waitFor(() => expect(sortedIds(playerTable())).toEqual([uid(9), uid(1), uid(2)]))
@@ -727,11 +746,12 @@ test('denial recovery focuses explicit retry and reloaded statistics without aut
   fireEvent.click(screen.getByRole('button', { name: 'Statistiken aktualisieren' }))
   await screen.findByText('Gruppenzugriff bestätigt. Bitte Statistiken aktualisieren, um den Serverstand zu prüfen.')
   const retry = screen.getByRole('button', { name: 'Statistiken aktualisieren' })
-  expect(retry).toHaveFocus()
+  // The recovery UI is committed before the effect restores focus.
+  await waitFor(() => expect(retry).toHaveFocus())
   expect(statsCalls(api)).toHaveLength(2)
   fireEvent.click(retry)
   await screen.findByRole('table', { name: 'Deckstatistiken' })
-  expect(screen.getByRole('button', { name: 'Statistiken aktualisieren' })).toHaveFocus()
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Statistiken aktualisieren' })).toHaveFocus())
   expect(statsCalls(api)).toHaveLength(3)
   await games()
   const tabTrigger = screen.getByRole('button', { name: 'Show statistics' })

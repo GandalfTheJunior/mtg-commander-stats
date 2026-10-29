@@ -14,10 +14,10 @@ function show(game: Game | null = null, details: GroupDetails = group) {
   const view = renderApp(<GameEditor group={details} game={game} busy={false} onSubmit={onSubmit} onCancel={vi.fn()} onAccessError={onAccessError} />)
   return { ...view, onSubmit, onAccessError }
 }
-async function fill(slot: number, user: number) {
-  fireEvent.change(player(slot), { target: { value: uid(user) } })
-  await waitFor(() => expect(deck(slot)).toBeEnabled())
-  fireEvent.change(deck(slot), { target: { value: deckFor(user).id } })
+async function fill(slot: number, user: number, fields = card(slot)) {
+  fireEvent.change(fields.getByRole('combobox', { name: `Spieler ${slot}` }), { target: { value: uid(user) } })
+  await waitFor(() => expect(fields.getByRole('combobox', { name: `Deck für Spieler ${slot}` })).toBeEnabled())
+  fireEvent.change(fields.getByRole('combobox', { name: `Deck für Spieler ${slot}` }), { target: { value: deckFor(user).id } })
 }
 const save = () => fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
@@ -31,8 +31,16 @@ test.each([2, 3, 4, 5, 6])('%s participants submit in visible order while untouc
   expect(player(1)).toHaveValue('')
   expect(screen.queryByRole('combobox', { name: 'Gewinner' })).not.toBeInTheDocument()
   while (screen.getAllByRole('heading', { name: /^Spieler \d$/ }).length < count) fireEvent.click(screen.getByRole('button', { name: 'Spieler hinzufügen' }))
-  for (let n = 1; n <= count; n++) await fill(n, n)
-  for (let n = 1; n <= count; n++) place(n, n)
+  const cards = screen.getAllByRole('region', { name: /^Spieler \d$/ }).slice(0, count)
+  for (const [index, root] of cards.entries()) {
+    expect(root).toHaveAccessibleName(`Spieler ${index + 1}`)
+    await fill(index + 1, index + 1, within(root))
+  }
+  for (const [index, root] of cards.entries()) {
+    expect(root).toBeInTheDocument()
+    const placement = within(within(root).getByRole('group', { name: 'Platzierung' }))
+    fireEvent.click(placement.getByRole('button', { name: `Platz ${index + 1}` }))
+  }
   save()
   expect(onSubmit).toHaveBeenCalledExactlyOnceWith({ participants: Array.from({ length: count }, (_, i) => ({ userId: uid(i + 1), deckId: deckFor(i + 1).id, startPosition: i + 1, placement: i + 1 })), result: 'WIN', alternateWinCon: false })
 })
@@ -211,35 +219,43 @@ test('ties are manual, collapsed results remain operable, and invalid gaps/multi
 test('mode round trips preserve separate ranks and statuses and serialize only active result fields', async () => {
   gameApi(); const { onSubmit } = show()
   for (let n = 1; n <= 4; n++) await fill(n, n)
-  for (let n = 1; n <= 4; n++) place(n, n)
+  // These cards retain their DOM roots across mode changes; query their live controls locally.
+  const cards = screen.getAllByRole('region', { name: /^Spieler \d$/ })
+  expect(cards).toHaveLength(4)
+  cards.forEach((root, index) => expect(root).toHaveAccessibleName(`Spieler ${index + 1}`))
+  const slot = (n: number) => {
+    expect(cards[n - 1]).toBeInTheDocument()
+    return within(cards[n - 1])
+  }
+  for (let n = 1; n <= 4; n++) fireEvent.click(slot(n).getByRole('button', { name: `Platz ${n}` }))
   mode('DRAW')
   expect(screen.queryByRole('button', { name: 'Platz 1' })).not.toBeInTheDocument()
-  for (let n = 1; n <= 4; n++) expect(card(n).getByRole('checkbox', { name: 'Noch im Spiel' })).toBeChecked()
-  fireEvent.click(card(4).getByRole('checkbox', { name: 'Noch im Spiel' }))
+  for (let n = 1; n <= 4; n++) expect(slot(n).getByRole('checkbox', { name: 'Noch im Spiel' })).toBeChecked()
+  fireEvent.click(slot(4).getByRole('checkbox', { name: 'Noch im Spiel' }))
   save()
   expect(onSubmit.mock.lastCall![0]).toEqual({ result: 'DRAW', alternateWinCon: false, participants: [1, 2, 3, 4].map(n => ({
     userId: uid(n), deckId: deckFor(n).id, startPosition: n, stillInGame: n !== 4,
   })) })
   mode('WIN')
-  expect(card(4).getByRole('button', { name: 'Platz 4' })).toHaveAttribute('aria-pressed', 'true')
+  expect(slot(4).getByRole('button', { name: 'Platz 4' })).toHaveAttribute('aria-pressed', 'true')
   alternate()
-  for (let n = 1; n <= 4; n++) expect(card(n).getByRole('checkbox', { name: 'Noch im Spiel' })).toBeChecked()
-  fireEvent.click(card(1).getByRole('checkbox', { name: 'Winner' }))
-  expect(card(1).queryByRole('checkbox', { name: 'Noch im Spiel' })).not.toBeInTheDocument()
-  fireEvent.click(card(4).getByRole('checkbox', { name: 'Noch im Spiel' }))
-  place(4, 4); save()
+  for (let n = 1; n <= 4; n++) expect(slot(n).getByRole('checkbox', { name: 'Noch im Spiel' })).toBeChecked()
+  fireEvent.click(slot(1).getByRole('checkbox', { name: 'Winner' }))
+  expect(slot(1).queryByRole('checkbox', { name: 'Noch im Spiel' })).not.toBeInTheDocument()
+  fireEvent.click(slot(4).getByRole('checkbox', { name: 'Noch im Spiel' }))
+  fireEvent.click(slot(4).getByRole('button', { name: 'Platz 4' })); save()
   expect(onSubmit.mock.lastCall![0].participants).toEqual([
     { userId: uid(1), deckId: deckFor(1).id, startPosition: 1, winner: true },
     ...[2, 3].map(n => ({ userId: uid(n), deckId: deckFor(n).id, startPosition: n, stillInGame: true })),
     { userId: uid(4), deckId: deckFor(4).id, startPosition: 4, stillInGame: false, placement: 4 },
   ])
   alternate()
-  expect(card(2).getByRole('button', { name: 'Platz 2' })).toHaveAttribute('aria-pressed', 'true')
+  expect(slot(2).getByRole('button', { name: 'Platz 2' })).toHaveAttribute('aria-pressed', 'true')
   alternate()
-  expect(card(1).getByRole('checkbox', { name: 'Winner' })).toBeChecked()
-  expect(card(4).getByRole('button', { name: 'Platz 4' })).toHaveAttribute('aria-pressed', 'true')
-  mode('DRAW'); expect(card(4).getByRole('checkbox', { name: 'Noch im Spiel' })).not.toBeChecked()
-  for (let n = 1; n <= 3; n++) fireEvent.click(card(n).getByRole('checkbox', { name: 'Noch im Spiel' }))
+  expect(slot(1).getByRole('checkbox', { name: 'Winner' })).toBeChecked()
+  expect(slot(4).getByRole('button', { name: 'Platz 4' })).toHaveAttribute('aria-pressed', 'true')
+  mode('DRAW'); expect(slot(4).getByRole('checkbox', { name: 'Noch im Spiel' })).not.toBeChecked()
+  for (let n = 1; n <= 3; n++) fireEvent.click(slot(n).getByRole('checkbox', { name: 'Noch im Spiel' }))
   save(); expect(onSubmit).toHaveBeenCalledTimes(2)
 })
 
