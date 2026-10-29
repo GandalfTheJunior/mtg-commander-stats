@@ -33,6 +33,12 @@ by the human Product Owner (PO).
   rules. Resolve conflicts from repository evidence where possible; explicitly
   surface unresolved conflicts that materially affect product behavior, security,
   data integrity, or architecture. Do not silently make unresolved PO decisions.
+- For production frontend visual/interaction work, read the
+  [visual design guidelines](docs/product/visual-design-guidelines.md) and apply
+  their explicitly approved rules alongside product requirements and the shared
+  theme. Playground experiments and deferred ideas are not production design
+  approvals or implementation authorization. Escalate conflicting decisions to
+  the PO rather than silently choosing a direction.
 - Keep project knowledge in its authoritative location, without unnecessary
   duplication. Report limitations and uncertainty honestly.
 
