@@ -18,24 +18,31 @@ export async function selectGameDeck(slot: number, deck: DeckSelection) {
 }
 
 export async function openGameDetails() {
-  fireEvent.click((await screen.findAllByRole('link', { name: /^Spieldetails:/ }))[0])
+  const games = within(await screen.findByRole('region', { name: 'Spiele' }))
+  fireEvent.click((await games.findAllByRole('link', { name: /^Spieldetails:/ }))[0])
   await screen.findByRole('heading', { name: 'Spieldetails' })
 }
 export async function gameAction(name: 'Bearbeiten' | 'Löschen', open = true) {
   if (open) await openGameDetails()
-  fireEvent.click(await screen.findByRole('button', { name: 'Spielaktionen' }))
-  fireEvent.click(await screen.findByRole('menuitem', { name }))
+  const details = within(await screen.findByRole('region', { name: 'Spieldetails' }))
+  fireEvent.click(await details.findByRole('button', { name: 'Spielaktionen' }))
+  const menu = within(await screen.findByRole('menu', { name: 'Spielaktionen' }))
+  fireEvent.click(menu.getByRole('menuitem', { name }))
 }
 
 // Select explicit final ranks using the editor's visible per-card controls.
 export function selectGameWinner(userId: string) {
-  const cards = screen.getAllByRole('region', { name: /^Spieler \d$/ }).filter(card =>
-    within(card).queryByRole('button', { name: 'Platz 1' }) && (within(card).queryByRole('button', { name: /bearbeiten$/ }) || (within(card).queryByRole('combobox', { name: /Deck für Spieler/ }) as HTMLSelectElement | null)?.value))
+  const cards = screen.getAllByRole('region', { name: /^Spieler \d$/ }).map(card => within(card))
   const number = Number(userId.slice(-12))
   let rank = 2
   for (const card of cards) {
-    const winner = within(card).queryByText(`Deck ${number}`) !== null ||
-      (within(card).queryByRole('combobox', { name: /^Spieler \d$/ }) as HTMLSelectElement | null)?.value === userId
-    fireEvent.click(within(card).getByRole('button', { name: `Platz ${winner ? 1 : rank++}` }))
+    const deck = card.queryByRole('combobox', { name: /Deck für Spieler/ }) as HTMLSelectElement | null
+    if (deck ? !deck.value : !card.queryByRole('button', { name: /bearbeiten$/ })) continue
+    // Query rank buttons inside their named group, not every card action.
+    const placement = card.queryByRole('group', { name: 'Platzierung' })
+    if (!placement) continue
+    const winner = card.queryByText(`Deck ${number}`) !== null ||
+      (card.queryByRole('combobox', { name: /^Spieler \d$/ }) as HTMLSelectElement | null)?.value === userId
+    fireEvent.click(within(placement).getByRole('button', { name: `Platz ${winner ? 1 : rank++}` }))
   }
 }

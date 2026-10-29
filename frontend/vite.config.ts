@@ -1,5 +1,15 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vitest/config'
+import { availableParallelism } from 'node:os'
+import { configDefaults, defineConfig } from 'vitest/config'
+
+// These full UI flows approach their existing time budgets when competing for
+// two CPUs. Keep their App/router integration and give them a worker to themselves.
+const interactiveSuites = [
+  'src/GroupPage.test.tsx',
+  'src/GroupStatistics.test.tsx',
+  'src/GameEditor.test.tsx',
+  'src/GameSession.test.tsx',
+]
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -15,5 +25,26 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // Vitest reserves one CPU by default, leaving two-CPU runners serial.
+    // Keep file isolation and the default forks pool; use the available CPUs.
+    maxWorkers: '100%',
+    projects: availableParallelism() <= 2 ? [
+      {
+        extends: true,
+        test: {
+          name: 'parallel',
+          exclude: [...configDefaults.exclude, ...interactiveSuites],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'interactive',
+          include: interactiveSuites,
+          fileParallelism: false,
+          sequence: { groupOrder: 1 },
+        },
+      },
+    ] : undefined,
   },
 })
