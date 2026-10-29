@@ -2,6 +2,9 @@
 
 The post-MVP Material UI foundation implements [ADR 0003](../architecture/adr/0003-defer-ui-framework-until-after-mvp.md)
 and the [shared visual system](../product/frontend-redesign.md#shared-visual-system).
+The [visual design guidelines](../product/visual-design-guidelines.md) own the
+approved atmosphere and future design-decision process; this document owns the
+technical use of the existing theme.
 Issue #71 records the PO's 2026-10-16 confirmation that the MVP sequencing gate
 is satisfied. Existing product screens continue to use native HTML and legacy CSS.
 

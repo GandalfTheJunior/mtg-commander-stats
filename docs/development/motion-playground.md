@@ -2,7 +2,9 @@
 
 An isolated experiment for #135 and the PO feedback on PR #136. This does **not**
 change `docs/product/frontend-redesign.md` or implement #134. Production adoption
-requires a separate PO decision/specification. No production routes, GameEditor,
+requires a separate PO decision/specification, recorded under the
+[visual design guidelines](../product/visual-design-guidelines.md) where it
+establishes a reusable design rule. Experiments are not approvals. No production routes, GameEditor,
 game details, production backend or persistence changes are involved. The frame experiment
 added in #140 reuses the authenticated read-only lookup described below.
 

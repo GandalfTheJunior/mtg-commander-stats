@@ -90,7 +90,7 @@ Opening a playgroup lands directly in **Spiele**. Inside the group, use three su
 
 ## Shared visual system
 
-**Mood:** A calm, welcoming fantasy common room on a rainy evening. Use a modern, legible app layout with restrained warm-tavern character, not literal medieval or game-room illustrations.
+**Mood:** A warm, welcoming, subtly magical **shared living room** with a sense of belonging and comfort. The Gryffindor common room is an inspiration **for atmosphere only**, not a design to reproduce. This is expressly **not** a tavern, pub or inn aesthetic. Keep the interface modern, legible and mobile-first; do not copy recognizable settings, house insignia, artwork or branding from the Harry Potter world. The [visual design guidelines](visual-design-guidelines.md) define the approved product direction.
 
 ### Proposed starting theme tokens (subject to accessibility verification)
 
@@ -109,7 +109,7 @@ Opening a playgroup lands directly in **Spiele**. Inside the group, use three su
 - Prefer an **8 px spacing system**, gently rounded cards (roughly 12–16 px), understated borders, and touch targets at least approximately **44–48 px** high.
 - Reserve gold for selected navigation, key accents and restrained winner cues; it must not be the sole way of conveying state. Strong text/surface and primary-button contrast is mandatory. Validate all interactive, focus, disabled, error and WUBRG states against applicable accessibility contrast requirements before accepting final values. Decorative dividers alone are not focus or control outlines.
 - Use the centralized **Material UI** theme and product-specific components when truly shared (e.g. DeckCard, PlaygroupCard, StatisticsCard, ManaColorPicker). Follow [ADR 0003](../architecture/adr/0003-defer-ui-framework-until-after-mvp.md): introduce Material UI **after verified MVP completion**, and migrate incrementally. Do not wrap every MUI primitive without need.
-- Prefer native-feeling transitions only when functional and motion-safe. No animated rain/fire, individualized room themes, background illustrations or gratuitous animation libraries.
+- Prefer native-feeling transitions only when functional and motion-safe. This redesign milestone does not include animated rain/fire, individualized room themes, background illustrations or gratuitous animation libraries. The [long-term playgroup personalization idea](#future-exploration-playgroup-identity-and-personalization) does not change that current scope.
 
 ## Acceptance and regression scenarios
 
@@ -139,6 +139,26 @@ Relevant test levels and exact commands follow [testing guidance](../development
 8. **Basic statistics presentation**: player/deck card toggle with full existing sort behavior.
 
 These are planning work packages, **not preauthorized implementation issues**. Validate the MVP milestone and prepare separate acceptance criteria, test scope, issue sizing and reviewable branches before starting each one.
+
+## Future exploration: playgroup identity and personalization
+
+**Status: Early Product Owner idea (2026-10-29), not an approved feature specification or implementation task.**
+
+Long term, individual playgroups could build their own recognizable identity by
+customizing the appearance of **their own playgroup area** in the application.
+The Product Owner wants to explore this direction incrementally, rather than
+treating every playgroup as visually identical forever.
+
+The extent of customization, visual options, who may configure them, defaults,
+accessibility safeguards, ownership/permissions, storage, asset rights and
+moderation are **undecided**. A later dedicated concept, PO decisions and
+approved acceptance criteria are required before designing APIs, persistence or
+product UI for it. Playground trials are welcome but do not approve a feature.
+
+For the current redesign, the shared visual system and the explicit exclusion of
+individualized room themes remain in force. See the
+[visual design guidelines](visual-design-guidelines.md) for the distinction
+between approved identity and future experiments.
 
 ## Non-goals and remaining implementation-time refinements
 
