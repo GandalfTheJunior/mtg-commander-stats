@@ -1,17 +1,24 @@
 # MTG Commander Stats (working title)
 
-This App Idea has it's roots in my personal MTG Commander Playgroup. We used to collect Data
-of our Matches in an Excel Sheet. This was a tidieous process. This App is supposed to become a tool
-to make that exact process fun and interesting. With a warm and cozy Design, Intuitive and Fun 
-UI/UX elements and interesting statistics with exciting visualisation.
+The idea for this application came from my own MTG Commander playgroup. We used to keep track of our games in an Excel spreadsheet, which worked, but became tedious over time.
 
-Features will include setting up your own playgroup, join other peoples playgroups, save games after
-you played them to gather data and later, when enough data has been collected, your group can view lots 
-of different fun statistics.
+I wanted to turn this process into something more enjoyable. Instead of just collecting numbers, the goal is to create a fun and engaging companion for Commander nights, with a warm and cozy design, intuitive interactions, and interesting statistics brought to life through visualizations.
 
-Personally This Project is also my way of dealing with the ever changing world of Software Development.
-As AI is here and won't be leaving any time soon I am using this as a Playground to experience the
-capabilities of current AI-Models and Agent Based Development.
+The application already supports creating and joining playgroups, managing Commander decks, recording games, and viewing player and deck statistics. In the future, I want to expand on these features and make exploring your playgroup's history even more interesting.
+
+## Why AI-assisted development?
+
+On a personal level, this project is also my way of exploring the changing landscape of software development.
+
+Having worked as a Java backend developer, I was initially quite skeptical about using AI for software development. However, the more I experimented with coding agents, the more potential I began to see in this technology.
+
+Rather than simply prompting AI to build an application, I wanted to explore how agents could be integrated into a structured software development process.
+
+Together with AI agents, I designed the application's architecture and developed a workflow built around clearly defined responsibilities, requirements, automated testing, and review processes.
+
+The application code is written by AI agents, while I focus on product decisions, architectural direction, and continuously improving the development workflow.
+
+This project is an ongoing experiment in understanding both the possibilities and limitations of agent-based software development.
 
 ## Agent entry point
 
