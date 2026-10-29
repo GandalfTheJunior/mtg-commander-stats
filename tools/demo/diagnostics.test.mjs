@@ -1,9 +1,42 @@
 import test from 'node:test';
 import {Session} from './api.mjs';
 import assert from 'node:assert/strict';
-import {DemoApiError, DemoRequestError, failureLine, processLine, summarizeDiagnostics} from './diagnostics.mjs';
+import {DemoApiError, DemoRequestError, failureLine, processLine, summarizeDiagnostics, startupDiagnostics} from './diagnostics.mjs';
 
 const secret = 'sensitive-sentinel-never-print';
+test('Java startup preserves sanitized causes and distinguishes the two Flyway symptoms across chunks', () => {
+  for (const [text, expected] of [
+    ['Successfully validated 0 migrations\nNo migrations found. ' + secret, 'flyway-empty'],
+    ['Successfully validated 8 migrations\nCaused by: org.flywaydb.core.api.FlywayException: Unable to obtain inputstream for resource: db/migration/V2__use_email_for_authentication.sql ' + secret, 'flyway-resource'],
+    ['Exception in thread "main" java.lang.NoClassDefFoundError: ' + secret, 'classpath'],
+    ['Caused by: java.lang.UnsupportedClassVersionError: ' + secret, 'java-version'],
+    ['Caused by: org.postgresql.util.PSQLException: ' + secret, 'database'],
+  ]) {
+    const lines = [];
+    const diagnostics = startupDiagnostics(line => lines.push(line));
+    for (let i = 0; i < text.length; i += 7) diagnostics.feed(text.slice(i, i + 7));
+    diagnostics.finish();
+    assert.equal(diagnostics.kind, expected);
+    assert.ok(lines.includes('java-startup: kind=' + expected));
+    assert.doesNotMatch(lines.join('\n'), new RegExp(secret));
+    assert.equal(summarizeDiagnostics('', lines.join('\n')), lines.join('; '));
+  }
+  assert.equal(summarizeDiagnostics('', 'java-cause: type=' + secret + '\njava-startup: kind=flyway ' + secret), '');
+  const normal = [];
+  const healthy = startupDiagnostics(line => normal.push(line));
+  healthy.feed('INFO org.flywaydb.core.FlywayExecutor : Database ready\nSuccessfully validated 8 migrations\n');
+  healthy.finish();
+  assert.deepEqual(normal, ['java-migrations: validated=8']);
+  const causes = [];
+  const interleaved = startupDiagnostics(line => causes.push(line));
+  interleaved.feed('Successfully validated ');
+  interleaved.feed('org.springframework.beans.factory.BeanCreationException: ' + secret + '\nCaused by: java.io.IOException: ', 'stderr');
+  interleaved.feed('8 migrations\n');
+  interleaved.feed(secret + '\n\tSuppressed: java.lang.IllegalStateException: ' + secret + '\n', 'stderr');
+  interleaved.finish();
+  assert.deepEqual(causes, ['java-cause: type=org.springframework.beans.factory.BeanCreationException',
+    'java-migrations: validated=8', 'java-cause: type=java.io.IOException', 'java-cause: type=java.lang.IllegalStateException']);
+});
 test('safe HTTP diagnostics contain only method, resource and numeric status', () => {
   const error = new DemoApiError('POST', '/users/' + secret, 403, 201);
   error.message = secret; error.body = secret;

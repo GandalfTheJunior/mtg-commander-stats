@@ -68,7 +68,7 @@ async function interactiveSignIn() {
   }
 }
 const before = others();
-const jar = readdirSync(resolve(root, 'backend/target')).filter(name => name.endsWith('.jar'));
+const jar = readdirSync(resolve(root, 'backend/target')).filter(name => name.endsWith('.jar') && !name.endsWith('-tests.jar'));
 assert.equal(jar.length, 1, 'Build the ordinary application jar first.');
 const contents = spawnSync('jar', ['tf', resolve(root, 'backend/target', jar[0])], {env: environment(), encoding: 'utf8'});
 assert.equal(contents.status, 0, 'Cannot inspect the application jar.');

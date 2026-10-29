@@ -1,11 +1,12 @@
 import {spawn, spawnSync} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
-import {existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, unlinkSync} from 'node:fs';
+import {existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, unlinkSync, appendFileSync} from 'node:fs';
 import {fileURLToPath, pathToFileURL} from 'node:url';
-import {delimiter, resolve} from 'node:path';
+import {resolve} from 'node:path';
 import {seed} from './api.mjs';
 import {trackBackend} from './backend-process.mjs';
-import {failureLine, processLine} from './diagnostics.mjs';
+import {failureLine, processLine, startupDiagnostics} from './diagnostics.mjs';
+import {snapshotRuntime} from './runtime.mjs';
 
 export class DemoError extends Error {}
 
@@ -17,6 +18,12 @@ const volume = 'mtg-commander-demo-data';
 const project = 'mtg-commander-demo';
 const db = 'mtg_commander_demo';
 const label = 'io.mtg-commander.demo';
+
+function startupLog(line) {
+  // Callers pass only our closed parser output or fixed resource fingerprints.
+  appendFileSync(resolve(stateDir, 'startup-diagnostics.log'), line + '\n', {mode: 0o600});
+  console.error(line);
+}
 
 // Do not inherit Spring, JDBC, Java option injection, Compose, Docker remote,
 // Maven, or regular POSTGRES settings. Keep only OS/runtime discovery variables,
@@ -36,7 +43,7 @@ export function environment(source = process.env) {
 }
 export function validateCommand(args) {
   const [command, ...flags] = args;
-  const expected = {up: [], stop: [], backend: [], seed: ['--allow-demo-seed'], reset: ['--destroy-demo-data']}[command];
+  const expected = {up: [], stop: [], 'check-empty': [], backend: [], seed: ['--allow-demo-seed'], reset: ['--destroy-demo-data']}[command];
   if (!expected || JSON.stringify(flags) !== JSON.stringify(expected)) throw new DemoError('Use: demo.mjs up | stop | backend | seed --allow-demo-seed | reset --destroy-demo-data. No URL/target overrides are accepted.');
   return command;
 }
@@ -76,14 +83,28 @@ export function checkVolume(v) {
   if (v.Name !== volume || v.Labels?.[label] !== 'true' || v.Labels?.['com.docker.compose.project'] !== project || v.Labels?.['com.docker.compose.volume'] !== 'demo-data') throw new DemoError('Refusing an unrecognized demo volume.');
 }
 function inspectVolume() { checkVolume(JSON.parse(run(['volume', 'inspect', volume]))[0]); }
-export function checkContainer(c, cfg) {
+function checkContainerIdentity(c, cfg) {
   const env = Object.fromEntries(c.Config.Env.map(v => { const i = v.indexOf('='); return [v.slice(0, i), v.slice(i + 1)]; }));
-  const ports = c.NetworkSettings.Ports['5432/tcp'];
-  if (c.Config.Labels['com.docker.compose.project'] !== project || c.Config.Labels['com.docker.compose.service'] !== 'postgres' || c.Config.Image !== 'postgres:18'
-    || !c.State.Running || c.State.Health?.Status !== 'healthy'
-    || ports?.length !== 1 || ports[0].HostIp !== '127.0.0.1' || ports[0].HostPort !== '5433'
-    || !c.Mounts.some(m => m.Type === 'volume' && m.Name === volume && m.Destination === '/var/lib/postgresql')
+  if (c.Config.Labels['com.docker.compose.project'] !== project || c.Config.Labels['com.docker.compose.service'] !== 'postgres'
+    || c.Config.Labels['com.docker.compose.project.working_dir'] !== resolve(root, 'tools/demo')
+    || c.Config.Labels['com.docker.compose.project.config_files'] !== resolve(root, 'tools/demo/compose.yaml') || c.Config.Image !== 'postgres:18'
+    || c.Mounts.filter(m => m.Destination === '/var/lib/postgresql').length !== 1
+    || !c.Mounts.some(m => m.Type === 'volume' && m.Name === volume && m.RW === true && m.Destination === '/var/lib/postgresql')
     || env.POSTGRES_DB !== db || env.POSTGRES_USER !== db || env.POSTGRES_PASSWORD !== cfg.databasePassword) throw new DemoError('Refusing a backend/database target that is not the isolated local demo.');
+}
+export function checkContainer(c, cfg) {
+  checkContainerIdentity(c, cfg);
+  const ports = c.NetworkSettings.Ports['5432/tcp'];
+  if (!c.State.Running || c.State.Health?.Status !== 'healthy' || ports?.length !== 1 ||
+    ports[0].HostIp !== '127.0.0.1' || ports[0].HostPort !== '5433') throw new DemoError('Expected a healthy loopback-only demo database.');
+}
+
+export function checkExistingSource(c, cfg) {
+  checkContainerIdentity(c, cfg);
+  const ports = c.HostConfig?.PortBindings?.['5432/tcp'];
+  if (ports?.length !== 1 || ports[0].HostIp !== '127.0.0.1' || ports[0].HostPort !== '5433') {
+    throw new DemoError('Refusing to start a demo container with unverified loopback bindings.');
+  }
 }
 function target(cfg) {
   inspectVolume();
@@ -91,6 +112,19 @@ function target(cfg) {
   if (!id || id.includes('\n')) throw new DemoError('Exactly one healthy demo database is required.');
   checkContainer(JSON.parse(run(['inspect', id]))[0], cfg);
   return id;
+}
+
+function emptySource(id) {
+  if (existsSync(marker)) throw new DemoError('Source seed already attempted; preserving its marker and data.');
+  const tables = run(['exec', id, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', db, '-d', db, '-Atc',
+    "SELECT schemaname || '.' || tablename FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema') AND NOT (schemaname = 'public' AND tablename = 'flyway_schema_history') ORDER BY 1"])
+    .split('\n').filter(Boolean);
+  for (const table of tables) {
+    if (!/^public\.[a-z][a-z0-9_]*$/.test(table) || run(['exec', id, 'psql', '-X', '-v', 'ON_ERROR_STOP=1',
+      '-U', db, '-d', db, '-Atc', 'SELECT count(*) FROM public."' + table.slice(7) + '"']) !== '0') {
+      throw new DemoError('Source application tables are nonempty or unverifiable; no retry or cleanup allowed.');
+    }
+  }
 }
 export function backendEnvironment(cfg) {
   return {...environment(), POSTGRES_PORT: '5433', POSTGRES_DB: db, POSTGRES_USER: db, POSTGRES_PASSWORD: cfg.databasePassword};
@@ -100,11 +134,9 @@ export const BACKEND_STOP = 'stop-demo-backend';
 export function backendArguments(jar, context = '') {
   const settings = ['--spring.config.location=classpath:/application.yaml', '--server.address=127.0.0.1', `--server.port=${context ? 0 : 8080}`, `--server.servlet.context-path=${context || '/'}`, '--spring.datasource.url=jdbc:postgresql://127.0.0.1:5433/mtg_commander_demo', '--spring.datasource.username=mtg_commander_demo'];
   if (!context) return ['-jar', jar, ...settings];
-  const classpathFile = resolve(root, 'backend/target/demo-classpath.txt');
-  const launcher = 'io.github.gandalfthejunior.mtgcommanderstats.demo.OfflineDemoSeedApplication';
-  if (!existsSync(classpathFile) || !existsSync(resolve(root, 'backend/target/test-classes', launcher.replaceAll('.', '/') + '.class'))) throw new DemoError('Build the offline seed launcher first: ./mvnw -Pdemo-seed -DskipTests package from backend/ (mvnw.cmd on Windows).');
-  const classpath = [resolve(root, 'backend/target/test-classes'), resolve(root, 'backend/target/classes'), readFileSync(classpathFile, 'utf8').trim()].join(delimiter);
-  return ['-cp', classpath, launcher, '--allow-isolated-demo-seed', ...settings];
+  const runtime = snapshotRuntime(resolve(root, 'backend/target'), stateDir, true, {log: startupLog, env: environment()});
+  startupLog('runtime-classpath: private-demo-archives-and-dependency-jars');
+  return [...runtime.args, '--allow-isolated-demo-seed', ...settings];
 }
 
 // IPC requests let the verifier stop the wrapper cooperatively on Windows too;
@@ -120,12 +152,15 @@ export function watchBackendShutdown(stop) {
 }
 async function backend(cfg, action) {
   if (!existsSync(resolve(root, 'backend/target'))) throw new DemoError('Build the existing backend jar first; see demo documentation.');
-  const jars = readdirSync(resolve(root, 'backend/target')).filter(f => f.endsWith('.jar'));
+  const jars = readdirSync(resolve(root, 'backend/target')).filter(f => f.endsWith('.jar') && !f.endsWith('-tests.jar'));
   if (jars.length !== 1) throw new DemoError('Build the existing backend jar first; see demo documentation.');
   const context = action ? `/demo-${randomBytes(16).toString('hex')}` : '';
   const args = backendArguments(resolve(root, 'backend/target', jars[0]), context);
   const child = spawn('java', args, {cwd: root, env: backendEnvironment(cfg), stdio: [action ? 'pipe' : 'ignore', 'pipe', 'pipe'], windowsHide: true});
   const lifecycle = trackBackend(child, {seed: Boolean(action)});
+  const diagnostics = startupDiagnostics(startupLog);
+  child.stdout.on('data', chunk => diagnostics.feed(chunk));
+  child.stderr.on('data', chunk => diagnostics.feed(chunk, 'stderr'));
   const unwatch = watchBackendShutdown(lifecycle.stop);
   let timer, failed = false;
   let stage = 'backend-startup';
@@ -164,6 +199,7 @@ async function backend(cfg, action) {
       // Preserve the primary failure; cleanup must never replace its diagnosis.
       if (!failed) throw new DemoError('Offline seed shutdown/fixture acknowledgement failed; no completed marker written. No automatic retry; preserve markers and inspect the failure.');
     } finally {
+      diagnostics.finish();
       if (action) console.error(processLine(child.exitCode, child.signalCode));
       unwatch();
       if (process.connected) process.disconnect();
@@ -182,6 +218,14 @@ export async function main(args) {
     if (command === 'up') {
       const volumes = run(['volume', 'ls', '--format', '{{.Name}}']).split('\n');
       if (volumes.includes(volume)) inspectVolume();
+      // Validate an existing stopped source before Compose could start/recreate
+      // it. A different checkout cannot adopt this fixed project/volume silently.
+      const previous = run(['ps', '-a', '--no-trunc', '-q', '--filter', 'label=com.docker.compose.project=' + project,
+        '--filter', 'label=com.docker.compose.service=postgres']);
+      if (previous) {
+        if (!/^[a-f0-9]{64}$/.test(previous)) throw new DemoError('Ambiguous existing demo container.');
+        checkExistingSource(JSON.parse(run(['inspect', previous]))[0], cfg);
+      }
       compose(['up', '-d', '--wait'], cfg); target(cfg);
       console.log('Demo PostgreSQL ready at 127.0.0.1:5433. Local credentials: .demo/credentials.json (do not share).');
     } else if (command === 'reset') {
@@ -192,6 +236,9 @@ export async function main(args) {
       console.log('Deleted ONLY mtg-commander-demo-data. Credentials retained. Run up, then seed explicitly.');
     } else if (command === 'stop') {
       inspectVolume(); compose(['stop'], cfg); console.log('Demo database stopped; data retained.');
+    } else if (command === 'check-empty') {
+      emptySource(target(cfg));
+      console.log('demo: all isolated source application tables verified empty; no source seed marker.');
     } else if (command === 'backend') {
       target(cfg);
       await backend(cfg);
@@ -204,7 +251,8 @@ export async function main(args) {
         const id = target(cfg);
         // Read-only safety check: reject ANY existing accounts, even if local status was lost.
         const table = run(['exec', id, 'psql', '-U', db, '-d', db, '-Atc', "SELECT to_regclass('public.users')"]);
-        if (table !== 'users' || run(['exec', id, 'psql', '-U', db, '-d', db, '-Atc', 'SELECT count(*) FROM public.users']) !== '0') throw new DemoError('Demo database is not empty; refusing to seed or clean up existing data.');
+        if (table !== 'users') throw new DemoError('Demo schema is not migrated.');
+        emptySource(id);
         writeFileSync(marker, JSON.stringify({status: 'started'}), {flag: 'wx', mode: 0o600});
         await seed(base, cfg.accountPassword, setStage);
       });

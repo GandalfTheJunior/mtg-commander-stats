@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createServer} from 'node:http';
 import {spawn, spawnSync} from 'node:child_process';
-import {dirname} from 'node:path';
+import {dirname, resolve} from 'node:path';
 import {users, groups, games, archivedDeck, results, cards, deckRequest, readOutcome, percentage} from './fixture.mjs';
-import {validateCommand, environment, backendEnvironment, backendArguments, generateCredentials, validateCredentials, checkContainer, checkVolume, checkDockerHost} from './demo.mjs';
+import {root, validateCommand, environment, backendEnvironment, backendArguments, generateCredentials, validateCredentials, checkContainer, checkExistingSource, checkVolume, checkDockerHost} from './demo.mjs';
 import {Session} from './api.mjs';
 
 test('fixture eligibility, ownership, outcomes, lifecycle and checkable manifest', () => {
@@ -221,17 +221,29 @@ test('backend IPC shutdown and parent disconnect both permit child cleanup', asy
 
 const cfg = {databasePassword: 'local-test-value'};
 function container() {
-  return {Config: {Image: 'postgres:18', Labels: {'com.docker.compose.project': 'mtg-commander-demo', 'com.docker.compose.service': 'postgres'}, Env: ['POSTGRES_DB=mtg_commander_demo', 'POSTGRES_USER=mtg_commander_demo', `POSTGRES_PASSWORD=${cfg.databasePassword}`]}, State: {Running: true, Health: {Status: 'healthy'}}, NetworkSettings: {Ports: {'5432/tcp': [{HostIp: '127.0.0.1', HostPort: '5433'}]}}, Mounts: [{Type: 'volume', Name: 'mtg-commander-demo-data', Destination: '/var/lib/postgresql'}]};
+  return {Config: {Image: 'postgres:18', Labels: {'com.docker.compose.project': 'mtg-commander-demo', 'com.docker.compose.service': 'postgres', 'com.docker.compose.project.working_dir': resolve(root, 'tools/demo'), 'com.docker.compose.project.config_files': resolve(root, 'tools/demo/compose.yaml')}, Env: ['POSTGRES_DB=mtg_commander_demo', 'POSTGRES_USER=mtg_commander_demo', `POSTGRES_PASSWORD=${cfg.databasePassword}`]}, State: {Running: true, Health: {Status: 'healthy'}}, NetworkSettings: {Ports: {'5432/tcp': [{HostIp: '127.0.0.1', HostPort: '5433'}]}}, Mounts: [{Type: 'volume', Name: 'mtg-commander-demo-data', Destination: '/var/lib/postgresql', RW: true}]};
 }
 test('container and volume identity checks reject regular, remote-bound and mismatched targets', () => {
   checkContainer(container(), cfg);
-  for (const change of [c => c.Config.Labels['com.docker.compose.project'] = 'regular', c => c.Config.Env[0] = 'POSTGRES_DB=mtg_commander_stats', c => c.Config.Env[2] = 'POSTGRES_PASSWORD=wrong', c => c.NetworkSettings.Ports['5432/tcp'][0].HostIp = '0.0.0.0', c => c.NetworkSettings.Ports['5432/tcp'][0].HostPort = '5432', c => c.Mounts[0].Name = 'postgres-data', c => c.State.Running = false, c => c.Config.Image = 'postgres:17']) {
+  for (const change of [c => c.Config.Labels['com.docker.compose.project'] = 'regular', c => c.Config.Env[0] = 'POSTGRES_DB=mtg_commander_stats', c => c.Config.Env[2] = 'POSTGRES_PASSWORD=wrong', c => c.NetworkSettings.Ports['5432/tcp'][0].HostIp = '0.0.0.0', c => c.NetworkSettings.Ports['5432/tcp'][0].HostPort = '5432', c => c.Mounts[0].Name = 'postgres-data', c => c.State.Running = false, c => c.Config.Image = 'postgres:17', c => c.Config.Labels['com.docker.compose.project.working_dir'] = '/foreign', c => c.Mounts[0].RW = false]) {
     const value = container(); change(value); assert.throws(() => checkContainer(value, cfg));
   }
   const v = {Name: 'mtg-commander-demo-data', Labels: {'io.mtg-commander.demo': 'true', 'com.docker.compose.project': 'mtg-commander-demo', 'com.docker.compose.volume': 'demo-data'}};
   checkVolume(v);
   assert.throws(() => checkVolume({...v, Name: 'postgres-data'}));
   assert.throws(() => checkVolume({...v, Labels: {}}));
+});
+
+test('stopped source ownership and configured bindings are checked before Compose startup', () => {
+  const stopped = {...container(), State: {Running: false}, HostConfig: {PortBindings: {
+    '5432/tcp': [{HostIp: '127.0.0.1', HostPort: '5433'}],
+  }}};
+  checkExistingSource(stopped, cfg);
+  assert.throws(() => checkExistingSource({...stopped, HostConfig: {}}, cfg));
+  const foreign = structuredClone(stopped);
+  foreign.Config.Labels['com.docker.compose.project.working_dir'] = '/foreign';
+  assert.throws(() => checkExistingSource(foreign, cfg));
+  assert.throws(() => checkExistingSource(stopped, {databasePassword: 'wrong'}));
 });
 
 test('real HTTP cookie rotation and fresh CSRF, without redirects or response secrets in errors', async () => {

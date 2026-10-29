@@ -1,7 +1,7 @@
 // Opt-in Codespaces-only, one-time import of the existing verified offline demo.
 // No database reset, schema DDL, or automatic retry of a partially attempted seed.
 import {execFileSync} from 'node:child_process';
-import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, openSync, fsyncSync, closeSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import {summarizeDiagnostics} from '../tools/demo/diagnostics.mjs';
@@ -41,14 +41,16 @@ export function verifyTarget(config, container, rootDir, id) {
   'Target database does not use the expected persistent volume.');
 }
 
-export function verifySource(container, id) {
+export function verifySource(container, id, rootDir = root) {
   const labels = container.Labels ?? {};
   const mounts = container.Mounts?.filter(v => v.Destination === '/var/lib/postgresql') ?? [];
   requireSafe(container.Id === id && container.Image === 'postgres:18' &&
     container.State?.Running === true && container.State?.Health?.Status === 'healthy' &&
     labels['com.docker.compose.project'] === demoProject &&
     labels['com.docker.compose.service'] === 'postgres' &&
-    mounts.length === 1 && mounts[0].Type === 'volume' && mounts[0].Name === demoVolume,
+    labels['com.docker.compose.project.working_dir'] === join(rootDir, 'tools/demo') &&
+    labels['com.docker.compose.project.config_files'] === join(rootDir, 'tools/demo/compose.yaml') &&
+    mounts.length === 1 && mounts[0].Type === 'volume' && mounts[0].Name === demoVolume && mounts[0].RW === true,
   'Refusing an unrecognized source demo PostgreSQL container.');
 }
 
@@ -64,16 +66,21 @@ export function decideSeed(markerStatus, counts) {
 
 export function safeRun(program, args, options = {}) {
   try {
-    return execFileSync(program, args, {
+    const output = execFileSync(program, args, {
       cwd: options.cwd ?? root, encoding: options.encoding === undefined ? 'utf8' : options.encoding,
       maxBuffer, stdio: [options.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
       input: options.input, env: options.env ?? process.env,
     });
+    if (options.demoDiagnostics) {
+      const diagnostic = summarizeDiagnostics(output, '');
+      if (diagnostic) console.log(diagnostic);
+    }
+    return output;
   } catch (error) {
     // Never print database credentials, SQL results, cookies, or arbitrary child output.
     const diagnostic = options.demoDiagnostics ? summarizeDiagnostics(error.stdout, error.stderr) : '';
     throw new SeedError('Demo initialization failed during ' + (options.stage ?? 'setup') +
-      (diagnostic ? ' [' + diagnostic + ']' : '') + '. No automatic retry; preserve initialization markers.');
+      (diagnostic ? ' [' + diagnostic + ']' : '') + '. Preserve initialization markers; recovery requires verified phase and database state.');
   }
 }
 
@@ -109,7 +116,7 @@ function fingerprint(id, db) {
 // Explicit recovery is permitted only when the *entire* app database is empty
 // and the independently verified demo source was completed on this Codespace.
 export function decideRecovery(status, counts, sourceStatus) {
-  requireSafe(status === 'started', 'Recovery requires an interrupted Codespaces import marker.');
+  requireSafe(status === 'started' || status === 'preparing', 'Recovery requires an interrupted Codespaces import marker.');
   requireSafe(sourceStatus === 'complete', 'Recovery requires a verified completed demo seed.');
   requireSafe(decideSeed(null, counts) === 'seed',
     'Recovery refused: application data already exists. No destructive cleanup is allowed.');
@@ -123,16 +130,33 @@ function sourceSeedStatus() {
   catch { throw new SeedError('Unreadable isolated demo seed status.'); }
 }
 
-function markerStatus() {
+function readMarker() {
+  requireSafe(!existsSync(marker + '.tmp'), 'Incomplete demo marker transition; preserve markers and inspect.');
   if (!existsSync(marker)) return null;
-  try { return JSON.parse(readFileSync(marker, 'utf8')).status; }
+  try { return JSON.parse(readFileSync(marker, 'utf8')); }
   catch { throw new SeedError('Unreadable demo import marker; refusing to retry.'); }
 }
-function record(status) {
+function record(status, owner, initial = false) {
   mkdirSync(dirname(marker), {recursive: true, mode: 0o700});
-  writeFileSync(marker, JSON.stringify({status}) + '\n', {
-    mode: 0o600, flag: status === 'started' ? 'wx' : 'w',
+  const path = initial ? marker : marker + '.tmp';
+  writeFileSync(path, JSON.stringify({version: 2, status, owner}) + '\n', {
+    mode: 0o600, flag: 'wx',
   });
+  const fd = openSync(path, 'r');
+  try { fsyncSync(fd); } finally { closeSync(fd); }
+  if (!initial) renameSync(marker + '.tmp', marker);
+  const directory = openSync(dirname(marker), 'r');
+  try { fsyncSync(directory); } finally { closeSync(directory); }
+}
+
+export function decidePreparation(previous, owner, counts, sourceStatus) {
+  requireSafe(previous?.version === 2 && previous.status === 'preparing' &&
+    JSON.stringify(previous.owner) === JSON.stringify(owner), 'Unverifiable preparation ownership; preserve markers.');
+  requireSafe(sourceStatus === null, 'Source seed was attempted; no automatic preparation retry.');
+  requireSafe(decideSeed(null, counts) === 'seed', 'Preparation retry requires an empty application database.');
+  // Caller must additionally obtain the source tool's locked, provenance-checked
+  // all-table empty proof. Marker absence alone never authorizes seed writes.
+  return 'prepare';
 }
 function runtimeEnv() {
   // Do not pass regular DB passwords / Spring / Docker remote overrides to Maven or demo processes.
@@ -208,7 +232,10 @@ export function main(args = []) {
   requireSafe(/^[a-f0-9]{64}$/.test(targetId), 'Expected one PostgreSQL target.');
   verifyTarget(config, inspect(targetId), resolve(root), targetId);
 
-  const status = markerStatus();
+  const previous = readMarker();
+  const status = previous?.status ?? null;
+  const owner = {codespace: process.env.CODESPACE_NAME, root, project: config.name,
+    volume: config.volumes['postgres-data'].name};
   if (status === 'complete' && !recovery) {
     console.log('demo: earlier import completed; preserved existing data.');
     return;
@@ -217,14 +244,16 @@ export function main(args = []) {
   if (recovery) {
     decideRecovery(status, checkedTables, sourceSeedStatus());
     console.log('demo: explicitly recovering a previously interrupted import into an empty database.');
+  } else if (status === 'preparing') {
+    decidePreparation(previous, owner, checkedTables, sourceSeedStatus());
+    console.log('demo: rechecking pre-import preparation; no source/target writes authorized by marker absence.');
   } else {
     const decision = decideSeed(status, checkedTables);
     if (decision === 'existing-data') {
       console.log('demo: existing application data found; leaving database untouched.');
       return;
     }
-    // Deliberately fail closed after interruption, including during build.
-    record('started');
+    record('preparing', owner, true);
   }
 
   let sourceStarted = false;
@@ -237,7 +266,10 @@ export function main(args = []) {
     }
     nodeDemo('up');
     sourceStarted = true;
-    if (!recovery) nodeDemo('seed', ['--allow-demo-seed']);
+    if (!recovery) {
+      nodeDemo('check-empty');
+      nodeDemo('seed', ['--allow-demo-seed']);
+    }
     requireSafe(sourceSeedStatus() === 'complete', 'Demo fixture seed is not verified complete.');
     const sourceId = demoId();
     for (const [table, expected] of [['users', '7'], ['decks', '21'],
@@ -249,8 +281,13 @@ export function main(args = []) {
       'Source and target Flyway versions/checksums do not match; refusing import.');
     requireSafe(decideSeed(null, tables(targetId)) === 'seed',
       'Application data appeared during demo preparation; refusing import.');
+    verifyTarget(config, inspect(targetId), resolve(root), targetId);
+    verifySource(inspect(sourceId), sourceId);
+    // The durable write barrier belongs immediately before the actual import.
+    // All ambiguous/failed imports keep started and require explicit recovery.
+    record('started', owner);
     importData(sourceId, targetId, checkedTables.map(row => row.name));
-    record('complete');
+    record('complete', owner);
     console.log('demo: imported 7 accounts, 21 decks, 2 groups, 32 games once. Credentials in private .demo/credentials.json.');
   } finally {
     if (sourceStarted) {
@@ -261,7 +298,17 @@ export function main(args = []) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  try { main(process.argv.slice(2)); }
+  try {
+    mkdirSync(dirname(marker), {recursive: true, mode: 0o700});
+    // Covers direct/manual invocation too; independent of start.sh's lock.
+    execFileSync('flock', ['-x', join(dirname(marker), 'demo-import.lock'), process.execPath,
+      '--input-type=module', '--eval', 'import {runSafe} from ' + JSON.stringify(import.meta.url) +
+      '; runSafe(' + JSON.stringify(process.argv.slice(2)) + ');'], {stdio: 'inherit'});
+  } catch { process.exitCode = 1; }
+}
+
+export function runSafe(args) {
+  try { main(args); }
   catch (err) {
     console.error(err instanceof SeedError ? err.message : 'Demo initialization refused; see private Codespaces logs.');
     process.exitCode = 1;

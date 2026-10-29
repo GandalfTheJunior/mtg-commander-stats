@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {decideSeed, verifyTarget, verifySource, decideRecovery, restorationSql, SeedError} from './seed-demo.mjs';
+import {decideSeed, verifyTarget, verifySource, decideRecovery, decidePreparation, restorationSql, SeedError} from './seed-demo.mjs';
 
 const root = '/work/mtg';
 const id = 'a'.repeat(64);
@@ -50,13 +50,16 @@ test('validate the healthy expected Docker Compose database and persistent volum
 test('demo import source must be the dedicated healthy isolated database', () => {
   const source = {
     Id: id, Image: 'postgres:18', State: {Running: true, Health: {Status: 'healthy'}},
-    Labels: {'com.docker.compose.project': 'mtg-commander-demo', 'com.docker.compose.service': 'postgres'},
-    Mounts: [{Type: 'volume', Name: 'mtg-commander-demo-data', Destination: '/var/lib/postgresql'}],
+    Labels: {'com.docker.compose.project': 'mtg-commander-demo', 'com.docker.compose.service': 'postgres',
+      'com.docker.compose.project.working_dir': root + '/tools/demo',
+      'com.docker.compose.project.config_files': root + '/tools/demo/compose.yaml'},
+    Mounts: [{Type: 'volume', Name: 'mtg-commander-demo-data', Destination: '/var/lib/postgresql', RW: true}],
   };
-  assert.doesNotThrow(() => verifySource(source, id));
-  assert.throws(() => verifySource({...source, Mounts: []}, id), SeedError);
+  assert.doesNotThrow(() => verifySource(source, id, root));
+  assert.throws(() => verifySource({...source, Mounts: []}, id, root), SeedError);
   assert.throws(() => verifySource({...source, Labels: {...source.Labels,
-    'com.docker.compose.project': 'another'}}, id), SeedError);
+    'com.docker.compose.project': 'another'}}, id, root), SeedError);
+  assert.throws(() => verifySource(source, id, '/foreign'), SeedError);
 });
 
 test('Codespaces initializes app schema before importing any demo records', () => {
@@ -72,6 +75,22 @@ test('explicit recovery checks interrupted marker, source verification and targe
   assert.throws(() => decideRecovery(null, empty, 'complete'), SeedError);
   assert.throws(() => decideRecovery('started', [{name:'users',count:1}], 'complete'), SeedError);
   assert.throws(() => decideRecovery('started', empty, 'started'), SeedError);
+});
+test('preparation retry requires owned v2 phase, no source attempt and every target table empty', () => {
+  const owner = {codespace: 'test', root: '/work', project: 'test', volume: 'test-data'};
+  const marker = {version: 2, status: 'preparing', owner};
+  const empty = [{name: 'users', count: 0}, {name: 'decks', count: 0}];
+  assert.equal(decidePreparation(marker, owner, empty, null), 'prepare');
+  for (const previous of [null, {status: 'started'}, {...marker, version: 1}, {...marker, status: 'started'},
+    {...marker, owner: {...owner, volume: 'foreign'}}, {...marker, owner: {...owner, codespace: 'foreign'}}]) {
+    assert.throws(() => decidePreparation(previous, owner, empty, null), SeedError);
+  }
+  for (const source of ['started', 'complete', 'unknown']) {
+    assert.throws(() => decidePreparation(marker, owner, empty, source), SeedError);
+  }
+  assert.throws(() => decidePreparation(marker, owner, [{name: 'decks', count: 1}], null), SeedError);
+  assert.throws(() => decidePreparation(marker, owner, [], null), SeedError);
+  assert.equal(decideRecovery('preparing', empty, 'complete'), 'recover');
 });
 test('restore SQL locks tables and restores public search path before constraints', () => {
   const script = restorationSql('SELECT 1;', ['users', 'decks', 'play_groups']);
