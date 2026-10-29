@@ -1,5 +1,5 @@
 // Launch only completed archives copied out of Maven's mutable output directory.
-import {copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync} from 'node:fs';
+import {copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync} from 'node:fs';
 import {delimiter, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
@@ -23,7 +23,10 @@ export function snapshotRuntime(target, state, seed = false, log = console.log) 
     console.error('runtime-resources: verification-failed');
     throw new Error('Packaged migration resources could not be verified.');
   }
-  if (!seed) return {jar, args: ['-jar', jar]};
+  if (!seed) {
+    writeFileSync(join(runtime, 'classpath.json'), JSON.stringify({applicationArchive: jar}) + '\n', {mode: 0o600});
+    return {jar, args: ['-jar', jar]};
+  }
   const tests = join(runtime, 'tests.jar');
   copyFileSync(join(target, jars[0].replace(/\.jar$/, '-tests.jar')), tests);
   const dependencies = readFileSync(join(target, 'demo-classpath.txt'), 'utf8').trim();
@@ -32,6 +35,10 @@ export function snapshotRuntime(target, state, seed = false, log = console.log) 
   }
   // Dependency cache jars are immutable; classes/resources always come from the
   // two private archive copies, never target/classes or target/test-classes.
-  return {jar, args: ['-cp', [tests, jar, dependencies].join(delimiter),
+  const classpath = [tests, jar, ...dependencies.split(delimiter)];
+  // Keep the effective classpath with this launch's evidence, even if another
+  // Maven invocation later changes target/demo-classpath.txt. Never log paths.
+  writeFileSync(join(runtime, 'classpath.json'), JSON.stringify({classpath}) + '\n', {mode: 0o600});
+  return {jar, args: ['-cp', classpath.join(delimiter),
     'io.github.gandalfthejunior.mtgcommanderstats.demo.OfflineDemoSeedApplication']};
 }

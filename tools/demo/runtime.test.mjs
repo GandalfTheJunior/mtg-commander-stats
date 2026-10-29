@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {delimiter, join} from 'node:path';
+import {delimiter, dirname, join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {snapshotRuntime} from './runtime.mjs';
@@ -27,6 +27,8 @@ test('completed private archives retain all SQL bytes when Maven output is repla
     assert.deepEqual(normal.args, ['-jar', normal.jar]);
     assert.equal(seed.args[0], '-cp');
     assert.equal(seed.args[1].split(delimiter).length, 3);
+    assert.deepEqual(JSON.parse(readFileSync(join(dirname(seed.jar), 'classpath.json'))).classpath,
+      seed.args[1].split(delimiter));
     assert.ok(!seed.args[1].includes(target));
     const bytes = readFileSync(normal.jar);
     writeFileSync(join(target, 'app.jar'), 'incomplete Maven output');

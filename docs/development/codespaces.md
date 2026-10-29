@@ -68,7 +68,9 @@ local `spring-boot:run` workflow are unchanged.
 
 Before launch, `CheckRuntimeResources.java` opens every SQL stream from the actual
 private archive, compares its bytes to source, and emits only the readable count
-and SHA-256 fingerprint (`runtime-resources`). A missing/unreadable/mismatched
+and SHA-256 fingerprint (`runtime-resources`). Each private runtime directory also
+retains its effective archive/classpath entries in `classpath.json` without
+publishing paths or environment values in logs. A missing/unreadable/mismatched
 archive fails before Spring or demo writes. Private runtime copies are retained
 for inspection in the state directory and `.demo/runtime-*`; startup does not
 remove old evidence or database state. Ordinary backend diagnostics remain in
