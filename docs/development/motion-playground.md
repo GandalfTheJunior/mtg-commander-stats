@@ -741,3 +741,98 @@ past Orin/Mira, release, repeat downward, scroll/rotate/cancel, then compare
 wax on/off and repeatedly confirm/start/reset. Check labels, touch and keyboard
 focus at narrow widths. Physical iPhone Safari, VoiceOver and aesthetic approval
 remain PO checks; browser WebKit emulation does not establish device approval.
+
+## Firelight performance comparison (#162)
+
+The Lounge defaults to `?firelight=optimized`. `?firelight=baseline` retains the
+previous live signal on wall facets, window reflections and card shadows;
+`?firelight=static` explicitly selects static warm light. Unknown/missing values
+select optimized. Demo reset retains the URL test configuration. The existing
+Kaminlicht switch supplies the off control; fireflies remain independent.
+These configurations exist only in the dev entry, with no production route/build
+input added. The hall keeps its original lighting behavior.
+
+Inspection found one 30Hz CSS-write clock (no React updates per decorative
+frame), but inherited custom properties reached 312 fire paths across 156 stones,
+SVG window surfaces and every opaque card gradient/shadow. Dragging separately
+updates React/overlay position, and landing still animates elevation/shadows.
+There are no per-stone timers or dynamic SVG filters. Window drop-shadow is
+static, although painting its changing descendants can still cost work.
+
+Optimized mode retains the neutral relief and warm resting card treatment,
+including intensity/off and the original lift/landing geometry. Those shadows,
+window reflections and stone facets no longer track individual flares. The same
+irregular model and intensity mapping drive only the opacity of two room-light
+surfaces; no frame writes occur on the room ancestor. Their tiny baseline
+translations are fixed. A `will-change: opacity` hint is limited to the two room surfaces while fire
+is enabled, visible and moving; it is absent in static/reduced/hidden/off modes.
+Opacity-only writes without this hint still produced high frame intervals in
+the local Chromium comparison. No new filters or raster assets are introduced. This trades local moving highlights for
+cheaper diffuse flicker; PO visual approval is still required. Large light
+surfaces and their promotion can still have GPU/memory cost; device profiling
+is required and compositing is not assumed to be universally cheaper. Static fallback is never auto-selected.
+Reduced motion and visibility cleanup retain their existing behavior.
+
+### Reproduce automatic measurements (explicit opt-in)
+
+Start Vite with `cd frontend && npm run dev -- --host 127.0.0.1 --port 5173`.
+From `frontend/`, run e.g.:
+
+```sh
+node ../tools/firelight-benchmark.mjs baseline 10 chromium /tmp/baseline.json
+node ../tools/firelight-benchmark.mjs off 10 chromium /tmp/off.json
+node ../tools/firelight-benchmark.mjs optimized 10 chromium /tmp/optimized.json
+node ../tools/firelight-benchmark.mjs static 10 chromium /tmp/static.json
+# Run ONCE per authorized Codex session, not once per variant/engine or in CI:
+node ../tools/firelight-benchmark.mjs optimized 300 chromium /tmp/stress.json
+```
+
+Use `webkit` instead of `chromium` when that engine is actually installed.
+Chromium uses `/usr/bin/chromium` by default (override with
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`). The tool rejects durations above 300s;
+it does not install browsers or silently switch engines. Run measurements
+serially with no competing tests/builds. It drives real mouse pointer drags up
+and down with actual capture/landing, fire ON except in the explicit off control,
+fireflies OFF, quiet intensity, wax seals ON, 1280×1200 viewport. It reports
+completed active-drag sessions, bounded rAF samples, p50/p95/p99, >2-refresh
+intervals/rate, >50ms intervals, actual elapsed duration, JS errors, crashes,
+unexpected main-frame navigations and Vite update/full-reload/error messages.
+Refresh period is calibrated on a blank page before the workload, not inferred
+from already-stuttering fire. A 0.1ms comparison tolerance avoids timestamp noise
+at exactly two periods. rAF is an indicator, not GPU render time. Sampling starts
+only once an actual overlay exists and stops on pointer release/cancel; landing
+frames are excluded. The elapsed window is 300,000ms for the stress test, with
+actual timer/automation scheduling overshoot reported rather than hidden.
+Chromium additionally reports CDP main-thread/script/style/layout time and final
+JS heap. JS heap is not total process/GPU memory; CPU utilization, GPU allocation
+and WebKit process memory require external/device tooling.
+
+This dev-server test logs HMR separately. A clean navigation log cannot prove why
+the PO's iPhone previously reloaded. For controlled device comparison prefer an
+equally configured isolated preview without HMR for both revisions; the normal
+production build deliberately excludes the Lounge. Do not expose it as a product
+route to obtain measurements. Compare server restart logs, WebSocket full-reload
+messages and Safari Inspector/OS crash logs before attributing a reload to WebKit.
+
+### Physical iPhone acceptance (still required)
+
+Record device, iOS/Safari, orientation, build SHA, card heights, battery/power-save
+mode, thermal state and background load. On that same device compare A off,
+B baseline, C optimized, D static: each 3×60s active drag after warm-up, alternating
+order; fireflies initially OFF, then separate runs ON. Report p50/p95/p99,
+calibrated refresh period, >2-refresh counts/rate, >50ms counts, errors/reloads and
+actual duration. Use Safari Timelines for paint/layout/composite, main thread,
+CPU and memory if available; record inspector overhead and unsupported metrics.
+Then perform the separate **10-minute continuous iPhone Safari** stress test with
+fire ON and regular up/down movement. This is a PO/device test, not an extension
+of the single 5-minute automatic run.
+
+The provisional goals are zero spontaneous reloads/crashes in that 10-minute
+device session; median-of-three C p95 <=1.20× A; and >=50% fewer >2-refresh
+intervals than B when B has enough events for a meaningful rate comparison.
+Report absolute counts for sparse events. At observed 60Hz, p95 near/below 20ms
+is aspirational; normalize other refresh rates. Do not extrapolate desktop values
+to iPhone. Inspect wax seals, 5% upward insertion/hysteresis, downward insertion,
+landing, focus, independent controls and live reduced motion. If C misses goals,
+propose D as an explicit PO compromise. Neither a clean short run nor the automatic
+stress run establishes permanent stability or authorizes merging #161.

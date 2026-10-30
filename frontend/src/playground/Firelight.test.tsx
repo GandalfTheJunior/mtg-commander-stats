@@ -97,3 +97,32 @@ test('hidden time does not advance the fire, and retired listeners cannot restar
   act(() => document.dispatchEvent(new Event('visibilitychange')))
   expect(raf.mock.calls.length).toBe(retired)
 })
+
+test('optimized flicker changes leaf opacity while keeping relief and card geometry static', () => {
+  let next: FrameRequestCallback = () => {}
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => { next = cb; return 55 })
+  vi.spyOn(Math, 'random').mockReturnValue(.8)
+  const { container, rerender, unmount } = render(<div><Firelight enabled animated mode="optimized" /></div>)
+  const room = container.firstElementChild as HTMLElement
+  const surface = room.querySelector('i')!
+  const initial = surface.style.opacity
+  const roomStyle = room.getAttribute('style')
+  act(() => { for (let t = 0; t < 3100; t += 16) next(t) })
+  expect(surface.style.opacity).not.toBe(initial)
+  expect(room.getAttribute('style')).toBe(roomStyle)
+  rerender(<div><Firelight enabled animated mode="optimized" strong /></div>)
+  expect(room.style.getPropertyValue('--card-fire')).toBe('0.58000')
+  rerender(<div><Firelight enabled animated={false} mode="optimized" strong /></div>)
+  const staticOpacity = surface.style.opacity
+  act(() => document.dispatchEvent(new Event('visibilitychange')))
+  expect(surface.style.opacity).toBe(staticOpacity)
+  unmount()
+  expect(surface.style.opacity).toBe('')
+})
+
+test('explicit static fallback schedules no fire frames without reduced motion', () => {
+  const raf = vi.spyOn(window, 'requestAnimationFrame')
+  const { container } = render(<div><Firelight enabled animated mode="static" /></div>)
+  expect(raf).not.toHaveBeenCalled()
+  expect(container.querySelector('i')!.style.opacity).toBe('0.4')
+})

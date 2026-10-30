@@ -102,3 +102,11 @@ body { margin: 0; }
 .overlay-controls span:first-child { margin-right: auto; font-size: 24px; }
 .overlay-label { position: absolute; bottom: 21px; left: 75px; right: 115px; margin: 0; font-size: 10px; text-align: left; }
 [data-reduced="true"] .drag-overlay { transform: none; }
+
+/* #162: only opacity varies on two leaf surfaces. No permanent layer promotion;
+   full-room textures can be costly on mobile GPUs even when composited. */
+.lounge[data-light-mode='optimized'] .room-light i,
+.lounge[data-light-mode='static'] .room-light i { transform: none; }
+/* Measured opacity-only painting still rasterized the large room surfaces in
+   Chromium. Limit the promotion hint to these two enabled, visible moving lights. */
+.lounge[data-light-mode='optimized'][data-fire='true'][data-reduced='false'][data-hidden='false'] .room-light i { will-change: opacity; }
