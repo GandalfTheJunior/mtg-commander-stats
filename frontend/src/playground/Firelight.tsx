@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
-import { createFirelightModel, reflectedLevels } from './firelightModel'
+import { cardLightLevel, createFirelightModel, reflectedLevels } from './firelightModel'
 
 export function Firelight({ enabled, animated, strong = false }: { enabled: boolean; animated: boolean; strong?: boolean }) {
   const layer = useRef<HTMLDivElement>(null)
@@ -9,13 +9,17 @@ export function Firelight({ enabled, animated, strong = false }: { enabled: bool
   useLayoutEffect(() => { strongMode.current = strong; repaint.current?.() }, [strong])
   useEffect(() => {
     const room = layer.current?.parentElement
-    if (!enabled || !animated || !room) return
+    if (!enabled || !room) return
     const model = createFirelightModel()
-    let signal = model.sample(0)
+    let signal = { slow: 0, flutter: 0, flare: 0 }
     const paint = () => {
       const { a, b } = reflectedLevels(signal, strongMode.current)
-      room.style.setProperty('--warm-a', a.toFixed(5))
-      room.style.setProperty('--warm-b', b.toFixed(5))
+      // Preserve the existing CSS-only static room/hall reflection contract.
+      if (animated) {
+        room.style.setProperty('--warm-a', a.toFixed(5))
+        room.style.setProperty('--warm-b', b.toFixed(5))
+      }
+      room.style.setProperty('--card-fire', cardLightLevel(signal, strongMode.current).toFixed(5))
     }
     repaint.current = paint
     paint()
@@ -32,7 +36,7 @@ export function Firelight({ enabled, animated, strong = false }: { enabled: bool
     const visibility = () => {
       cancelAnimationFrame(raf)
       last = null
-      if (!document.hidden) raf = requestAnimationFrame(tick)
+      if (animated && !document.hidden) raf = requestAnimationFrame(tick)
     }
     document.addEventListener('visibilitychange', visibility)
     visibility()
@@ -42,6 +46,7 @@ export function Firelight({ enabled, animated, strong = false }: { enabled: bool
       document.removeEventListener('visibilitychange', visibility)
       room.style.removeProperty('--warm-a')
       room.style.removeProperty('--warm-b')
+      room.style.removeProperty('--card-fire')
     }
   }, [enabled, animated])
   return <div ref={layer} className="room-light" aria-hidden="true" hidden={!enabled}><i/><i/></div>

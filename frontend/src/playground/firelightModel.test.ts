@@ -1,5 +1,24 @@
 import { expect, test } from 'vitest'
-import { createFirelightModel, flareEnvelope, reflectedLevels } from './firelightModel'
+import { cardLightLevel, createFirelightModel, flareEnvelope, reflectedLevels } from './firelightModel'
+
+test('card illumination shares flare direction with the room, has distinct modes and peak headroom', () => {
+  const model = createFirelightModel(seeded(156))
+  let previous = cardLightLevel(model.sample(0), true)
+  const samples: number[] = []
+  for (let t = 33; t < 120000; t += 33) {
+    const signal = model.sample(t)
+    const quiet = cardLightLevel(signal, false), strong = cardLightLevel(signal, true)
+    expect(quiet).toBeGreaterThan(.15)
+    expect(strong).toBeGreaterThan(quiet)
+    expect(strong).toBeLessThan(.84)
+    expect(Math.abs(strong - previous)).toBeLessThan(.07)
+    previous = strong; samples.push(strong)
+    const flare = { ...signal, flare: signal.flare + .04 }
+    expect(cardLightLevel(flare, true)).toBeGreaterThan(strong)
+    expect(reflectedLevels(flare, true).a).toBeGreaterThan(reflectedLevels(signal, true).a)
+  }
+  expect(Math.max(...samples) - Math.min(...samples)).toBeGreaterThan(.2)
+})
 
 function seeded(seed: number) {
   return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296 }

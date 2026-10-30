@@ -12,12 +12,15 @@ test('shared reflected light updates retire on off, reduced motion and unmount',
   const room = container.firstElementChild as HTMLElement
   act(() => next(100))
   const first = room.style.getPropertyValue('--warm-a')
+  const firstCard = room.style.getPropertyValue('--card-fire')
   act(() => { for (let now = 116; now < 3100; now += 16) next(now) })
   expect(room.style.getPropertyValue('--warm-a')).not.toBe(first)
+  expect(room.style.getPropertyValue('--card-fire')).not.toBe(firstCard)
   expect(room.style.getPropertyValue('--warm-a')).not.toBe(room.style.getPropertyValue('--warm-b'))
   rerender(<div><Firelight enabled={false} animated /></div>)
   expect(cancel).toHaveBeenCalledWith(51)
   expect(room.style.getPropertyValue('--warm-a')).toBe('')
+  expect(room.style.getPropertyValue('--card-fire')).toBe('')
   const count = raf.mock.calls.length
   rerender(<div><Firelight enabled animated={false} /></div>)
   expect(raf.mock.calls.length).toBe(count)
@@ -46,14 +49,30 @@ test('intensity comparison preserves the current phase, clocks and scheduled wor
   const { container, rerender } = render(<div><Firelight enabled animated /></div>)
   const room = container.firstElementChild as HTMLElement
   const quiet = Number(room.style.getPropertyValue('--warm-a'))
+  const quietCard = room.style.getPropertyValue('--card-fire')
   const calls = rng.mock.calls.length, frames = raf.mock.calls.length
   rerender(<div><Firelight enabled animated strong /></div>)
   expect(Number(room.style.getPropertyValue('--warm-a')) * 2.1).toBeGreaterThan(quiet)
   expect(Number(room.style.getPropertyValue('--warm-a')) * 2.1).toBeLessThan(.977)
   expect(rng.mock.calls.length).toBe(calls)
+  expect(Number(room.style.getPropertyValue('--card-fire'))).toBeGreaterThan(Number(quietCard))
   expect(raf.mock.calls.length).toBe(frames)
   rerender(<div><Firelight enabled animated /></div>)
   expect(Number(room.style.getPropertyValue('--warm-a'))).toBeCloseTo(quiet, 5)
+  expect(room.style.getPropertyValue('--card-fire')).toBe(quietCard)
+})
+
+test('reduced motion paints static card light, supports intensity changes and schedules no frames', () => {
+  const raf = vi.spyOn(window, 'requestAnimationFrame')
+  const { container, rerender, unmount } = render(<div><Firelight enabled animated={false} /></div>)
+  const room = container.firstElementChild as HTMLElement
+  expect(room.style.getPropertyValue('--card-fire')).toBe('0.30000')
+  expect(room.style.getPropertyValue('--warm-a')).toBe('')
+  rerender(<div><Firelight enabled animated={false} strong /></div>)
+  expect(room.style.getPropertyValue('--card-fire')).toBe('0.58000')
+  expect(raf).not.toHaveBeenCalled()
+  unmount()
+  expect(room.style.getPropertyValue('--card-fire')).toBe('')
 })
 
 test('hidden time does not advance the fire, and retired listeners cannot restart it', () => {

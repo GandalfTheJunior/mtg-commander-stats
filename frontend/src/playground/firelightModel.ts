@@ -1,6 +1,13 @@
 import { smooth } from './flight'
 
 export type FireSignal = { slow: number; flutter: number; flare: number }
+
+// One bounded reflection of the room signal for both card highlights and shadow.
+// Soft compression preserves flare detail without ever reaching full opacity.
+export function cardLightLevel(signal: FireSignal, strong: boolean) {
+  const energy = Math.tanh((signal.slow + signal.flutter + signal.flare) / .16)
+  return strong ? .58 + .26 * energy : .3 + .14 * energy
+}
 type Flare = { start: number; amplitude: number; attack: number; decay: number }
 
 // Fast rounded rise, soft longer release; overlapping events never step on/off.

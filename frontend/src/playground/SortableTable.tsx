@@ -46,14 +46,17 @@ export function SortableTable({ order, onChange, reduced }: { order: string[]; o
     // Rebase from the CURRENT displayed matrix on scroll/toolbar movement instead
     // of cancelling and revealing the real card at a different viewport position.
     node.style.transform = pose.transform
+    // Preserve the displayed elevation when scroll retargets an unfinished landing.
+    const lift = getComputedStyle(node).getPropertyValue('--card-lift').trim() || '1'
+    node.style.setProperty('--card-lift', lift)
     if (landing.current) { landing.current.onfinish = null; landing.current.cancel() }
     if (initial) landingTime.current.elapsed = 0
     const time = landingTime.current
     time.start = time.elapsed; time.duration = initial ? settleOptions.duration : Math.max(80, settleOptions.duration - time.elapsed)
     time.endpoint = null
     const animation = node.animate([
-      { transform: pose.transform },
-      { transform: `translate(${target.left - pose.baseX}px, ${target.top - pose.baseY}px) rotate(0deg)` },
+      { transform: pose.transform, '--card-lift': lift },
+      { transform: `translate(${target.left - pose.baseX}px, ${target.top - pose.baseY}px) rotate(0deg)`, '--card-lift': '0' },
     ], { ...settleOptions, duration: time.duration })
     animation.pause(); animation.currentTime = 0
     landing.current = animation
