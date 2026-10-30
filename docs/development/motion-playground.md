@@ -308,13 +308,17 @@ npm run test:browser
 ```
 
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium` can use a locally installed
-Chromium. The dedicated CI job runs Chromium and WebKit with real browser layout,
+Chromium. Dedicated CI matrix jobs run Chromium and WebKit with real browser layout,
 requestAnimationFrame and Web Animations. The test harness does not pause, seek
 or mock them; it observes the production frame-driven clock.
 CI uses the matching official Playwright container with preinstalled browsers/OS
-libraries, avoiding the observed ~53-minute Ubuntu apt-mirror delay; the job has a
-10-minute bound. It uploads HTML reports, frame-position JSON, failure traces/screenshots and videos
-as `playground-browser-evidence` (14-day retention). Browser tests are separate from
+libraries, avoiding the observed ~53-minute Ubuntu apt-mirror delay. Each engine
+keeps one test worker and the existing 15-minute job bound. Running engines in
+separate jobs avoids exhausting that bound with the expanded 128-case combined
+suite; no test, assertion or timeout is relaxed. Each uploads HTML reports,
+frame-position JSON, failure traces/screenshots and videos as
+`playground-browser-evidence-chromium` or `playground-browser-evidence-webkit`
+(14-day retention). Browser tests are separate from
 Vitest and included in lint/typecheck. Existing frontend/backend checks still apply.
 
 The suite checks upward/downward edge scrolling, unequal heights, exact release
@@ -758,3 +762,175 @@ enter just 5% into the original target, reverse slightly then deliberately,
 continue across several cards and back through pickup. Repeat upward, at both
 grip edges, with scrolling and Kaminlicht on/off. Physical touch feel and Safari
 performance remain PO checks; desktop browser emulation cannot establish them.
+
+## Parchment player rows (#165)
+
+Dependency note: refreshed main `9b43a27` includes #164/#166 but omitted #163,
+which was merged into the earlier wax feature branch. This implementation
+restores the accepted #163 lighting source/tests, comparison documentation and
+opt-in benchmark from `e4c8f91` in a separate commit. The obsolete stacked CI
+branch trigger is not restored. This is supporting work, with no lighting redesign.
+
+The Lounge defaults to **Pergament-Karten**. Its switch compares the existing
+classic dark cards with warm honey/cream paper without remounting the list or
+changing order, confirmation, round, wax design, intensity or ambience. Reset
+restores parchment on alongside all other demo defaults; reload has the same
+local defaults. There is no persistence or new URL parameter for card design.
+
+The approved [issue reference](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/165#issuecomment-6524063340)
+was inspected. Compact horizontal rows retain all four original players, decks,
+notes and symbols. Static local SVG grain, softly mottled gradients and a subtly
+irregular paper edge suggest aged material. Coloured symbol fields and dark ink
+retain the hierarchy. These are an interpretation of the reference, subject to
+PO iPhone visual approval. No reference bitmap, remote art or new dependency is
+bundled. Longer notes deliberately make unequal rows, especially at 320px.
+
+The right-hand grip, arrows and their overlay equivalents retain 44px targets;
+keyboard tab order and announcements are unchanged. Paper controls have dark
+focus rings and distinct hover/pressed/disabled states. The insertion slot stays
+transparent with a quiet dashed warm outline; held and landing overlays share
+the paper surface and show the existing valid/invalid label. Only the existing
+`--card-lift` landing clock changes elevation; paper grain, surface and shadows
+do not consume animated `--card-fire`, add loops, or promote layers.
+
+Run `npm test -- src/playground` and `npm run test:browser -- e2e/parchment.pw.ts
+e2e/pointer-threshold.pw.ts e2e/landing.pw.ts` in Chromium/WebKit. The material
+suite captures 320/375/390/1280px, focus, classic comparison, fire off/reduced
+motion, held insertion and invalid drop. Existing landing and pointer regressions
+exercise actual measured unequal paper heights. Historical coupled-light tests
+explicitly select classic cards to preserve their original lighting contract.
+Landing test coordinates now stay inside the measured right-hand grip rather
+than assuming a left-hand grip plus a 100px offset.
+
+For PO review, compare paper/classic with light on/off, then drag both ways across
+several cards, reverse around 5% entry, cancel outside/Escape, drop during reflow,
+scroll at edges and during landing, use keyboard and switch reduced motion live.
+Check paper colour, restrained edges, note readability and focus at native iPhone
+scale. Physical Safari performance, VoiceOver and final visual acceptance remain
+PO checks; desktop WebKit is not physical-device evidence.
+
+## Firelight performance comparison (#162)
+
+The Lounge defaults to `?firelight=optimized`. `?firelight=baseline` retains the
+previous live signal on wall facets, window reflections and classic dark-card shadows;
+`?firelight=static` explicitly selects static warm light. Unknown/missing values
+select optimized. Demo reset retains the URL test configuration. The existing
+Kaminlicht switch supplies the off control; fireflies remain independent.
+These configurations exist only in the dev entry, with no production route/build
+input added. The hall keeps its original lighting behavior.
+
+Inspection found one 30Hz CSS-write clock (no React updates per decorative
+frame), but inherited custom properties reached 312 fire paths across 156 stones,
+SVG window surfaces and every opaque card gradient/shadow. Dragging separately
+updates React/overlay position, and landing still animates elevation/shadows.
+There are no per-stone timers or dynamic SVG filters. Window drop-shadow is
+static, although painting its changing descendants can still cost work.
+
+Optimized mode retains the neutral relief and warm resting card treatment,
+including intensity/off and the original lift/landing geometry. Those shadows,
+window reflections and stone facets no longer track individual flares. The same
+irregular model and intensity mapping drive only the opacity of two room-light
+surfaces; no frame writes occur on the room ancestor. Their tiny baseline
+translations are fixed. A `will-change: opacity` hint is limited to the two room surfaces while fire
+is enabled, visible and moving; it is absent in static/reduced/hidden/off modes.
+Opacity-only writes without this hint still produced high frame intervals in
+the local Chromium comparison. No new filters or raster assets are introduced. This trades local moving highlights for
+cheaper diffuse flicker; PO visual approval is still required. Large light
+surfaces and their promotion can still have GPU/memory cost; device profiling
+is required and compositing is not assumed to be universally cheaper. Static fallback is never auto-selected.
+Reduced motion and visibility cleanup retain their existing behavior.
+
+### Reproduce automatic measurements (explicit opt-in)
+
+Start Vite with `cd frontend && npm run dev -- --host 127.0.0.1 --port 5173`.
+From `frontend/`, run e.g.:
+
+```sh
+node ../tools/firelight-benchmark.mjs baseline 10 chromium /tmp/baseline.json
+node ../tools/firelight-benchmark.mjs off 10 chromium /tmp/off.json
+node ../tools/firelight-benchmark.mjs optimized 10 chromium /tmp/optimized.json
+node ../tools/firelight-benchmark.mjs static 10 chromium /tmp/static.json
+# Run ONCE per authorized Codex session, not once per variant/engine or in CI:
+node ../tools/firelight-benchmark.mjs optimized 300 chromium /tmp/stress.json
+```
+
+Use `webkit` instead of `chromium` when that engine is actually installed.
+Chromium uses `/usr/bin/chromium` by default (override with
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`). The tool rejects durations above 300s;
+it does not install browsers or silently switch engines. Run measurements
+serially with no competing tests/builds. It drives real mouse pointer drags up
+and down with actual capture/landing, fire ON except in the explicit off control,
+fireflies OFF, quiet intensity, wax seals ON, 1280×1200 viewport. It reports
+completed active-drag sessions, bounded rAF samples, p50/p95/p99, >2-refresh
+intervals/rate, >50ms intervals, actual elapsed duration, JS errors, crashes,
+unexpected main-frame navigations and Vite update/full-reload/error messages.
+Refresh period is calibrated on a blank page before the workload, not inferred
+from already-stuttering fire. A 0.1ms comparison tolerance avoids timestamp noise
+at exactly two periods. rAF is an indicator, not GPU render time. Sampling starts
+only once an actual overlay exists and stops on pointer release/cancel; landing
+frames are excluded. The elapsed window is 300,000ms for the stress test, with
+actual timer/automation scheduling overshoot reported rather than hidden.
+Chromium additionally reports CDP main-thread/script/style/layout time and final
+JS heap. JS heap is not total process/GPU memory; CPU utilization, GPU allocation
+and WebKit process memory require external/device tooling.
+
+This dev-server test logs HMR separately. A clean navigation log cannot prove why
+the PO's iPhone previously reloaded. For controlled device comparison prefer an
+equally configured isolated preview without HMR for both revisions; the normal
+production build deliberately excludes the Lounge. Do not expose it as a product
+route to obtain measurements. Compare server restart logs, WebSocket full-reload
+messages and Safari Inspector/OS crash logs before attributing a reload to WebKit.
+
+### Physical iPhone acceptance (still required)
+
+Record device, iOS/Safari, orientation, build SHA, card heights, battery/power-save
+mode, thermal state and background load. On that same device compare A off,
+B baseline, C optimized, D static: each 3×60s active drag after warm-up, alternating
+order; fireflies initially OFF, then separate runs ON. Report p50/p95/p99,
+calibrated refresh period, >2-refresh counts/rate, >50ms counts, errors/reloads and
+actual duration. Use Safari Timelines for paint/layout/composite, main thread,
+CPU and memory if available; record inspector overhead and unsupported metrics.
+Then perform the separate **10-minute continuous iPhone Safari** stress test with
+fire ON and regular up/down movement. This is a PO/device test, not an extension
+of the single 5-minute automatic run.
+
+The provisional goals are zero spontaneous reloads/crashes in that 10-minute
+device session; median-of-three C p95 <=1.20× A; and >=50% fewer >2-refresh
+intervals than B when B has enough events for a meaningful rate comparison.
+Report absolute counts for sparse events. At observed 60Hz, p95 near/below 20ms
+is aspirational; normalize other refresh rates. Do not extrapolate desktop values
+to iPhone. Inspect wax seals, 5% upward insertion/hysteresis, downward insertion,
+landing, focus, independent controls and live reduced motion. If C misses goals,
+propose D as an explicit PO compromise. Neither a clean short run nor the automatic
+stress run establishes permanent stability or authorizes merging #161.
+
+### PO roll-edge refinement (PR #167)
+
+The [PO feedback](https://github.com/GandalfTheJunior/mtg-commander-stats/pull/167#issuecomment-6527319022)
+and both attached photos were inspected. The paper now uses a more golden honey
+centre with restrained pigment differences. A small cylinder at the left has a
+vertical axis: the sheet appears to unroll to the right, while the four rows keep
+their existing dimensions, content and controls. The original local SVG depicts
+a rounded barrel, bright longitudinal highlight, dark tucked seam and an
+elliptical spiral top; the reference photos are not bundled. The
+[PO perspective sketch](https://github.com/GandalfTheJunior/mtg-commander-stats/pull/167#issuecomment-6532104284)
+guides a slightly elevated view: only the top cap is visible, with no repeated
+upward-facing ellipse/spiral at the bottom. Parallel side contours maintain the
+roll thickness; a convex front rim closes the lower silhouette while the barrel
+occludes the underside. The tucked right seam joins the sheet. Palette, layout,
+CSS surface, lighting and behavior are unchanged by this SVG-only refinement.
+
+`paper-roll.svg` paints one static, pointer-transparent `::after` background,
+18px wide, overhanging 7px into the existing left gutter. It occupies no layout
+space, adds no animation/filter/GPU hint and stays clear of the symbol even at
+320px. The same pseudo-element follows the whole-card overlay through landing.
+The insertion slot suppresses both paper pseudo-elements to keep the dashed
+marker clear. All new styling is scoped to parchment; classic appearance,
+lighting and all pointer/keyboard/landing logic are unchanged.
+
+The existing parchment browser cases now also check that the roll stays clear of
+symbols, stays within the viewport, shares the overlay material, remains static
+under firelight and disappears for classic/insertion. Inspect fresh normal,
+held/insertion and landing captures at 320/375/390/1280px, with fire off and
+reduced motion as well as defaults. PO iPhone confirmation is still required;
+this revision is not a merge authorization.

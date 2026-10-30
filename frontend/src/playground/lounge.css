@@ -102,3 +102,77 @@ body { margin: 0; }
 .overlay-controls span:first-child { margin-right: auto; font-size: 24px; }
 .overlay-label { position: absolute; bottom: 21px; left: 75px; right: 115px; margin: 0; font-size: 10px; text-align: left; }
 [data-reduced="true"] .drag-overlay { transform: none; }
+
+/* #165: dev-only material comparison. Surfaces never consume --card-fire;
+   grain, foxing and deck colours are static, including on the held overlay. */
+.lounge[data-card-design='parchment'] .player-card {
+  border: 1px solid #9b703d;
+  border-radius: 5px 8px 5px 7px;
+  padding: 14px 16px;
+  color: #302216;
+  background: #c89646;
+  box-shadow: -2px -2px 8px #130b0b33,
+    0 calc(4px + var(--card-lift) * 8px) calc(9px + var(--card-lift) * 14px) rgb(0 0 0 / calc(.28 + var(--card-lift) * .12));
+}
+.lounge[data-card-design='parchment'] .player-card::before {
+  content: ''; position: absolute; inset: -1px; pointer-events: none;
+  border-radius: inherit;
+  clip-path: polygon(0 .8%, 4% 1.4%, 8% 0, 13% 1%, 19% .3%, 24% 1.2%, 31% .2%, 39% 1%, 48% 0, 57% 1.1%, 63% .4%, 72% 1%, 80% .2%, 89% 1.2%, 96% 0, 100% 1%, 99.7% 19%, 100% 35%, 99.6% 51%, 100% 68%, 99.6% 86%, 100% 99%, 95% 98.7%, 89% 100%, 82% 99%, 73% 99.6%, 66% 98.7%, 57% 100%, 49% 99%, 41% 99.7%, 33% 98.7%, 24% 100%, 16% 99%, 9% 99.8%, 3% 98.8%, 0 100%, .4% 82%, 0 68%, .4% 50%, 0 36%, .3% 17%);
+  background: url('./paper-grain.svg'),
+    radial-gradient(ellipse at 8% 24%, #a8672529, transparent 28%),
+    radial-gradient(ellipse at 84% 80%, #a76b252b, transparent 32%),
+    linear-gradient(95deg, #b88137, #edc572 5%, #f1d28b 46%, #e3b862 91%, #ac712d);
+  box-shadow: inset 0 0 3px 1px #805024a6, inset 0 0 13px #a3682947, inset 0 2px 2px #fff1d3b3;
+}
+/* A narrow barrel overhangs into the existing gutter, leaving the symbol and
+   measured row box untouched. Static image, no filter or compositing hint. */
+.lounge[data-card-design='parchment'] .player-card::after {
+  content: ''; position: absolute; left: -7px; top: -3px; bottom: -3px;
+  width: 18px; pointer-events: none;
+  background: url('./paper-roll.svg') center / 100% 100% no-repeat;
+}
+.lounge[data-card-design='parchment'] .card-face,
+.lounge[data-card-design='parchment'] .card-controls,
+.lounge[data-card-design='parchment'] .overlay-controls { position: relative; }
+.lounge[data-card-design='parchment'] .card-face { gap: 12px; }
+.lounge[data-card-design='parchment'] .deck-mark {
+  flex-basis: 38px; height: 50px; border-radius: 2px 2px 14px 3px;
+  border: 1px solid #8d783c; background: #37452b; color: #f4df9f;
+  box-shadow: inset 0 0 0 2px #e8ce8926, 1px 2px 3px #573b2438;
+  font-size: 26px;
+}
+.lounge[data-card-design='parchment'] .mark-orin { background: #2d4150; color: #ece0b6; }
+.lounge[data-card-design='parchment'] .mark-lumi { background: #733b2c; color: #ffe0a1; }
+.lounge[data-card-design='parchment'] .mark-fenn { background: #6b572f; color: #fff0bf; }
+.lounge[data-card-design='parchment'] .card-copy h3 { font: bold 20px/1.2 Georgia, serif; color: #302216; }
+.lounge[data-card-design='parchment'] .card-copy strong { font-size: 17px; color: #49311e; }
+.lounge[data-card-design='parchment'] .card-copy p { color: #55412d; margin-top: 5px; line-height: 1.5; }
+.lounge[data-card-design='parchment'] .card-controls,
+.lounge[data-card-design='parchment'] .overlay-controls { padding-left: 50px; margin-top: 6px; }
+/* Grip stays on the right; arrows retain the same DOM/tab order and 44px targets. */
+.lounge[data-card-design='parchment'] .card-controls .grip,
+.lounge[data-card-design='parchment'] .overlay-controls span:first-child { order: 1; margin-right: 0; margin-left: auto; }
+.lounge[data-card-design='parchment'] .card-controls .MuiButton-root,
+.lounge[data-card-design='parchment'] .overlay-controls span { color: #50361f; border: 1px solid #87613b; border-radius: 5px; background: #fff4cf33; }
+.lounge[data-card-design='parchment'] .card-controls .MuiButton-root:hover { background: #aa743a30; }
+.lounge[data-card-design='parchment'] .card-controls .MuiButton-root:active { background: #aa743a50; }
+.lounge[data-card-design='parchment'] .card-controls .MuiButton-root.Mui-disabled { color: #78654c; border-color: #9b8564; background: transparent; }
+.lounge[data-card-design='parchment'] .card-controls .MuiButton-root:focus-visible { outline: 3px solid #582c1c; outline-offset: 2px; }
+.lounge[data-card-design='parchment'] .player-card.insertion { background: #d8b97718; border: 1px dashed #efd1a0; outline: none; box-shadow: inset 0 0 0 3px #d8b97718; }
+.lounge[data-card-design='parchment'] .player-card.insertion::before,
+.lounge[data-card-design='parchment'] .player-card.insertion::after { display: none; }
+.lounge[data-card-design='parchment'] .overlay-label { color: #392619; background: #f1d28b; border: 1px solid #87613b; border-radius: 3px; padding: 2px 5px; left: 16px; right: auto; bottom: -10px; }
+@media (max-width: 360px) {
+  .lounge[data-card-design='parchment'] .player-card { padding: 12px; }
+  .lounge[data-card-design='parchment'] .card-face { gap: 9px; }
+  .lounge[data-card-design='parchment'] .card-controls,
+  .lounge[data-card-design='parchment'] .overlay-controls { padding-left: 47px; }
+}
+
+/* #162: only opacity varies on two leaf surfaces. No permanent layer promotion;
+   full-room textures can be costly on mobile GPUs even when composited. */
+.lounge[data-light-mode='optimized'] .room-light i,
+.lounge[data-light-mode='static'] .room-light i { transform: none; }
+/* Measured opacity-only painting still rasterized the large room surfaces in
+   Chromium. Limit the promotion hint to these two enabled, visible moving lights. */
+.lounge[data-light-mode='optimized'][data-fire='true'][data-reduced='false'][data-hidden='false'] .room-light i { will-change: opacity; }
