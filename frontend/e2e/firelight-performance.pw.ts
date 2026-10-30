@@ -9,9 +9,11 @@ for (const mode of ['optimized', 'static']) {
       room: document.querySelector('.lounge')!.getAttribute('style'),
       edge: getComputedStyle(document.querySelector('.stone-fire-edge')!).opacity,
       shadow: getComputedStyle(document.querySelector('.table-cards > li')!).boxShadow,
+      promotion: getComputedStyle(document.querySelector('.room-light i')!).willChange,
       light: (document.querySelector('.room-light i') as HTMLElement).style.opacity,
     }))
     const before = await state()
+    expect(before.promotion).toBe(mode === 'optimized' ? 'opacity' : 'auto')
     if (mode === 'optimized') await expect.poll(async () => (await state()).light).not.toBe(before.light)
     else await page.waitForTimeout(150)
     const after = await state()
@@ -25,6 +27,7 @@ for (const mode of ['optimized', 'static']) {
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await expect(page.locator('.lounge')).toHaveAttribute('data-reduced', 'true')
     const reduced = await state()
+    expect(reduced.promotion).toBe('auto')
     await page.waitForTimeout(150)
     expect(await state()).toEqual(reduced)
     await page.getByRole('switch', { name: 'Kaminlicht', exact: true }).uncheck()

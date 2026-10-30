@@ -107,3 +107,6 @@ body { margin: 0; }
    full-room textures can be costly on mobile GPUs even when composited. */
 .lounge[data-light-mode='optimized'] .room-light i,
 .lounge[data-light-mode='static'] .room-light i { transform: none; }
+/* Measured opacity-only painting still rasterized the large room surfaces in
+   Chromium. Limit the promotion hint to these two enabled, visible moving lights. */
+.lounge[data-light-mode='optimized'][data-fire='true'][data-reduced='false'][data-hidden='false'] .room-light i { will-change: opacity; }

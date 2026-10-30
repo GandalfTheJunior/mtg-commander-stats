@@ -764,10 +764,13 @@ including intensity/off and the original lift/landing geometry. Those shadows,
 window reflections and stone facets no longer track individual flares. The same
 irregular model and intensity mapping drive only the opacity of two room-light
 surfaces; no frame writes occur on the room ancestor. Their tiny baseline
-translations are fixed. No permanent `will-change`, new filters, raster assets,
-or assumed GPU promotion is introduced. This trades local moving highlights for
+translations are fixed. A `will-change: opacity` hint is limited to the two room surfaces while fire
+is enabled, visible and moving; it is absent in static/reduced/hidden/off modes.
+Opacity-only writes without this hint still produced high frame intervals in
+the local Chromium comparison. No new filters or raster assets are introduced. This trades local moving highlights for
 cheaper diffuse flicker; PO visual approval is still required. Large light
-surfaces can still have GPU/memory cost. Static fallback is never auto-selected.
+surfaces and their promotion can still have GPU/memory cost; device profiling
+is required and compositing is not assumed to be universally cheaper. Static fallback is never auto-selected.
 Reduced motion and visibility cleanup retain their existing behavior.
 
 ### Reproduce automatic measurements (explicit opt-in)
