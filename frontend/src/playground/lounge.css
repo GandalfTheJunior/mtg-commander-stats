@@ -110,7 +110,7 @@ body { margin: 0; }
   border-radius: 5px 8px 5px 7px;
   padding: 14px 16px;
   color: #302216;
-  background: #c99c60;
+  background: #c89646;
   box-shadow: -2px -2px 8px #130b0b33,
     0 calc(4px + var(--card-lift) * 8px) calc(9px + var(--card-lift) * 14px) rgb(0 0 0 / calc(.28 + var(--card-lift) * .12));
 }
@@ -119,10 +119,17 @@ body { margin: 0; }
   border-radius: inherit;
   clip-path: polygon(0 .8%, 4% 1.4%, 8% 0, 13% 1%, 19% .3%, 24% 1.2%, 31% .2%, 39% 1%, 48% 0, 57% 1.1%, 63% .4%, 72% 1%, 80% .2%, 89% 1.2%, 96% 0, 100% 1%, 99.7% 19%, 100% 35%, 99.6% 51%, 100% 68%, 99.6% 86%, 100% 99%, 95% 98.7%, 89% 100%, 82% 99%, 73% 99.6%, 66% 98.7%, 57% 100%, 49% 99%, 41% 99.7%, 33% 98.7%, 24% 100%, 16% 99%, 9% 99.8%, 3% 98.8%, 0 100%, .4% 82%, 0 68%, .4% 50%, 0 36%, .3% 17%);
   background: url('./paper-grain.svg'),
-    radial-gradient(ellipse at 8% 24%, #aa713524, transparent 28%),
-    radial-gradient(ellipse at 84% 80%, #ac723427, transparent 32%),
-    linear-gradient(95deg, #c69b62, #eed3a0 5%, #f1dbb2 46%, #e8c995 91%, #bd8b51);
+    radial-gradient(ellipse at 8% 24%, #a8672529, transparent 28%),
+    radial-gradient(ellipse at 84% 80%, #a76b252b, transparent 32%),
+    linear-gradient(95deg, #b88137, #edc572 5%, #f1d28b 46%, #e3b862 91%, #ac712d);
   box-shadow: inset 0 0 3px 1px #805024a6, inset 0 0 13px #a3682947, inset 0 2px 2px #fff1d3b3;
+}
+/* A narrow barrel overhangs into the existing gutter, leaving the symbol and
+   measured row box untouched. Static image, no filter or compositing hint. */
+.lounge[data-card-design='parchment'] .player-card::after {
+  content: ''; position: absolute; left: -7px; top: -3px; bottom: -3px;
+  width: 18px; pointer-events: none;
+  background: url('./paper-roll.svg') center / 100% 100% no-repeat;
 }
 .lounge[data-card-design='parchment'] .card-face,
 .lounge[data-card-design='parchment'] .card-controls,
@@ -152,8 +159,9 @@ body { margin: 0; }
 .lounge[data-card-design='parchment'] .card-controls .MuiButton-root.Mui-disabled { color: #78654c; border-color: #9b8564; background: transparent; }
 .lounge[data-card-design='parchment'] .card-controls .MuiButton-root:focus-visible { outline: 3px solid #582c1c; outline-offset: 2px; }
 .lounge[data-card-design='parchment'] .player-card.insertion { background: #d8b97718; border: 1px dashed #efd1a0; outline: none; box-shadow: inset 0 0 0 3px #d8b97718; }
-.lounge[data-card-design='parchment'] .player-card.insertion::before { display: none; }
-.lounge[data-card-design='parchment'] .overlay-label { color: #392619; background: #f1dbb2; border: 1px solid #87613b; border-radius: 3px; padding: 2px 5px; left: 16px; right: auto; bottom: -10px; }
+.lounge[data-card-design='parchment'] .player-card.insertion::before,
+.lounge[data-card-design='parchment'] .player-card.insertion::after { display: none; }
+.lounge[data-card-design='parchment'] .overlay-label { color: #392619; background: #f1d28b; border: 1px solid #87613b; border-radius: 3px; padding: 2px 5px; left: 16px; right: auto; bottom: -10px; }
 @media (max-width: 360px) {
   .lounge[data-card-design='parchment'] .player-card { padding: 12px; }
   .lounge[data-card-design='parchment'] .card-face { gap: 9px; }

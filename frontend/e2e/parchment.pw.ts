@@ -5,10 +5,11 @@ for (const width of [320, 375, 390, 1280]) {
     await page.setViewportSize({ width, height: 1050 })
     await page.goto('/dev/lounge.html')
     const card = page.locator('.table-cards > li').first()
-    const material = () => card.evaluate(n => ({ background: getComputedStyle(n, '::before').backgroundImage, shadow: getComputedStyle(n).boxShadow }))
+    const material = () => card.evaluate(n => ({ background: getComputedStyle(n, '::before').backgroundImage, shadow: getComputedStyle(n).boxShadow, roll: getComputedStyle(n, '::after').backgroundImage }))
     await expect(page.getByRole('switch', { name: 'Pergament-Karten' })).toBeChecked()
     const before = await material()
     expect(before.background).toContain('data:image/svg+xml')
+    expect(before.roll).toContain('data:image/svg+xml')
     await page.waitForTimeout(350)
     expect(await material()).toEqual(before)
     for (const button of await page.locator('.card-controls button').all()) {
@@ -19,6 +20,10 @@ for (const width of [320, 375, 390, 1280]) {
     for (const row of await page.locator('.table-cards > li').all()) {
       expect(await row.evaluate(n => {
         const bounds = n.getBoundingClientRect()
+        const roll = getComputedStyle(n, '::after')
+        const rollRight = bounds.left + n.clientLeft + parseFloat(roll.left) + parseFloat(roll.width)
+        const symbol = n.querySelector('.deck-mark')!.getBoundingClientRect()
+        if (rollRight >= symbol.left || bounds.left + parseFloat(roll.left) < 0) return false
         return [...n.querySelectorAll('.card-face, .card-controls, h3, strong, p, button')].every(child => {
           const rect = child.getBoundingClientRect()
           return rect.left >= bounds.left && rect.right <= bounds.right
@@ -37,6 +42,7 @@ for (const width of [320, 375, 390, 1280]) {
     await page.getByRole('button', { name: 'Spiel starten', exact: true }).click()
     const toggle = page.getByRole('switch', { name: 'Pergament-Karten' })
     await toggle.uncheck()
+    expect(await card.evaluate(n => getComputedStyle(n, '::after').content)).toBe('none')
     await expect(page.locator('.table-cards h3')).toHaveText(['Orin', 'Mira', 'Lumi', 'Fenn'])
     await expect(page.getByText(/Demo-Runde 1 gestartet/)).toBeVisible()
     await page.screenshot({ path: info.outputPath('classic.png'), fullPage: true })
@@ -59,6 +65,9 @@ test('held paper, insertion and invalid drop retain material', async ({ page }, 
   await page.mouse.down()
   await page.mouse.move(grip.x + 20, target.y + 20)
   const overlay = page.locator('.drag-overlay')
+  const restingRoll = await page.locator('.table-cards > li').nth(1).evaluate(n => getComputedStyle(n, '::after').backgroundImage)
+  expect(await overlay.evaluate(n => getComputedStyle(n, '::after').backgroundImage)).toBe(restingRoll)
+  expect(await page.locator('.insertion').evaluate(n => getComputedStyle(n, '::after').display)).toBe('none')
   const material = await overlay.evaluate(n => getComputedStyle(n, '::before').backgroundImage)
   expect(material).toContain('data:image/svg+xml')
   await expect(page.locator('.insertion')).toHaveCount(1)

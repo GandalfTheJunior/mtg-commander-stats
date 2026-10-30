@@ -899,3 +899,28 @@ to iPhone. Inspect wax seals, 5% upward insertion/hysteresis, downward insertion
 landing, focus, independent controls and live reduced motion. If C misses goals,
 propose D as an explicit PO compromise. Neither a clean short run nor the automatic
 stress run establishes permanent stability or authorizes merging #161.
+
+### PO roll-edge refinement (PR #167)
+
+The [PO feedback](https://github.com/GandalfTheJunior/mtg-commander-stats/pull/167#issuecomment-6527319022)
+and both attached photos were inspected. The paper now uses a more golden honey
+centre with restrained pigment differences. A small cylinder at the left has a
+vertical axis: the sheet appears to unroll to the right, while the four rows keep
+their existing dimensions, content and controls. The original local SVG depicts
+a rounded barrel, bright longitudinal highlight, dark tucked seam and elliptical
+spiral ends; the reference photos are not bundled.
+
+`paper-roll.svg` paints one static, pointer-transparent `::after` background,
+18px wide, overhanging 7px into the existing left gutter. It occupies no layout
+space, adds no animation/filter/GPU hint and stays clear of the symbol even at
+320px. The same pseudo-element follows the whole-card overlay through landing.
+The insertion slot suppresses both paper pseudo-elements to keep the dashed
+marker clear. All new styling is scoped to parchment; classic appearance,
+lighting and all pointer/keyboard/landing logic are unchanged.
+
+The existing parchment browser cases now also check that the roll stays clear of
+symbols, stays within the viewport, shares the overlay material, remains static
+under firelight and disappears for classic/insertion. Inspect fresh normal,
+held/insertion and landing captures at 320/375/390/1280px, with fire off and
+reduced motion as well as defaults. PO iPhone confirmation is still required;
+this revision is not a merge authorization.
