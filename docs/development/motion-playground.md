@@ -33,7 +33,7 @@ entries are hidden in production builds.
   native touch scrolling. A 6px activation distance avoids converting taps to drags.
   Unchanged drops never notify the parent or reset confirmed selection.
 - ResizeObserver measures unequal card dimensions. A fixed whole-card overlay tracks
-  viewport coordinates; compacted-list midpoint thresholds determine insertion.
+  viewport coordinates; pointer penetration of 5% of each original target determines insertion.
   CSS transforms preview reflow before drop, independent of animated DOM bounds.
 - A valid release commits insertion immediately, but retains the same whole-card
   overlay for a 260ms measured landing. A layout effect records the new keyed DOM
@@ -718,19 +718,23 @@ switching design alone preserves the current demo state. The entire experiment
 remains in the existing dev-only import graph.
 
 `insertionIndex` uses pointer Y relative to live list bounds and measured card
-heights. Above the pickup slot, enter when Y <= target bottom − 5% of target
-height (120px → 6px penetration). Retreat only when Y > that threshold + 6px.
-Multiple unequal targets are evaluated in untransformed original order, so
-preview reflow cannot move the thresholds or flip direction. Scrolling changes
-list-relative pointer Y through the existing scroll refresh. Below the pickup
-slot, the original compacted-list midpoint comparisons remain unchanged.
+heights. Both directions now share axis-relative entry/hysteresis logic (#164):
+above pickup, enter at target bottom − 5% of its height; below pickup, enter at
+target top + 5%. A 120px target requires exactly 6px penetration, including
+equality. Touching an edge or crossing a gap alone does not enter. Retreat must
+exceed 6 CSS pixels past the same threshold; exactly 6px still holds the preview.
+Multiple unequal targets use untransformed original order, including multi-slot
+jumps and reversals across pickup. Preview reflow never moves thresholds.
+Scrolling updates list-relative pointer Y through the existing refresh; grip
+offset and overlay edges never participate. The shared signed entry-edge math
+can apply to another axis later; no horizontal interaction is implemented.
 Drop still commits insertion with the original whole-card 260ms landing;
 cancellation, keyboard movement and edge-scroll scheduling are unchanged.
 
 Verification: `npm test -- src/playground`; `npm run test:browser --
 e2e/wax-seal.pw.ts e2e/landing.pw.ts e2e/firelight.pw.ts` for Chromium/WebKit.
 The new tests cover exact penetration, variable heights, six-pixel jitter and
-reversal, unchanged downward thresholds, action/reset comparison, focus,
+reversal, symmetric downward thresholds, action/reset comparison, focus,
 Enter/Space, live reduced motion and 320/375/390/1280px overflow/screenshots.
 
 For the physical iPhone comparison: on the previous main, pull Fenn upward and
@@ -741,3 +745,16 @@ past Orin/Mira, release, repeat downward, scroll/rotate/cancel, then compare
 wax on/off and repeatedly confirm/start/reset. Check labels, touch and keyboard
 focus at narrow widths. Physical iPhone Safari, VoiceOver and aesthetic approval
 remain PO checks; browser WebKit emulation does not establish device approval.
+
+### Symmetric pointer verification (#164)
+
+`npm test -- src/playground/insertionIndex.test.ts src/playground/SortableTable.test.tsx`
+covers before/on/after thresholds, unequal heights/gaps, mirrored directions,
+6px hysteresis, multi-slot jumps, grip offsets, scroll and commit-only-on-drop.
+`npm run test:browser -- e2e/pointer-threshold.pw.ts e2e/landing.pw.ts e2e/firelight.pw.ts`
+checks browser reflow, reversal, landing/cancellation and firelight regression.
+For iPhone acceptance, compare downward entry against the old midpoint behavior:
+enter just 5% into the original target, reverse slightly then deliberately,
+continue across several cards and back through pickup. Repeat upward, at both
+grip edges, with scrolling and Kaminlicht on/off. Physical touch feel and Safari
+performance remain PO checks; desktop browser emulation cannot establish them.
