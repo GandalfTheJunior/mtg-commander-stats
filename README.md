@@ -211,6 +211,15 @@ Players show Spiele, Siege and Siegrate; decks also show commander, owner and
 archived decks. **Kennung anzeigen / Kennung verbergen** reveals full player or
 deck identifiers (plus deck owner ID) on request to distinguish identical names.
 Percentages come directly from the backend, with at most two decimal places.
+A shared **Spielerzahl** selector filters all statistics to **Alle** or games
+with exactly 2–6 participants. Below the selected player/deck dataset,
+**Siegrate nach Startplatz** compares starting seats separately for each table
+size, while **Siegrate nach Manafarbe** shows wins and appearances for each
+saved deck color identity. A multicolor deck contributes to every color in its
+identity, so Mana-color categories overlap and their percentages need not add
+up to 100%. Empty categories show explicit no-data feedback; the filter also
+applies to both chart sections. See the [statistics API](docs/product/statistics-api.md)
+for the counting rules.
 
 Initially, **Standardreihenfolge** retains the received API order: players by
 username/user ID, decks by owner/deck name/deck ID. Mobile **Sortieren nach** and
