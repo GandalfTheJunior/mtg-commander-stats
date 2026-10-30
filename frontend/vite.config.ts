@@ -1,4 +1,5 @@
 import react from '@vitejs/plugin-react'
+import { fileURLToPath } from 'node:url'
 import { availableParallelism } from 'node:os'
 import { configDefaults, defineConfig } from 'vitest/config'
 
@@ -23,6 +24,13 @@ export default defineConfig({
     },
   },
   test: {
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.test.{ts,tsx}', 'src/**/*.spec.{ts,tsx}', 'src/**/*.d.ts', 'src/test/**'],
+      reportOnFailure: true,
+      reporter: [[fileURLToPath(new URL('./tools/split-coverage.mjs', import.meta.url))]],
+    },
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     // Vitest reserves one CPU by default, leaving two-CPU runners serial.
