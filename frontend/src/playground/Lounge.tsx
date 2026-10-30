@@ -16,14 +16,15 @@ export function Lounge() {
   const [order, setOrder] = useState(initialOrder)
   const [selected, setSelected] = useState(false)
   const [wax, setWax] = useState(true)
+  const [parchment, setParchment] = useState(true)
   const [round, setRound] = useState(0)
   useEffect(() => {
     const change = () => setHidden(document.hidden)
     document.addEventListener('visibilitychange', change)
     return () => document.removeEventListener('visibilitychange', change)
   }, [])
-  const reset = () => { setOrder(initialOrder); setSelected(false); setRound(0); setFire(true); setFlies(true); setIntensity('quiet'); setWax(true) }
-  return <div className="lounge" data-intensity={intensity} data-reduced={reduced} data-hidden={hidden} data-fire={fire}>
+  const reset = () => { setOrder(initialOrder); setSelected(false); setRound(0); setFire(true); setFlies(true); setIntensity('quiet'); setWax(true); setParchment(true) }
+  return <div className="lounge" data-card-design={parchment ? 'parchment' : 'classic'} data-intensity={intensity} data-reduced={reduced} data-hidden={hidden} data-fire={fire}>
     <StoneWall />
     <Firelight enabled={fire} animated={!reduced} strong={intensity === 'strong'} />
     <StoneJoints />
@@ -33,6 +34,7 @@ export function Lounge() {
       <div className="lounge-grid">
         <section className="table-section" aria-labelledby="table-title"><div className="section-heading"><h2 id="table-title">Euer Tisch</h2><span>04 / 04 Plätze</span></div>
           <SortableTable order={order} onChange={next => { setOrder(next); setSelected(false) }} reduced={reduced} />
+          <FormControlLabel control={<Switch color="secondary" checked={parchment} onChange={(_, checked) => setParchment(checked)} />} label="Pergament-Karten" />
           <FormControlLabel control={<Switch color="secondary" checked={wax} onChange={(_, checked) => setWax(checked)} />} label="Wachssiegel-Design" />
           <div className="demo-actions">{wax ? <>
             <WaxSealButton symbol="check" aria-pressed={selected} onClick={() => setSelected(s => !s)}>{selected ? '✓ Auswahl bestätigt' : 'Auswahl bestätigen'}</WaxSealButton>

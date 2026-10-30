@@ -758,3 +758,43 @@ enter just 5% into the original target, reverse slightly then deliberately,
 continue across several cards and back through pickup. Repeat upward, at both
 grip edges, with scrolling and Kaminlicht on/off. Physical touch feel and Safari
 performance remain PO checks; desktop browser emulation cannot establish them.
+
+## Parchment player rows (#165)
+
+The Lounge defaults to **Pergament-Karten**. Its switch compares the existing
+classic dark cards with warm honey/cream paper without remounting the list or
+changing order, confirmation, round, wax design, intensity or ambience. Reset
+restores parchment on alongside all other demo defaults; reload has the same
+local defaults. There is no persistence or new URL parameter for card design.
+
+The approved [issue reference](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/165#issuecomment-6524063340)
+was inspected. Compact horizontal rows retain all four original players, decks,
+notes and symbols. Static local SVG grain, softly mottled gradients and a subtly
+irregular paper edge suggest aged material. Coloured symbol fields and dark ink
+retain the hierarchy. These are an interpretation of the reference, subject to
+PO iPhone visual approval. No reference bitmap, remote art or new dependency is
+bundled. Longer notes deliberately make unequal rows, especially at 320px.
+
+The right-hand grip, arrows and their overlay equivalents retain 44px targets;
+keyboard tab order and announcements are unchanged. Paper controls have dark
+focus rings and distinct hover/pressed/disabled states. The insertion slot stays
+transparent with a quiet dashed warm outline; held and landing overlays share
+the paper surface and show the existing valid/invalid label. Only the existing
+`--card-lift` landing clock changes elevation; paper grain, surface and shadows
+do not consume animated `--card-fire`, add loops, or promote layers.
+
+Run `npm test -- src/playground` and `npm run test:browser -- e2e/parchment.pw.ts
+e2e/pointer-threshold.pw.ts e2e/landing.pw.ts` in Chromium/WebKit. The material
+suite captures 320/375/390/1280px, focus, classic comparison, fire off/reduced
+motion, held insertion and invalid drop. Existing landing and pointer regressions
+exercise actual measured unequal paper heights. Historical coupled-light tests
+explicitly select classic cards to preserve their original lighting contract.
+Landing test coordinates now stay inside the measured right-hand grip rather
+than assuming a left-hand grip plus a 100px offset.
+
+For PO review, compare paper/classic with light on/off, then drag both ways across
+several cards, reverse around 5% entry, cancel outside/Escape, drop during reflow,
+scroll at edges and during landing, use keyboard and switch reduced motion live.
+Check paper colour, restrained edges, note readability and focus at native iPhone
+scale. Physical Safari performance, VoiceOver and final visual acceptance remain
+PO checks; desktop WebKit is not physical-device evidence.
