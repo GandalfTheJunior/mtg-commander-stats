@@ -3,6 +3,7 @@ import type { PointerEvent as ReactPointerEvent } from 'react'
 import { Button } from '@mui/material'
 
 import { players, insert } from './ordering'
+import { insertionIndex } from './insertionIndex'
 import { startEdgeScroll } from './edgeScroll'
 import { startLandingClock } from './landingClock'
 import { measureOverlay, withinDropZone } from './landingGeometry'
@@ -167,12 +168,7 @@ export function SortableTable({ order, onChange, reduced }: { order: string[]; o
     const bounds = list.current.getBoundingClientRect()
     const valid = withinDropZone(d.px, d.py, bounds)
     const { order: ids, heights: measured } = geometry.current
-    const rest = ids.filter(id => id !== d.id)
-    let top = 0, index = 0
-    for (const id of rest) {
-      if (d.py - bounds.top > top + measured[id] / 2) index++
-      top += measured[id] + gap
-    }
+    const index = insertionIndex(ids.map(id => measured[id] ?? 0), ids.indexOf(d.id), d.preview.indexOf(d.id), d.py - bounds.top)
     const next = { ...d, x: d.px - d.dx, y: d.py - d.dy, valid, preview: valid ? insert(ids, d.id, index) : ids }
     current.current = next
     setDrag(next)

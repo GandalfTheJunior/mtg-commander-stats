@@ -698,3 +698,46 @@ Updated browser tests cover raised-facet coupling, maximum-signal headroom,
 static mode comparisons and joint colour/layering; the semantic test checks an
 irregular approximately 10% raised population. Physical iPhone Safari and final
 visual acceptance remain PO checks when a device is available.
+
+## Lounge wax seals and upward preview (#160)
+
+The [PO reference's upper row](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/160#issuecomment-6521042053)
+guides three ordinary actions: confirm selection, start demo, reset. Local
+`WaxSealButton` SVG/CSS interprets the burgundy irregular rim, small drips,
+matte embossed core and cream/gold symbols. Readable 15px labels sit below the
+seal inside the same native button. Hover/focus brighten; pressing compresses
+briefly and releases intact. Disabled is muted; confirmed has an underlined,
+checked label. No breaking, parchment, finalized-deck action, runtime assets,
+new dependencies or production theme changes. Reduced motion removes transitions,
+including live OS changes; static interaction states remain recognizable.
+
+**Wachssiegel-Design** switches all three actions between the original MUI and
+wax presentation without changing selection, round or ambience. Initial state
+is on. **Demo zurücksetzen** restores every demo default, including design on;
+switching design alone preserves the current demo state. The entire experiment
+remains in the existing dev-only import graph.
+
+`insertionIndex` uses pointer Y relative to live list bounds and measured card
+heights. Above the pickup slot, enter when Y <= target bottom − 5% of target
+height (120px → 6px penetration). Retreat only when Y > that threshold + 6px.
+Multiple unequal targets are evaluated in untransformed original order, so
+preview reflow cannot move the thresholds or flip direction. Scrolling changes
+list-relative pointer Y through the existing scroll refresh. Below the pickup
+slot, the original compacted-list midpoint comparisons remain unchanged.
+Drop still commits insertion with the original whole-card 260ms landing;
+cancellation, keyboard movement and edge-scroll scheduling are unchanged.
+
+Verification: `npm test -- src/playground`; `npm run test:browser --
+e2e/wax-seal.pw.ts e2e/landing.pw.ts e2e/firelight.pw.ts` for Chromium/WebKit.
+The new tests cover exact penetration, variable heights, six-pixel jitter and
+reversal, unchanged downward thresholds, action/reset comparison, focus,
+Enter/Space, live reduced motion and 320/375/390/1280px overflow/screenshots.
+
+For the physical iPhone comparison: on the previous main, pull Fenn upward and
+observe the late midpoint preview. On this branch, pull at the grip into the
+bottom 5% of Lumi: preview should appear immediately after that threshold,
+stay steady on tiny reversals and revert after a deliberate retreat. Continue
+past Orin/Mira, release, repeat downward, scroll/rotate/cancel, then compare
+wax on/off and repeatedly confirm/start/reset. Check labels, touch and keyboard
+focus at narrow widths. Physical iPhone Safari, VoiceOver and aesthetic approval
+remain PO checks; browser WebKit emulation does not establish device approval.

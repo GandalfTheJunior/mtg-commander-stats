@@ -106,7 +106,8 @@ jobs:
   playground-browser:
     name: playground browser (Chromium + WebKit)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Both engines run serially; the expanded visual suites need ~12 minutes.
+    timeout-minutes: 15
     # Match the pinned test package; browsers/OS libraries are preinstalled.
     # Avoid apt mirror stalls in playwright install --with-deps.
     container: mcr.microsoft.com/playwright:v1.64.1-noble
