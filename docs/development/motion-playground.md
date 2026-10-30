@@ -666,3 +666,35 @@ Repeat drag, touch scrolling and keyboard reorder. Inspect Chromium and WebKit,
 then physical iPhone Safari when available; emulation is not device evidence.
 `e2e/stone-wall.pw.ts` records mode screenshots and a 25s coupled-light sample;
 the existing interaction and Firelight suites retain lifecycle coverage.
+
+### PO relief/contrast refinement (PR #159)
+
+Sixteen of the 156 stones (10.3%) are explicitly selected at unequal intervals,
+including the narrow-screen crop. Their neutral bevel depth is 34 SVG units
+versus 5 on ordinary blocks, with larger upper-left cast/contact shadows and
+broader bottom/right facets. The neutral relief survives fire-off.
+
+Joints/contact tones use cool anthracite (`#1b1e22`), not black. `StoneJoints`
+paints one static even-odd negative-space path **after** the diffuse room wash,
+using the exact same precomputed face contours as `StoneWall`. Only gaps paint;
+faces retain the room reflections. This avoids turning every joint orange under
+strong fire without masking content or introducing filters. Both layers remain
+decorative, clipped, unfocusable and pointer-transparent.
+
+Wall facets use the square of the existing `--card-fire` as an energy response,
+not a new timeline. Raised edge opacity is `.04 + 1.3*f²`, opposing shadow
+`.04 + 1.25*f²`; ordinary stones use gentler `.1 + .9*f²` / `.06 + .85*f²`.
+For the existing maximum `f < .84`, raised edges stay below .958 and shadows
+below .923: peaks gain contrast without opacity clipping or a hard threshold.
+Quiet/reduced-motion modes keep their original signal levels; off explicitly
+zeros fire-only paths. Firelight, room/card curves and scheduling are unchanged.
+
+Compare the pre-review and refined wall in Off/Dezent/Deutlich on desktop and
+320/375/390px, including neutral raised relief and grey gaps under strong light.
+Watch 25s of the same live fire driving both raised facets and opposite shadows;
+verify greater peak-to-trough contrast, soft return, text/focus readability and
+unchanged drag/landing. Repeat the existing live reduced-motion and tab checks.
+Updated browser tests cover raised-facet coupling, maximum-signal headroom,
+static mode comparisons and joint colour/layering; the semantic test checks an
+irregular approximately 10% raised population. Physical iPhone Safari and final
+visual acceptance remain PO checks when a device is available.

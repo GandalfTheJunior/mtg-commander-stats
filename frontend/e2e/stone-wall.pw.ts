@@ -10,21 +10,34 @@ for (const width of [320, 375, 390, 1280]) {
     await expect(wall.locator('svg')).toHaveAttribute('focusable', 'false')
     expect(await wall.evaluate(n => getComputedStyle(n).pointerEvents)).toBe('none')
     const sample = () => wall.evaluate(n => ({
-      edge: Number(getComputedStyle(n.querySelector('.stone-fire-edge')!).opacity),
-      shade: Number(getComputedStyle(n.querySelector('.stone-fire-shadow')!).opacity),
+      edge: Number(getComputedStyle(n.querySelector('.stone-raised .stone-fire-edge')!).opacity),
+      shade: Number(getComputedStyle(n.querySelector('.stone-raised .stone-fire-shadow')!).opacity),
       base: getComputedStyle(n.querySelector('.stone > path:nth-child(3)')!).fill,
       filter: getComputedStyle(n.querySelector('svg')!).filter,
     }))
     const quiet = await sample()
-    expect(quiet.edge).toBeCloseTo(.3 * .65)
-    expect(quiet.shade).toBeCloseTo(.3 * .6)
+    expect(quiet.edge).toBeCloseTo(.04 + .3 ** 2 * 1.3)
+    expect(quiet.shade).toBeCloseTo(.04 + .3 ** 2 * 1.25)
     expect(quiet.filter).toBe('none')
+    const joints = page.locator('.stone-joints')
+    await expect(joints).toHaveAttribute('aria-hidden', 'true')
+    expect(await joints.evaluate(n => getComputedStyle(n).pointerEvents)).toBe('none')
+    expect(await joints.locator('path').evaluate(n => getComputedStyle(n).fill)).toBe('rgb(27, 30, 34)')
+    // Joints paint above the warm wash; content remains above both layers.
+    expect(await joints.evaluate(n => !!(document.querySelector('.room-light')!.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true)
     await page.screenshot({ path: info.outputPath('stone-quiet.png'), fullPage: true })
     await page.getByRole('button', { name: 'Deutlich', exact: true }).click()
     const strong = await sample()
-    expect(strong.edge).toBeCloseTo(.58 * .65)
-    expect(strong.shade).toBeCloseTo(.58 * .6)
+    expect(strong.edge).toBeCloseTo(.04 + .58 ** 2 * 1.3)
+    expect(strong.shade).toBeCloseTo(.04 + .58 ** 2 * 1.25)
     await page.screenshot({ path: info.outputPath('stone-strong.png'), fullPage: true })
+    // The maximum possible shared signal still has headroom on raised facets.
+    await page.locator('.lounge').evaluate(n => (n as HTMLElement).style.setProperty('--card-fire', '.84'))
+    const peak = await sample()
+    expect(peak.edge).toBeGreaterThan(strong.edge)
+    expect(peak.edge).toBeLessThan(1)
+    expect(peak.shade).toBeLessThan(1)
+    await page.locator('.lounge').evaluate(n => (n as HTMLElement).style.setProperty('--card-fire', '.58'))
     await page.waitForTimeout(150)
     expect(await sample()).toEqual(strong)
     await page.getByRole('switch', { name: 'Kaminlicht' }).click()
@@ -56,8 +69,8 @@ test('wall highlights and opposite shadows follow the same live flare as cards',
     const sample = () => {
       const fire = Number(getComputedStyle(document.querySelector('.player-card')!).getPropertyValue('--card-fire'))
       rows.push({ time: performance.now() - start, fire,
-        edge: Number(getComputedStyle(document.querySelector('.stone-fire-edge')!).opacity),
-        shade: Number(getComputedStyle(document.querySelector('.stone-fire-shadow')!).opacity) })
+        edge: Number(getComputedStyle(document.querySelector('.stone-raised .stone-fire-edge')!).opacity),
+        shade: Number(getComputedStyle(document.querySelector('.stone-raised .stone-fire-shadow')!).opacity) })
       if (performance.now() - start < 25000) setTimeout(sample, 100)
       else resolve(rows)
     }
@@ -65,9 +78,13 @@ test('wall highlights and opposite shadows follow the same live flare as cards',
   }))
   await info.attach('live-stone-flare.json', { body: JSON.stringify(samples), contentType: 'application/json' })
   expect(Math.max(...samples.map(s => s.fire)) - Math.min(...samples.map(s => s.fire))).toBeGreaterThan(.08)
+  const range = (key: 'edge' | 'shade' | 'fire') => Math.max(...samples.map(s => s[key])) - Math.min(...samples.map(s => s[key]))
+  // Raised relief varies more than the previous .65/.6 linear wall response.
+  expect(range('edge')).toBeGreaterThan(range('fire') * .65)
+  expect(range('shade')).toBeGreaterThan(range('fire') * .6)
   for (const row of samples) {
-    expect(row.edge).toBeCloseTo(row.fire * .65, 4)
-    expect(row.shade).toBeCloseTo(row.fire * .6, 4)
+    expect(row.edge).toBeCloseTo(.04 + row.fire ** 2 * 1.3, 4)
+    expect(row.shade).toBeCloseTo(.04 + row.fire ** 2 * 1.25, 4)
     expect(row.edge).toBeGreaterThan(0)
     expect(row.edge).toBeLessThan(1)
   }

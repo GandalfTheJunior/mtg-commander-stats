@@ -4,12 +4,17 @@ body { margin: 0; }
 .lounge { min-height: 100vh; position: relative; isolation: isolate; overflow: clip; background: radial-gradient(ellipse at 0 70%, #46222a77, transparent 65%), repeating-linear-gradient(92deg, #ffffff02 0 1px, transparent 1px 70px), #20151c; }
 /* Finite vector backdrop, clipped independently from content. A minimum width
    retains massive stones on phones; no tiling seam or viewport filter. */
-.stone-wall { position: absolute; inset: 0; overflow: hidden; pointer-events: none; background: #302926; }
-.stone-wall svg { position: absolute; top: 0; left: 50%; width: max(100%, 760px); height: auto; transform: translateX(-50%); }
+.stone-wall, .stone-joints { position: absolute; inset: 0; overflow: hidden; pointer-events: none; background: #1b1e22; }
+.stone-wall svg, .stone-joints svg { position: absolute; top: 0; left: 50%; width: max(100%, 760px); height: auto; transform: translateX(-50%); }
+.stone-joints { background: transparent; }
+.stone-wall { --stone-energy: calc(var(--card-fire, .3) * var(--card-fire, .3)); --stone-edge: calc(.1 + var(--stone-energy) * .9); --stone-shadow: calc(.06 + var(--stone-energy) * .85); }
+/* Squared shared energy emphasizes peaks without clipping: even f=.84 gives
+   raised edge opacity .9573 and shadow .922. Quiet remains restrained. */
+.stone-raised { --stone-edge: calc(.04 + var(--stone-energy) * 1.3); --stone-shadow: calc(.04 + var(--stone-energy) * 1.25); }
 .stone-wall::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, #20151c66, #20151c99 36%, #20151c33 80%), linear-gradient(#20151c88, transparent 340px, transparent 80%, #302926); }
 .stone-fire-edge, .stone-fire-shadow { fill: none; stroke-linejoin: round; stroke-linecap: round; }
-.stone-fire-edge { stroke: #e7b375; opacity: calc(var(--card-fire, .3) * .65); }
-.stone-fire-shadow { stroke: #130f13; opacity: calc(var(--card-fire, .3) * .6); }
+.stone-fire-edge { stroke: #f3c080; opacity: var(--stone-edge); }
+.stone-fire-shadow { stroke: #151a21; opacity: var(--stone-shadow); }
 .lounge[data-fire='false'] .stone-fire-edge, .lounge[data-fire='false'] .stone-fire-shadow { opacity: 0; }
 .lounge-main { position: relative; z-index: 1; max-width: 1160px; margin: auto; padding: 32px 40px; }
 .lounge-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 25px; border-bottom: 1px solid #c6a05e40; }

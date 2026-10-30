@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Button, FormControlLabel, Switch, ToggleButton, ToggleButtonGroup, useMediaQuery } from '@mui/material'
 import { LoungeWindow } from './LoungeWindow'
 import { Firelight } from './Firelight'
-import { StoneWall } from './StoneWall'
+import { StoneJoints, StoneWall } from './StoneWall'
 import { initialOrder } from './ordering'
 import { SortableTable } from './SortableTable'
 
@@ -24,6 +24,7 @@ export function Lounge() {
   return <div className="lounge" data-intensity={intensity} data-reduced={reduced} data-hidden={hidden} data-fire={fire}>
     <StoneWall />
     <Firelight enabled={fire} animated={!reduced} strong={intensity === 'strong'} />
+    <StoneJoints />
     <main className="lounge-main">
       <header className="lounge-header"><a href="/dev/lounge.html" className="lounge-wordmark">CC <span>COZY COMMANDER</span></a><span className="prototype">MOTION PLAYGROUND · NUR DEMO</span></header>
       <div className="lounge-intro"><span className="overline">Ein Tisch. Vier Geschichten.</span><h1>Bleib noch eine Runde.</h1><p>Ein ruhiger Ort für große Züge und kleine Experimente.</p></div>
