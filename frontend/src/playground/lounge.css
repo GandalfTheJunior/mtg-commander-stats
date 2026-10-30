@@ -18,8 +18,9 @@ body { margin: 0; }
 @property --card-lift { syntax: '<number>'; inherits: false; initial-value: 0; }
 .lounge .player-card {
   --card-light: var(--card-fire, .3);
+  /* Cap the wash independently of the bright edge to retain small-text contrast. */
   background:
-    linear-gradient(115deg, rgb(8 4 9 / calc(var(--card-light) * .32)), transparent 48%, rgb(255 153 58 / calc(var(--card-light) * .5))),
+    linear-gradient(115deg, rgb(8 4 9 / calc(var(--card-light) * .32)), transparent 48%, rgb(255 153 58 / calc(var(--card-light) * .28))),
     linear-gradient(120deg, #3e2c32, #2b2228);
   box-shadow:
     calc(-4px - var(--card-light) * 12px - var(--card-lift) * 12px) calc(-3px - var(--card-light) * 7px - var(--card-lift) * 10px) calc(10px + var(--card-lift) * 26px) rgb(8 3 7 / calc(var(--card-light) * .68)),

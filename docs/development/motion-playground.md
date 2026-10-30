@@ -136,6 +136,9 @@ through soft compression (Dezent .16–.44, Deutlich .32–.84). One inherited
 `--card-fire` write accompanies the room writes, capped near 30Hz. The card wash,
 inset edge and cast-shadow opacity/distance all derive from it; there are no
 card timers, per-frame React renders or extra geometry reads for lighting.
+The surface wash is capped separately from the edge: even the theoretical .84
+peak over the brightest base color retains over 4.5:1 contrast for small note
+text. This conservative bound does not rely on the gradient's darker right side.
 The existing irregular event timing is preserved, including phase-preserving
 intensity changes, hidden-tab pausing and cleanup.
 
