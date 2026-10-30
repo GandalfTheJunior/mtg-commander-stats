@@ -1,0 +1,68 @@
+import { test, expect } from '@playwright/test'
+
+for (const width of [320, 375, 390, 1280]) {
+  test(`wax comparison, states and keyboard at ${width}px`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 1050 })
+    await page.goto('/dev/lounge.html')
+    const confirm = page.getByRole('button', { name: /Auswahl bestät/ })
+    const start = page.getByRole('button', { name: 'Spiel starten', exact: true })
+    await expect(start).toBeDisabled()
+    await confirm.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: info.outputPath('wax-idle-disabled.png'), fullPage: true })
+    await confirm.focus()
+    expect(await confirm.evaluate(n => getComputedStyle(n).outlineStyle)).toBe('solid')
+    await page.screenshot({ path: info.outputPath('wax-focus.png'), fullPage: true })
+    await page.keyboard.press('Space')
+    await expect(confirm).toHaveAttribute('aria-pressed', 'true')
+    await page.keyboard.press('Tab')
+    await expect(start).toBeFocused()
+    await page.keyboard.press('Enter')
+    await page.keyboard.press('Space')
+    await expect(page.getByText(/Demo-Runde 2 gestartet/)).toBeVisible()
+    await confirm.scrollIntoViewIfNeeded()
+    const box = (await confirm.boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + 30)
+    await page.mouse.down()
+    await page.screenshot({ path: info.outputPath('wax-pressed.png'), fullPage: true })
+    await page.mouse.up()
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    expect(await confirm.locator('svg').evaluate(n => getComputedStyle(n).transitionDuration)).toBe('0s')
+    await page.emulateMedia({ reducedMotion: 'no-preference' })
+    const toggle = page.getByRole('switch', { name: 'Wachssiegel-Design' })
+    await toggle.click()
+    await expect(page.locator('.wax-button')).toHaveCount(0)
+    await page.screenshot({ path: info.outputPath('classic.png'), fullPage: true })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+    await page.getByRole('button', { name: /Demo zurücksetzen/ }).click()
+    await expect(toggle).toBeChecked()
+    await expect(page.locator('.wax-button')).toHaveCount(3)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+  })
+}
+
+test('upward pointer threshold survives reflow in a tall viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1800 })
+  await page.goto('/dev/lounge.html')
+  const cards = page.locator('.table-cards > li')
+  const targets = await cards.evaluateAll(nodes => nodes.map(n => { const r = n.getBoundingClientRect(); return { bottom: r.bottom, height: r.height } }))
+  const grip = page.getByRole('button', { name: 'Fenn ziehen' })
+  const b = (await grip.boundingBox())!
+  const x = b.x + 20
+  await page.mouse.move(x, b.y + 20)
+  await page.mouse.down()
+  const shift = () => cards.nth(2).evaluate(n => new DOMMatrixReadOnly(getComputedStyle(n).transform).m42)
+  const threshold = targets[2].bottom - targets[2].height * .05
+  // Use whole pixels beyond either side: native events may round coordinates.
+  await page.mouse.move(x, Math.ceil(threshold) + 1)
+  expect(await shift()).toBe(0)
+  await page.mouse.move(x, Math.floor(threshold))
+  await expect.poll(shift).toBeGreaterThan(0)
+  await page.mouse.move(x, Math.floor(threshold) + 3)
+  await expect.poll(shift).toBeGreaterThan(0)
+  await page.mouse.move(x, Math.ceil(threshold) + 7)
+  await expect.poll(shift).toBe(0)
+  await page.mouse.move(x, Math.floor(targets[0].bottom - targets[0].height * .05))
+  await page.mouse.up()
+  await expect(page.locator('.table-cards h3')).toHaveText(['Fenn', 'Mira', 'Orin', 'Lumi'])
+  await expect(page.locator('.drag-overlay')).toHaveCount(0)
+})

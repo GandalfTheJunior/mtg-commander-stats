@@ -1,0 +1,13 @@
+.lounge .wax-button { appearance: none; border: 0; background: transparent; color: #f5dfb5; font: 600 15px/1.5 system-ui, sans-serif; cursor: pointer; padding: 8px; min-width: 0; min-height: 44px; display: inline-flex; flex-direction: column; align-items: center; gap: 4px; border-radius: 12px; }
+.demo-actions .wax-button { flex: 1 1 150px; }
+.wax-seal { width: 112px; height: 120px; overflow: visible; filter: drop-shadow(-3px 5px 3px #10060bb3); transition: transform 130ms ease-out, filter 130ms ease-out; }
+.wax-symbol { color: #f1cb8e; filter: drop-shadow(0 2px 0 #310713); }
+.wax-label { overflow-wrap: anywhere; text-align: center; }
+.wax-button:not(:disabled):hover .wax-seal, .wax-button:focus-visible .wax-seal { filter: brightness(1.13) drop-shadow(-3px 5px 3px #10060bb3); }
+.wax-button:not(:disabled):active .wax-seal { transform: translateY(2px) scale(.97); filter: brightness(.94) drop-shadow(-1px 2px 1px #10060bb3); }
+.lounge .wax-button:focus-visible { outline: 3px solid #ffe0a1; outline-offset: 3px; }
+.wax-button[aria-pressed='true'] .wax-label { text-decoration: underline; text-underline-offset: 4px; }
+.wax-button[aria-pressed='true'] .wax-seal { filter: brightness(1.18) drop-shadow(0 0 2px #e2b879); }
+.wax-button:disabled { cursor: default; color: #c3b5aa; }
+.wax-button:disabled .wax-seal { filter: saturate(.25) brightness(.7); }
+@media (prefers-reduced-motion: reduce) { .lounge .wax-seal { transition: none; } }
