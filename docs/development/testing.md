@@ -72,7 +72,9 @@ failures still do. No external coverage service or additional required job is us
   filters apply. The agent observes the Maven test JVM, not separately launched
   demo Java processes. Run from a clean workspace for a fresh baseline.
 - Frontend: `cd frontend && npm ci && npm run test:coverage`. This is one complete,
-  noninteractive Vitest run with V8 enabled. Its coverage map is partitioned into
+  noninteractive Vitest run with V8 enabled. Coverage runs test files serially
+  to avoid instrumented UI flows competing for CPU and exceeding their existing
+  time budgets; test isolation, assertions and timeouts are unchanged. Its coverage map is partitioned into
   `coverage/app/` and `coverage/playground/`, each containing `index.html`,
   `coverage-final.json` (per-file counters) and `coverage-summary.json` (totals
   and per-file percentages). There is no combined frontend headline percentage.
