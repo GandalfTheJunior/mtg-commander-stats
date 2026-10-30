@@ -633,3 +633,68 @@ late responses and 320/375/390/1280px overflow in Chromium and WebKit. Screensho
 from these tests are clearly synthetic layout evidence, not live Scryfall art.
 Use the existing browser CI artifact for both engines. Physical iPhone Safari
 and a live authenticated provider session still require PO visual acceptance.
+
+## Stone relief backdrop (#158)
+
+`StoneWall.tsx` is a finite original SVG masonry drawing in the Lounge's dev-only
+import graph. Unequal courses, staggered joints, split blocks, chipped contours
+and a few deeper stones suggest the forms in the two issue-comment references.
+The references guide relief only; the drawing uses the Lounge's warm earth tones,
+without copying the photos, downloading runtime assets or adding dependencies.
+Neutral faces/contact shadows remain when fire is off. Right/bottom bevels catch
+the conceptual lower-right fire; upper/left contact shadows deepen synchronously.
+Both use the existing inherited `--card-fire` (with explicit zero opacity when
+`data-fire=false`). There is no second timeline, per-stone random model, React
+frame render, observer or timer. Firelight's phase, 30Hz CSS writes, static
+reduced-motion levels, live preference changes and hidden/unmount cleanup are
+unchanged. No animated SVG filters, noise, WebGL or layout reads are used.
+
+The clipped backdrop is before room reflections and content. Its SVG is hidden
+from accessibility and unfocusable; the entire layer ignores pointer events.
+A minimum drawing width keeps blocks large on phones, with a continuous central
+crop rather than tiling. A quiet translucent veil lowers contrast behind text;
+the bottom fades into the base wall on unusually tall pages. Content sizing,
+focus order, window and drag/landing mechanics are unchanged.
+
+For PO review, compare Off/Dezent/Deutlich at 320, 375, 390 and 1280px, including
+a tall desktop viewport. Inspect joints, protrusions, text and focus contrast,
+window layering and no horizontal scrolling. Watch 25s in strong mode: brighter
+right/bottom edges and darker upper/left gaps must share the cards' irregular
+flare and soft return. Switch intensity mid-flare, toggle off/on, reset, hide
+and reopen the tab; change OS reduced motion live and check static warm relief.
+Repeat drag, touch scrolling and keyboard reorder. Inspect Chromium and WebKit,
+then physical iPhone Safari when available; emulation is not device evidence.
+`e2e/stone-wall.pw.ts` records mode screenshots and a 25s coupled-light sample;
+the existing interaction and Firelight suites retain lifecycle coverage.
+
+### PO relief/contrast refinement (PR #159)
+
+Sixteen of the 156 stones (10.3%) are explicitly selected at unequal intervals,
+including the narrow-screen crop. Their neutral bevel depth is 34 SVG units
+versus 5 on ordinary blocks, with larger upper-left cast/contact shadows and
+broader bottom/right facets. The neutral relief survives fire-off.
+
+Joints/contact tones use cool anthracite (`#1b1e22`), not black. `StoneJoints`
+paints one static even-odd negative-space path **after** the diffuse room wash,
+using the exact same precomputed face contours as `StoneWall`. Only gaps paint;
+faces retain the room reflections. This avoids turning every joint orange under
+strong fire without masking content or introducing filters. Both layers remain
+decorative, clipped, unfocusable and pointer-transparent.
+
+Wall facets use the square of the existing `--card-fire` as an energy response,
+not a new timeline. Raised edge opacity is `.04 + 1.3*f²`, opposing shadow
+`.04 + 1.25*f²`; ordinary stones use gentler `.1 + .9*f²` / `.06 + .85*f²`.
+For the existing maximum `f < .84`, raised edges stay below .958 and shadows
+below .923: peaks gain contrast without opacity clipping or a hard threshold.
+Quiet/reduced-motion modes keep their original signal levels; off explicitly
+zeros fire-only paths. Firelight, room/card curves and scheduling are unchanged.
+
+Compare the pre-review and refined wall in Off/Dezent/Deutlich on desktop and
+320/375/390px, including neutral raised relief and grey gaps under strong light.
+Watch 25s of the same live fire driving both raised facets and opposite shadows;
+verify greater peak-to-trough contrast, soft return, text/focus readability and
+unchanged drag/landing. Repeat the existing live reduced-motion and tab checks.
+Updated browser tests cover raised-facet coupling, maximum-signal headroom,
+static mode comparisons and joint colour/layering; the semantic test checks an
+irregular approximately 10% raised population. Physical iPhone Safari and final
+visual acceptance remain PO checks when a device is available.
