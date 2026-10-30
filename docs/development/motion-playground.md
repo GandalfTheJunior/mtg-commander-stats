@@ -308,13 +308,17 @@ npm run test:browser
 ```
 
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium` can use a locally installed
-Chromium. The dedicated CI job runs Chromium and WebKit with real browser layout,
+Chromium. Dedicated CI matrix jobs run Chromium and WebKit with real browser layout,
 requestAnimationFrame and Web Animations. The test harness does not pause, seek
 or mock them; it observes the production frame-driven clock.
 CI uses the matching official Playwright container with preinstalled browsers/OS
-libraries, avoiding the observed ~53-minute Ubuntu apt-mirror delay; the job has a
-10-minute bound. It uploads HTML reports, frame-position JSON, failure traces/screenshots and videos
-as `playground-browser-evidence` (14-day retention). Browser tests are separate from
+libraries, avoiding the observed ~53-minute Ubuntu apt-mirror delay. Each engine
+keeps one test worker and the existing 15-minute job bound. Running engines in
+separate jobs avoids exhausting that bound with the expanded 128-case combined
+suite; no test, assertion or timeout is relaxed. Each uploads HTML reports,
+frame-position JSON, failure traces/screenshots and videos as
+`playground-browser-evidence-chromium` or `playground-browser-evidence-webkit`
+(14-day retention). Browser tests are separate from
 Vitest and included in lint/typecheck. Existing frontend/backend checks still apply.
 
 The suite checks upward/downward edge scrolling, unequal heights, exact release
