@@ -35,6 +35,25 @@ If requirements changed and an existing expectation is now incorrect, update it
 and explain why the previous expectation is no longer valid. Investigate the
 underlying cause of flaky tests.
 
+## Frontend Vitest execution
+
+The normal `npm run test` command uses Vitest's default isolated `forks`
+pool and `maxWorkers: '100%'` in [`frontend/vite.config.ts`](../../frontend/vite.config.ts).
+On runners where `availableParallelism()` reports at most two CPUs, Vitest
+runs most files in a parallel project, then executes `GroupPage`,
+`GroupStatistics`, `GameEditor` and `GameSession` test files in a separate
+non-file-parallel project. This avoids CPU contention for the larger React/jsdom
+flows without skipping tests or increasing timeouts. On larger runners, the
+special project split is omitted. Preserve the complete App/router integration
+and accessible role/name/visibility assertions when extending UI coverage;
+prefer queries scoped to the relevant region or dialog over repeated document-wide
+positive queries. Keep document-wide checks where absence across the whole page
+is the behavior under test.
+
+Runner load affects elapsed time. Compare complete successful runs with the same
+suite, dependencies and comparable runner resources before attributing a timing
+change to code; a single run or different CI hardware is not a stable baseline.
+
 ## Required checks
 
 Run checks relevant to the changed code before declaring completion. The
