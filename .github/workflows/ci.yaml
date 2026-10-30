@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feat/160-lounge-wax-seals]
   push:
     branches: [main]
 
