@@ -213,3 +213,32 @@ test('upward preview follows pointer penetration and hysteresis, then commits in
   fireEvent.pointerUp(grip, { clientX: 30, clientY: 114 })
   expect(Array.from(order()).map(n => n.textContent)).toEqual(['Orin', 'Mira', 'Lumi', 'Fenn'])
 })
+
+test.each([10, 100])('downward preview uses pointer, not grip offset %s, and survives scroll/reflow', pickup => {
+  const change = vi.fn()
+  const { container } = render(<SortableTable order={initialOrder} onChange={change} reduced />)
+  const grip = screen.getByRole('button', { name: 'Mira ziehen' })
+  fireEvent.pointerDown(grip, { clientX: 30, clientY: pickup, button: 0 })
+  const shifted = (value: number) => expect(container.querySelectorAll('li')[1]).toHaveStyle({ transform: `translateY(${value}px)` })
+  // Orin's original top 132 + 5% of its 220px height = 143.
+  for (const y of [120, 131, 132, 142.99]) {
+    fireEvent.pointerMove(grip, { clientX: 30, clientY: y }); shifted(0)
+  }
+  fireEvent.pointerMove(grip, { clientX: 30, clientY: 143 }); shifted(-132)
+  fireEvent.pointerMove(grip, { clientX: 30, clientY: 137 }); shifted(-132)
+  fireEvent.pointerMove(grip, { clientX: 30, clientY: 136.99 }); shifted(0)
+  fireEvent.pointerMove(grip, { clientX: 30, clientY: 143 }); shifted(-132)
+  expect(change).not.toHaveBeenCalled()
+  // A scroll moves the list under the stationary pointer; original heights
+  // still determine thresholds even though the preview has transformed cards.
+  const measure = vi.mocked(Element.prototype.getBoundingClientRect).getMockImplementation()!
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    const rect = measure.call(this)
+    return this.tagName === 'OL' ? { ...rect, top: -240, bottom: rect.bottom - 240 } : rect
+  })
+  fireEvent.scroll(window)
+  expect(container.querySelectorAll('li')[2]).toHaveStyle({ transform: 'translateY(-132px)' })
+  expect(container.querySelectorAll('li')[3]).toHaveStyle({ transform: 'translateY(0px)' })
+  fireEvent.pointerUp(grip, { clientX: 30, clientY: 143 })
+  expect(change).toHaveBeenCalledWith(['orin', 'lumi', 'mira', 'fenn'])
+})
