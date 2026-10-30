@@ -4,7 +4,7 @@ for (const width of [320, 375, 390, 1280]) {
   test(`stone relief remains decorative and responds to light at ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 1050 })
     await page.emulateMedia({ reducedMotion: 'reduce' })
-    await page.goto('/dev/lounge.html')
+    await page.goto('/dev/lounge.html?firelight=baseline')
     await page.getByRole('switch', { name: 'Pergament-Karten' }).uncheck()
     const wall = page.locator('.stone-wall')
     await expect(wall).toHaveAttribute('aria-hidden', 'true')
@@ -61,7 +61,7 @@ for (const width of [320, 375, 390, 1280]) {
 test('wall highlights and opposite shadows follow the same live flare as cards', async ({ page }, info) => {
   test.setTimeout(60000)
   await page.setViewportSize({ width: 1280, height: 1050 })
-  await page.goto('/dev/lounge.html')
+  await page.goto('/dev/lounge.html?firelight=baseline')
   await page.getByRole('switch', { name: 'Pergament-Karten' }).uncheck()
   await page.getByRole('switch', { name: 'Glühwürmchen' }).click()
   await page.getByRole('button', { name: 'Deutlich', exact: true }).click()

@@ -4,7 +4,7 @@ for (const width of [320, 375, 390, 1280]) {
   test(`card lighting modes, neutral depth and static accessibility at ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 900 })
     await page.emulateMedia({ reducedMotion: 'reduce' })
-    await page.goto('/dev/lounge.html')
+    await page.goto('/dev/lounge.html?firelight=baseline')
     await page.getByRole('switch', { name: 'Pergament-Karten' }).uncheck()
     const card = page.locator('.table-cards > li').first()
     const light = () => card.evaluate(n => {
@@ -37,7 +37,7 @@ for (const width of [320, 375, 390, 1280]) {
 test('one live signal lights all cards and a raised overlay through flare and measured landing', async ({ page }, info) => {
   test.setTimeout(60000)
   await page.setViewportSize({ width: 1280, height: 1050 })
-  await page.goto('/dev/lounge.html')
+  await page.goto('/dev/lounge.html?firelight=baseline')
   await page.getByRole('switch', { name: 'Pergament-Karten' }).uncheck()
   await page.getByRole('button', { name: 'Deutlich', exact: true }).click()
   const grip = await page.getByRole('button', { name: 'Mira ziehen' }).boundingBox()

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Button, FormControlLabel, Switch, ToggleButton, ToggleButtonGroup, useMediaQuery } from '@mui/material'
 import { WaxSealButton } from './WaxSealButton'
 import { LoungeWindow } from './LoungeWindow'
-import { Firelight } from './Firelight'
+import { Firelight, type FirelightMode } from './Firelight'
 import { StoneJoints, StoneWall } from './StoneWall'
 import { initialOrder } from './ordering'
 import { SortableTable } from './SortableTable'
@@ -11,6 +11,11 @@ export function Lounge() {
   const reduced = useMediaQuery('(prefers-reduced-motion: reduce)')
   const [hidden, setHidden] = useState(document.hidden)
   const [fire, setFire] = useState(true)
+  // Explicit dev-only A/B configuration; static is never chosen automatically.
+  const [lightMode] = useState<FirelightMode>(() => {
+    const value = new URLSearchParams(window.location.search).get('firelight')
+    return value === 'baseline' || value === 'static' ? value : 'optimized'
+  })
   const [flies, setFlies] = useState(true)
   const [intensity, setIntensity] = useState('quiet')
   const [order, setOrder] = useState(initialOrder)
@@ -24,9 +29,9 @@ export function Lounge() {
     return () => document.removeEventListener('visibilitychange', change)
   }, [])
   const reset = () => { setOrder(initialOrder); setSelected(false); setRound(0); setFire(true); setFlies(true); setIntensity('quiet'); setWax(true); setParchment(true) }
-  return <div className="lounge" data-card-design={parchment ? 'parchment' : 'classic'} data-intensity={intensity} data-reduced={reduced} data-hidden={hidden} data-fire={fire}>
+  return <div className="lounge" data-light-mode={lightMode} data-card-design={parchment ? 'parchment' : 'classic'} data-intensity={intensity} data-reduced={reduced} data-hidden={hidden} data-fire={fire}>
     <StoneWall />
-    <Firelight enabled={fire} animated={!reduced} strong={intensity === 'strong'} />
+    <Firelight enabled={fire} animated={!reduced} strong={intensity === 'strong'} mode={lightMode} />
     <StoneJoints />
     <main className="lounge-main">
       <header className="lounge-header"><a href="/dev/lounge.html" className="lounge-wordmark">CC <span>COZY COMMANDER</span></a><span className="prototype">MOTION PLAYGROUND · NUR DEMO</span></header>
