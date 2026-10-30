@@ -1,5 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="200" viewBox="0 0 24 200" preserveAspectRatio="none">
-  <!-- Original static vertical roll: curved barrel, end grain and tucked seam. -->
+  <!-- Slightly elevated view: visible top cap, hidden underside. The constant
+       side contours end in a front arc, not a second upward-facing cap. -->
   <defs>
     <linearGradient id="barrel">
       <stop stop-color="#80501e"/>
@@ -15,13 +16,13 @@
       <stop offset="1" stop-color="#805222"/>
     </linearGradient>
   </defs>
-  <path d="M19 7Q24 5 24 10V191Q23 196 19 194Z" fill="#533215" opacity=".38"/>
-  <path d="M2 5Q11 0 21 5L20 195Q11 200 2 195Q0 147 2 100Q0 54 2 5Z" fill="url(#barrel)" stroke="#8c5a23" stroke-width=".6"/>
-  <path d="M20 8Q19 100 20 192" fill="none" stroke="#5d3919" stroke-width="1"/>
-  <path d="M5 11Q3 57 5 98T5 190" fill="none" stroke="#fff0bd" stroke-width=".6" opacity=".48"/>
+  <path d="M20 8Q24 7 24 11V190Q23 195 20 194Z" fill="#533215" opacity=".38"/>
+  <path d="M2 5C2 10 21 10 21 5V193C21 199 2 199 2 193Z" fill="url(#barrel)" stroke="#8c5a23" stroke-width=".6"/>
+  <path d="M21 9C19.5 40 19.5 160 21 193" fill="none" stroke="#5d3919" stroke-width="1"/>
+  <path d="M5 11Q4.5 100 5 190" fill="none" stroke="#fff0bd" stroke-width=".6" opacity=".48"/>
   <path d="M11 17L10 45M15 71L14 110M8 125L9 155M15 164L15 185" fill="none" stroke="#87551e" stroke-width=".4" opacity=".16"/>
   <ellipse cx="11.5" cy="5" rx="9.5" ry="4" fill="url(#end)" stroke="#97662d" stroke-width=".6"/>
   <path d="M4 5C5 1 19 1 19 5C19 8 7 8 7 5C7 3 15 3 15 5C15 6 11 6 11 5" fill="none" stroke="#855123" stroke-width=".8"/>
-  <ellipse cx="11" cy="195" rx="9" ry="4" fill="url(#end)" stroke="#805123" stroke-width=".6"/>
-  <path d="M4 195C5 192 18 192 18 195C18 198 7 198 7 195C7 194 14 194 14 195" fill="none" stroke="#805123" stroke-width=".7"/>
+  <!-- Only the near lower rim is visible; the barrel occludes the underside. -->
+  <path d="M2 193C2 199 21 199 21 193" fill="none" stroke="#805123" stroke-width=".7"/>
 </svg>

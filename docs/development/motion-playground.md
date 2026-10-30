@@ -911,8 +911,14 @@ and both attached photos were inspected. The paper now uses a more golden honey
 centre with restrained pigment differences. A small cylinder at the left has a
 vertical axis: the sheet appears to unroll to the right, while the four rows keep
 their existing dimensions, content and controls. The original local SVG depicts
-a rounded barrel, bright longitudinal highlight, dark tucked seam and elliptical
-spiral ends; the reference photos are not bundled.
+a rounded barrel, bright longitudinal highlight, dark tucked seam and an
+elliptical spiral top; the reference photos are not bundled. The
+[PO perspective sketch](https://github.com/GandalfTheJunior/mtg-commander-stats/pull/167#issuecomment-6532104284)
+guides a slightly elevated view: only the top cap is visible, with no repeated
+upward-facing ellipse/spiral at the bottom. Parallel side contours maintain the
+roll thickness; a convex front rim closes the lower silhouette while the barrel
+occludes the underside. The tucked right seam joins the sheet. Palette, layout,
+CSS surface, lighting and behavior are unchanged by this SVG-only refinement.
 
 `paper-roll.svg` paints one static, pointer-transparent `::after` background,
 18px wide, overhanging 7px into the existing left gutter. It occupies no layout
