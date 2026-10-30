@@ -13,6 +13,24 @@ body { margin: 0; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.section-heading > span { font-size: 11px; color: #dbb977; }.quiet { color: #cdbfb3; font-size: 12px; line-height: 1.7; }
 .table-cards { list-style: none; padding: 0; margin: 22px 0; display: flex; flex-direction: column; gap: 12px; }
 .player-card { position: relative; border: 1px solid #bc985c65; border-radius: 12px; padding: 18px; background: linear-gradient(120deg, #3e2c32, #2b2228); box-shadow: 0 5px 14px #0002, inset 0 1px #fff1; transition: transform 240ms cubic-bezier(.2,.75,.25,1); min-width: 0; }
+/* A distant source at lower right keeps the direction coherent throughout the
+   table. Only elevation moves on the existing landing clock; fire stays live. */
+@property --card-lift { syntax: '<number>'; inherits: false; initial-value: 0; }
+.lounge .player-card {
+  --card-light: var(--card-fire, .3);
+  /* Cap the wash independently of the bright edge to retain small-text contrast. */
+  background:
+    linear-gradient(115deg, rgb(8 4 9 / calc(var(--card-light) * .32)), transparent 48%, rgb(255 153 58 / calc(var(--card-light) * .28))),
+    linear-gradient(120deg, #3e2c32, #2b2228);
+  box-shadow:
+    calc(-4px - var(--card-light) * 12px - var(--card-lift) * 12px) calc(-3px - var(--card-light) * 7px - var(--card-lift) * 10px) calc(10px + var(--card-lift) * 26px) rgb(8 3 7 / calc(var(--card-light) * .68)),
+    0 calc(5px + var(--card-lift) * 13px) calc(14px + var(--card-lift) * 30px) rgb(0 0 0 / calc(.13 + var(--card-lift) * .43)),
+    inset -2px -1px 1px rgb(255 185 91 / calc(var(--card-light) * .85)),
+    inset 2px 1px 2px rgb(9 4 8 / calc(var(--card-light) * .6)), inset 0 1px #fff1;
+}
+.lounge[data-fire='false'] .player-card { --card-light: 0; }
+.lounge .player-card.insertion { background: #dbb97712; box-shadow: none; }
+.lounge .drag-overlay { --card-lift: 1; }
 .card-face { display: flex; gap: 16px; }.deck-mark { display: grid; place-items: center; flex: 0 0 45px; height: 54px; border: 1px solid #ae97526b; border-radius: 24px 24px 8px 8px; font: 28px Georgia, serif; color: #c8d4ac; background: #29392e; }
 .mark-orin { background: #27313e; color: #b9c9dd; }.mark-lumi { background: #502e2c; color: #edb27f; }.mark-fenn { background: #453e30; color: #e6d7a5; }
 .card-copy { min-width: 0; overflow-wrap: anywhere; }.card-copy h3 { font-size: 16px; margin: 0 0 2px; }.card-copy strong { font: normal 18px/1.35 Georgia, serif; color: #e5c990; }.card-copy p { font-size: 12px; line-height: 1.6; margin: 8px 0 0; color: #cdbfb3; }
@@ -34,6 +52,8 @@ body { margin: 0; }
 .room-light[hidden] { display: none; }
 .room-light i { position: absolute; inset: -10%; background: radial-gradient(ellipse at 95% 64%, #ffae4748, transparent 48%); opacity: calc(var(--warm-a) * var(--fire-strength)); transform: translateX(calc(var(--warm-b) * 2%)); }
 .room-light i + i { background: radial-gradient(ellipse at 3% 85%, #f47b3435, transparent 56%); opacity: calc(var(--warm-b) * var(--fire-strength)); transform: translateY(calc(var(--warm-a) * -2%)); }
+.lounge .room-light i { background: radial-gradient(ellipse at 100% 85%, #ffae478c, transparent 78%); }
+.lounge .room-light i + i { background: radial-gradient(ellipse at 85% 100%, #f47b3466, transparent 85%); }
 .fire-glass { opacity: calc(var(--warm-b) * .18 * var(--fire-strength)); }
 .fire-brass { opacity: calc(var(--warm-a) * .6 * var(--fire-strength)); }
 [data-fire='false'] .fire-glass, [data-fire='false'] .fire-brass { display: none; }

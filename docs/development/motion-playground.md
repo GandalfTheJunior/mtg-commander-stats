@@ -123,6 +123,55 @@ entries are hidden in production builds.
 
 ## Reviewer manual checklist
 
+### Lounge card reflections (#156)
+
+The Lounge now locates its indirect fireplace at the lower right. Both room
+gradients spread from that side; cards receive an amber right/bottom edge and
+surface wash with a darker opposite side and an upper-left cast shadow. Existing
+textures, window and production design rules are unchanged. The hall retains its
+own gradients and reflection mapping.
+
+`cardLightLevel` maps the **same** slow/flutter/flare sample as `reflectedLevels`
+through soft compression (Dezent .16–.44, Deutlich .32–.84). One inherited
+`--card-fire` write accompanies the room writes, capped near 30Hz. The card wash,
+inset edge and cast-shadow opacity/distance all derive from it; there are no
+card timers, per-frame React renders or extra geometry reads for lighting.
+The surface wash is capped separately from the edge: even the theoretical .84
+peak over the brightest base color retains over 4.5:1 contrast for small note
+text. This conservative bound does not rely on the gradient's darker right side.
+The existing irregular event timing is preserved, including phase-preserving
+intensity changes, hidden-tab pausing and cleanup.
+
+The fixed overlay inherits that signal in viewport space. A registered numeric
+`--card-lift` increases neutral depth plus cast-shadow distance/softness while
+held. Its 1→0 landing uses the existing paused WAAPI transform animation and
+bounded 260ms landing clock. Scroll retargeting captures the displayed lift
+before cancelling the old effect. The filled endpoint has the resting shadow
+before the keyed card is revealed. Insertion slots have no card lighting/shadow.
+This is a distant-source 2D approximation: no per-card source-distance, rotation
+or occlusion simulation, animated blur filter, or new runtime dependency.
+
+Off sets card light to zero and hides room/glass/brass reflections; neutral
+rest/drag depth remains. Reduced motion paints .30/.58 static card light and
+schedules no decorative frames, including live OS preference changes. The
+existing pointer/touch/keyboard behavior and focus styling remain in use.
+
+Run `npm test -- src/playground` and `npm run test:browser -- e2e/firelight.pw.ts
+e2e/landing.pw.ts` (Chromium and WebKit projects). The new browser checks cover
+320/375/390/1280px, off/quiet/strong screenshots, keyboard/reset, 25 seconds of
+shared room/card/held-overlay variation, continuous lift reduction and live
+reduced motion. Existing landing regressions remain unchanged. Browser CI
+retains screenshots/videos in `playground-browser-evidence`.
+
+For PO review, compare off → Dezent → Deutlich over 20–30s, then drag during a
+flare: edge/wash and opposite shadow must strengthen together. Check text/focus
+at peaks, other cards during live reflow, unequal heights and upward/downward
+landing. Repeat with touch/edge-scroll, scroll during landing, rapid new drags,
+outside drop, Escape, resize/rotation and keyboard focus recovery. Compare the
+static reduced-motion modes and toggle the OS setting live. Physical iPhone
+Safari, VoiceOver, device performance and aesthetic approval remain separate
+manual checks; desktop WebKit does not establish physical-device acceptance.
+
 1. At 320/375/390px and desktop, inspect the entire arch (especially upper-right),
    materials, readable HTML caption, both intensity levels and no horizontal overflow.
    On iPhone Safari, inspect at native scale and after rotation/zoom.
