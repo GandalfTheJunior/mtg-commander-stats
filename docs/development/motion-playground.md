@@ -633,3 +633,36 @@ late responses and 320/375/390/1280px overflow in Chromium and WebKit. Screensho
 from these tests are clearly synthetic layout evidence, not live Scryfall art.
 Use the existing browser CI artifact for both engines. Physical iPhone Safari
 and a live authenticated provider session still require PO visual acceptance.
+
+## Stone relief backdrop (#158)
+
+`StoneWall.tsx` is a finite original SVG masonry drawing in the Lounge's dev-only
+import graph. Unequal courses, staggered joints, split blocks, chipped contours
+and a few deeper stones suggest the forms in the two issue-comment references.
+The references guide relief only; the drawing uses the Lounge's warm earth tones,
+without copying the photos, downloading runtime assets or adding dependencies.
+Neutral faces/contact shadows remain when fire is off. Right/bottom bevels catch
+the conceptual lower-right fire; upper/left contact shadows deepen synchronously.
+Both use the existing inherited `--card-fire` (with explicit zero opacity when
+`data-fire=false`). There is no second timeline, per-stone random model, React
+frame render, observer or timer. Firelight's phase, 30Hz CSS writes, static
+reduced-motion levels, live preference changes and hidden/unmount cleanup are
+unchanged. No animated SVG filters, noise, WebGL or layout reads are used.
+
+The clipped backdrop is before room reflections and content. Its SVG is hidden
+from accessibility and unfocusable; the entire layer ignores pointer events.
+A minimum drawing width keeps blocks large on phones, with a continuous central
+crop rather than tiling. A quiet translucent veil lowers contrast behind text;
+the bottom fades into the base wall on unusually tall pages. Content sizing,
+focus order, window and drag/landing mechanics are unchanged.
+
+For PO review, compare Off/Dezent/Deutlich at 320, 375, 390 and 1280px, including
+a tall desktop viewport. Inspect joints, protrusions, text and focus contrast,
+window layering and no horizontal scrolling. Watch 25s in strong mode: brighter
+right/bottom edges and darker upper/left gaps must share the cards' irregular
+flare and soft return. Switch intensity mid-flare, toggle off/on, reset, hide
+and reopen the tab; change OS reduced motion live and check static warm relief.
+Repeat drag, touch scrolling and keyboard reorder. Inspect Chromium and WebKit,
+then physical iPhone Safari when available; emulation is not device evidence.
+`e2e/stone-wall.pw.ts` records mode screenshots and a 25s coupled-light sample;
+the existing interaction and Firelight suites retain lifecycle coverage.
