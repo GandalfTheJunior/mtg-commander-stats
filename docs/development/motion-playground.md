@@ -934,3 +934,23 @@ under firelight and disappears for classic/insertion. Inspect fresh normal,
 held/insertion and landing captures at 320/375/390/1280px, with fire off and
 reduced motion as well as defaults. PO iPhone confirmation is still required;
 this revision is not a merge authorization.
+
+### PO paper-surface refinement (PR #167)
+
+The subsequent surface review and its three attached parchment references guide
+the material only. The original local `paper-grain.webp` (896×384, 5.2 KiB)
+replaces the smooth gold gradient and repeating SVG grain with one static sheet.
+Seeded multiscale noise, short pale/dark fibres and sparse pigment dots provide
+fine texture; diffuse sepia patches age selected corners and edge segments more
+than the cream/honey centre. No source photo is bundled or copied. The texture
+is generated offline and decoded as an ordinary image: no runtime noise filter,
+animation, blending layer, GPU promotion, remote asset or dependency is added.
+It fills the existing paper pseudo-element once without tiling. The narrow
+edge shadow is softened to avoid a uniform dark frame.
+
+The roll SVG is byte-for-byte unchanged. Normal, held and landing surfaces use
+the same background; insertion still suppresses the material. Layout, content,
+controls, classic design, lighting and drag/landing behavior remain unchanged.
+Existing browser checks cover the responsive views, firelight stability,
+comparison and interaction; fresh screenshots and physical iPhone PO acceptance
+remain the visual evidence and final acceptance steps.

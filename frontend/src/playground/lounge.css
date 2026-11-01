@@ -118,11 +118,10 @@ body { margin: 0; }
   content: ''; position: absolute; inset: -1px; pointer-events: none;
   border-radius: inherit;
   clip-path: polygon(0 .8%, 4% 1.4%, 8% 0, 13% 1%, 19% .3%, 24% 1.2%, 31% .2%, 39% 1%, 48% 0, 57% 1.1%, 63% .4%, 72% 1%, 80% .2%, 89% 1.2%, 96% 0, 100% 1%, 99.7% 19%, 100% 35%, 99.6% 51%, 100% 68%, 99.6% 86%, 100% 99%, 95% 98.7%, 89% 100%, 82% 99%, 73% 99.6%, 66% 98.7%, 57% 100%, 49% 99%, 41% 99.7%, 33% 98.7%, 24% 100%, 16% 99%, 9% 99.8%, 3% 98.8%, 0 100%, .4% 82%, 0 68%, .4% 50%, 0 36%, .3% 17%);
-  background: url('./paper-grain.svg'),
-    radial-gradient(ellipse at 8% 24%, #a8672529, transparent 28%),
-    radial-gradient(ellipse at 84% 80%, #a76b252b, transparent 32%),
-    linear-gradient(95deg, #b88137, #edc572 5%, #f1d28b 46%, #e3b862 91%, #ac712d);
-  box-shadow: inset 0 0 3px 1px #805024a6, inset 0 0 13px #a3682947, inset 0 2px 2px #fff1d3b3;
+  /* One original, pre-rasterized sheet: fibres, pigment and uneven edge patina.
+     Stretch the whole image once, avoiding tile seams and runtime SVG filters. */
+  background: url('./paper-grain.webp') center / 100% 100% no-repeat #edd091;
+  box-shadow: inset 0 0 2px #80502459, inset 0 1px 1px #fff1d380;
 }
 /* A narrow barrel overhangs into the existing gutter, leaving the symbol and
    measured row box untouched. Static image, no filter or compositing hint. */
