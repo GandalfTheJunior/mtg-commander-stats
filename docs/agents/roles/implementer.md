@@ -44,14 +44,38 @@ Read the [development workflow](../../development/workflow.md), relevant
    `agent-bootstrap` comment and `/AGENTS.md` pointer, and verify the body persisted
    by GitHub rather than checking only the local template or submitted request.
 5. After PR creation and every new push, follow the
-   [CI completion and handoff rules](../../development/workflow.md#verification-and-handoff):
-   wait for the required `backend` and `frontend` checks on the current PR
-   revision, investigate failures and reverify corrections. Never call the
-   implementation verified or finished while required CI is running, missing,
-   or failing; report unavailable CI confirmation as an open blocker.
+   [CI submission and verification rules](../../development/workflow.md#verification-and-handoff).
+   The active run may finish with an **implementation submitted — CI pending**
+   handoff instead of waiting or repeatedly polling required jobs. Investigate
+   known failures when practical; never mislabel them as pending or claim CI
+   verification from incomplete, stale or unavailable results.
 6. If a required authorized action is unavailable, prepare the change/commands
    or PR body for the PO and explicitly identify the remaining action. Never
    claim that a branch was pushed, PR opened, or check passed when it was not.
+
+## CI-pending handoff and continuation
+
+Before ending a run with outstanding required checks, leave a self-contained,
+remote handoff in the PR's existing Reviewer Context and final agent response.
+Include PR URL, branch, **exact current HEAD SHA**, completed scope/acceptance
+criteria, exact locally executed checks and actual outcomes, unrun checks and
+limitations, required CI jobs with last observed status and time if available,
+and concrete PO/Reviewer next steps. Explain how a fresh Implementer can resume
+on the same branch/PR after a failure. One CI status snapshot is useful when
+practical; repeated polling or active waiting is not required. If status is
+unreported or unavailable, say so rather than guessing.
+
+**Implementation submitted — CI pending** is neither **CI verified** nor
+**review/merge ready**. The PO/Reviewer verifies current-HEAD required CI
+results later, along with independent review and existing PO authority.
+Code review can begin while CI runs, but the final gates still apply. If a
+required check has already failed, investigate or explicitly report **CI
+failing** with evidence; never relabel known failures as pending. Green CI
+does not require a new Codex run merely for acknowledgement. A later failure
+requires a separately PO-authorized, targeted Implementer continuation.
+Do not promise background monitoring, automatic notifications/restarts,
+or guaranteed usage savings. See the authoritative
+[workflow](../../development/workflow.md#verification-and-handoff).
 
 ## UI screenshot evidence
 
@@ -112,16 +136,19 @@ Backend-only or otherwise non-visual changes do not trigger this requirement.
 
 ## Expected output
 
-A reviewable implementation satisfying the authorized specification, with a PR
-and factual verification evidence (or a prepared handoff when capabilities block
-publication).
+A published implementation and reviewable PR with factual verification
+evidence, possibly handed off explicitly as **CI pending**. Final CI/review
+readiness is a separate, independently confirmed milestone; provide a prepared
+fallback handoff when publication is blocked.
 
 ## Completion criteria
 
 Apply the [workflow handoff standard](../../development/workflow.md#verification-and-handoff):
-acceptance criteria satisfied, scope controlled, relevant tests/checks completed,
-documentation updated, no secrets, and complete honest Reviewer Context. Report
-blocked actions or incomplete verification as limitations, not completion claims.
+acceptance criteria addressed, scope controlled, applicable local checks and
+evidence completed or disclosed, documentation updated, no secrets, and
+complete honest Reviewer Context. The active run may end as **implementation
+submitted — CI pending** without claiming CI-verified or merge-ready completion.
+Report blocked actions and incomplete verification as limitations, not passes.
 
 ## Prohibited actions
 
