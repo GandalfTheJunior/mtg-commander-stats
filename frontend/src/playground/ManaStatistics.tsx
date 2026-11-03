@@ -9,6 +9,8 @@ const transitionDuration = 605
 
 export function ManaStatistics() {
   const [filter, setFilter] = useState<ManaFilter>('all')
+  // WebKit can drop :focus-visible when native radio arrow keys move focus.
+  const [keyboardFocus, setKeyboardFocus] = useState(false)
   const [hidden, setHidden] = useState(document.hidden)
   const reduced = useMediaQuery('(prefers-reduced-motion: reduce)')
   const list = useRef<HTMLOListElement>(null)
@@ -79,7 +81,11 @@ export function ManaStatistics() {
       <h1 id="mana-title">Die Farben des Manas</h1>
       <p className="mana-subtitle">Siegrate nach Farbidentität</p>
       <details className="mana-info"><summary>Wie werden die Farben gezählt?</summary><p>Mehrfarbige Decks zählen bei jeder enthaltenen Farbe mit. Die Prozente müssen zusammen nicht 100 % ergeben. Farblos zählt nur bei leerer Farbidentität. Spiele sind Deck-/Farbauftritte, keine eindeutigen Partien.</p></details>
-      <fieldset className="mana-filters"><legend>Spieler pro Partie</legend><div>{(['all', '2', '3', '4', '5', '6'] as const).map(value => <label key={value}><input type="radio" name="mana-players" value={value} checked={filter === value} onChange={() => select(value)} /><span>{value === 'all' ? 'Alle' : value}</span></label>)}</div></fieldset>
+      <fieldset className="mana-filters" data-keyboard-focus={keyboardFocus}
+        onKeyDown={event => { if (event.key.startsWith('Arrow') || event.key === ' ' || event.key === 'Tab') setKeyboardFocus(true) }}
+        onPointerDown={() => setKeyboardFocus(false)}
+        onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setKeyboardFocus(false) }}
+      ><legend>Spieler pro Partie</legend><div>{(['all', '2', '3', '4', '5', '6'] as const).map(value => <label key={value}><input type="radio" name="mana-players" value={value} checked={filter === value} onChange={() => select(value)} /><span>{value === 'all' ? 'Alle' : value}</span></label>)}</div></fieldset>
       <div className="mana-list-label"><span>FARBIDENTITÄT</span><span>SIEGRATE</span></div>
       <ol className="mana-list" ref={list} aria-label="Manafarben nach Siegrate">{rows.map(row => <li key={row.color} data-color={row.color} className="mana-row" style={{ '--mana-color': appTheme.palette.mana[row.color] } as CSSProperties}>
         <span className="mana-seal" aria-hidden="true">{row.color}</span>

@@ -995,3 +995,85 @@ scroll measurements; checks include missing-data rows, expanded information,
 605ms timing. Inspect the PR's session-local animation demonstration as well.
 Physical-phone browser chrome, safe areas, VoiceOver and aesthetic acceptance
 remain PO checks; emulation does not establish iPhone approval.
+
+## Mana walnut surfaces (#180)
+
+Only the player-count selector's single interior and the six existing outlined
+Mana row interiors use wood. The parchment, header, section labels and footer
+retain their materials. The compact layout and 605ms transitions already on
+`main` from #173 remain unchanged, as do seals, liquid channels, bubbles,
+statistics, native radio semantics and reduced-motion behavior.
+
+`mana-walnut.webp` is original procedural artwork authored for this experiment:
+1536×768 pixels, 61,282 bytes. No reference photo pixels, third-party artwork or
+external texture license is used. The third wood reference in the
+[issue discussion](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/180#issuecomment-6601420956)
+was inspected for warm horizontal grain; it is not redistributed. The original
+source is `tools/ui/generate-mana-wood.py` (seed 180). To regenerate, run
+`python tools/ui/generate-mana-wood.py` from the repository root with NumPy and
+Pillow installed as offline authoring tools; neither is an application or CI
+dependency. The committed WebP requires no runtime generation.
+
+One local texture is decoded and cropped at a fixed 768×384 CSS-pixel scale
+(2 image pixels per CSS pixel), with no tiling or stretched grain. Each keyed
+colour gets a different vertical crop, stable across sorting. A small static
+glaze and inset edge shadows suggest stained walnut without adding boards,
+shine, filters or animation. CSS background clipping follows the existing
+rounded outlines. The asset lives in the dev import graph, outside `public/`,
+so the ordinary production build emits neither it nor its styles.
+
+Cream names/percentages/filter text and warm light counts/missing-data messages
+contrast with the wood. Across every decoded texture pixel, conservatively
+including the brightest top glaze, minimum WCAG contrast ratios are 8.38:1
+for primary text and 5.93:1 for counts. Unselected hover text remains at least
+6.47:1; selected burgundy and selected hover give 9.12:1 and 7.68:1.
+The selected segment has a brass inner edge and bold text. A 3px cream
+`:focus-visible` ring sits inside each segment with a dark adjacent keyline,
+avoiding clipping at the selector's edges even in the 320px two-row layout.
+Existing 44px touch targets are unchanged.
+
+Run the frontend lint/typecheck/test/build commands and
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:browser -- e2e/mana.pw.ts --project=chromium`
+from `frontend/`. The same suite runs in CI WebKit. In addition to existing
+functional/animation assertions, it verifies local texture decoding on all
+seven surfaces, retained paper, and visible keyboard focus through all six
+choices. It captures normal, keyboard-focused alternate-filter and zero/missing
+states at 320×568, 320×844, 375×812, 390×844 and 1280×1000. Compare each state
+against the parent revision at the same viewport; desktop mouse hover should
+also remain distinct. Browser artifacts retain the after screenshots for 14 days.
+Local WebKit installation was blocked by HTTP 403 domain policy. Physical iPhone
+Safari, VoiceOver and PO visual acceptance of the before/after material remain
+separate review steps; automated passes do not establish aesthetic approval.
+
+### WebKit radio focus follow-up (PR #181)
+
+The review's native-focus diagnosis compared the unchanged Mana component with
+the complete `mana.css` from base `e558da7` and the PR revision `a93e143`, in
+Chromium and WebKit 27.2 on both mobile/touch and desktop profiles. In WebKit,
+Tab from the summary focuses the checked radio with `:focus-visible=true`.
+The next ArrowRight moves `document.activeElement` and `:focus` to radio 2,
+but `:focus-visible=false` and the span's outline style becomes `none`.
+This happens with both CSS versions: an existing accessibility gap, rather
+than a regression introduced by the walnut material. Chromium retains the
+pseudo-class throughout the same sequence. The JSON and screenshots are in
+the `mana-focus-diagnostic-webkit` and `mana-focus-diagnostic-chromium`
+[diagnostic CI artifacts](https://github.com/GandalfTheJunior/mtg-commander-stats/actions/runs/41630365538)
+(14-day retention). Temporary diagnostic workflow/source files were removed.
+
+The Mana fieldset now retains a local keyboard-modality flag when native
+arrows, Space or Tab are used inside the group. A scoped `input:focus` fallback
+uses the same cream ring while that flag is set; ordinary `:focus-visible`
+still supplies keyboard entry from outside the fieldset. Pointer-down clears
+the flag for both mouse and touch. Blur clears it only when focus leaves the
+group, preserving it during native arrow movement. Native radio selection,
+focus movement and boundary behavior are not intercepted or reimplemented.
+No global listeners, production component/theme changes or animation-clock
+changes are involved.
+
+The browser regression checks the expected radio's actual active element,
+`:focus` and checked state separately from `:focus-visible`, then requires a
+solid 3px cream outline on its visible span. It walks all six options in both
+directions, tests leaving/re-entering, mouse/touch selection and keyboard
+resumption, and separately exercises a desktop profile. It does not assume
+that native arrows wrap at a group boundary (WebKit and Chromium differ).
+Responsive screenshots now also assert the visible ring after ArrowRight.
