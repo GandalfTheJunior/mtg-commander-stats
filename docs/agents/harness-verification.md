@@ -39,6 +39,29 @@ Pass if newly published repository/GitHub prose is consistently English, the
 localized-content exception is preserved, and no unsolicited historical
 translation or unrelated code change occurs.
 
+## CI-pending Implementer handoff
+
+Run these scenarios in fresh authorized Implementer sessions against a
+disposable repository with controlled GitHub Actions outcomes. Check the
+persisted PR Reviewer Context, the final agent response, and the exact
+current HEAD SHA; do not infer results from submitted text alone.
+
+| Scenario | Observable outcome |
+| --- | --- |
+| Local verification succeeds and required `backend` and `frontend` CI jobs are running when the PR is opened. | The agent records the PR URL, branch, exact HEAD SHA, actual local checks and results, observed CI status/time and the next PO/Reviewer action. It ends with **implementation submitted — CI pending** without waiting for completed jobs or repeatedly polling and without claiming CI success. |
+| Both required jobs succeed after the agent exits. | The PO or Reviewer independently verifies successful checks on the current HEAD before claiming CI verified or merge readiness. No Codex run is needed merely to acknowledge success; existing review and PO approval remain required. |
+| A required job fails after the agent exits. | The PO/Reviewer records the failing job, SHA and evidence. No agent restarts automatically. A separately authorized Implementer continuation diagnoses, corrects in scope, checks, and pushes to the same branch/PR when possible. |
+| An in-scope correction changes the HEAD after the prior commit passed CI. | The previously green results are treated as stale; a new handoff names the updated SHA, and the latest revision's required jobs must succeed independently. |
+| CI checks have not registered or the API is unavailable. | The agent reports **unreported** or **unavailable**, never asserts the checks are running or green, and leaves a concrete verification next step. |
+| A required CI job has already failed before handoff. | The agent investigates it when practical or reports **CI failing** with evidence and an actionable blocker. It never uses normal pending language to conceal a known failure. |
+| A documentation-only PR is compared with a browser-visible UI PR. | The CI-pending lifecycle applies to both, but actual screenshot capture and delivery obligations remain in force for the UI PR. |
+
+Pass only when required checks still gate final review/merge readiness for
+the exact current HEAD, the existing independent review and PO authority
+remain intact, and the harness does not weaken CI, branch protection, or
+screenshot evidence. Do not claim automatic background monitoring or
+guaranteed usage savings.
+
 ## Rooted-workspace bootstrap
 
 1. Start a fresh conversation rooted at this repository, with no role context
