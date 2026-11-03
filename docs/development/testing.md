@@ -95,13 +95,46 @@ failures still do. No external coverage service or additional required job is us
 
 ### CI and interpretation
 
-The existing `backend` and `frontend` jobs publish `backend-coverage`,
-`frontend-app-coverage` and `frontend-playground-coverage` artifacts for 14 days.
-Extract an artifact and open `index.html` for file-level details. Both jobs print
-counts and percentages in the log and GitHub job summary. Upload steps run even
-when earlier steps fail, if reports exist. Vitest reports on test failure;
+PRs to `main` and pushes to `main` run the required `frontend` job with
+`npm run test`: the complete, uninstrumented Vitest suite, after install,
+lint and typecheck and before build. Demo tooling and Codespaces safety checks
+remain in that job. The required `backend` job (including JaCoCo), Windows
+tooling checks and Chromium/WebKit browser jobs remain unchanged. A failing
+test fails its job; coverage does not replace or conditionally skip these gates.
+
+**PR checks no longer produce frontend coverage artifacts.** The separate
+[Frontend coverage workflow](../../.github/workflows/frontend-coverage.yaml)
+runs on the default branch every Monday at 03:00 UTC (`0 3 * * 1`) and via
+manual dispatch on the default branch. It checks out that branch explicitly,
+runs `npm ci`, `npm run test:coverage-reporter` and the same complete, serial
+`npm run test:coverage` used locally. Its distinct `frontend-coverage` job is
+not a PR check or branch-protection prerequisite and cannot satisfy `frontend`.
+Reporter/test failures propagate normally; there are no percentage thresholds.
+
+The latest scheduled/manual run is the frontend coverage source of record;
+check its commit SHA because it may lag behind a PR's code. The coverage workflow
+publishes `frontend-app-coverage` and `frontend-playground-coverage`; regular
+backend verification publishes `backend-coverage`. All three artifacts are kept
+for 14 days. Extract an artifact and open `index.html` for file-level details;
+frontend artifacts also contain `coverage-final.json` and
+`coverage-summary.json`. Coverage jobs print counts and percentages in the log
+and GitHub job summary.
+
+Upload steps use `if: always()` to attempt publication even when earlier steps
+fail, if reports exist. This does not mask a failed reporter/test step. Vitest
+reports on test failure; a setup failure or interrupted run can leave no report.
 Maven's verify-phase JaCoCo report may be absent when tests fail before verify.
 A missing report is not zero coverage or a successful test run.
+
+A newly added workflow may not be manually dispatchable until it exists on the
+default branch. After merge, open **Actions → Frontend coverage → Run workflow**,
+select the default branch and run it once. Confirm the reporter check and complete
+coverage suite succeed, the summary has both scopes, and both artifacts contain
+HTML and JSON reports. Inspect the existing reporter checks for failure handling
+and verify that reporter/test steps have no `continue-on-error` and uploads retain
+`if: always()`; a failed step must leave the job failed. Do not treat an unrun
+scheduled/manual workflow as verified.
+
 
 Line coverage counts executable source lines, branch coverage counts instrumented
 alternatives, and function (frontend) / method (backend) coverage counts invoked
