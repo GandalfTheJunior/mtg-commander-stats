@@ -132,3 +132,27 @@ test('design comparison preserves repeated actions and reset restores initial wa
   expect(container.querySelectorAll('.wax-button')).toHaveLength(3)
   expect(screen.getByRole('button', { name: 'Spiel starten' })).toBeDisabled()
 })
+
+test('parchment comparison preserves demo state; reset restores the material default', () => {
+  const { container } = open()
+  const toggle = screen.getByRole('switch', { name: 'Pergament-Karten' })
+  expect(toggle).toBeChecked()
+  fireEvent.click(screen.getByRole('button', { name: 'mira nach unten' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Auswahl bestätigen' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Spiel starten' }))
+  for (const name of ['Kaminlicht', 'Glühwürmchen', 'Wachssiegel-Design']) fireEvent.click(screen.getByRole('switch', { name }))
+  fireEvent.click(screen.getByRole('button', { name: 'Deutlich' }))
+  for (const design of ['classic', 'parchment']) {
+    fireEvent.click(toggle)
+    expect(container.querySelector('.lounge')).toHaveAttribute('data-card-design', design)
+    expect(names()).toEqual(['Orin', 'Mira', 'Lumi', 'Fenn'])
+    expect(screen.getByRole('button', { name: /Auswahl bestätigt/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText(/Demo-Runde 1 gestartet/)).toBeVisible()
+    for (const name of ['Kaminlicht', 'Glühwürmchen', 'Wachssiegel-Design']) expect(screen.getByRole('switch', { name })).not.toBeChecked()
+    expect(container.querySelector('.lounge')).toHaveAttribute('data-intensity', 'strong')
+  }
+  fireEvent.click(toggle)
+  fireEvent.click(screen.getByRole('button', { name: /Demo zurücksetzen/ }))
+  expect(toggle).toBeChecked()
+  expect(names()).toEqual(['Mira', 'Orin', 'Lumi', 'Fenn'])
+})

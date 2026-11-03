@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Button, FormControlLabel, Switch, ToggleButton, ToggleButtonGroup, useMediaQuery } from '@mui/material'
 import { WaxSealButton } from './WaxSealButton'
 import { LoungeWindow } from './LoungeWindow'
-import { Firelight } from './Firelight'
+import { Firelight, type FirelightMode } from './Firelight'
 import { StoneJoints, StoneWall } from './StoneWall'
 import { initialOrder } from './ordering'
 import { SortableTable } from './SortableTable'
@@ -11,21 +11,27 @@ export function Lounge() {
   const reduced = useMediaQuery('(prefers-reduced-motion: reduce)')
   const [hidden, setHidden] = useState(document.hidden)
   const [fire, setFire] = useState(true)
+  // Explicit dev-only A/B configuration; static is never chosen automatically.
+  const [lightMode] = useState<FirelightMode>(() => {
+    const value = new URLSearchParams(window.location.search).get('firelight')
+    return value === 'baseline' || value === 'static' ? value : 'optimized'
+  })
   const [flies, setFlies] = useState(true)
   const [intensity, setIntensity] = useState('quiet')
   const [order, setOrder] = useState(initialOrder)
   const [selected, setSelected] = useState(false)
   const [wax, setWax] = useState(true)
+  const [parchment, setParchment] = useState(true)
   const [round, setRound] = useState(0)
   useEffect(() => {
     const change = () => setHidden(document.hidden)
     document.addEventListener('visibilitychange', change)
     return () => document.removeEventListener('visibilitychange', change)
   }, [])
-  const reset = () => { setOrder(initialOrder); setSelected(false); setRound(0); setFire(true); setFlies(true); setIntensity('quiet'); setWax(true) }
-  return <div className="lounge" data-intensity={intensity} data-reduced={reduced} data-hidden={hidden} data-fire={fire}>
+  const reset = () => { setOrder(initialOrder); setSelected(false); setRound(0); setFire(true); setFlies(true); setIntensity('quiet'); setWax(true); setParchment(true) }
+  return <div className="lounge" data-light-mode={lightMode} data-card-design={parchment ? 'parchment' : 'classic'} data-intensity={intensity} data-reduced={reduced} data-hidden={hidden} data-fire={fire}>
     <StoneWall />
-    <Firelight enabled={fire} animated={!reduced} strong={intensity === 'strong'} />
+    <Firelight enabled={fire} animated={!reduced} strong={intensity === 'strong'} mode={lightMode} />
     <StoneJoints />
     <main className="lounge-main">
       <header className="lounge-header"><a href="/dev/lounge.html" className="lounge-wordmark">CC <span>COZY COMMANDER</span></a><span className="prototype">MOTION PLAYGROUND · NUR DEMO</span></header>
@@ -33,6 +39,7 @@ export function Lounge() {
       <div className="lounge-grid">
         <section className="table-section" aria-labelledby="table-title"><div className="section-heading"><h2 id="table-title">Euer Tisch</h2><span>04 / 04 Plätze</span></div>
           <SortableTable order={order} onChange={next => { setOrder(next); setSelected(false) }} reduced={reduced} />
+          <FormControlLabel control={<Switch color="secondary" checked={parchment} onChange={(_, checked) => setParchment(checked)} />} label="Pergament-Karten" />
           <FormControlLabel control={<Switch color="secondary" checked={wax} onChange={(_, checked) => setWax(checked)} />} label="Wachssiegel-Design" />
           <div className="demo-actions">{wax ? <>
             <WaxSealButton symbol="check" aria-pressed={selected} onClick={() => setSelected(s => !s)}>{selected ? '✓ Auswahl bestätigt' : 'Auswahl bestätigen'}</WaxSealButton>

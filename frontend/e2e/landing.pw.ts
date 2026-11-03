@@ -55,7 +55,7 @@ async function begin(page: Page, name: string) {
   await grip.scrollIntoViewIfNeeded()
   const g = (await grip.boundingBox())!
   await page.mouse.move(g.x + 20, g.y + 20); await page.mouse.down()
-  return { grip, x: g.x + 100 }
+  return { grip, x: g.x + 20 }
 }
 
 async function evidence(page: Page, info: TestInfo, expected: string[]) {
@@ -124,7 +124,7 @@ test('terminal pointer coordinates cannot teleport the last displayed overlay', 
   await page.mouse.move(x, list.y + list.height - 30)
   // Reproduce a final-coordinate change without another rendered move. Real
   // browser layout/WAAPI are untouched; only this terminal input is synthesized.
-  await grip.dispatchEvent('pointerup', { pointerId: await page.evaluate(() => window.activePointerId), clientX: x + 60, clientY: list.y + list.height - 30, button: 0 })
+  await grip.dispatchEvent('pointerup', { pointerId: await page.evaluate(() => window.activePointerId), clientX: x - 60, clientY: list.y + list.height - 30, button: 0 })
   const rows = await evidence(page, info, ['Orin', 'Lumi', 'Fenn', 'Mira'])
   const release = rows.find(r => r.kind === 'release')!, last = rows.at(-1)!
   // Release before live preview has finished: surrounding cards must interpolate
@@ -181,7 +181,7 @@ test('Chromium native touch release glides after viewport edge scrolling', async
   await page.mouse.up() // End the mouse preparation; start a native touch gesture.
   const g = (await grip.boundingBox())!, cdp = await page.context().newCDPSession(page)
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: g.x + 20, y: g.y + 20 }] })
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: g.x + 100, y: 580 }] })
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: g.x + 20, y: 580 }] })
   await expect.poll(async () => { const r = (await page.locator('.table-cards').boundingBox())!; return r.y + r.height }).toBeLessThan(582)
   await page.evaluate(() => { window.landingTrace = [] })
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
