@@ -995,3 +995,52 @@ scroll measurements; checks include missing-data rows, expanded information,
 605ms timing. Inspect the PR's session-local animation demonstration as well.
 Physical-phone browser chrome, safe areas, VoiceOver and aesthetic acceptance
 remain PO checks; emulation does not establish iPhone approval.
+
+## Mana walnut surfaces (#180)
+
+Only the player-count selector's single interior and the six existing outlined
+Mana row interiors use wood. The parchment, header, section labels and footer
+retain their materials. The compact layout and 605ms transitions already on
+`main` from #173 remain unchanged, as do seals, liquid channels, bubbles,
+statistics, native radio semantics and reduced-motion behavior.
+
+`mana-walnut.webp` is original procedural artwork authored for this experiment:
+1536×768 pixels, 61,282 bytes. No reference photo pixels, third-party artwork or
+external texture license is used. The third wood reference in the
+[issue discussion](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/180#issuecomment-6601420956)
+was inspected for warm horizontal grain; it is not redistributed. The original
+source is `tools/ui/generate-mana-wood.py` (seed 180). To regenerate, run
+`python tools/ui/generate-mana-wood.py` from the repository root with NumPy and
+Pillow installed as offline authoring tools; neither is an application or CI
+dependency. The committed WebP requires no runtime generation.
+
+One local texture is decoded and cropped at a fixed 768×384 CSS-pixel scale
+(2 image pixels per CSS pixel), with no tiling or stretched grain. Each keyed
+colour gets a different vertical crop, stable across sorting. A small static
+glaze and inset edge shadows suggest stained walnut without adding boards,
+shine, filters or animation. CSS background clipping follows the existing
+rounded outlines. The asset lives in the dev import graph, outside `public/`,
+so the ordinary production build emits neither it nor its styles.
+
+Cream names/percentages/filter text and warm light counts/missing-data messages
+contrast with the wood. Across every decoded texture pixel, conservatively
+including the brightest top glaze, minimum WCAG contrast ratios are 8.38:1
+for primary text and 5.93:1 for counts. Unselected hover text remains at least
+6.47:1; selected burgundy and selected hover give 9.12:1 and 7.68:1.
+The selected segment has a brass inner edge and bold text. A 3px cream
+`:focus-visible` ring sits inside each segment with a dark adjacent keyline,
+avoiding clipping at the selector's edges even in the 320px two-row layout.
+Existing 44px touch targets are unchanged.
+
+Run the frontend lint/typecheck/test/build commands and
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:browser -- e2e/mana.pw.ts --project=chromium`
+from `frontend/`. The same suite runs in CI WebKit. In addition to existing
+functional/animation assertions, it verifies local texture decoding on all
+seven surfaces, retained paper, and visible keyboard focus through all six
+choices. It captures normal, keyboard-focused alternate-filter and zero/missing
+states at 320×568, 320×844, 375×812, 390×844 and 1280×1000. Compare each state
+against the parent revision at the same viewport; desktop mouse hover should
+also remain distinct. Browser artifacts retain the after screenshots for 14 days.
+Local WebKit installation was blocked by HTTP 403 domain policy. Physical iPhone
+Safari, VoiceOver and PO visual acceptance of the before/after material remain
+separate review steps; automated passes do not establish aesthetic approval.

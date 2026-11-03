@@ -140,6 +140,38 @@ test('all filters, zero/missing semantics, live reduced motion, bubbles and unmo
   expect(await page.evaluate(() => document.getAnimations().filter(a => (a.effect as KeyframeEffect)?.target?.classList.contains('mana-bubble')).length)).toBe(0)
 })
 
+test('wood loads locally on all seven surfaces and keyboard focus stays inside the selector', async ({ page }) => {
+  const surfaces = page.locator('.mana-filters > div, .mana-row')
+  const images = await surfaces.evaluateAll(nodes => nodes.map(node => getComputedStyle(node).backgroundImage))
+  expect(images).toHaveLength(7)
+  const texture = images[0].match(/url\("?([^")]+)"?\)/)![1]
+  expect(new URL(texture).origin).toBe(new URL(page.url()).origin)
+  for (const image of images) expect(image).toContain(texture)
+  expect(await page.evaluate(async source => {
+    const image = new Image()
+    image.src = source
+    await image.decode()
+    return image.naturalWidth > 0 && image.naturalHeight > 0
+  }, texture)).toBe(true)
+  await expect(page.locator('.mana-parchment')).toHaveCSS('background-image', /paper-grain/)
+  const radio = page.getByRole('radio', { name: 'Alle', exact: true })
+  await page.locator('.mana-info summary').focus()
+  await page.keyboard.press('Tab')
+  for (let i = 0; i < 6; i++) {
+    const focused = page.locator('.mana-filters input:focus-visible')
+    await expect(focused).toBeChecked()
+    const ring = await focused.evaluate(node => {
+      const style = getComputedStyle(node.nextElementSibling!)
+      return { width: parseFloat(style.outlineWidth), offset: parseFloat(style.outlineOffset), color: style.outlineColor }
+    })
+    expect(ring.width).toBeGreaterThanOrEqual(3)
+    expect(ring.offset).toBeLessThan(0)
+    expect(ring.color).not.toBe('rgba(0, 0, 0, 0)')
+    await page.keyboard.press('ArrowRight')
+  }
+  await expect(radio).toBeFocused()
+})
+
 for (const [width, height] of [[320, 568], [320, 844], [375, 812], [390, 844], [1280, 1000]]) {
   test(`readable layout and focus at ${width}×${height}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height })
@@ -157,12 +189,16 @@ for (const [width, height] of [[320, 568], [320, 844], [375, 812], [390, 844], [
     await page.keyboard.press('ArrowRight')
     await expect(page.getByRole('radio', { name: '2', exact: true })).toBeFocused()
     await expect(page.getByRole('radio', { name: '2', exact: true })).toBeChecked()
+    await page.screenshot({ path: info.outputPath(`mana-focus-${width}-${height}.png`), fullPage: true })
+    await info.attach(`Mana keyboard focus ${width}px`, { path: info.outputPath(`mana-focus-${width}-${height}.png`), contentType: 'image/png' })
     await page.getByRole('radio', { name: 'Alle', exact: true }).check()
     await page.screenshot({ path: info.outputPath(`mana-${width}-${height}.png`), fullPage: true })
     await info.attach(`Mana ${width}px`, { path: info.outputPath(`mana-${width}-${height}.png`), contentType: 'image/png' })
     await page.getByRole('radio', { name: '6', exact: true }).check()
     if (width === 375 || width === 390) expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(height)
     await expect(page.getByText('Keine Daten vorhanden', { exact: true }).first()).toBeVisible()
+    await page.screenshot({ path: info.outputPath(`mana-empty-${width}-${height}.png`), fullPage: true })
+    await info.attach(`Mana missing and zero values ${width}px`, { path: info.outputPath(`mana-empty-${width}-${height}.png`), contentType: 'image/png' })
     await page.locator('.mana-info summary').click()
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
     await expect(page.locator('.mana-info p')).toBeVisible()

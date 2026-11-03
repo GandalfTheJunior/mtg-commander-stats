@@ -13,22 +13,45 @@
 .mana-info { border-bottom:1px solid #a48050; padding-bottom:14px; font-size:13px; line-height:1.65; }
 .mana-info summary { cursor:pointer; min-height:44px; display:list-item; align-content:center; color:#593521; font-weight:600; }
 .mana-info p { margin:4px 0 0; }
-.mana-info summary:focus-visible,.mana-filters input:focus-visible + span { outline:3px solid #642e3e; outline-offset:3px; }
+.mana-info summary:focus-visible { outline:3px solid #642e3e; outline-offset:3px; }
 .mana-filters { border:0; padding:0; margin:20px 0 24px; min-width:0; }
 .mana-filters legend { font-size:12px; font-weight:600; margin-bottom:10px; }
-.mana-filters > div { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); padding:4px; gap:3px; border:1px solid #937044; background:#bd925a22; border-radius:12px; }
+.mana-filters > div { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); padding:4px; gap:3px; border:1px solid #937044; border-radius:12px; }
+/* One static, non-tiling material at a fixed grain scale, confined to each
+   existing outline. Crops follow colour identity rather than sorted position. */
+.mana-filters > div,.mana-row {
+  background-color:#46281c;
+  background-image:linear-gradient(180deg,#edc58c0a,#160b081c),url('./mana-walnut.webp');
+  background-size:100% 100%,768px 384px;
+  background-position:center,center var(--wood-position, 18%);
+  background-repeat:no-repeat;
+  background-clip:padding-box;
+  color:#fff0d7;
+  box-shadow:inset 0 1px #efd3a329,inset 0 -1px 3px #190c0966,0 2px 3px #6f431018;
+}
+.mana-row[data-color=W] { --wood-position:6%; }
+.mana-row[data-color=U] { --wood-position:24%; }
+.mana-row[data-color=B] { --wood-position:42%; }
+.mana-row[data-color=R] { --wood-position:60%; }
+.mana-row[data-color=G] { --wood-position:78%; }
+.mana-row[data-color=C] { --wood-position:96%; }
 .mana-filters label { position:relative; cursor:pointer; min-width:0; }
 .mana-filters input { position:absolute; opacity:0; width:100%; height:100%; margin:0; }
 .mana-filters span { display:grid; place-items:center; min-height:44px; font-size:14px; border-radius:8px; }
-.mana-filters input:checked + span { background:#592c38; color:#fff0d7; box-shadow:inset 0 1px #be8b6c; }
+.mana-filters input:checked + span { background:#692d40; color:#fff0d7; box-shadow:inset 0 0 0 1px #d6b078,inset 0 1px #f3d5a9; font-weight:700; }
+@media (hover:hover) {
+  .mana-filters label:hover input:not(:checked) + span { background:#f4dbb51c; box-shadow:inset 0 0 0 1px #d6b07888; }
+  .mana-filters label:hover input:checked + span { background:#7a354a; }
+}
+.mana-filters input:focus-visible + span { outline:3px solid #fff0d7; outline-offset:-4px; box-shadow:inset 0 0 0 5px #271610; }
 .mana-list-label { display:flex; justify-content:space-between; color:#6a482c; font-size:10px; letter-spacing:.12em; padding:0 4px 10px; }
 .mana-list { list-style:none; margin:0; padding:0; display:grid; gap:10px; overflow-anchor:none; }
-.mana-row { display:flex; align-items:center; gap:16px; padding:16px; border:1px solid #a7804d88; border-radius:14px 4px 14px 4px; background:linear-gradient(110deg,#fff2d03d,#c39b6220); box-shadow:inset 0 1px #fff0cc88,0 2px 3px #6f431008; }
+.mana-row { display:flex; align-items:center; gap:16px; padding:16px; border:1px solid #a7804d; border-radius:14px 4px 14px 4px; }
 .mana-seal { display:grid; place-items:center; flex:0 0 46px; height:46px; border-radius:50%; border:2px solid #927041; background:radial-gradient(circle at 35% 25%,#fff7,var(--mana-color) 65%); box-shadow:inset 0 0 0 3px #fff2,0 2px 3px #64451f25; color:#261c18; font:600 23px Georgia,serif; }
 .mana-row[data-color=B] .mana-seal { color:#f3dfc7; background:radial-gradient(circle at 35% 25%,#79667d,var(--mana-color)); }
 .mana-data { flex:1; min-width:0; }
 .mana-row-heading { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:9px; }
-.mana-row h2 { margin:0; font-size:18px; font-weight:650; color:#352517; }
+.mana-row h2 { margin:0; font-size:18px; font-weight:650; color:#fff0d7; }
 .mana-counter { font-size:19px; font-weight:650; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .mana-channel { height:23px; position:relative; overflow:hidden; border-radius:8px; border:1px solid #876741; background:linear-gradient(#694f38,#9b7b55); box-shadow:inset 0 2px 4px #2e201766,0 1px 1px #fff1c6; }
 .mana-channel::after { content:''; position:absolute; inset:0; pointer-events:none; border-radius:inherit; box-shadow:inset 0 1px 1px #fff9,inset 0 -1px 2px #29190b55; }
@@ -39,7 +62,7 @@
 .mana-bubble:nth-of-type(2) { width:3px; height:3px; }
 @keyframes mana-rise { 0% { transform:translate(0,0); opacity:0; } 20% { opacity:.65; } 80% { opacity:.45; } 100% { transform:translate(3px,-28px); opacity:0; } }
 .mana-page[data-paused=true] .mana-bubble { animation:none; display:none; }
-.mana-counts { margin:7px 0 0; font-size:12px; color:#62452c; font-variant-numeric:tabular-nums; }
+.mana-counts { margin:7px 0 0; font-size:12px; color:#e6c9a3; font-variant-numeric:tabular-nums; }
 .mana-empty { display:block; font-size:11px; margin-top:3px; }
 .mana-footnote { text-align:center; margin-top:26px; padding-top:18px; border-top:1px solid #a4805066; font:italic 16px Georgia,serif; color:#63432b; }
 .mana-footnote span { display:block; font:10px system-ui; margin-top:10px; letter-spacing:.04em; }
