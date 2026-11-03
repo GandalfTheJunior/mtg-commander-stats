@@ -72,3 +72,41 @@ test('605ms shared timeline keeps integer text until its exact fractional endpoi
   expect(white.querySelector('.mana-counter')).toHaveTextContent('66,67 %')
   unmount()
 })
+
+test('initial render retains exact fractional percentages on every animation frame', () => {
+  let callback: FrameRequestCallback = () => {}
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => { callback = cb; return 23 })
+  const { container } = render(<ManaStatistics />)
+  const check = () => {
+    for (const row of manaDataset('all')) {
+      const element = container.querySelector(`[data-color=${row.color}]`)!
+      expect(element.querySelector('.mana-counter')!.textContent).toBe(manaPercent(row.winRatePercent!))
+      expect(element.querySelector('.mana-sr')!.textContent).toBe(manaPercent(row.winRatePercent!))
+      expect(parseFloat((element.querySelector('.mana-volume') as HTMLElement).style.width)).toBe(row.winRatePercent)
+    }
+  }
+  check()
+  for (let time = 0; time <= 640; time += 32) { act(() => callback(time)); check() }
+})
+
+test('unchanged fractional rates stay exact while other rows animate after a filter switch', () => {
+  let callback: FrameRequestCallback = () => {}
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => { callback = cb; return 24 })
+  const { container } = render(<ManaStatistics />)
+  fireEvent.click(screen.getByRole('radio', { name: '6' }))
+  const red = container.querySelector('[data-color=R]')!
+  const blue = container.querySelector('[data-color=U]')!
+  const checkRed = () => {
+    expect(red.querySelector('.mana-counter')!.textContent).toBe('33,33 %')
+    expect(red.querySelector('.mana-sr')!.textContent).toBe('33,33 %')
+    expect(parseFloat((red.querySelector('.mana-volume') as HTMLElement).style.width)).toBe(33.33)
+  }
+  checkRed()
+  for (let time = 0; time <= 608; time += 32) {
+    act(() => callback(time))
+    checkRed()
+    const fill = parseFloat((blue.querySelector('.mana-volume') as HTMLElement).style.width)
+    expect(blue.querySelector('.mana-counter')!.textContent).toBe(manaPercent(time < 605 ? Math.round(fill) : 16.67))
+  }
+  expect(blue.querySelector('.mana-sr')!.textContent).toBe('16,67 %')
+})

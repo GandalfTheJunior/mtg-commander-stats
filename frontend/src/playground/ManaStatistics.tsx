@@ -42,7 +42,7 @@ export function ManaStatistics() {
       const visible = row.games ? value : 0
       displayed.current[row.color] = visible
       el.querySelector<HTMLElement>('.mana-volume')!.style.width = `${visible}%`
-      el.querySelector<HTMLElement>('.mana-counter')!.textContent = row.games ? manaPercent(progress < 1 ? Math.round(value) : target) : '—'
+      el.querySelector<HTMLElement>('.mana-counter')!.textContent = row.games ? manaPercent(progress < 1 && from !== target ? Math.round(value) : target) : '—'
     })
     elements.forEach(el => {
       const old = positions.current[el.dataset.color!]

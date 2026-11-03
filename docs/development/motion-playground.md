@@ -977,7 +977,9 @@ the surface without tiling, added filters or animation. The Lounge-specific roll
 is not reused. No Lounge source/style, data, ranking, production entry or build
 input changes are required.
 
-Counters show conventionally rounded integer text only while transitioning.
+Counters show conventionally rounded integer text only while that row’s
+percentage is changing. Initial values and unchanged rates (such as Red at
+33.33% on All → 6) stay exact even while rows reorder.
 Liquid widths retain fractional precision and interruptions resume from the last
 painted value/position. At the endpoint, original German-locale target values
 with up to two decimals return; accessible text always contains those exact

@@ -73,6 +73,48 @@ test('native frames: growing/shrinking fill and counter, interrupted FLIP contin
   expect(finalOrder).toEqual(expected['3'].map(row => row[0]))
 })
 
+test('native frames preserve exact initial and unchanged fractional rates', async ({ page }) => {
+  const trace = await page.evaluate(async () => {
+    const sample = () => Object.fromEntries([...document.querySelectorAll<HTMLElement>('.mana-row')].map(row => [row.dataset.color!, {
+      value: parseFloat(row.querySelector<HTMLElement>('.mana-volume')!.style.width),
+      counter: row.querySelector('.mana-counter')!.textContent!,
+      accessible: row.querySelector('.mana-sr')!.textContent!,
+    }]))
+    const initial = [sample()]
+    for (let i = 0; i < 6; i++) { await new Promise(requestAnimationFrame); initial.push(sample()) }
+    const six = document.querySelector('input[value="6"]') as HTMLInputElement
+    six.click()
+    const update = []
+    const start = performance.now()
+    do {
+      await new Promise(requestAnimationFrame)
+      update.push(sample())
+      if (performance.now() - start > 5000) throw new Error('Mana transition did not finish within 5 seconds')
+    } while (update.at(-1)!.U.counter !== '16,67 %')
+    return { initial, update }
+  })
+  for (const sample of trace.initial) {
+    for (const [color, , , rate] of expected.all) {
+      expect(sample[color].counter).toBe(manaPercent(rate!))
+      expect(sample[color].accessible).toBe(manaPercent(rate!))
+      expect(sample[color].value).toBe(rate)
+    }
+  }
+  expect(trace.update.length).toBeGreaterThan(2)
+  expect(trace.update.some(s => s.U.value > 16.67 && s.U.value < 40.74)).toBe(true)
+  for (const sample of trace.update) {
+    expect(sample.R.counter).toBe('33,33 %')
+    expect(sample.R.accessible).toBe('33,33 %')
+    expect(sample.R.value).toBe(33.33)
+    expect(sample.U.accessible).toBe('16,67 %')
+    if (sample.U.counter !== '16,67 %') {
+      expect(sample.U.counter).toMatch(/^\d+ %$/)
+      expect(Math.abs(Number(sample.U.counter.replace(' %', '')) - sample.U.value)).toBeLessThanOrEqual(0.5001)
+    }
+  }
+  expect(trace.update.at(-1)!.U.counter).toBe('16,67 %')
+})
+
 test('all filters, zero/missing semantics, live reduced motion, bubbles and unmount', async ({ page }) => {
   const bubbles = await page.locator('[data-color=W] .mana-bubble').evaluateAll(nodes => nodes.map(n => ({ delay: getComputedStyle(n).animationDelay, duration: getComputedStyle(n).animationDuration })))
   expect(new Set(bubbles.map(b => b.delay)).size).toBe(3)
