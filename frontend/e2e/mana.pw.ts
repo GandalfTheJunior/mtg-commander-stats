@@ -160,20 +160,31 @@ test('all filters, zero/missing semantics, live reduced motion, bubbles and unmo
   expect(await page.evaluate(() => document.getAnimations().filter(a => (a.effect as KeyframeEffect)?.target?.classList.contains('mana-bubble')).length)).toBe(0)
 })
 
-test('wood loads locally on all seven surfaces and keyboard focus stays inside the selector', async ({ page }) => {
+test('parchment loads locally on all seven foreground surfaces and keyboard focus stays inside the selector', async ({ page }) => {
   const surfaces = page.locator('.mana-filters > div, .mana-row')
   const images = await surfaces.evaluateAll(nodes => nodes.map(node => getComputedStyle(node).backgroundImage))
   expect(images).toHaveLength(7)
   const texture = images[0].match(/url\("?([^")]+)"?\)/)![1]
+  expect(texture).toContain('paper-grain')
   expect(new URL(texture).origin).toBe(new URL(page.url()).origin)
-  for (const image of images) expect(image).toContain(texture)
+  for (const image of images) {
+    expect(image).toContain(texture)
+    expect(image).not.toContain('mana-walnut')
+  }
   expect(await page.evaluate(async source => {
     const image = new Image()
     image.src = source
     await image.decode()
     return image.naturalWidth > 0 && image.naturalHeight > 0
   }, texture)).toBe(true)
-  await expect(page.locator('.mana-parchment')).toHaveCSS('background-image', /paper-grain/)
+  const panel = page.locator('.mana-parchment')
+  await expect(panel).toHaveCSS('background-image', /mana-walnut/)
+  const wood = (await panel.evaluate(node => getComputedStyle(node).backgroundImage)).match(/url\("?([^")]+)"?\)/)![1]
+  expect(new URL(wood).origin).toBe(new URL(page.url()).origin)
+  expect(await page.evaluate(async source => {
+    const image = new Image(); image.src = source; await image.decode()
+    return image.naturalWidth > 0 && image.naturalHeight > 0
+  }, wood)).toBe(true)
   const radio = page.getByRole('radio', { name: 'Alle', exact: true })
   await page.locator('.mana-info summary').focus()
   await page.keyboard.press('Tab')

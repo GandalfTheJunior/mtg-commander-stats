@@ -1077,3 +1077,79 @@ directions, tests leaving/re-entering, mouse/touch selection and keyboard
 resumption, and separately exercises a desktop profile. It does not assume
 that native arrows wrap at a group boundary (WebKit and Chromium differ).
 Responsive screenshots now also assert the visible ring after ArrowRight.
+
+## Inverse Mana material study (#182)
+
+This branch explores **B: parchment cards / wood backdrop** in the existing
+Mana experiment. **A: wood cards / parchment backdrop** remains the merged
+[PR #181](https://github.com/GandalfTheJunior/mtg-commander-stats/pull/181)
+reference at `2e83ab5940bb865951132aeaa1969fc34a2dad42`.
+The PO's general, material-agnostic **dark background / light foreground**
+direction is recorded in the
+[visual design guidelines](../product/visual-design-guidelines.md#approved-high-level-surface-hierarchy).
+The specific wood/parchment treatment and preference between A and B still
+require PO visual selection; this experiment approves no production material
+or component and does not authorize restyling existing production screens.
+
+The existing `.mana-parchment` section keeps its name and geometry but now
+uses the original local `mana-walnut.webp` as one centered, non-repeating
+`cover` background. Unlike A's fixed 768×384px card crops, its scale follows
+the panel dimensions: aspect ratio is preserved and excess grain is cropped,
+including when the explanation expands. A uniform 8% dark glaze keeps the
+wood restrained without a vignette. The selector and all six rows use the
+existing `paper-grain.webp` with proportional cover crops, stable per color
+identity. Brass borders, shapes, spacing, channels and seals are unchanged.
+No additional assets, external textures, runtime dependencies or production
+imports are introduced. The outside frame/navigation is unchanged.
+
+Title, explanation, section labels and footer use warm light ink directly on
+wood. Names, percentages, counts and missing-data labels use dark ink on
+parchment. Conservative pixel-wide WCAG contrast calculations over the decoded
+local textures, including the wood glaze, give minima of 9.69:1 for primary
+wood text, 6.87:1 for secondary wood text, 6.49:1 for primary parchment text,
+4.74:1 for counts and 5.73:1 for unselected hover text. Selected burgundy and
+hover retain 9.12:1 and 7.68:1. These calculations supplement browser inspection;
+they do not establish physical-device or aesthetic acceptance.
+The cream keyboard ring and its dark keyline, native radio behavior and
+WebKit modality fallback from #181 remain intact. The summary's keyboard ring
+is also cream for contrast against wood. Data, sorting, exact values, 605ms
+motion, bubbles and reduced-motion behavior are unchanged.
+
+### Reproducing the visual comparison
+
+From `frontend/`, with the merged reference available in Git history:
+
+```bash
+npm run test:browser -- e2e/mana.pw.ts e2e/mana-materials.pw.ts
+```
+
+For local system Chromium, prefix with
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium` and append
+`--project=chromium`. `mana.pw.ts` retains the functional, timing, overflow,
+44px target and mobile/desktop keyboard regressions; its material assertions
+now require parchment on all seven foreground surfaces and wood on the panel.
+
+`mana-materials.pw.ts` reproduces A with the **exact CSS from the merged
+reference**, replacing only its relative asset URLs for the Vite page. It
+requires the component, data, animation clock and both textures to be unchanged
+from that reference; no historical branch is modified. B uses the checkout's
+CSS. Each pair asserts identical content/filter and captures the same viewport
+with reduced motion to remove incidental bubble/transition differences:
+320×568, 375×812, 390×844 and 1280×1000. States are `all`, `keyboard-2` (alternate
+filter selected by native arrow, visible focus) and `zero-missing-6` (measured
+zero and missing data). Full-page captures intentionally include natural
+scrolling at 320×568; the screenshot labels retain the actual viewport size.
+The original A was also captured locally before changing its styles.
+
+Each test attaches individual A/B images, a directly viewable side-by-side
+`AB-<state>-<viewport>.png`, and JSON with source commits and dirty-worktree
+status. Browser CI checks out history for this reproduction and publishes
+these attachments in `playground-browser-evidence-chromium` and
+`playground-browser-evidence-webkit` (14-day retention). Use the PR's linked
+current-HEAD Actions run to download either artifact; open the HTML report
+or the `AB-*.png` files in `test-results/`. Session workspace images alone are
+not publicly accessible PR evidence. Local WebKit installation is blocked by
+the environment's HTTP 403 domain policy; CI supplies that engine's checks.
+Physical iPhone Safari, VoiceOver, thermal performance and PO preference remain
+human review steps. Neither passing CI nor merging an experiment selects a
+production design.
