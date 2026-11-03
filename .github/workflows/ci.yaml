@@ -110,6 +110,11 @@ jobs:
         with:
           # The Mana A/B capture reads the exact merged #181 CSS from history.
           fetch-depth: 0
+      - name: Trust browser checkout and verify comparison history
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git show 2e83ab5940bb865951132aeaa1969fc34a2dad42:frontend/src/playground/mana.css > /dev/null
+          git diff --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

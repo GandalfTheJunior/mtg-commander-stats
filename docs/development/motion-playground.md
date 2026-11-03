@@ -1143,7 +1143,10 @@ The original A was also captured locally before changing its styles.
 
 Each test attaches individual A/B images, a directly viewable side-by-side
 `AB-<state>-<viewport>.png`, and JSON with source commits and dirty-worktree
-status. Browser CI checks out history for this reproduction and publishes
+status. Browser CI checks out history for this reproduction. Before importing
+the tests, the browser container trusts only its exact `$GITHUB_WORKSPACE`
+checkout path and verifies `git show` and `git diff` as the same user running
+Playwright; the A/B provenance assertions remain enabled. CI publishes
 these attachments in `playground-browser-evidence-chromium` and
 `playground-browser-evidence-webkit` (14-day retention). Use the PR's linked
 current-HEAD Actions run to download either artifact; open the HTML report
