@@ -10,7 +10,7 @@ approved task specification
 → dedicated branch
 → implementation
 → deterministic checks
-→ Pull Request
+→ Pull Request and implementation-submitted handoff (CI pending if necessary)
 → required CI checks complete successfully on the current PR revision
 → independent Senior Reviewer + Product Owner review
 → accepted findings returned to the implementer if necessary
@@ -80,30 +80,54 @@ with factual Reviewer Context, following [reviewing guidance](reviewing.md).
 If a required check cannot run, disclose the blocker; an unexecuted check is not
 a pass and does not satisfy the completion standard.
 
-After opening a PR, and after every subsequent push, the Implementer must check
-GitHub Actions for the **current PR revision** and wait for the required
-`backend` and `frontend` CI jobs to reach a terminal, successful result before
-claiming verified implementation completion or handing off as CI-verified.
-A queued, pending, in-progress, missing, skipped, cancelled, timed-out, or failed
-required check is **not** a pass. Successful local checks or green checks for an
-earlier commit cannot substitute for current PR CI evidence.
+**Implementation submitted**, **CI verified**, and **review/merge ready** are
+distinct milestones. After opening or updating a PR, the Implementer may end the
+active run when authorized changes are pushed, applicable local verification and
+required UI evidence are completed or honestly disclosed, and the PR contains
+full Reviewer Context. GitHub Actions continues independently. The Implementer
+is **not required to wait for CI completion, keep a polling session alive, or
+repeatedly query job status**. If practical, capture one current-HEAD CI status
+snapshot; if checks are not registered or statuses cannot be retrieved, say so.
+Do not imply ongoing monitoring, notification, or automatic agent resumption.
 
-If a required CI check fails, inspect its logs, investigate the cause, make
-authorized in-scope corrections without weakening tests, rerun relevant local
-checks, push the correction and check the new revision's CI again. Escalate
-out-of-scope or unresolved blockers to the PO instead of silently bypassing
-checks. If CI cannot be observed to completion due to unavailable tooling,
-permissions, or execution limits, explicitly report the PR as **awaiting CI
-verification** (or **CI failing**, as appropriate), with the observed statuses
-and remaining action. Do not describe it as completed, CI-verified, or ready to
-merge. The PO retains the final merge decision.
+While required checks are queued, running, unreported or unavailable, label the
+handoff **implementation submitted — CI pending**, not CI verified. Record in
+both the PR and final agent response: PR URL, branch, exact current HEAD SHA,
+implemented scope and acceptance-criteria status, exact local checks and their
+actual outcomes, unrun verification and limitations, required CI jobs and their
+last **observed** states (with observation time when available), and concrete
+next steps for the PO/Reviewer. Distinguish observed running jobs from missing
+or unavailable status. Explain how a fresh Implementer could resume the same
+branch/PR after CI failure. A snapshot applies only to the observed SHA/time.
 
-Before handing the work to review, verify that acceptance criteria are satisfied,
-scope has not expanded unnecessarily, relevant tests exist and local checks pass,
-documentation is updated where required, no secrets were introduced, and the PR
-contains complete and honest Reviewer Context. State limitations and uncertainty.
-A task is not complete merely because code was written: make the change easy to
-verify and understand. Required CI and human review still govern merge readiness.
+If a required check has **already failed**, investigate it and correct
+authorized in-scope defects when practical; otherwise explicitly report
+**CI failing**, the evidence and unresolved action. Never disguise known
+failures as ordinary pending checks. After each corrective push, repeat the
+handoff for the **new HEAD**; earlier green results are stale.
+
+After the active run ends, the PO or independent Reviewer checks the latest
+PR HEAD and actual GitHub status results. Required `backend`, `frontend`,
+and any other branch-protection checks must be **terminal and successful on
+that exact revision** before calling the PR **CI verified** or **review/merge
+ready**. Queued, pending, in-progress, missing, skipped, cancelled, timed-out,
+failed or stale checks are **not passes**. Reviewers may inspect code while
+CI runs, but final verification/review handoff and the PO merge decision must
+account for current-HEAD CI success, independent review, and PO authority.
+Branch protection is not a substitute for truthful reporting or human review.
+Successful CI needs no new Codex run solely to acknowledge the result.
+
+If CI later fails or required results remain missing, the PO/Reviewer records
+the affected jobs, current SHA and relevant evidence. The PO may then start a
+**separately authorized targeted Implementer continuation** to diagnose logs,
+make necessary in-scope corrections without weakening tests, rerun applicable
+local checks and push to the same branch/PR where possible. Escalate out-of-scope
+failures or tool limitations; no automatic follow-up agent is implied.
+
+Before handing off, check acceptance criteria, local verification/evidence,
+scope, documentation, security and complete Reviewer Context. Disclose what
+remains unverified. Implementation submission does not complete the separate
+CI verification, independent review or merge decision.
 
 For agent clients unable to perform an authorized workflow step, the root harness
 requires preparing the intended result for the PO and truthfully reporting the
