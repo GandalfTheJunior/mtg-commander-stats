@@ -2,11 +2,11 @@
 .playground-nav button { min-height:44px; padding:8px 18px; border:1px solid #b69662; border-radius:24px; background:transparent; color:#f4ebdf; font:600 14px system-ui; cursor:pointer; }
 .playground-nav button[aria-pressed=true] { background:#e4c58c; color:#301f19; }
 .playground-nav button:focus-visible { outline:3px solid #fff; outline-offset:3px; }
-.mana-page { min-height:100vh; padding:0 16px 48px; background:radial-gradient(ellipse at 50% 0,#57332c,#241b20 80%); color:#352517; font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
+.mana-page { min-height:0; padding:0 16px 48px; background:radial-gradient(ellipse at 50% 0,#57332c,#241b20 80%); color:#352517; font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
 .mana-brand { max-width:720px; margin:auto; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:28px 8px; color:#e6c68b; font:17px Georgia,serif; letter-spacing:.13em; }
 .mana-brand small { display:block; font:11px system-ui; letter-spacing:.08em; color:#d7bfa6; margin-top:7px; }
 .mana-monogram { font-size:36px; letter-spacing:-.24em; padding-right:10px; }
-.mana-parchment { max-width:720px; margin:auto; padding:36px 40px 24px; border:1px solid #c9a366; outline:1px solid #80623b; outline-offset:5px; border-radius:4px; box-shadow:0 14px 45px #0005,inset 0 0 60px #8d572633; background:radial-gradient(ellipse at 20% 10%,#fff0cc99,transparent 60%),repeating-linear-gradient(17deg,#65441903 0 1px,transparent 1px 4px),repeating-linear-gradient(97deg,#65441905 0 1px,transparent 1px 3px),#e5c796; }
+.mana-parchment { max-width:720px; margin:auto; padding:36px 40px 24px; border:1px solid #c9a366; outline:1px solid #80623b; outline-offset:5px; border-radius:4px; box-shadow:0 14px 45px #0005,inset 0 1px #fff1d380; background:url('./paper-grain.webp') center / 100% 100% no-repeat #edd091; }
 .mana-eyebrow { font-size:10px; letter-spacing:.16em; font-weight:700; color:#6c452b; }
 .mana-parchment h1 { margin:14px 0 4px; color:#352517; font:normal clamp(28px,5vw,42px)/1.1 Georgia,serif; letter-spacing:-.035em; }
 .mana-subtitle { margin:10px 0 16px; font-size:16px; }
@@ -44,6 +44,39 @@
 .mana-footnote { text-align:center; margin-top:26px; padding-top:18px; border-top:1px solid #a4805066; font:italic 16px Georgia,serif; color:#63432b; }
 .mana-footnote span { display:block; font:10px system-ui; margin-top:10px; letter-spacing:.04em; }
 .mana-sr { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
-@media (max-width:480px) { .mana-page { padding:0 12px 30px; } .mana-brand { padding:22px 8px; font-size:13px; gap:12px; } .mana-parchment { padding:25px 16px 20px; outline-offset:3px; } .mana-row { padding:13px 10px; gap:10px; } .mana-seal { flex-basis:36px; height:36px; font-size:20px; } .mana-row h2 { font-size:16px; } .mana-counter { font-size:17px; } .mana-eyebrow { font-size:9px; } }
+/* Compact only the Mana view; the accepted Lounge navigation is unchanged. */
+@media (max-width:600px) {
+  .playground-nav:has(+ .mana-page) { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; padding:4px 8px; }
+  .playground-nav:has(+ .mana-page) button { padding:4px 6px; font-size:13px; }
+  .mana-page { padding:0 max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
+  .mana-brand { padding:5px 4px; font-size:12px; gap:10px; }
+  .mana-brand small { margin-top:3px; font-size:10px; }
+  .mana-monogram { font-size:28px; }
+  .mana-parchment { padding:14px 12px 12px; outline-offset:3px; }
+  .mana-eyebrow { font-size:9px; letter-spacing:.1em; }
+  .mana-parchment h1 { font-size:27px; margin:5px 0 3px; }
+  .mana-subtitle { margin:4px 0; font-size:14px; }
+  .mana-info { padding-bottom:0; font-size:12px; }
+  .mana-info p { margin:0 0 10px; }
+  .mana-filters { margin:6px 0 6px; }
+  .mana-filters legend { margin-bottom:4px; }
+  .mana-filters > div { padding:0; gap:2px; border-radius:9px; }
+  .mana-filters label { min-width:44px; }
+  .mana-list-label { padding-bottom:5px; }
+  .mana-list { gap:5px; }
+  .mana-row { padding:5px 8px; gap:9px; border-radius:9px 3px 9px 3px; }
+  .mana-seal { flex-basis:32px; height:32px; font-size:20px; }
+  .mana-data { display:grid; grid-template-columns:116px minmax(0,1fr); gap:3px 8px; }
+  .mana-row-heading { grid-column:1 / -1; margin:0; line-height:18px; }
+  .mana-row h2 { font-size:15px; }
+  .mana-counter { font-size:16px; }
+  .mana-channel { grid-column:2; grid-row:2; align-self:center; height:12px; border-radius:5px; }
+  .mana-counts { grid-column:1; grid-row:2; white-space:nowrap; margin:0; font-size:12px; line-height:1.3; }
+  .mana-empty { grid-column:1 / -1; font-size:12px; line-height:15px; margin:0; }
+  .mana-footnote { margin:8px 0 0; padding-top:6px; font-size:14px; }
+  .mana-footnote span { margin-top:4px; letter-spacing:0; }
+}
 @media (prefers-reduced-motion:reduce) { .mana-bubble { animation:none; display:none; } }
+/* Three columns preserve 44px targets on the smallest phones; natural page
+   scrolling is intentional at 320×568, including with expanded explanations. */
 @media (max-width:360px) { .mana-filters > div { grid-template-columns:repeat(3,minmax(0,1fr)); } }

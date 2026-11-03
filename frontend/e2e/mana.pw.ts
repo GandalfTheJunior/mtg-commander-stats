@@ -20,6 +20,8 @@ test('native frames: growing/shrinking fill and counter, interrupted FLIP contin
       y: row.getBoundingClientRect().top,
       value: parseFloat(row.querySelector<HTMLElement>('.mana-volume')!.style.width),
       counter: row.querySelector('.mana-counter')!.textContent!,
+      time: row.getAnimations()[0]?.currentTime as number | undefined,
+      duration: row.getAnimations()[0]?.effect?.getTiming().duration,
     }]))
     const change = (value: string) => (document.querySelector(`input[value="${value}"]`) as HTMLInputElement).click()
     const frames = async (until: (value: number) => boolean) => {
@@ -44,12 +46,26 @@ test('native frames: growing/shrinking fill and counter, interrupted FLIP contin
   expect(Math.abs(trace.grow[0].W.y - trace.before.W.y)).toBeLessThan(3)
   expect(Math.abs(trace.shrink[0].W.y - trace.interrupted.W.y)).toBeLessThan(12)
   expect(trace.shrink.some(s => s.W.value < trace.interrupted.W.value && s.W.value > 20)).toBe(true)
+  for (const sample of trace.grow) expect(sample.W.counter).toMatch(/^\d+ %$/)
+  expect(trace.grow.some(s => s.W.value % 1 !== 0)).toBe(true)
   for (const sample of [...trace.grow, ...trace.shrink]) {
     for (const row of Object.values(sample)) {
       if (row.counter === '—') expect(row.value).toBe(0)
-      // CSSOM serializes width with limited precision; text rounds to hundredths.
-      else expect(Math.abs(Number(row.counter.replace(' %', '').replace(',', '.')) - row.value)).toBeLessThanOrEqual(0.0051)
+      // The exact final frame retains decimals; intermediate counters round only text.
+      else {
+        if (row.time !== undefined) expect(row.counter).toMatch(/^\d+ %$/)
+        const textValue = Number(row.counter.replace(' %', '').replace(',', '.'))
+        expect(Math.abs(textValue - row.value)).toBeLessThanOrEqual(0.5001)
+        if (row.counter.includes(',')) expect(Math.abs(textValue - row.value)).toBeLessThanOrEqual(0.0051)
+      }
     }
+  }
+  const moving = trace.shrink.filter(s => s.W.time !== undefined)
+  expect(moving.length).toBeGreaterThan(2)
+  for (const sample of moving) {
+    expect(sample.W.duration).toBe(605)
+    const progress = 1 - (1 - sample.W.time! / 605) ** 3
+    expect(sample.W.value).toBeCloseTo(trace.interrupted.W.value + (20 - trace.interrupted.W.value) * progress, 3)
   }
   expect(trace.shrink.at(-1)!.W.value).toBe(20)
   expect(trace.grow.some(s => Math.abs(s.W.y - trace.before.W.y) > 10)).toBe(true)
@@ -82,23 +98,32 @@ test('all filters, zero/missing semantics, live reduced motion, bubbles and unmo
   expect(await page.evaluate(() => document.getAnimations().filter(a => (a.effect as KeyframeEffect)?.target?.classList.contains('mana-bubble')).length)).toBe(0)
 })
 
-for (const width of [320, 375, 390, 1280]) {
-  test(`readable layout and focus at ${width}px`, async ({ page }, info) => {
-    await page.setViewportSize({ width, height: width > 500 ? 1000 : 844 })
+for (const [width, height] of [[320, 568], [320, 844], [375, 812], [390, 844], [1280, 1000]]) {
+  test(`readable layout and focus at ${width}×${height}px`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height })
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await expect(page.getByRole('heading', { name: 'Die Farben des Manas' })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     for (const box of await page.locator('.mana-filters label').evaluateAll(nodes => nodes.map(n => ({ width: n.getBoundingClientRect().width, height: n.getBoundingClientRect().height })))) {
       expect(box.height).toBeGreaterThanOrEqual(44)
-      expect(box.width).toBeGreaterThanOrEqual(32)
+      expect(box.width).toBeGreaterThanOrEqual(44)
     }
+    const dimensions = await page.evaluate(() => ({ width: innerWidth, height: innerHeight, scrollHeight: document.documentElement.scrollHeight, scrollWidth: document.documentElement.scrollWidth }))
+    if (width === 375 || width === 390) expect(dimensions.scrollHeight).toBeLessThanOrEqual(height)
+    await info.attach('page-measurements', { body: JSON.stringify(dimensions), contentType: 'application/json' })
     await page.getByRole('radio', { name: 'Alle', exact: true }).focus()
     await page.keyboard.press('ArrowRight')
     await expect(page.getByRole('radio', { name: '2', exact: true })).toBeFocused()
     await expect(page.getByRole('radio', { name: '2', exact: true })).toBeChecked()
     await page.getByRole('radio', { name: 'Alle', exact: true }).check()
-    await page.screenshot({ path: info.outputPath(`mana-${width}.png`), fullPage: true })
-    await info.attach(`Mana ${width}px`, { path: info.outputPath(`mana-${width}.png`), contentType: 'image/png' })
+    await page.screenshot({ path: info.outputPath(`mana-${width}-${height}.png`), fullPage: true })
+    await info.attach(`Mana ${width}px`, { path: info.outputPath(`mana-${width}-${height}.png`), contentType: 'image/png' })
+    await page.getByRole('radio', { name: '6', exact: true }).check()
+    if (width === 375 || width === 390) expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(height)
+    await expect(page.getByText('Keine Daten vorhanden', { exact: true }).first()).toBeVisible()
+    await page.locator('.mana-info summary').click()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+    await expect(page.locator('.mana-info p')).toBeVisible()
     await page.goto('/dev/theme.html')
     await expect(page.locator('body')).not.toBeEmpty()
   })

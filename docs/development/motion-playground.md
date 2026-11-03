@@ -396,9 +396,9 @@ view, retires its effects and resets its temporary demo state when reopened.
   overlapping deck/color appearances, not distinct matches or live records.
 - Six keyed rows retain identity. Before changing a filter, the current visual
   rectangles (including interrupted transforms) are captured. A layout effect
-  inverts the new positions with WAAPI, then eases to the final order over 550ms.
+  inverts the new positions with WAAPI, then eases to the final order over 605ms.
 - One temporary RAF clock interpolates every numeric percentage and fluid width
-  with the same cubic ease-out over nominally 550ms. The existing bounded landing
+  with the same cubic ease-out over nominally 605ms. The existing bounded landing
   clock also drives paused WAAPI row animations: a frame gap advances at most
   32ms, extending wall time under stalls rather than skipping visible motion.
   Browser tests follow actual progress/endpoints rather than a fixed sampling
@@ -954,3 +954,42 @@ controls, classic design, lighting and drag/landing behavior remain unchanged.
 Existing browser checks cover the responsive views, firelight stability,
 comparison and interaction; fresh screenshots and physical iPhone PO acceptance
 remain the visual evidence and final acceptance steps.
+
+
+## Compact mobile Mana study (#173)
+
+The PO explicitly authorized implementation and the 320×568 natural-scrolling
+exception in the implementation conversation. The issue's DRAFT marker does not
+represent a new design approval for production.
+
+At 375×812 and 390×844 CSS pixels, the entire Mana view includes the Playground
+navigation, brand, title/subtitle, collapsed explanatory panel, six 44px radio
+filters, all six complete rows and footer without page scrolling. Only this
+view's mobile navigation becomes a compact two-column grid; Lounge styling is
+unchanged. Counts and liquid channels sit next to each other below name/rate.
+At 320px the filters use three columns to preserve 44px targets, with normal
+page scrolling when necessary (especially 320×568). Expanded explanations and
+text enlargement may also scroll; there is no clipped or nested scroll region.
+Desktop retains its spacious vertical rows.
+
+The panel references the existing local `paper-grain.webp` once, stretched over
+the surface without tiling, added filters or animation. The Lounge-specific roll
+is not reused. No Lounge source/style, data, ranking, production entry or build
+input changes are required.
+
+Counters show conventionally rounded integer text only while transitioning.
+Liquid widths retain fractional precision and interruptions resume from the last
+painted value/position. At the endpoint, original German-locale target values
+with up to two decimals return; accessible text always contains those exact
+values. The original bounded clock now supplies 605ms (550ms + 10%) to both the
+cubic counter/fill easing and paused WAAPI row movement. The 32ms stall cap and
+cleanup/reduced-motion behavior are unchanged.
+
+Run `npm test -- src/playground/ManaStatistics.test.tsx src/playground/manaData.test.ts`
+and `npm run test:browser -- e2e/mana.pw.ts` for both engines. Browser evidence
+includes 320×568, 320×844, 375×812, 390×844 and 1280×1000 screenshots and page
+scroll measurements; checks include missing-data rows, expanded information,
+44px filter dimensions, keyboard focus, real-frame interruption and the shared
+605ms timing. Inspect the PR's session-local animation demonstration as well.
+Physical-phone browser chrome, safe areas, VoiceOver and aesthetic acceptance
+remain PO checks; emulation does not establish iPhone approval.
