@@ -1044,3 +1044,36 @@ also remain distinct. Browser artifacts retain the after screenshots for 14 days
 Local WebKit installation was blocked by HTTP 403 domain policy. Physical iPhone
 Safari, VoiceOver and PO visual acceptance of the before/after material remain
 separate review steps; automated passes do not establish aesthetic approval.
+
+### WebKit radio focus follow-up (PR #181)
+
+The review's native-focus diagnosis compared the unchanged Mana component with
+the complete `mana.css` from base `e558da7` and the PR revision `a93e143`, in
+Chromium and WebKit 27.2 on both mobile/touch and desktop profiles. In WebKit,
+Tab from the summary focuses the checked radio with `:focus-visible=true`.
+The next ArrowRight moves `document.activeElement` and `:focus` to radio 2,
+but `:focus-visible=false` and the span's outline style becomes `none`.
+This happens with both CSS versions: an existing accessibility gap, rather
+than a regression introduced by the walnut material. Chromium retains the
+pseudo-class throughout the same sequence. The JSON and screenshots are in
+the `mana-focus-diagnostic-webkit` and `mana-focus-diagnostic-chromium`
+[diagnostic CI artifacts](https://github.com/GandalfTheJunior/mtg-commander-stats/actions/runs/41630365538)
+(14-day retention). Temporary diagnostic workflow/source files were removed.
+
+The Mana fieldset now retains a local keyboard-modality flag when native
+arrows, Space or Tab are used inside the group. A scoped `input:focus` fallback
+uses the same cream ring while that flag is set; ordinary `:focus-visible`
+still supplies keyboard entry from outside the fieldset. Pointer-down clears
+the flag for both mouse and touch. Blur clears it only when focus leaves the
+group, preserving it during native arrow movement. Native radio selection,
+focus movement and boundary behavior are not intercepted or reimplemented.
+No global listeners, production component/theme changes or animation-clock
+changes are involved.
+
+The browser regression checks the expected radio's actual active element,
+`:focus` and checked state separately from `:focus-visible`, then requires a
+solid 3px cream outline on its visible span. It walks all six options in both
+directions, tests leaving/re-entering, mouse/touch selection and keyboard
+resumption, and separately exercises a desktop profile. It does not assume
+that native arrows wrap at a group boundary (WebKit and Chromium differ).
+Responsive screenshots now also assert the visible ring after ArrowRight.

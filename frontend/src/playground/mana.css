@@ -43,7 +43,7 @@
   .mana-filters label:hover input:not(:checked) + span { background:#f4dbb51c; box-shadow:inset 0 0 0 1px #d6b07888; }
   .mana-filters label:hover input:checked + span { background:#7a354a; }
 }
-.mana-filters input:focus-visible + span { outline:3px solid #fff0d7; outline-offset:-4px; box-shadow:inset 0 0 0 5px #271610; }
+.mana-filters input:focus-visible + span,.mana-filters[data-keyboard-focus=true] input:focus + span { outline:3px solid #fff0d7; outline-offset:-4px; box-shadow:inset 0 0 0 5px #271610; }
 .mana-list-label { display:flex; justify-content:space-between; color:#6a482c; font-size:10px; letter-spacing:.12em; padding:0 4px 10px; }
 .mana-list { list-style:none; margin:0; padding:0; display:grid; gap:10px; overflow-anchor:none; }
 .mana-row { display:flex; align-items:center; gap:16px; padding:16px; border:1px solid #a7804d; border-radius:14px 4px 14px 4px; }
