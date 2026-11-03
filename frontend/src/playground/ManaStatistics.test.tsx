@@ -29,15 +29,20 @@ test('counter and fill rebase on interruption, land exactly, cancel on hide and 
   const mid = fill()
   expect(mid).toBeGreaterThan(manaDataset('all').find(r => r.color === 'W')!.winRatePercent!)
   expect(mid).toBeLessThan(66.67)
-  expect(white.querySelector('.mana-counter')).toHaveTextContent(manaPercent(mid))
+  expect(white.querySelector('.mana-counter')).toHaveTextContent(manaPercent(Math.round(mid)))
+  expect(white.querySelector('.mana-sr')).toHaveTextContent('66,67 %')
+  expect(mid % 1).not.toBe(0)
   fireEvent.click(screen.getByRole('radio', { name: '3' }))
   expect(fill()).toBe(mid)
   act(() => callback(now))
-  for (let i = 0; i < 18; i++) { now += 32; act(() => callback(now)) }
+  for (let i = 0; i < 19; i++) { now += 32; act(() => callback(now)) }
   expect(fill()).toBe(20)
   expect(white.querySelector('.mana-counter')).toHaveTextContent('20 %')
+  fireEvent.click(screen.getByRole('radio', { name: '2' }))
   Object.defineProperty(document, 'hidden', { configurable: true, value: true })
   act(() => document.dispatchEvent(new Event('visibilitychange')))
+  expect(fill()).toBe(66.67)
+  expect(white.querySelector('.mana-counter')).toHaveTextContent('66,67 %')
   const calls = raf.mock.calls.length
   expect(container.querySelector('.mana-page')).toHaveAttribute('data-paused', 'true')
   expect(cancel).toHaveBeenCalledWith(42)
@@ -45,4 +50,63 @@ test('counter and fill rebase on interruption, land exactly, cancel on hide and 
   Object.defineProperty(document, 'hidden', { configurable: true, value: false })
   act(() => document.dispatchEvent(new Event('visibilitychange')))
   expect(raf).toHaveBeenCalledTimes(calls)
+})
+
+test('605ms shared timeline keeps integer text until its exact fractional endpoint', () => {
+  let callback: FrameRequestCallback = () => {}
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => { callback = cb; return 17 })
+  const { container, unmount } = render(<ManaStatistics />)
+  fireEvent.click(screen.getByRole('radio', { name: '2' }))
+  // Drive the bounded clock explicitly, including one main-thread stall.
+  act(() => callback(0))
+  act(() => callback(1000))
+  const white = container.querySelector('[data-color=W]')!
+  const fill = () => parseFloat((white.querySelector('.mana-volume') as HTMLElement).style.width)
+  expect(fill()).toBeLessThan(40)
+  for (let time = 1032; time <= 1544; time += 32) act(() => callback(time))
+  act(() => callback(1572)) // 604ms of bounded elapsed time
+  expect(fill()).toBeLessThan(66.67)
+  expect(white.querySelector('.mana-counter')!.textContent).toMatch(/^\d+ %$/)
+  act(() => callback(1573))
+  expect(fill()).toBe(66.67)
+  expect(white.querySelector('.mana-counter')).toHaveTextContent('66,67 %')
+  unmount()
+})
+
+test('initial render retains exact fractional percentages on every animation frame', () => {
+  let callback: FrameRequestCallback = () => {}
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => { callback = cb; return 23 })
+  const { container } = render(<ManaStatistics />)
+  const check = () => {
+    for (const row of manaDataset('all')) {
+      const element = container.querySelector(`[data-color=${row.color}]`)!
+      expect(element.querySelector('.mana-counter')!.textContent).toBe(manaPercent(row.winRatePercent!))
+      expect(element.querySelector('.mana-sr')!.textContent).toBe(manaPercent(row.winRatePercent!))
+      expect(parseFloat((element.querySelector('.mana-volume') as HTMLElement).style.width)).toBe(row.winRatePercent)
+    }
+  }
+  check()
+  for (let time = 0; time <= 640; time += 32) { act(() => callback(time)); check() }
+})
+
+test('unchanged fractional rates stay exact while other rows animate after a filter switch', () => {
+  let callback: FrameRequestCallback = () => {}
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => { callback = cb; return 24 })
+  const { container } = render(<ManaStatistics />)
+  fireEvent.click(screen.getByRole('radio', { name: '6' }))
+  const red = container.querySelector('[data-color=R]')!
+  const blue = container.querySelector('[data-color=U]')!
+  const checkRed = () => {
+    expect(red.querySelector('.mana-counter')!.textContent).toBe('33,33 %')
+    expect(red.querySelector('.mana-sr')!.textContent).toBe('33,33 %')
+    expect(parseFloat((red.querySelector('.mana-volume') as HTMLElement).style.width)).toBe(33.33)
+  }
+  checkRed()
+  for (let time = 0; time <= 608; time += 32) {
+    act(() => callback(time))
+    checkRed()
+    const fill = parseFloat((blue.querySelector('.mana-volume') as HTMLElement).style.width)
+    expect(blue.querySelector('.mana-counter')!.textContent).toBe(manaPercent(time < 605 ? Math.round(fill) : 16.67))
+  }
+  expect(blue.querySelector('.mana-sr')!.textContent).toBe('16,67 %')
 })

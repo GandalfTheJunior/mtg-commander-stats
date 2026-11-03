@@ -5,6 +5,8 @@ import { appTheme } from '../theme/theme'
 import { manaDataset, manaNames, manaPercent, type ManaFilter } from './manaData'
 import './mana.css'
 
+const transitionDuration = 605
+
 export function ManaStatistics() {
   const [filter, setFilter] = useState<ManaFilter>('all')
   const [hidden, setHidden] = useState(document.hidden)
@@ -40,13 +42,13 @@ export function ManaStatistics() {
       const visible = row.games ? value : 0
       displayed.current[row.color] = visible
       el.querySelector<HTMLElement>('.mana-volume')!.style.width = `${visible}%`
-      el.querySelector<HTMLElement>('.mana-counter')!.textContent = row.games ? manaPercent(value) : '—'
+      el.querySelector<HTMLElement>('.mana-counter')!.textContent = row.games ? manaPercent(progress < 1 && from !== target ? Math.round(value) : target) : '—'
     })
     elements.forEach(el => {
       const old = positions.current[el.dataset.color!]
       const delta = old === undefined ? 0 : old - el.getBoundingClientRect().top
       if (!reduced && !hidden && delta && el.animate) {
-        const animation = el.animate([{ transform: `translateY(${delta}px)` }, { transform: 'translateY(0)' }], { duration: 550, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'both' })
+        const animation = el.animate([{ transform: `translateY(${delta}px)` }, { transform: 'translateY(0)' }], { duration: transitionDuration, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'both' })
         animation.pause()
         animation.currentTime = 0
         moves.current.push(animation)
@@ -60,11 +62,11 @@ export function ManaStatistics() {
       // Reuse the lounge's bounded clock so a stalled frame cannot consume a
       // whole transition. Numeric values and native row transforms share time.
       stop = startLandingClock(elapsed => {
-        const time = Math.min(550, elapsed)
+        const time = Math.min(transitionDuration, elapsed)
         moves.current.forEach(animation => { animation.currentTime = time })
-        paint(1 - (1 - time / 550) ** 3)
-        if (time === 550) moves.current.forEach(animation => animation.cancel())
-        return time < 550
+        paint(1 - (1 - time / transitionDuration) ** 3)
+        if (time === transitionDuration) moves.current.forEach(animation => animation.cancel())
+        return time < transitionDuration
       })
     }
     return () => { stop?.(); moves.current.forEach(animation => animation.cancel()) }
@@ -83,7 +85,7 @@ export function ManaStatistics() {
         <span className="mana-seal" aria-hidden="true">{row.color}</span>
         <div className="mana-data"><div className="mana-row-heading"><h2>{manaNames[row.color]}</h2><span className="mana-counter" aria-hidden="true">{row.games ? manaPercent(row.winRatePercent!) : '—'}</span><span className="mana-sr">{row.games ? manaPercent(row.winRatePercent!) : 'Keine Daten vorhanden'}</span></div>
           <div className="mana-channel" aria-hidden="true"><div className="mana-volume"><div className="mana-liquid" />{[0, 1, 2].map(bubble => <i key={bubble} className="mana-bubble" style={{ left: `${17 + bubble * 31}%`, '--delay': `${-(bubble * 1.7 + row.color.charCodeAt(0) % 7)}s`, '--duration': `${3.9 + bubble * 1.3 + row.color.charCodeAt(0) % 3 * .4}s` } as CSSProperties} />)}</div></div>
-          <p className="mana-counts">{row.games} Spiele <span aria-hidden="true">·</span> {row.wins} Siege{!row.games && <span className="mana-empty">Keine Daten vorhanden</span>}</p>
+          <p className="mana-counts">{row.games} Spiele <span aria-hidden="true">·</span> {row.wins} Siege</p>{!row.games && <span className="mana-empty">Keine Daten vorhanden</span>}
         </div>
       </li>)}</ol>
       <p role="status" className="mana-sr">{filter === 'all' ? 'Alle Spielerzahlen' : `${filter} Spieler`}: Statistik aktualisiert, nach Siegrate sortiert.</p>
