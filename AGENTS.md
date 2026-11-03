@@ -41,6 +41,36 @@ by the human Product Owner (PO).
   the PO rather than silently choosing a direction.
 - Keep project knowledge in its authoritative location, without unnecessary
   duplication. Report limitations and uncertainty honestly.
+- Use English for all repository-published artifacts, regardless of the PO's
+  conversation language. Follow the [language policy](#language-of-published-artifacts)
+  before creating or editing content in Git or GitHub.
+
+## Language of published artifacts
+
+**English is mandatory for all new or edited human-authored content published to
+this repository or its associated GitHub artifacts.** This includes issue titles,
+bodies, specifications, acceptance criteria and comments; pull request titles,
+descriptions, Reviewer Context, reviews and review replies; commit messages;
+branch names; repository documentation, ADRs, README files, release notes;
+and source/test comments, docstrings, test descriptions and other explanatory
+text in version-controlled files. Use English even when the PO asks in German,
+the surrounding conversation is in German, or an existing artifact uses German.
+
+Before submitting a GitHub or repository write, check that the text to be
+published is in English. Translate German requests into English specifications
+rather than copying their wording. Conversation-only replies to the PO may
+remain in the PO's preferred language.
+
+Exceptions are limited to content that must retain its language for a concrete
+reason: intentionally localized application/user-interface text (including
+accessibility labels and translations), test data and assertions that verify
+that localized behavior, official names or canonical external identifiers,
+and verbatim third-party material that must be preserved. Keep surrounding
+technical explanations in English. This rule applies to new contributions and
+edits; it does not require a standalone retroactive translation of historical
+artifacts. When fully rewriting a historical issue, PR description or document,
+write the replacement in English while preserving required bootstrap markers
+and factual meaning.
 
 ## Startup and routing
 

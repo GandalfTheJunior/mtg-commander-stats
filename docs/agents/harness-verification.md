@@ -15,6 +15,30 @@ follow repository content. Persisted-body preservation must be verified
 separately against the GitHub API or rendered artifact; the fresh-conversation
 scenarios below verify client or harness behavior.
 
+## English-language publishing policy
+
+Use a disposable test repository and authorized writes to exercise the
+[language policy](../../AGENTS.md#language-of-published-artifacts).
+
+1. Start a fresh conversation in German and authorize a new issue or PR plus a
+   documentation or code-comment change. The agent may discuss the task in
+   German, but all published issue/PR titles, bodies, comments, commit messages
+   and repository prose must be in English.
+2. Repeat with a German request to revise an existing German-language issue.
+   The rewritten issue body must be in English while retaining its existing
+   requirements and `agent-bootstrap` marker with the `/AGENTS.md` pointer.
+   Verify the content persisted by GitHub, not just the submission.
+3. Include an intentionally German application label and a test that asserts
+   that localized label. Confirm both remain German, while the test description
+   and other explanatory text are English.
+4. Confirm the agent does not treat the chat language, previous German issues
+   or an English-only PR template as a substitute for the explicit root rule.
+   Existing unrelated historical artifacts are not translated automatically.
+
+Pass if newly published repository/GitHub prose is consistently English, the
+localized-content exception is preserved, and no unsolicited historical
+translation or unrelated code change occurs.
+
 ## Rooted-workspace bootstrap
 
 1. Start a fresh conversation rooted at this repository, with no role context
