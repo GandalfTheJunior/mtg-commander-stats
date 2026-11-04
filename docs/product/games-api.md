@@ -162,6 +162,26 @@ retained regardless of `playedOn`, including unknown dates. Participants are ord
 by user UUID using Java UUID ordering. This history route has no pagination;
 statistics use the separate [group statistics endpoint](statistics-api.md).
 
+### ManaBox links in game details
+
+Only `GET /api/groups/{groupId}/games/{gameId}` may add `deck.manaBoxUrl` to a
+participant's deck. The requesting user must be an active member of the requested
+group, and the deck owner must also be a **currently active member of that same
+group**. A stored non-null link is then included, even for an archived deck.
+Otherwise the key is omitted. The link reflects the current saved deck value;
+there is no per-game link snapshot. See [link validation and owner updates](decks-api.md#optional-manabox-share-link).
+
+Membership checks and reading the game occur under the existing group lock shared
+with join/leave operations. Leaving removes the former member's own read access
+and suppresses their links for other readers. Their historical participant/deck
+names, assignments and statistics remain visible, and their stored link is not
+changed. Rejoining restores eligibility for detail-link visibility.
+
+Although the endpoints share response DTOs, GET list, POST and PUT game responses
+deliberately omit this key for everyone. Member deck selection and statistics
+also omit links. No unrelated deck or group becomes accessible. All these reads
+use saved data without contacting ManaBox or Scryfall.
+
 ## Read-only member deck selection
 
 The authenticated requester and the target `userId` must both be currently active

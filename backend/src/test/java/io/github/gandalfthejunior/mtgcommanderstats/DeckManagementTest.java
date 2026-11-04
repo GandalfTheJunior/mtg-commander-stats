@@ -22,7 +22,8 @@ class DeckManagementTest extends GameTestSupport {
         Actor alice = register("alice", "Alice");
         Actor bob = register("bob", "Bob");
         JsonNode created = expect(alice, "POST", "/api/decks", deckBody("\u00a0 Atraxa  SUPERFRIENDS \u202f", "Atraxa", List.of("G", "W", "B", "U")), 201);
-        assertThat(created.size()).isEqualTo(6);
+        assertThat(created.size()).isEqualTo(7);
+        assertThat(created.get("manaBoxUrl").isNull()).isTrue();
         assertThat(created.path("name").asText()).isEqualTo("Atraxa  SUPERFRIENDS");
         assertThat(created.path("colorIdentity").toString()).isEqualTo("[\"W\",\"U\",\"B\",\"G\"]");
         JsonNode commander = created.path("commanders").get(0);

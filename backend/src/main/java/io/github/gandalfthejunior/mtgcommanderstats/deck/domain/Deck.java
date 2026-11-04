@@ -32,6 +32,9 @@ public class Deck {
     @Column(nullable = false, columnDefinition = "text")
     private String name;
 
+    @Column(name = "mana_box_url", columnDefinition = "text")
+    private String manaBoxUrl;
+
     @ElementCollection(fetch = FetchType.EAGER)
     @Fetch(FetchMode.SUBSELECT)
     @CollectionTable(name = "deck_commanders", joinColumns = @JoinColumn(name = "deck_id"))
@@ -64,6 +67,14 @@ public class Deck {
 
     public void rename(String name) {
         this.name = new DisplayText(name).value();
+    }
+
+    public void changeManaBoxUrl(String value) {
+        manaBoxUrl = value == null ? null : new ManaBoxUrl(value).value();
+    }
+
+    public String getManaBoxUrl() {
+        return manaBoxUrl;
     }
 
     public void replaceCommanders(List<DeckCommander> replacement) {

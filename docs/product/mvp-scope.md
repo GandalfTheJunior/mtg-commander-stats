@@ -75,12 +75,15 @@ operations; see the [usage guide](../../README.md#local-development).
   base colors and each required single pregame chosen color. Empty means colorless.
   There is no manual color override. The editor retains read-only WUBRG controls
   and supplies a separate required W/U/B/R/G picker when appropriate.
-- No decklist, ManaBox integration, or DeckVersion. See [Deck API](decks-api.md)
+- Optional public ManaBox deck share links can be stored by owners. Active group
+  readers see them only in game details while the deck owner is currently active
+  in that group, including archived decks. This is external linking only; no
+  ManaBox API, import, sync, hosted decklist or DeckVersion. See [Deck API](decks-api.md)
   for snapshot fields, strict write contracts and disposable local data migration.
 - Browser deletion requires a confirmation naming the selected unused deck.
   Canceling does not change the deck; confirmed deletion updates the UI only
   after the server acknowledges success.
-- The deck name and selected artwork remain editable, including after use or
+- The deck name, ManaBox link and selected artwork remain editable, including after use or
   archival. Each saved Commander image opens its own immediate-save gallery;
   selecting front/back artwork never changes the gameplay Commander.
 - Commander and color identity may change until the deck is first used in a
@@ -199,8 +202,8 @@ without applying `DisplayText` trimming.
 - Voice, camera, or audio recognition
 - AI rules assistant
 - DeckVersion
-- ManaBox integration; Scryfall-backed deck writes and UI remain deferred to
-  the follow-up issues after the #100 lookup foundation
+- ManaBox API integration, import and sync; the optional external share-link
+  backend is implemented, with browser editing/display deferred to #109
 - Fine-grained group permission system
 - Broader placement statistics and ranking UI (follow-on Commander Chronicles issues)
 - Monetization

@@ -71,6 +71,13 @@ validator before deduplication/result limiting; reads use snapshotted pairing
 metadata without provider calls. Reads require no provider calls;
 name-only updates retain snapshots and lock the existing deck row. The owning API exposes both flags. See [Deck API](../product/decks-api.md).
 
+The deck also stores an optional strictly validated ManaBox share URL. Updates
+use the same owner-authorized deck lock and transaction; the server never accesses
+the external link. Only game detail GET requests opt into link display, after
+checking requester and deck-owner current active membership under the group lock.
+Other game DTO uses omit the link. Historical names and saved links survive
+membership loss, while former members' links are withheld from group reads.
+
 The `group` feature uses the same feature layers. `play_groups` owns the stable
 group UUID, DisplayText name, owner UUID, and unique join code;
 `group_memberships` owns the stable membership UUID, group/user pair, role, and
