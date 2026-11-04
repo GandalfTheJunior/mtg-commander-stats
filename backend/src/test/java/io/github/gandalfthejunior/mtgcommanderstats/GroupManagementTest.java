@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import io.github.gandalfthejunior.mtgcommanderstats.MtgCommanderStatsApplicationTest.DatabaseConfiguration;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.DeckRepository;
+import io.github.gandalfthejunior.mtgcommanderstats.group.api.InvitationLimitIsolation;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.SecureJoinCodeGenerator;
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.GroupMembership;
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.GroupRole;
@@ -36,6 +37,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestExecutionListeners;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -55,6 +57,8 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mockingDetails;
 import static org.awaitility.Awaitility.await;
 
+@TestExecutionListeners(listeners = InvitationLimitIsolation.class,
+        mergeMode = TestExecutionListeners.MergeMode.MERGE_WITH_DEFAULTS)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(DatabaseConfiguration.class)
 class GroupManagementTest {

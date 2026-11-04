@@ -2,7 +2,10 @@ package io.github.gandalfthejunior.mtgcommanderstats.group.api;
 
 import java.io.IOException;
 import java.time.Clock;
-import java.util.HashMap;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import jakarta.servlet.FilterChain;
@@ -17,7 +20,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class InvitationRequestLimit extends OncePerRequestFilter {
     private static final int MAX_PEERS = 4096;
     private static final int REQUESTS_PER_MINUTE = 120;
-    private final Map<String, Window> peers = new HashMap<>();
+    private final Map<String, Window> peers = new LinkedHashMap<>();
     private final Clock clock;
 
     public InvitationRequestLimit() {
@@ -50,17 +53,36 @@ public class InvitationRequestLimit extends OncePerRequestFilter {
     }
 
     synchronized boolean admit(String peer) {
+        peer = peerKey(peer);
         long now = clock.millis();
         peers.values().removeIf(window -> now - window.start >= 60_000);
         Window window = peers.get(peer);
         if (window == null) {
             if (peers.size() >= MAX_PEERS) {
-                return false;
+                // Insertion order follows window creation time, including deterministic ties.
+                peers.remove(peers.keySet().iterator().next());
             }
             window = new Window(now);
             peers.put(peer, window);
         }
-        return ++window.count <= REQUESTS_PER_MINUTE;
+        if (window.count >= REQUESTS_PER_MINUTE) {
+            return false;
+        }
+        window.count++;
+        return true;
+    }
+
+    private static String peerKey(String peer) {
+        try {
+            // Parse literals only: never perform DNS lookups for request metadata.
+            InetAddress address = InetAddress.ofLiteral(peer);
+            if (address instanceof Inet6Address) {
+                return "ipv6:" + HexFormat.of().formatHex(address.getAddress(), 0, 8) + "/64";
+            }
+            return address.getHostAddress();
+        } catch (IllegalArgumentException exception) {
+            return peer;
+        }
     }
 
     private static final class Window {

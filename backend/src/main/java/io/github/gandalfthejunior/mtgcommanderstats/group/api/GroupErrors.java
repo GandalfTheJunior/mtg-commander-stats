@@ -1,8 +1,5 @@
 package io.github.gandalfthejunior.mtgcommanderstats.group.api;
 
-import java.net.URI;
-
-import jakarta.servlet.http.HttpServletRequest;
 import io.github.gandalfthejunior.mtgcommanderstats.displaytext.InvalidDisplayTextException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.AlreadyGroupMemberException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupAccessDeniedException;
@@ -21,19 +18,15 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-@RestControllerAdvice(assignableTypes = {GroupController.class, InvitationController.class, OwnershipTransferController.class})
+@RestControllerAdvice(assignableTypes = {GroupController.class, OwnershipTransferController.class})
 public class GroupErrors {
     @ExceptionHandler({InvalidDisplayTextException.class, InvalidJoinCodeException.class,
             InvalidGroupRequestException.class,
             HttpMessageNotReadableException.class, MethodArgumentNotValidException.class,
             MethodArgumentTypeMismatchException.class})
-    public ProblemDetail invalidInput(HttpServletRequest request) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
+    public ProblemDetail invalidInput() {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
                 "Provide only the documented request fields, with a valid name, code, role, or transfer UUID as required.");
-        if (request.getRequestURI().startsWith("/api/invitations/")) {
-            problem.setInstance(URI.create("/api/invitations"));
-        }
-        return problem;
     }
 
     @ExceptionHandler({GroupNotFoundException.class, GroupMemberNotFoundException.class})

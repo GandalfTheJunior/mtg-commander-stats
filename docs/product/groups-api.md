@@ -81,7 +81,10 @@ or revocation exists. Ordinary group DTOs never expose tokens.
 `GET /api/invitations/{code}` is public and returns `200` with only
 `{"groupName":"Friday Commander"}` for an unused, unexpired invitation. It never
 consumes the token. Unknown, malformed, expired and consumed codes return the
-same generic `400` problem, without the secret in its instance URI. Preview and
+same generic `400` problem, without the secret in its instance URI. Unexpected
+preview exceptions are handled at the controller boundary with a generic `500`,
+constant instance URI and no exception-message/stack-trace logging; they do not
+enter the servlet container's default `/error` dispatch. Preview and
 creation responses use `Cache-Control: no-store`; referrer policy is `no-referrer`.
 
 Every token expires at exactly creation + 24 hours, using database wall time.
@@ -153,7 +156,10 @@ The API uses RFC 9457 problem responses consistently with the existing backend.
 
 Invitation preview and join share a per-process, per-network-peer limit of 120
 attempts per minute (`429` with `Retry-After: 60`), with at most 4096 tracked
-peers. Forwarded headers are not trusted. Shared proxies/NAT share a bucket;
+peers. IPv6 addresses share a bucket per /64 prefix, including alternate literal
+spellings. At capacity, the oldest window is evicted so new peers can still
+proceed; this bounded local cache is not a global abuse-prevention guarantee.
+Forwarded headers are not trusted. Shared proxies/NAT share a bucket;
 production edge limits are needed across replicas. Token-bearing paths and
 payloads must be redacted from access logs, analytics and tracing; the application
 does not enable request/access logging. See the cutover runbook for edge duties.
