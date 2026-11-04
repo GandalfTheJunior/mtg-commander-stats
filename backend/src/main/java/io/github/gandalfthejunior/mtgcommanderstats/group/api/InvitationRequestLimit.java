@@ -72,6 +72,10 @@ public class InvitationRequestLimit extends OncePerRequestFilter {
         return true;
     }
 
+    synchronized void clear() {
+        peers.clear();
+    }
+
     private static String peerKey(String peer) {
         try {
             // Parse literals only: never perform DNS lookups for request metadata.

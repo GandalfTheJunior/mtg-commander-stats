@@ -83,7 +83,8 @@ or revocation exists. Ordinary group DTOs never expose tokens.
 consumes the token. Unknown, malformed, expired and consumed codes return the
 same generic `400` problem, without the secret in its instance URI. Unexpected
 preview exceptions are handled at the controller boundary with a generic `500`,
-constant instance URI and no exception-message/stack-trace logging; they do not
+constant instance URI and an ERROR operator signal containing only the exception
+class (no exception message, cause, stack trace or request path); they do not
 enter the servlet container's default `/error` dispatch. Preview and
 creation responses use `Cache-Control: no-store`; referrer policy is `no-referrer`.
 

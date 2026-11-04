@@ -58,13 +58,12 @@ verify animation continuity across React commits.
 
 Group HTTP integration tests use real loopback connections and shared Spring
 contexts. Their `InvitationLimitIsolation` test listener clears only the limiter's
-peer cache before each test method, so unrelated fixtures cannot exhaust one
-another's quota. The production limit is neither increased nor disabled. An
-ordered HTTP regression verifies both the real 120-request limit within a method
+peer cache through a package-private `clear()` before each test method, so
+unrelated fixtures cannot exhaust one another's quota. The production limit is
+neither increased nor disabled. An ordered HTTP regression verifies both the real 120-request limit within a method
 and fresh quota in the next method using the same context. Limiter unit tests
-cover expiry, capacity eviction and IPv6 /64 aggregation. Run the canonical
-`./mvnw verify` with the default Spring context cache; shrinking that cache can
-mask cross-test state leakage and is not equivalent CI evidence.
+cover expiry, capacity eviction and IPv6 /64 aggregation. Use the
+[required checks](#required-checks) for complete-suite verification.
 
 ## Coverage baseline (no minimum thresholds)
 

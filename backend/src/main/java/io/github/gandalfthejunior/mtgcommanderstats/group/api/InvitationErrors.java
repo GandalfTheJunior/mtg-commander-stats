@@ -3,6 +3,8 @@ package io.github.gandalfthejunior.mtgcommanderstats.group.api;
 import java.net.URI;
 
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.InvalidJoinCodeException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -10,17 +12,20 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/** Keep secret-bearing preview failures out of the servlet container's error dispatch and logs. */
+/** Keep preview secrets out of the servlet container's error dispatch and logs. */
 @RestControllerAdvice(assignableTypes = InvitationController.class)
 public class InvitationErrors {
+    private static final Logger LOG = LoggerFactory.getLogger(InvitationErrors.class);
+
     @ExceptionHandler(InvalidJoinCodeException.class)
     public ResponseEntity<ProblemDetail> unavailable() {
         return problem(HttpStatus.BAD_REQUEST, "This invitation is unavailable.");
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ProblemDetail> unexpectedFailure() {
-        // Exception messages and stack traces may contain the token or the complete request path.
+    public ResponseEntity<ProblemDetail> unexpectedFailure(Exception exception) {
+        // Pass only the class name: messages, causes and stack traces may contain the secret.
+        LOG.error("Invitation preview failed: exceptionType={}", exception.getClass().getName());
         return problem(HttpStatus.INTERNAL_SERVER_ERROR, "The invitation could not be checked. Retry later.");
     }
 
