@@ -27,6 +27,9 @@ before substantive repository work. This is the generic bootstrap entry point;
 `AGENTS.md` selects and loads the role contract that matches the requested outcome.
 Configure the repository root as the task workspace when the client discovers
 instruction files automatically, or load `/AGENTS.md` explicitly when it does not.
+Claude Code discovers `CLAUDE.md` rather than `AGENTS.md`; the root
+[`CLAUDE.md`](CLAUDE.md) only imports `AGENTS.md` so that both clients load the
+same single source of instructions.
 
 ## Stack and prerequisites
 
