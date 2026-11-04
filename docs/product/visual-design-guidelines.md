@@ -54,6 +54,26 @@ or performance. The [current redesign scope](frontend-redesign.md#shared-visual-
 still excludes decorative animated rain/fire, individualized room themes and
 background illustrations. A playground example does not override these limits.
 
+## Approved: high-level surface hierarchy
+
+The PO's direction in [issue #182](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/182)
+is **dark in the background, light in the foreground**. Prefer dark, warm
+supporting surfaces to create depth and a cozy frame, with lighter, well-defined
+content surfaces for primary information and controls when this improves
+separation, readability and scanning. Preserve accessible contrast, the existing
+burgundy/brass/cream language, shared semantic tokens and recognizable Mana colors.
+
+This is a material-agnostic directional principle, not a requirement to lighten
+every component, use wood everywhere or restyle existing production screens.
+Exceptions may better serve usability, legibility or the approved visual system.
+The existing UI foundations above remain applicable; this direction alone does
+not authorize production changes or a palette inversion.
+
+The specific **wood backdrop / parchment foreground** interpretation in the
+[Mana material comparison](../development/motion-playground.md#inverse-mana-material-study-182)
+is still a Playground experiment. Neither material, texture nor component has
+been approved for production by this high-level direction.
+
 ## Exploration: not yet binding
 
 The playground can compare styles, materials, frames, motion, lighting and
