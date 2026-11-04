@@ -56,6 +56,17 @@ Existing issues keep their current size and title until an authorized refinement
 reassesses them. The [Issue Refiner contract](roles/issue-refiner.md#agent-poker)
 owns estimation, mutation authority and reassessment.
 
+### Maintaining reference issues
+
+Keep at most three reference issues per size, preferably covering different
+areas. When reviewing an implementation of a sized issue, the Reviewer may flag
+the issue as a reference candidate in the review, but only when the work clearly
+turned out larger or smaller than its size (a calibration signal) or when it
+represents a size and area the references do not yet cover. This is a note, not
+a required check or merge gate, and it does not change the issue's label. The PO
+decides whether to add or replace a reference; an authorized documentation
+change then updates the table above.
+
 ## Role transitions
 
 Follow the root transition protocol whenever the PO changes the outcome. For
