@@ -1,4 +1,5 @@
 import { CommanderArtwork } from './CommanderArtwork'
+import { ManaBoxLink } from './ManaBoxLink'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { Alert, Box, Button, Card, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, Menu, MenuItem, Stack, Typography } from '@mui/material'
@@ -186,6 +187,7 @@ export default function GameDetailsPage({ currentUser, onUnauthorized, onNotice,
               <Typography>Farbidentität: {person.deck.colorIdentity.length ? person.deck.colorIdentity.map(color => `${color} (${colorNames[color]})`).join(' · ') : 'Farblos'}</Typography>
               {person.deck.archived && <Typography sx={{ color: 'text.secondary' }}>Archiviertes Deck</Typography>}
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>Deckkennung: {person.deckId}</Typography>
+              <ManaBoxLink url={person.deck.manaBoxUrl} deckName={person.deck.name} />
             </Box>
           </Card>
         })}

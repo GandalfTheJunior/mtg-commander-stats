@@ -4,9 +4,10 @@ import { commanderNames, magicColors, type Deck, type SavedCommander } from './a
 import { colorNames } from './deckColors'
 import { safeArtworkUrl } from './artworkUrl'
 import { CommanderArtwork } from './CommanderArtwork'
+import { ManaBoxLink } from './ManaBoxLink'
 
-export default function SavedDeckCard({ deck, onOpen, overview = false, showId = false, onOpenArtwork }: {
-  deck: Deck; onOpen: () => void; overview?: boolean; showId?: boolean
+export default function SavedDeckCard({ deck, onOpen, overview = false, showId = false, showManaBox = false, onOpenArtwork }: {
+  deck: Deck; onOpen: () => void; overview?: boolean; showId?: boolean; showManaBox?: boolean
   onOpenArtwork?: (deck: Deck, commander: SavedCommander, trigger: HTMLButtonElement) => void
 }) {
   const id = useId()
@@ -44,22 +45,25 @@ export default function SavedDeckCard({ deck, onOpen, overview = false, showId =
         </Box>
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>Illustrationen © Wizards of the Coast</Typography>
       </Stack>
-      <CardActionArea disableRipple onClick={onOpen} aria-label={overview ? `${deck.name} bearbeiten` : undefined}
-        aria-labelledby={overview ? undefined : `${id}-name`} aria-describedby={`${id}-description`}
-        sx={{ display: 'block', alignSelf: 'start', minWidth: 0, p: 1, textAlign: 'left', color: 'text.primary', overflowWrap: 'anywhere',
-          '&:hover': { bgcolor: 'interaction.hover' }, '&:active': { bgcolor: 'interaction.pressed' },
-          '&.Mui-focusVisible, &:focus-visible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: -3 } }}>
-        <Typography component={overview ? 'h3' : 'h4'} variant="h6" id={`${id}-name`}>{deck.name}</Typography>
-        <Box id={`${id}-description`}>
-          <Typography>Commander: {commanderNames(deck)}</Typography>
-          <Typography sx={{ color: 'text.secondary' }}>Farbidentität: {magicColors.filter(color => deck.colorIdentity.includes(color))
-            .map(color => `${color} (${colorNames[color]})`).join(' · ') || 'Farblos'}</Typography>
-          <Typography sx={{ color: 'text.secondary' }}>{deck.archived ? 'Archiviert – für neue Spiele nicht verfügbar'
-            : deck.everUsed ? 'Bereits gespielt – Commander und Farben gesperrt' : 'Unbenutzt'}</Typography>
-          {showId && <Typography variant="body2" sx={{ color: 'text.secondary' }}>Deck-ID: {deck.id}</Typography>}
-        </Box>
-        {overview && <Typography component="span" sx={{ display: 'inline-block', mt: 1, color: 'secondary.main', textDecoration: 'underline' }}>Bearbeiten</Typography>}
-      </CardActionArea>
+      <Stack sx={{ gap: 1, minWidth: 0 }}>
+        <CardActionArea disableRipple onClick={onOpen} aria-label={overview ? `${deck.name} bearbeiten` : undefined}
+          aria-labelledby={overview ? undefined : `${id}-name`} aria-describedby={`${id}-description`}
+          sx={{ display: 'block', alignSelf: 'start', minWidth: 0, p: 1, textAlign: 'left', color: 'text.primary', overflowWrap: 'anywhere',
+            '&:hover': { bgcolor: 'interaction.hover' }, '&:active': { bgcolor: 'interaction.pressed' },
+            '&.Mui-focusVisible, &:focus-visible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: -3 } }}>
+          <Typography component={overview ? 'h3' : 'h4'} variant="h6" id={`${id}-name`}>{deck.name}</Typography>
+          <Box id={`${id}-description`}>
+            <Typography>Commander: {commanderNames(deck)}</Typography>
+            <Typography sx={{ color: 'text.secondary' }}>Farbidentität: {magicColors.filter(color => deck.colorIdentity.includes(color))
+              .map(color => `${color} (${colorNames[color]})`).join(' · ') || 'Farblos'}</Typography>
+            <Typography sx={{ color: 'text.secondary' }}>{deck.archived ? 'Archiviert – für neue Spiele nicht verfügbar'
+              : deck.everUsed ? 'Bereits gespielt – Commander und Farben gesperrt' : 'Unbenutzt'}</Typography>
+            {showId && <Typography variant="body2" sx={{ color: 'text.secondary' }}>Deck-ID: {deck.id}</Typography>}
+          </Box>
+          {overview && <Typography component="span" sx={{ display: 'inline-block', mt: 1, color: 'secondary.main', textDecoration: 'underline' }}>Bearbeiten</Typography>}
+        </CardActionArea>
+        {showManaBox && <ManaBoxLink url={deck.manaBoxUrl} deckName={deck.name} />}
+      </Stack>
     </Box>
   </Card>
 }

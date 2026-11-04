@@ -73,3 +73,33 @@ test('missing attribution, an unsafe image and a long name retain readable fallb
   expect(screen.getByText(/Künstlerangabe nicht verfügbar/)).toBeInTheDocument()
   expect(screen.getByRole('button', { name: deck.name })).toHaveAccessibleDescription(expect.stringContaining('Bereits gespielt'))
 })
+
+test('ManaBox is opt-in and independent from editing and artwork actions', () => {
+  const onOpen = vi.fn(), onOpenArtwork = vi.fn()
+  const linked = { ...deck, manaBoxUrl: 'https://manabox.app/decks/Synthetic-Mixed_123' }
+  const view = render(<AppThemeProvider><SavedDeckCard deck={linked} onOpen={onOpen} onOpenArtwork={onOpenArtwork} /></AppThemeProvider>)
+  expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
+  view.rerender(<AppThemeProvider><SavedDeckCard deck={linked} showManaBox onOpen={onOpen} onOpenArtwork={onOpenArtwork} /></AppThemeProvider>)
+  const link = screen.getByRole('link', { name: 'Alpha: Deck in ManaBox ansehen (öffnet einen neuen Tab)' })
+  expect(link).toHaveAttribute('href', linked.manaBoxUrl)
+  expect(link).toHaveAttribute('target', '_blank')
+  expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+  expect(link.closest('button')).toBeNull()
+  fireEvent.click(link)
+  expect(onOpen).not.toHaveBeenCalled()
+  expect(onOpenArtwork).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: deck.name }))
+  expect(onOpen).toHaveBeenCalledOnce()
+})
+
+test.each(['/dashboard', '/decks'])('%s shows owner links only on Meine Decks, including used and archived decks', async path => {
+  const linked = 'https://manabox.app/decks/Synthetic-Mixed_123'
+  deckApi([deck, ...[false, true].map((archived, index) => ({ ...deck, id: `deck-${index}`, name: `Linked ${index}`, everUsed: true, archived, manaBoxUrl: linked })),
+    { ...deck, id: 'unsafe', name: 'Unsafe', manaBoxUrl: 'https://evil.test/decks/id' }])
+  showDeckApp(path)
+  await screen.findByRole('heading', { name: 'Linked 0' })
+  expect(screen.queryAllByRole('link', { name: /ManaBox/ })).toHaveLength(path === '/decks' ? 2 : 0)
+  for (const name of ['Alpha', 'Unsafe']) {
+    expect(within(screen.getByRole('heading', { name }).closest('li')!).queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
+  }
+})

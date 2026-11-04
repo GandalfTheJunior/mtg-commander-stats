@@ -182,6 +182,12 @@ deliberately omit this key for everyone. Member deck selection and statistics
 also omit links. No unrelated deck or group becomes accessible. All these reads
 use saved data without contacting ManaBox or Scryfall.
 
+The dedicated browser details view renders one safe external ManaBox action for
+each participant whose fresh response includes a valid link. Omission is normal:
+the frontend neither infers membership permission nor recovers previously seen
+links. Historical presentation remains intact. History cards, game editing and
+selection, Dashboard and statistics expose no ManaBox actions.
+
 ## Read-only member deck selection
 
 The authenticated requester and the target `userId` must both be currently active

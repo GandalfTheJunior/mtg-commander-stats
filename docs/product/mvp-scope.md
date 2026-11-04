@@ -91,6 +91,9 @@ operations; see the [usage guide](../../README.md#local-development).
   in that group, including archived decks. This is external linking only; no
   ManaBox API, import, sync, hosted decklist or DeckVersion. See [Deck API](decks-api.md)
   for snapshot fields, strict write contracts and disposable local data migration.
+  Owners edit links in the existing deck editor and open them from Meine Decks;
+  Dashboard intentionally has no ManaBox action. Authorized game details show
+  each available participant link as a separate external action in a new tab.
 - Browser deletion requires a confirmation naming the selected unused deck.
   Canceling does not change the deck; confirmed deletion updates the UI only
   after the server acknowledges success.
@@ -213,8 +216,8 @@ without applying `DisplayText` trimming.
 - Voice, camera, or audio recognition
 - AI rules assistant
 - DeckVersion
-- ManaBox API integration, import and sync; the optional external share-link
-  backend is implemented, with browser editing/display deferred to #109
+- ManaBox API integration, import and sync; optional external share links are
+  supported in the owner deck editor, Meine Decks and authorized game details
 - Fine-grained group permission system
 - Broader placement statistics and ranking UI (follow-on Commander Chronicles issues)
 - Monetization
