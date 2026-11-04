@@ -43,6 +43,13 @@ public class PlayGroup {
         this.joinCode = joinCode;
     }
 
+    public void transferOwnership(UUID newOwnerId) {
+        if (newOwnerId == null) {
+            throw new IllegalArgumentException("A new owner is required.");
+        }
+        ownerId = newOwnerId;
+    }
+
     public UUID getId() {
         return id;
     }

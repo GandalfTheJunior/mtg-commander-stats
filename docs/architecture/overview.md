@@ -87,6 +87,15 @@ integrity. Deferred constraint triggers also require every persisted group to
 have its designated owner as that active OWNER. Application transactions create
 the group and OWNER membership atomically and prohibit OWNER departure,
 preserving exactly one active OWNER through all supported operations.
+Ownership transfer stores a stable request and recipient acknowledgement in
+`ownership_transfers` (V12). The group lock serializes initiation, response and
+withdrawal with membership/game operations. Acceptance flushes the prior OWNER's
+demotion before promotion to respect the immediate unique index, then commits
+the designated owner, roles and accepted outcome atomically under the existing
+deferred triggers. A partial unique index permits only one pending transfer per
+group. Recipient-only unacknowledged accepted/declined outcomes survive session
+changes; GET never acknowledges them. See the [group API](../product/groups-api.md#ownership-transfer)
+for state, errors and future UI handoff.
 
 Join codes are 128-bit values from `SecureRandom`, encoded as 22 URL-safe Base64
 characters without padding. Creation and regeneration retry unique-code

@@ -5,6 +5,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupAcces
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupNotFoundException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupMemberNotFoundException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.InvalidJoinCodeException;
+import io.github.gandalfthejunior.mtgcommanderstats.group.application.OwnershipTransferConflictException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.OwnerCannotLeaveException;
 import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -16,7 +17,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-@RestControllerAdvice(assignableTypes = GroupController.class)
+@RestControllerAdvice(assignableTypes = {GroupController.class, OwnershipTransferController.class})
 public class GroupErrors {
     @ExceptionHandler({InvalidDisplayTextException.class, InvalidJoinCodeException.class,
             InvalidGroupRequestException.class,
@@ -24,7 +25,7 @@ public class GroupErrors {
             MethodArgumentTypeMismatchException.class})
     public ProblemDetail invalidInput() {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
-                "Provide only the documented request fields, with a valid name, code, or ADMIN/MEMBER role as required.");
+                "Provide only the documented request fields, with a valid name, code, role, or transfer UUID as required.");
     }
 
     @ExceptionHandler({GroupNotFoundException.class, GroupMemberNotFoundException.class})
@@ -38,7 +39,8 @@ public class GroupErrors {
                 "Active group membership with the required role is needed.");
     }
 
-    @ExceptionHandler({DataIntegrityViolationException.class, ConcurrencyFailureException.class})
+    @ExceptionHandler({DataIntegrityViolationException.class, ConcurrencyFailureException.class,
+            OwnershipTransferConflictException.class})
     public ProblemDetail conflict() {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
                 "The request conflicts with persisted state. Reload and retry.");
