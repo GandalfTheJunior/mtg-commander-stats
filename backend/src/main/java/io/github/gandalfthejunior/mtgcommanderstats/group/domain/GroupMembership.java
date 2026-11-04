@@ -65,6 +65,20 @@ public class GroupMembership {
         this.role = role;
     }
 
+    public void relinquishOwnership() {
+        if (!active || role != GroupRole.OWNER) {
+            throw new IllegalStateException("An active owner is required.");
+        }
+        role = GroupRole.MEMBER;
+    }
+
+    public void acceptOwnership() {
+        if (!active || role != GroupRole.ADMIN) {
+            throw new IllegalStateException("An active admin is required.");
+        }
+        role = GroupRole.OWNER;
+    }
+
     public void leave() {
         if (role == GroupRole.OWNER) {
             throw new OwnerCannotLeaveException();

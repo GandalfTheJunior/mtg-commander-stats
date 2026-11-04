@@ -112,8 +112,7 @@ retry. ADMIN has no additional join-code permissions.
 
 V11 extends the role CHECK constraint additively. Existing OWNER/MEMBER rows,
 the unique active OWNER index and deferred designated-owner checks are retained.
-The Members administration UI, ownership transfer and single-use invitations are
-separate follow-on work.
+The Members administration UI and single-use invitations are separate follow-on work.
 
 ## Status and error behavior
 
@@ -136,3 +135,83 @@ details. A missing group is distinguished with `404` as part of this contract.
 
 Group-authorized deck selection and game history/recording are documented in the
 [Commander games API](games-api.md). Departure retains those historical games.
+
+## Ownership transfer
+
+Ownership transfer is a backend prerequisite for the future Members UI. All
+routes below are under `/api/groups/{groupId}/ownership-transfer`. Session and
+CSRF requirements are unchanged. No frontend, email, push or live notification
+infrastructure is included.
+
+| Method / suffix | Strict input | Success |
+| --- | --- | --- |
+| POST (base) | `{"targetUserId":"<UUID>"}` | 201 transfer status |
+| GET (base) | None | 200 pending transfer status |
+| POST `/accept` | `{"requestId":"<UUID>"}` | 200 accepted transfer status |
+| POST `/decline` | `{"requestId":"<UUID>"}` | 200 declined transfer status |
+| DELETE (base) | `{"requestId":"<UUID>"}` | 204 |
+| GET `/notices` | None | 200 array of unacknowledged outcomes |
+| POST `/notices/{noticeId}/acknowledge` | No body or `{}` | 204 |
+
+Unknown fields, missing/null/non-string/invalid UUIDs and malformed JSON produce
+400. Transition IDs are mandatory, including on withdrawal; a stale action must
+never apply to a newer request. Authentication failures use 401, invalid CSRF 403,
+missing groups/resources 404 and stale/duplicate/conflicting transitions 409.
+Only the active current OWNER can initiate, for an existing active ADMIN in the
+same group. Other actors receive 403 before target lookup; absent/inactive targets
+return 404 and active non-ADMIN targets 403. Only the named target can accept or
+decline; only the initiating OWNER can withdraw. An inaccessible request ID returns
+404, just like an absent ID. A completed request returns 409 to its designated
+actor, including repeated acceptance, decline, withdrawal or acknowledgement.
+A demoted/removed/departed target receives 409 on response, without changing roles;
+the still-current requesting OWNER can withdraw that stale request.
+
+Transfer status contains `id`, `groupId`, `requesterId`, `requesterUsername`,
+`targetUserId`, `targetUsername`, `state`, `createdAt`, and nullable `resolvedAt`.
+Names are current public display names; emails and join codes are never included.
+GET base returns only the pending request to the active current OWNER or named
+active ADMIN; ordinary/inactive members receive 403, unrelated ADMINs and absent
+pending requests 404. Pending and notice GET responses use `Cache-Control: no-store`.
+
+V12 adds `ownership_transfers` with stable UUIDs, user/group foreign keys,
+timestamps, state checks, a partial unique index allowing at most one PENDING
+request per group, and a recipient/outcome index. State transitions are strictly
+`PENDING → ACCEPTED | DECLINED | CANCELLED`. Terminal requests are retained;
+there is no automatic expiry or cleanup that could discard an unread outcome.
+Acceptance atomically demotes the original OWNER to MEMBER, promotes the target
+to OWNER, updates `play_groups.owner_id` and resolves the request. The previous
+OWNER is explicitly flushed first to release the immediate unique OWNER index;
+the existing deferred designated-owner triggers validate the final transaction.
+All reads and writes take the group row lock before loading request/membership
+state, sharing the same ordering with join/leave, role changes, removal and game
+operations. This group lock serializes relevant row access; no additional request
+or membership row locks are needed by application operations. Errors roll back
+roles, designated owner, request status and outcome together. Membership IDs,
+games, participants, decks and statistics stay intact. The former OWNER can leave
+as MEMBER. Permissions are rechecked from persisted state on each operation,
+including in existing sessions.
+
+### Frontend handoff and durable outcomes
+
+The future frontend renders the pending banner only for the target ADMIN above
+the group tabs, using requester display information. Acceptance requires an
+explicit confirmation dialog describing both role changes. The OWNER sees pending
+status and can withdraw using that request's ID. Decline needs no extra dialog.
+Only a confirmed response justifies success feedback; after acceptance refresh
+authoritative group details and permissions. Ambiguous writes must be reconciled
+by reads rather than blindly repeated or presented as successful.
+
+The transfer itself is the narrow outcome notice: its ID is the notice ID.
+GET `/notices` returns only the authenticated original requester's unacknowledged
+ACCEPTED/DECLINED outcomes for this group, in creation-time/UUID order, up to 20
+per read. Other active members get an empty array; inactive members receive 403.
+Notice eligibility depends on the recipient UUID, not OWNER role, session or
+browser memory, and therefore survives acceptance and new login/device sessions.
+Display each returned accepted/declined outcome once, then explicitly acknowledge
+its ID. GET never consumes it; retrying a read can return the same notice until
+acknowledged. After acknowledging the batch, read again to drain any remaining
+outcomes. Acknowledging another recipient's or non-outcome ID returns 404.
+Withdrawal creates no notice. The incoming OWNER's immediate success toast uses
+the confirmed acceptance response; the former OWNER's next-open toast uses these
+persisted outcomes. Retain the request ID locally during actions and refresh
+authoritative state after conflicts. UI implementation remains separate.

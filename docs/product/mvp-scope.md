@@ -49,13 +49,18 @@ or OWNER; server authorization remains authoritative.
   OWNER. Only OWNER can promote/demote active MEMBER/ADMIN memberships.
 - Active OWNER/ADMIN can remove ordinary MEMBERs, preserving history and revoking
   protected access immediately. An OWNER must demote an ADMIN before removal.
-- The OWNER cannot leave the group. Ownership transfer is out of scope.
+- The OWNER cannot leave while owning the group. The backend supports explicit
+  ownership transfer to an active ADMIN: only that target can accept/decline,
+  and the initiating OWNER can withdraw before acceptance. Acceptance atomically
+  makes the target OWNER and the prior OWNER MEMBER. One pending request per
+  group is allowed. Accepted/declined outcomes remain available to the original
+  OWNER until explicitly acknowledged; see the [group API](groups-api.md#ownership-transfer).
 - Leaving must preserve historical membership, game, and statistics data.
 - A former member may rejoin with the current code. Rejoining reactivates the
   existing stable membership as MEMBER rather than creating a duplicate.
 - Former members lose access that requires active membership.
 - Further fine-grained permissions and additional roles are out of scope.
-  Members administration UI, ownership transfer and single-use invitations remain
+  Members administration UI, ownership-transfer UI and single-use invitations remain
   follow-on work; current join-code permissions remain OWNER-only.
 
 The backend API for these rules is implemented and documented in
