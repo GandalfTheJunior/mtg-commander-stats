@@ -128,7 +128,7 @@ public class ManageGames {
     }
 
     private void requireModification(UUID actorId, GroupRole role, Game game) {
-        if (role != GroupRole.OWNER && !game.getCreatorId().equals(actorId)) {
+        if (role != GroupRole.OWNER && role != GroupRole.ADMIN && !game.getCreatorId().equals(actorId)) {
             throw new GroupAccessDeniedException();
         }
     }

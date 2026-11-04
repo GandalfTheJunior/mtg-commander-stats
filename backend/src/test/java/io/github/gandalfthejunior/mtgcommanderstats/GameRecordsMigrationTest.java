@@ -25,6 +25,45 @@ class GameRecordsMigrationTest {
     private DataSource dataSource;
 
     @Test
+    void adminUpgradePreservesExistingMembershipRowsAndOwnerInvariant() throws Exception {
+        String schema = "admin_upgrade";
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        Flyway old = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).target("10").load();
+        try {
+            old.migrate();
+            UUID owner = UUID.randomUUID();
+            UUID member = UUID.randomUUID();
+            UUID group = UUID.randomUUID();
+            try (Connection connection = dataSource.getConnection()) {
+                connection.setAutoCommit(false);
+                connection.setSchema(schema);
+                JdbcTemplate seed = new JdbcTemplate(new SingleConnectionDataSource(connection, true));
+                for (UUID user : List.of(owner, member)) {
+                    seed.update("INSERT INTO users (id, username, encoded_password, email) VALUES (?, 'Player', 'hash', ?)",
+                            user, user + "@example.com");
+                }
+                seed.update("INSERT INTO play_groups (id, name, join_code, owner_id) VALUES (?, 'Pod', 'AAAAAAAAAAAAAAAAAAAAAA', ?)",
+                        group, owner);
+                seed.update("INSERT INTO group_memberships (id, group_id, user_id, role, active) VALUES (?, ?, ?, 'OWNER', true)",
+                        UUID.randomUUID(), group, owner);
+                seed.update("INSERT INTO group_memberships (id, group_id, user_id, role, active) VALUES (?, ?, ?, 'MEMBER', true)",
+                        UUID.randomUUID(), group, member);
+                connection.commit();
+            }
+            List<Map<String, Object>> before = jdbc.queryForList("SELECT * FROM " + schema + ".group_memberships ORDER BY id");
+            Flyway upgrade = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).target("11").load();
+            assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(1);
+            assertThat(upgrade.validateWithResult().validationSuccessful).isTrue();
+            assertThat(jdbc.queryForList("SELECT * FROM " + schema + ".group_memberships ORDER BY id")).isEqualTo(before);
+            jdbc.update("UPDATE " + schema + ".group_memberships SET role = 'ADMIN' WHERE user_id = ?", member);
+            assertThatThrownBy(() -> jdbc.update("UPDATE " + schema + ".group_memberships SET role = 'ADMIN' WHERE user_id = ?", owner))
+                    .hasStackTraceContaining("must have its designated active owner membership");
+        } finally {
+            jdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+        }
+    }
+
+    @Test
     void manaBoxUpgradeLeavesExistingDecksAndCommanderSnapshotsIntactWithNullLinks() {
         String schema = "mana_box_upgrade";
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
@@ -44,7 +83,7 @@ class GameRecordsMigrationTest {
             }
             List<Map<String, Object>> before = jdbc.queryForList("SELECT * FROM " + schema + ".decks ORDER BY id");
             List<Map<String, Object>> snapshots = jdbc.queryForList("SELECT * FROM " + schema + ".deck_commanders ORDER BY deck_id, position");
-            Flyway upgrade = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).load();
+            Flyway upgrade = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).target("10").load();
             assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(1);
             assertThat(upgrade.validateWithResult().validationSuccessful).isTrue();
             List<Map<String, Object>> after = jdbc.queryForList("SELECT * FROM " + schema + ".decks ORDER BY id");

@@ -57,6 +57,14 @@ public class GroupMembership {
         active = true;
     }
 
+    public void changeRole(GroupRole role) {
+        if (!active || this.role == GroupRole.OWNER
+                || (role != GroupRole.ADMIN && role != GroupRole.MEMBER)) {
+            throw new IllegalArgumentException("Only active non-owner roles can be changed.");
+        }
+        this.role = role;
+    }
+
     public void leave() {
         if (role == GroupRole.OWNER) {
             throw new OwnerCannotLeaveException();

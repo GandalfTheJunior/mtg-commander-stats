@@ -134,7 +134,8 @@ production dependencies. Empty history skips display lookups; nonempty history
 uses six queries regardless of game count. See [Statistics API](../product/statistics-api.md).
 
 Game operations (including statistics reads and deck selection) lock the group row before
-checking current membership. Join, leave and code rotation use that same lock.
+checking current membership. Join, leave, role changes, member removal and code
+rotation use that same lock.
 This deliberately serializes operations within a group, so committed departure
 cannot be bypassed by an in-flight authorization check. Deck operations acquire
 pessimistic write locks before checking lifecycle state; games acquire newly

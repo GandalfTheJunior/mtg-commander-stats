@@ -19,8 +19,8 @@ them after acknowledged game creation, replacement or deletion.
 | DELETE | `/api/groups/{groupId}/games/{gameId}` | `204`, empty body |
 
 An active member may create games and read their group's history. The creator
-need not participate. Only the active original creator or an active OWNER may
-replace or delete a game. Leaving immediately removes protected access while
+need not participate. Only the active original creator or an active OWNER/ADMIN
+may replace or delete a game. Leaving immediately removes protected access while
 preserving historical games and stable participant references.
 
 ## Recording and replacing a game
@@ -90,7 +90,7 @@ The two independent facts are:
 POST with `playedOn` absent or null stores unknown. PUT with the field absent
 preserves the stored date so older clients cannot erase it; an explicit date
 replaces it and explicit null clears it. All other gameplay fields still require
-complete replacement. The same active original creator/OWNER authorization
+complete replacement. The same active original creator/OWNER/ADMIN authorization
 applies to date corrections; there is no separate date-edit endpoint.
 
 Malformed strings, impossible calendar dates, date-time timestamps, other JSON
@@ -172,8 +172,8 @@ Otherwise the key is omitted. The link reflects the current saved deck value;
 there is no per-game link snapshot. See [link validation and owner updates](decks-api.md#optional-manabox-share-link).
 
 Membership checks and reading the game occur under the existing group lock shared
-with join/leave operations. Leaving removes the former member's own read access
-and suppresses their links for other readers. Their historical participant/deck
+with join/leave, role changes and member removal. Departure/removal revokes the
+former member's own read access and suppresses their links for other readers. Their historical participant/deck
 names, assignments and statistics remain visible, and their stored link is not
 changed. Rejoining restores eligibility for detail-link visibility.
 
