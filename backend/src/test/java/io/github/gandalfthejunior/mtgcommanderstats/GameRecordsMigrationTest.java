@@ -1,5 +1,9 @@
 package io.github.gandalfthejunior.mtgcommanderstats;
 
+import java.sql.Connection;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import javax.sql.DataSource;
 
 import io.github.gandalfthejunior.mtgcommanderstats.MtgCommanderStatsApplicationTest.DatabaseConfiguration;
@@ -9,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -18,6 +23,64 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class GameRecordsMigrationTest {
     @Autowired
     private DataSource dataSource;
+
+    @Test
+    void playedOnUpgradePreservesCompleteV8GamesAndLeavesTheirDatesUnknown() throws Exception {
+        String schema = "played_on_upgrade";
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        Flyway old = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).target("8").load();
+        try {
+            old.migrate();
+            try (Connection connection = dataSource.getConnection()) {
+                connection.setAutoCommit(false);
+                JdbcTemplate seed = new JdbcTemplate(new SingleConnectionDataSource(connection, true));
+                seed.execute("SET LOCAL search_path TO " + schema + ", public");
+                UUID owner = UUID.randomUUID();
+                UUID member = UUID.randomUUID();
+                UUID group = UUID.randomUUID();
+                UUID ownerDeck = UUID.randomUUID();
+                UUID memberDeck = UUID.randomUUID();
+                for (UUID user : List.of(owner, member)) {
+                    seed.update("INSERT INTO users (id, username, encoded_password, email) VALUES (?, 'Player', 'test-hash', ?)",
+                            user, user + "@example.com");
+                }
+                seed.update("INSERT INTO play_groups (id, name, join_code, owner_id) VALUES (?, 'Pod', 'abcdefghijklmnopqrstuv', ?)", group, owner);
+                seed.update("INSERT INTO group_memberships (id, group_id, user_id, role, active) VALUES (?, ?, ?, 'OWNER', true)",
+                        UUID.randomUUID(), group, owner);
+                seed.update("INSERT INTO decks (id, owner_id, name, color_identity, ever_used, archived) VALUES (?, ?, 'Deck', 'R', true, false)", ownerDeck, owner);
+                seed.update("INSERT INTO decks (id, owner_id, name, color_identity, ever_used, archived) VALUES (?, ?, 'Deck', 'R', true, true)", memberDeck, member);
+                for (String mode : List.of("normal", "alternate", "draw")) {
+                    UUID game = UUID.randomUUID();
+                    seed.update("INSERT INTO games (id, group_id, creator_id, recorded_at, result, alternate_win_con) VALUES (?, ?, ?, '2026-11-01T00:30:00.123456Z', ?, ?)",
+                            game, group, owner, mode.equals("draw") ? "DRAW" : "WIN", mode.equals("alternate"));
+                    seed.update("INSERT INTO game_participants (game_id, user_id, deck_id, start_position, placement, winner, still_in_game) VALUES (?, ?, ?, 1, ?, ?, ?)",
+                            game, owner, ownerDeck, mode.equals("normal") ? 1 : null, mode.equals("alternate") ? true : null, mode.equals("draw") ? true : null);
+                    seed.update("INSERT INTO game_participants (game_id, user_id, deck_id, start_position, placement, still_in_game) VALUES (?, ?, ?, 2, ?, ?)",
+                            game, member, memberDeck, mode.equals("normal") ? 2 : null, mode.equals("normal") ? null : true);
+                }
+                connection.commit();
+            }
+            List<Map<String, Object>> gamesBefore = jdbc.queryForList("SELECT * FROM " + schema + ".games ORDER BY id");
+            List<Map<String, Object>> participantsBefore = jdbc.queryForList("SELECT * FROM " + schema + ".game_participants ORDER BY game_id, user_id");
+            List<Map<String, Object>> decksBefore = jdbc.queryForList("SELECT * FROM " + schema + ".decks ORDER BY id");
+            Flyway upgrade = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).load();
+            assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(1);
+            assertThat(upgrade.validateWithResult().validationSuccessful).isTrue();
+            List<Map<String, Object>> gamesAfter = jdbc.queryForList("SELECT * FROM " + schema + ".games ORDER BY id");
+            assertThat(gamesAfter).hasSize(3);
+            for (Map<String, Object> game : gamesAfter) {
+                assertThat(game).containsEntry("played_on", null);
+                game.remove("played_on");
+            }
+            assertThat(gamesAfter).isEqualTo(gamesBefore);
+            assertThat(jdbc.queryForList("SELECT * FROM " + schema + ".game_participants ORDER BY game_id, user_id")).isEqualTo(participantsBefore);
+            assertThat(jdbc.queryForList("SELECT * FROM " + schema + ".decks ORDER BY id")).isEqualTo(decksBefore);
+            assertThat(jdbc.queryForMap("SELECT data_type, is_nullable, column_default FROM information_schema.columns WHERE table_schema = ? AND table_name = 'games' AND column_name = 'played_on'", schema))
+                    .containsEntry("data_type", "date").containsEntry("is_nullable", "YES").containsEntry("column_default", null);
+        } finally {
+            jdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+        }
+    }
 
     @Test
     void refusesAnyLegacyGameBeforeChangingSchemaOrDataAndAllowsEmptyUpgrade() {

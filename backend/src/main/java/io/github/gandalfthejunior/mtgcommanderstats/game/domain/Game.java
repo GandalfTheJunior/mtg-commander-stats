@@ -1,6 +1,7 @@
 package io.github.gandalfthejunior.mtgcommanderstats.game.domain;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -33,6 +34,9 @@ public class Game {
     @Column(name = "recorded_at", nullable = false, updatable = false)
     private Instant recordedAt;
 
+    @Column(name = "played_on")
+    private LocalDate playedOn;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "text")
     private GameResult result;
@@ -49,11 +53,16 @@ public class Game {
 
     public Game(UUID groupId, UUID creatorId, List<GameParticipant> participants, GameResult result,
             Boolean alternateWinCon) {
+        this(groupId, creatorId, participants, result, alternateWinCon, null);
+    }
+
+    public Game(UUID groupId, UUID creatorId, List<GameParticipant> participants, GameResult result,
+            Boolean alternateWinCon, LocalDate playedOn) {
         this.id = UUID.randomUUID();
         this.groupId = groupId;
         this.creatorId = creatorId;
         this.recordedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
-        replace(participants, result, alternateWinCon);
+        replace(participants, result, alternateWinCon, playedOn);
     }
 
     public static void validate(List<GameParticipant> participants, GameResult result, Boolean alternateWinCon) {
@@ -134,11 +143,17 @@ public class Game {
     }
 
     public void replace(List<GameParticipant> participants, GameResult result, Boolean alternateWinCon) {
+        replace(participants, result, alternateWinCon, playedOn);
+    }
+
+    public void replace(List<GameParticipant> participants, GameResult result, Boolean alternateWinCon,
+            LocalDate playedOn) {
         validate(participants, result, alternateWinCon);
         this.participants.clear();
         this.participants.addAll(participants);
         this.result = result;
         this.alternateWinCon = alternateWinCon;
+        this.playedOn = playedOn;
     }
 
     public boolean isAlternateWinCon() {
@@ -179,6 +194,10 @@ public class Game {
 
     public Instant getRecordedAt() {
         return recordedAt;
+    }
+
+    public LocalDate getPlayedOn() {
+        return playedOn;
     }
 
     public GameResult getResult() {

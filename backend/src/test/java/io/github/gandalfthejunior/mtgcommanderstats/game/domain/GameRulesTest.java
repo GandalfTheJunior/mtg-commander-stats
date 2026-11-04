@@ -1,5 +1,7 @@
 package io.github.gandalfthejunior.mtgcommanderstats.game.domain;
 
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -11,6 +13,28 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class GameRulesTest {
+    @Test
+    void playedOnIsIndependentOfImmutableIdentityAndChangesOnlyOnExplicitReplacement() {
+        List<GameParticipant> players = normal(List.of(1, 2));
+        Game unknown = new Game(UUID.randomUUID(), UUID.randomUUID(), players, GameResult.WIN, false);
+        assertThat(unknown.getPlayedOn()).isNull();
+        Game game = new Game(UUID.randomUUID(), UUID.randomUUID(), players, GameResult.WIN, false,
+                LocalDate.of(2000, 2, 29));
+        UUID id = game.getId();
+        Instant recordedAt = game.getRecordedAt();
+        game.replace(players, GameResult.WIN, false);
+        assertThat(game.getPlayedOn()).isEqualTo(LocalDate.of(2000, 2, 29));
+        game.replace(players, GameResult.WIN, false, LocalDate.of(2026, 10, 31));
+        assertThat(game.getPlayedOn()).isEqualTo(LocalDate.of(2026, 10, 31));
+        assertThatThrownBy(() -> game.replace(List.of(), GameResult.WIN, false, null))
+                .isInstanceOf(InvalidGameException.class);
+        assertThat(game.getPlayedOn()).isEqualTo(LocalDate.of(2026, 10, 31));
+        game.replace(players, GameResult.WIN, false, null);
+        assertThat(game.getPlayedOn()).isNull();
+        assertThat(game.getId()).isEqualTo(id);
+        assertThat(game.getRecordedAt()).isEqualTo(recordedAt);
+    }
+
     @Test
     void competitionRanksAcceptTiesAndRejectDenseRanksGapsAndDuplicateWinners() {
         for (List<Integer> ranks : List.of(List.of(1, 2), List.of(1, 2, 2, 4), List.of(1, 2, 2, 2, 5, 5))) {

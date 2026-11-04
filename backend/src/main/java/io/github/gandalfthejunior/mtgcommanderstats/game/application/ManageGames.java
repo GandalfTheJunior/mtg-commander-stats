@@ -1,6 +1,7 @@
 package io.github.gandalfthejunior.mtgcommanderstats.game.application;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -40,8 +41,13 @@ public class ManageGames {
 
     public GameDetails create(UUID actorId, UUID groupId, List<GameParticipant> participants, GameResult result,
             Boolean alternateWinCon) {
+        return create(actorId, groupId, participants, result, alternateWinCon, null);
+    }
+
+    public GameDetails create(UUID actorId, UUID groupId, List<GameParticipant> participants, GameResult result,
+            Boolean alternateWinCon, LocalDate playedOn) {
         groups.lockActiveMember(groupId, actorId);
-        Game game = new Game(groupId, actorId, participants, result, alternateWinCon);
+        Game game = new Game(groupId, actorId, participants, result, alternateWinCon, playedOn);
         useNewAssignments(groupId, participants, List.of());
         games.save(game);
         return details(game);
@@ -69,12 +75,17 @@ public class ManageGames {
 
     public GameDetails replace(UUID actorId, UUID groupId, UUID gameId, List<GameParticipant> participants,
             GameResult result, Boolean alternateWinCon) {
+        return replace(actorId, groupId, gameId, participants, result, alternateWinCon, false, null);
+    }
+
+    public GameDetails replace(UUID actorId, UUID groupId, UUID gameId, List<GameParticipant> participants,
+            GameResult result, Boolean alternateWinCon, boolean playedOnSupplied, LocalDate playedOn) {
         GroupRole role = groups.lockActiveMember(groupId, actorId);
         Game game = find(groupId, gameId);
         requireModification(actorId, role, game);
         Game.validate(participants, result, alternateWinCon);
         useNewAssignments(groupId, participants, game.getParticipants());
-        game.replace(participants, result, alternateWinCon);
+        game.replace(participants, result, alternateWinCon, playedOnSupplied ? playedOn : game.getPlayedOn());
         return details(game);
     }
 
@@ -139,10 +150,10 @@ public class ManageGames {
                         game.placement(participant), game.stillInGame(participant)))
                 .toList();
         return new GameDetails(game.getId(), game.getGroupId(), game.getCreatorId(), game.getRecordedAt(),
-                game.getResult(), game.isAlternateWinCon(), game.getWinnerUserId(), summaries);
+                game.getPlayedOn(), game.getResult(), game.isAlternateWinCon(), game.getWinnerUserId(), summaries);
     }
 
-    public record GameDetails(UUID id, UUID groupId, UUID creatorId, Instant recordedAt, GameResult result,
+    public record GameDetails(UUID id, UUID groupId, UUID creatorId, Instant recordedAt, LocalDate playedOn, GameResult result,
             boolean alternateWinCon, UUID winnerUserId, List<ParticipantDetails> participants) {
     }
 
