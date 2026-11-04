@@ -27,6 +27,15 @@ before substantive repository work. This is the generic bootstrap entry point;
 `AGENTS.md` selects and loads the role contract that matches the requested outcome.
 Configure the repository root as the task workspace when the client discovers
 instruction files automatically, or load `/AGENTS.md` explicitly when it does not.
+For Claude Code, the root [`CLAUDE.md`](CLAUDE.md) is a compatibility shim that
+only imports `AGENTS.md`. Current Claude Code versions can read `AGENTS.md`
+directly when no `CLAUDE.md` or `CLAUDE.local.md` applies, but older versions,
+a disabled `AGENTS.md` plugin or a `CLAUDE.md`-only instruction setting load
+`CLAUDE.md` files only, and a personal `CLAUDE.local.md` would otherwise stop
+`AGENTS.md` from loading. The shim covers these cases without duplicating
+instructions. It applies to Claude Code only; other Claude clients, such as
+Claude chat with GitHub-synchronized files, have no documented automatic
+instruction-file discovery or import expansion.
 
 ## Stack and prerequisites
 
