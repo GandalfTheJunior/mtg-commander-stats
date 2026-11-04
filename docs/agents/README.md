@@ -45,7 +45,7 @@ Potato or Pumpkin when uncertainty or risk is high.
 
 | Size label | Meaning | Reference issues |
 | --- | --- | --- |
-| `Pea` 🫛 | One area, a well-understood change, low risk; existing checks largely suffice. | #143 (dev-only dashboard link), #178 (CI job adjustment) |
+| `Pea` 🫛 | One area, a well-understood change, low risk; existing checks largely suffice. | #143 (dev-only dashboard link) |
 | `Potato` 🥔 | A feature slice across a few files or one to two layers; design decisions resolved; new tests needed; moderate risk or a contained investigation. | #184 (separate game date: migration and API), #104 (Commander art on deck cards), #129 (flaky navigation with unproven root cause) |
 | `Pumpkin` 🎃 | Cross-cutting work (for example backend, frontend and migration), material risk, substantial new verification, or significant remaining uncertainty. Consider independently useful smaller issues. | #116 (Game Records v2 domain, persistence and API), #146 (Codespaces cold-start failure and safe recovery) |
 
