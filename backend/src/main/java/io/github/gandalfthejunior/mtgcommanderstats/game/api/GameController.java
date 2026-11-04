@@ -1,5 +1,7 @@
 package io.github.gandalfthejunior.mtgcommanderstats.game.api;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.UUID;
 
@@ -36,7 +38,7 @@ public class GameController {
     public GameDetails create(@AuthenticationPrincipal UserPrincipal user, @PathVariable UUID groupId,
             @RequestBody GameRequest request) {
         return games.create(user.getId(), groupId, request.assignments(), GameResult.parse(request.result()),
-                request.alternate());
+                request.alternate(), request.playedOnDate());
     }
 
     @GetMapping("/api/groups/{groupId}/games")
@@ -54,7 +56,7 @@ public class GameController {
     public GameDetails replace(@AuthenticationPrincipal UserPrincipal user, @PathVariable UUID groupId,
             @PathVariable UUID gameId, @RequestBody GameRequest request) {
         return games.replace(user.getId(), groupId, gameId, request.assignments(), GameResult.parse(request.result()),
-                request.alternate());
+                request.alternate(), request.playedOn() != null, request.playedOnDate());
     }
 
     @DeleteMapping("/api/groups/{groupId}/games/{gameId}")
@@ -105,7 +107,22 @@ public class GameController {
         return value.booleanValue();
     }
 
-    public record GameRequest(List<ParticipantRequest> participants, String result, JsonNode alternateWinCon) {
+    public record GameRequest(List<ParticipantRequest> participants, String result, JsonNode alternateWinCon,
+            JsonNode playedOn) {
+        LocalDate playedOnDate() {
+            if (playedOn == null || playedOn.isNull()) {
+                return null;
+            }
+            if (!playedOn.isString() || !playedOn.asText().matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")) {
+                throw new InvalidGameException();
+            }
+            try {
+                return LocalDate.parse(playedOn.asText());
+            } catch (DateTimeParseException exception) {
+                throw new InvalidGameException();
+            }
+        }
+
         List<GameParticipant> assignments() {
             if (participants == null || participants.stream().anyMatch(participant -> participant == null)) {
                 throw new InvalidGameException();

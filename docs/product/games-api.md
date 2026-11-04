@@ -25,7 +25,8 @@ preserving historical games and stable participant references.
 
 ## Recording and replacing a game
 
-POST and PUT accept the same complete replacement payload. Every write requires
+POST and PUT accept the same gameplay replacement payload, with the optional
+`playedOn` field described below. Every write requires
 `result: "WIN" | "DRAW"`, boolean `alternateWinCon`, and 2–6 distinct participants
 with distinct owned decks. Every participant supplies `userId`, `deckId`, and an
 integer `startPosition`: unique contiguous seats 1…N, independent of array order.
@@ -76,6 +77,35 @@ and transaction rollbacks leave both unchanged. Hard deletion removes the game
 and participant associations, and never resets deck usage. See
 [Deck lifecycle API](decks-api.md).
 
+## Played-on date and recording timestamp
+
+The two independent facts are:
+
+- `recordedAt`: the existing server-assigned immutable `Instant`, recording when
+  the game was saved. Clients cannot supply or change it.
+- `playedOn`: nullable `LocalDate`, stored as PostgreSQL `DATE`, recording the
+  actual calendar day of play. JSON uses an ISO `YYYY-MM-DD` string (for example
+  `"2026-10-31"`) or explicit `null` for unknown. It has no time of day or timezone.
+
+POST with `playedOn` absent or null stores unknown. PUT with the field absent
+preserves the stored date so older clients cannot erase it; an explicit date
+replaces it and explicit null clears it. All other gameplay fields still require
+complete replacement. The same active original creator/OWNER authorization
+applies to date corrections; there is no separate date-edit endpoint.
+
+Malformed strings, impossible calendar dates, date-time timestamps, other JSON
+types and unknown fields produce the existing `400` response. The backend never
+fills a missing date from its clock, the recording timestamp or an inferred user
+timezone. Existing saved games remain unknown after migration, without a backfill.
+
+The future client flow in [#172](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/172)
+will explicitly submit the user's local current calendar day for ordinary new
+entries and support past-date entry. Client display/timezone decisions and UI
+changes are separate work. Historical CSV import in
+[#170](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/170) may lack a
+reliable play date; null represents that uncertainty without inventing a day.
+Neither the UI flow nor the importer is implemented by this backend contract.
+
 ## Game response and history
 
 ```json
@@ -83,7 +113,8 @@ and participant associations, and never resets deck usage. See
   "id": "<game UUID>",
   "groupId": "<group UUID>",
   "creatorId": "<original creator's user UUID>",
-  "recordedAt": "2026-10-16T08:00:00.123456Z",
+  "recordedAt": "2026-11-01T08:00:00.123456Z",
+  "playedOn": "2026-10-31",
   "result": "WIN",
   "alternateWinCon": false,
   "winnerUserId": "<participating user UUID>",
@@ -126,7 +157,8 @@ Display information reflects current stored public usernames and deck names;
 there is no name snapshot or deck version. Stable UUIDs distinguish identical
 display names. Former users and archived decks remain identifiable. No email,
 credentials, or invitation code is exposed. The list returns all group games,
-newest `recordedAt` first, then UUID descending for ties. Participants are ordered
+newest `recordedAt` first, then UUID descending for ties. This API ordering is
+retained regardless of `playedOn`, including unknown dates. Participants are ordered
 by user UUID using Java UUID ordering. This history route has no pagination;
 statistics use the separate [group statistics endpoint](statistics-api.md).
 
@@ -160,7 +192,7 @@ Existing authentication and CSRF filters retain their status-only responses.
 
 | Status | Condition |
 | --- | --- |
-| `400` | Invalid UUID/body, unknown fields, invalid count/duplicates/result/winner, ineligible new participant or deck assignment |
+| `400` | Invalid UUID/body/date, unknown fields, invalid count/duplicates/result/winner, ineligible new participant or deck assignment |
 | `401` | Missing or invalid authenticated session |
 | `403` | Missing active requesting membership, insufficient modification rights, missing/invalid CSRF |
 | `404` | Missing group/game, game not in the supplied group, or inactive/absent target member for selection |
@@ -176,6 +208,8 @@ including choice, base/effective colors and nullable artwork/attribution snapsho
 
 ## Read facts and schema upgrade
 
+POST, GET list/detail and PUT always include `playedOn` (an ISO date string or
+explicit JSON null), alongside unchanged `recordedAt`.
 GET list/detail always include the same keys: game `result`, boolean
 `alternateWinCon`, derived `winnerUserId` (explicit JSON null for DRAW); participant
 `startPosition`, effective `placement` (explicit JSON null for DRAW) and boolean
@@ -191,6 +225,10 @@ V8 stops before schema changes if **any** legacy game rows exist, with an action
 error. It never reconstructs facts or deletes records. An owner may separately
 reset an explicitly isolated disposable local demo database; shared/production
 records require a separately approved retention/migration plan.
+
+V9 adds only nullable `games.played_on DATE`, without a default or backfill.
+V8 games, recording timestamps, results, participants and permanent deck-use
+flags are preserved.
 
 ## Browser game editor
 
