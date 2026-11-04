@@ -1,9 +1,10 @@
 package io.github.gandalfthejunior.mtgcommanderstats.group.application;
 
-import java.sql.SQLException;
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -13,50 +14,39 @@ import io.github.gandalfthejunior.mtgcommanderstats.group.domain.GroupMembership
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.GroupRole;
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.PlayGroup;
 import io.github.gandalfthejunior.mtgcommanderstats.group.persistence.GroupMembershipRepository;
+import io.github.gandalfthejunior.mtgcommanderstats.group.persistence.InvitationRepository;
 import io.github.gandalfthejunior.mtgcommanderstats.group.persistence.PlayGroupRepository;
 import io.github.gandalfthejunior.mtgcommanderstats.user.application.UserDirectory;
 import io.github.gandalfthejunior.mtgcommanderstats.user.application.UserDirectory.PublicUser;
-import org.hibernate.exception.ConstraintViolationException;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ManageGroups {
-    private static final int CODE_GENERATION_ATTEMPTS = 5;
     private static final Pattern JOIN_CODE = Pattern.compile("[A-Za-z0-9_-]{22}");
-    private static final String JOIN_CODE_CONSTRAINT = "play_groups_join_code_unique";
 
     private final PlayGroupRepository groups;
     private final GroupMembershipRepository memberships;
     private final UserDirectory users;
     private final JoinCodeGenerator codes;
     private final GroupCreationTransaction creation;
-    private final JoinCodeRotationTransaction rotation;
+    private final InvitationRepository invitations;
 
     public ManageGroups(PlayGroupRepository groups, GroupMembershipRepository memberships, UserDirectory users,
-            JoinCodeGenerator codes, GroupCreationTransaction creation, JoinCodeRotationTransaction rotation) {
+            JoinCodeGenerator codes, GroupCreationTransaction creation,
+            InvitationRepository invitations) {
         this.groups = groups;
         this.memberships = memberships;
         this.users = users;
         this.codes = codes;
         this.creation = creation;
-        this.rotation = rotation;
+        this.invitations = invitations;
     }
 
     public GroupSummary create(UUID actorId, String name) {
         String canonicalName = new DisplayText(name).value();
-        for (int attempt = 0; attempt < CODE_GENERATION_ATTEMPTS; attempt++) {
-            try {
-                PlayGroup group = creation.create(actorId, canonicalName, codes.generate());
-                return new GroupSummary(group.getId(), group.getName(), GroupRole.OWNER);
-            } catch (DataIntegrityViolationException exception) {
-                if (!isJoinCodeCollision(exception)) {
-                    throw exception;
-                }
-            }
-        }
-        throw new IllegalStateException("Could not generate a unique group join code.");
+        PlayGroup group = creation.create(actorId, canonicalName);
+        return new GroupSummary(group.getId(), group.getName(), GroupRole.OWNER);
     }
 
     @Transactional(readOnly = true)
@@ -89,36 +79,54 @@ public class ManageGroups {
 
     @Transactional
     public GroupSummary join(UUID actorId, String suppliedCode) {
-        String joinCode = validJoinCode(suppliedCode);
-        PlayGroup group = groups.findByJoinCodeForUpdate(joinCode).orElseThrow(InvalidJoinCodeException::new);
-        GroupMembership membership = memberships.findByGroupIdAndUserId(group.getId(), actorId)
-                .orElseGet(() -> memberships.save(GroupMembership.member(group.getId(), actorId)));
-        if (!membership.isActive()) {
+        String hash = InvitationToken.hash(validJoinCode(suppliedCode));
+        UUID groupId = invitations.groupId(hash).orElseThrow(InvalidJoinCodeException::new);
+        PlayGroup group = groups.findByIdForUpdate(groupId).orElseThrow(InvalidJoinCodeException::new);
+        // All membership operations lock the group first; invitation state is checked after that lock.
+        if (!invitations.available(hash)) {
+            throw new InvalidJoinCodeException();
+        }
+        GroupMembership membership = memberships.findByGroupIdAndUserId(groupId, actorId).orElse(null);
+        if (membership != null && membership.isActive()) {
+            throw new AlreadyGroupMemberException();
+        }
+        if (membership == null) {
+            membership = memberships.save(GroupMembership.member(groupId, actorId));
+        } else {
             membership.reactivateAsMember();
+        }
+        memberships.flush();
+        // Use wall-clock database time after lock waits and membership writes, not transaction start time.
+        if (!invitations.consume(hash, actorId)) {
+            throw new InvalidJoinCodeException();
         }
         return summary(group, membership);
     }
 
-    @Transactional(readOnly = true)
-    public String joinCode(UUID actorId, UUID groupId) {
-        PlayGroup group = groups.findById(groupId).orElseThrow(GroupNotFoundException::new);
-        requireOwner(groupId, actorId);
-        return group.getJoinCode();
-    }
-
-    public String regenerateJoinCode(UUID actorId, UUID groupId) {
-        for (int attempt = 0; attempt < CODE_GENERATION_ATTEMPTS; attempt++) {
-            try {
-                return rotation.rotate(actorId, groupId, codes.generate());
-            } catch (JoinCodeCollisionException exception) {
-                // Retry with fresh entropy. A regenerated code must differ from the current value.
-            } catch (DataIntegrityViolationException exception) {
-                if (!isJoinCodeCollision(exception)) {
-                    throw exception;
-                }
+    @Transactional
+    public Invitation createInvitation(UUID actorId, UUID groupId) {
+        groups.findByIdForUpdate(groupId).orElseThrow(GroupNotFoundException::new);
+        activeMembership(groupId, actorId);
+        for (int attempt = 0; attempt < 5; attempt++) {
+            String code = codes.generate();
+            Optional<Instant> expiresAt = invitations.create(InvitationToken.hash(code), groupId, actorId);
+            if (expiresAt.isPresent()) {
+                return new Invitation(code, expiresAt.get());
             }
         }
-        throw new IllegalStateException("Could not generate a unique group join code.");
+        throw new IllegalStateException("Could not generate a unique invitation.");
+    }
+
+    @Transactional(readOnly = true)
+    public InvitationPreview preview(String code) {
+        return new InvitationPreview(invitations.preview(InvitationToken.hash(validJoinCode(code)))
+                .orElseThrow(InvalidJoinCodeException::new));
+    }
+
+    public record Invitation(String code, Instant expiresAt) {
+    }
+
+    public record InvitationPreview(String groupName) {
     }
 
     @Transactional
@@ -187,22 +195,6 @@ public class ManageGroups {
             }
             throw new InvalidJoinCodeException();
         }
-    }
-
-    private boolean isJoinCodeCollision(DataIntegrityViolationException exception) {
-        Throwable cause = exception;
-        while (cause != null) {
-            if (cause instanceof ConstraintViolationException constraintViolation) {
-                return JOIN_CODE_CONSTRAINT.equals(constraintViolation.getConstraintName());
-            }
-            if (cause instanceof SQLException sqlException
-                    && "23505".equals(sqlException.getSQLState())
-                    && sqlException.getMessage().contains(JOIN_CODE_CONSTRAINT)) {
-                return true;
-            }
-            cause = cause.getCause();
-        }
-        return false;
     }
 
     private GroupSummary summary(PlayGroup group, GroupMembership membership) {

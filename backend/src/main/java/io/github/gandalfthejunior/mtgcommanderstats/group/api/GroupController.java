@@ -55,16 +55,11 @@ public class GroupController {
         return GroupSummaryResponse.from(groups.join(user.getId(), request.code()));
     }
 
-    @GetMapping("/api/groups/{groupId}/join-code")
-    public ResponseEntity<JoinCodeResponse> joinCode(@AuthenticationPrincipal UserPrincipal user,
-            @PathVariable UUID groupId) {
-        return noStore(groups.joinCode(user.getId(), groupId));
-    }
-
-    @PostMapping("/api/groups/{groupId}/join-code")
-    public ResponseEntity<JoinCodeResponse> regenerateJoinCode(@AuthenticationPrincipal UserPrincipal user,
+    @PostMapping("/api/groups/{groupId}/invitations")
+    public ResponseEntity<ManageGroups.Invitation> createInvitation(@AuthenticationPrincipal UserPrincipal user,
             @PathVariable UUID groupId, @RequestBody(required = false) EmptyGroupRequest request) {
-        return noStore(groups.regenerateJoinCode(user.getId(), groupId));
+        return ResponseEntity.status(HttpStatus.CREATED).cacheControl(CacheControl.noStore())
+                .body(groups.createInvitation(user.getId(), groupId));
     }
 
     @DeleteMapping("/api/groups/{groupId}/membership")
@@ -101,10 +96,6 @@ public class GroupController {
         public void rejectUnknownField(String field, Object value) {
             throw new InvalidGroupRequestException();
         }
-    }
-
-    private ResponseEntity<JoinCodeResponse> noStore(String code) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new JoinCodeResponse(code));
     }
 
     public record CreateGroupRequest(String name) {
@@ -147,6 +138,4 @@ public class GroupController {
         }
     }
 
-    public record JoinCodeResponse(String code) {
-    }
 }

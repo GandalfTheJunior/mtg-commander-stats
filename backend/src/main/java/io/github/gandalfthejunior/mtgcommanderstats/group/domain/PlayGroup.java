@@ -17,30 +17,19 @@ public class PlayGroup {
     @Column(nullable = false, columnDefinition = "text")
     private String name;
 
-    @Column(name = "join_code", nullable = false, length = 22)
-    private String joinCode;
-
     @Column(name = "owner_id", nullable = false)
     private UUID ownerId;
 
     protected PlayGroup() {
     }
 
-    public PlayGroup(UUID ownerId, String name, String joinCode) {
-        if (ownerId == null || joinCode == null) {
-            throw new IllegalArgumentException("A group owner and join code are required.");
+    public PlayGroup(UUID ownerId, String name) {
+        if (ownerId == null) {
+            throw new IllegalArgumentException("A group owner is required.");
         }
         this.id = UUID.randomUUID();
         this.ownerId = ownerId;
         this.name = new DisplayText(name).value();
-        this.joinCode = joinCode;
-    }
-
-    public void regenerateJoinCode(String joinCode) {
-        if (joinCode == null) {
-            throw new IllegalArgumentException("A join code is required.");
-        }
-        this.joinCode = joinCode;
     }
 
     public void transferOwnership(UUID newOwnerId) {
@@ -56,10 +45,6 @@ public class PlayGroup {
 
     public String getName() {
         return name;
-    }
-
-    public String getJoinCode() {
-        return joinCode;
     }
 
     public UUID getOwnerId() {

@@ -71,11 +71,19 @@ Opening a playgroup lands directly in **Spiele**. Inside the group, use three su
 
 ### Mitglieder and group administration
 
+**Invitation supersession (#187 / #200, PO decision 2026-11-03):** The previous
+reusable code and OWNER-only rotation plan is replaced by independent 24-hour,
+single-use invitations created by any active member. Ship the link-first share,
+public name-only preview, registration/login return and explicit join UI in #200
+with the backend cutover. No revocation or manual-entry UI is approved. The
+[group API](groups-api.md) and [cutover runbook](../development/invitation-cutover.md)
+own the contract and sequencing.
+
 - Show **active members only**, in compact rows with display name, role **Gruppenersteller/Mitglied**, a subtle OWNER marker and indication of the signed-in account. Stable IDs must distinguish duplicate display names where necessary, without dominating the normal visual presentation.
 - Do not add member profiles, member removal, additional roles or ownership transfer.
 - Move administrative actions into the **group** overflow menu, while respecting the existing server rules:
-  - **OWNER only:** **Einladungscode verwalten** opens a **dedicated screen**, where the current join code is fetched **on demand**, can be copied, and can be regenerated only after explicit confirmation. State clearly that regeneration invalidates the old code immediately but does not remove existing members. Protect the sensitive code from accidental reuse after access changes and handle clipboard failure with a manual-copy fallback.
-  - **MEMBER only:** **Gruppe verlassen** opens a confirmation explaining loss of active access, retention of historical results and need for the current code to rejoin. Successful departure returns to the group list and clears group-specific protected state.
+  - **Any active member:** create a fresh invitation and open the native share sheet, with Copy link fallback. Each link admits one person within 24 hours. Preserve session/access guards; never auto-join.
+  - **MEMBER only:** **Gruppe verlassen** opens a confirmation explaining loss of active access, retention of historical results and need for a different valid invitation to rejoin. Successful departure returns to the group list and clears group-specific protected state.
   - An OWNER cannot leave. Neither role can remove another member through the current API.
 - Keep group creation and joining in the global **Playgroups** area, not the members tab.
 
@@ -122,7 +130,7 @@ For each independently authorized implementation slice, exercise relevant cases 
 - Game capture: untouched initial four slots, 2/3/4/6 participants, partial slot invalid, duplicate member ineligible, missing/deck-loading states, win with participating winner, draw without winner, unsaved changes, and no duplicate write.
 - Game history/details: server newest-first, recorded-vs-played timestamp labeling, historical former members/archived decks, owner/creator vs read-only member authorization, and confirmed destructive operations.
 - Statistics: independent player/deck sorting with complete existing columns and directions, correct API values and empty/history/draw/archived/former-member cases; no leaderboard semantics.
-- Group administration: owner-only on-demand code retrieval, copy failure, confirmed regeneration, member-only confirmed leave, access loss, expired sessions, and CSRF/authorization recovery.
+- Group administration: active-member invitation creation, native sharing/copy fallback, one-use/expiry feedback, member-only confirmed leave, access loss, expired sessions, and CSRF/authorization recovery.
 - Navigation/state: back/forward and switching group/deck areas after writes, stale-request retirement on identity/session change, safe handling of uncertain network writes.
 
 Relevant test levels and exact commands follow [testing guidance](../development/testing.md) and the [README verification instructions](../../README.md#verification). Do not claim unrun checks passed.
@@ -133,7 +141,7 @@ Relevant test levels and exact commands follow [testing guidance](../development
 2. **Responsive app shell/navigation**: session-aware state, bottom nav, account control, back/history behavior.
 3. **Dashboard**: group cards, inline expansion, all alphabetized decks and direct deep links.
 4. **Deck create/edit**: full-screen editor, ManaColorPicker, lifecycle menus/confirmation.
-5. **Playgroup navigation and members**: Spiele/Statistiken/Mitglieder and dedicated join-code management.
+5. **Playgroup navigation and members**: Spiele/Statistiken/Mitglieder and single-use invitation sharing.
 6. **Game history and details**: history cards, dedicated details and authorized overflow actions.
 7. **Game capture editor**: four initial cards, blank-slot handling, compact cards, results, persistence/error recovery.
 8. **Basic statistics presentation**: player/deck card toggle with full existing sort behavior.

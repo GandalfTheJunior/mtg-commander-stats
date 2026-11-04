@@ -41,10 +41,12 @@ or OWNER; server authorization remains authoritative.
 ## Play groups and membership
 
 - Users may belong to multiple groups and create multiple groups.
-- Joining uses a join code.
-- Join codes remain valid until the OWNER regenerates them. Only the OWNER may
-  retrieve or regenerate the current code, and regeneration immediately
-  invalidates the previous code.
+- Any active OWNER/ADMIN/MEMBER may issue independent single-use invitations.
+  Each expires after exactly 24 hours and admits one person only on explicit
+  authenticated join. Public preview exposes only the group name. Links and
+  codes represent the same token; no rotation or revocation exists.
+- This backend cutover may ship only with invitation UI #200; see the
+  [deployment runbook](../development/invitation-cutover.md).
 - Backend roles are OWNER, ADMIN and MEMBER. Each group has exactly one active
   OWNER. Only OWNER can promote/demote active MEMBER/ADMIN memberships.
 - Active OWNER/ADMIN can remove ordinary MEMBERs, preserving history and revoking
@@ -56,12 +58,12 @@ or OWNER; server authorization remains authoritative.
   group is allowed. Accepted/declined outcomes remain available to the original
   OWNER until explicitly acknowledged; see the [group API](groups-api.md#ownership-transfer).
 - Leaving must preserve historical membership, game, and statistics data.
-- A former member may rejoin with the current code. Rejoining reactivates the
+- A former member may rejoin with a different valid unused invitation. Rejoining reactivates the
   existing stable membership as MEMBER rather than creating a duplicate.
 - Former members lose access that requires active membership.
 - Further fine-grained permissions and additional roles are out of scope.
-  Members administration UI, ownership-transfer UI and single-use invitations remain
-  follow-on work; current join-code permissions remain OWNER-only.
+  Members administration, ownership-transfer and invitation UI remain
+  follow-on work. The invitation backend is blocked from standalone deployment.
 
 The backend API for these rules is implemented and documented in
 [Play groups API](groups-api.md). The browser My groups area supports these

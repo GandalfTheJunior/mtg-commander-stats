@@ -25,6 +25,38 @@ class GameRecordsMigrationTest {
     private DataSource dataSource;
 
     @Test
+    void invitationCutoverInvalidatesLegacyCodesWithoutChangingMemberships() throws Exception {
+        String schema = "invitation_upgrade";
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        try {
+            Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).target("12").load().migrate();
+            UUID owner = UUID.randomUUID();
+            UUID group = UUID.randomUUID();
+            try (Connection connection = dataSource.getConnection()) {
+                connection.setAutoCommit(false);
+                connection.setSchema(schema);
+                JdbcTemplate seed = new JdbcTemplate(new SingleConnectionDataSource(connection, true));
+                seed.update("INSERT INTO users (id, username, encoded_password, email) VALUES (?, 'Player', 'hash', ?)",
+                        owner, owner + "@example.com");
+                seed.update("INSERT INTO play_groups (id, name, join_code, owner_id) VALUES (?, 'Pod', 'AAAAAAAAAAAAAAAAAAAAAA', ?)",
+                        group, owner);
+                seed.update("INSERT INTO group_memberships (id, group_id, user_id, role, active) VALUES (?, ?, ?, 'OWNER', true)",
+                        UUID.randomUUID(), group, owner);
+                connection.commit();
+            }
+            List<Map<String, Object>> before = jdbc.queryForList("SELECT * FROM " + schema + ".group_memberships");
+            assertThat(Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).load()
+                    .migrate().migrationsExecuted).isEqualTo(1);
+            assertThat(jdbc.queryForList("SELECT * FROM " + schema + ".group_memberships")).isEqualTo(before);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM " + schema + ".group_invitations", Integer.class)).isZero();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? AND table_name = 'play_groups' AND column_name = 'join_code'",
+                    Integer.class, schema)).isZero();
+        } finally {
+            jdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+        }
+    }
+
+    @Test
     void adminUpgradePreservesExistingMembershipRowsAndOwnerInvariant() throws Exception {
         String schema = "admin_upgrade";
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);

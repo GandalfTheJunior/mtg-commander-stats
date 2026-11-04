@@ -144,6 +144,11 @@ forms are shown again after logout. Protected deck/group content and invitation
 codes are hidden during logout. Failed attempts recheck the session and offer
 retry; an unavailable identity check keeps protected content hidden.
 
+**Invitation rollout warning:** The backend invitation replacement (#187) requires
+frontend #200 and a [coordinated deployment](docs/development/invitation-cutover.md).
+The browser instructions below describe the existing frontend; its reusable-code
+controls cannot operate against the new backend. Do not deploy this backend alone.
+
 In **Playgroups**, use **Gruppe erstellen** or **Gruppe beitreten** to create a named group
 or join/rejoin using a current invitation code. All memberships appear in API order
 as themed cards with **Gruppenersteller/Mitglied** roles. Identical group names show

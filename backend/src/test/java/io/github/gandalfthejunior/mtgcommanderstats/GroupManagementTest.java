@@ -106,9 +106,9 @@ class GroupManagementTest {
                 + "\",\"name\":\"Friday  Commander\",\"role\":\"OWNER\"}"));
         assertThat(created.toString()).doesNotContain("code", "ownerId", "email", "password");
 
-        String code = retrieveCode(alice, groupId);
-        assertThat(code).matches("[A-Za-z0-9_-]{22}");
         for (AuthenticatedClient member : List.of(bob, carol, dave)) {
+            String code = retrieveCode(alice, groupId);
+            assertThat(code).matches("[A-Za-z0-9_-]{22}");
             JsonNode joined = join(member, " \u00a0" + code + "\u202f ");
             assertThat(joined.get("id").asText()).isEqualTo(groupId.toString());
             assertThat(joined.get("role").asText()).isEqualTo("MEMBER");
@@ -164,7 +164,7 @@ class GroupManagementTest {
         assertThat(memberList(json.readTree(request(owner, HttpMethod.GET, "/api/groups/" + groupId, "").body())))
                 .containsExactly(memberJson(owner, "Owner", "OWNER"));
 
-        join(member, code);
+        join(member, retrieveCode(owner, groupId));
         GroupMembership reactivated = memberships.findById(membershipId).orElseThrow();
         assertThat(reactivated.isActive()).isTrue();
         assertThat(memberships.findByGroupIdAndUserId(groupId, member.userId()).orElseThrow().getId())
@@ -173,7 +173,8 @@ class GroupManagementTest {
         assertThat(reactivated.getRole()).isEqualTo(GroupRole.MEMBER);
         assertThat(memberships.findAllByGroupIdAndActiveTrue(groupId)).hasSize(2);
 
-        assertThat(join(owner, code).get("role").asText()).isEqualTo("OWNER");
+        assertRejectedWithoutWrites(owner, HttpMethod.POST, "/api/groups/join",
+                codeBody(retrieveCode(owner, groupId)), HttpStatus.CONFLICT);
         assertRejectedWithoutWrites(owner, HttpMethod.DELETE,
                 "/api/groups/" + groupId + "/membership", "", HttpStatus.FORBIDDEN);
         GroupMembership ownerMembership = memberships.findByGroupIdAndUserId(groupId, owner.userId()).orElseThrow();
@@ -182,33 +183,24 @@ class GroupManagementTest {
     }
 
     @Test
-    void ownerAloneControlsNonCacheableJoinCodeAndRegenerationInvalidatesOldCode() throws Exception {
+    void allActiveMembersCanIssueIndependentNonCacheableInvitations() throws Exception {
         AuthenticatedClient owner = registerAndLogin("owner@example.com", "Owner");
         AuthenticatedClient member = registerAndLogin("member@example.com", "Member");
         AuthenticatedClient outsider = registerAndLogin("outsider@example.com", "Outsider");
         UUID groupId = UUID.fromString(createGroup(owner, "Pod").get("id").asText());
-        String oldCode = retrieveCode(owner, groupId);
-        join(member, oldCode);
-
-        assertThat(request(member, HttpMethod.GET,
-                "/api/groups/" + groupId + "/join-code", "").statusCode())
-                .isEqualTo(HttpStatus.FORBIDDEN.value());
-        assertRejectedWithoutWrites(member, HttpMethod.POST,
-                "/api/groups/" + groupId + "/join-code", "", HttpStatus.FORBIDDEN);
-
-        HttpResponse<String> regenerate = request(owner, HttpMethod.POST,
-                "/api/groups/" + groupId + "/join-code", "");
-        assertThat(regenerate.statusCode()).isEqualTo(HttpStatus.OK.value());
-        assertThat(regenerate.headers().firstValue(HttpHeaders.CACHE_CONTROL).orElseThrow()).contains("no-store");
-        String newCode = json.readTree(regenerate.body()).get("code").asText();
-        assertThat(newCode).isNotEqualTo(oldCode);
-        assertRejectedWithoutWrites(outsider, HttpMethod.POST,
-                "/api/groups/join", codeBody(oldCode), HttpStatus.BAD_REQUEST);
-        assertThat(join(outsider, newCode).get("role").asText()).isEqualTo("MEMBER");
+        String first = retrieveCode(owner, groupId);
+        String second = retrieveCode(owner, groupId);
+        join(member, first);
+        String third = retrieveCode(member, groupId);
+        assertThat(List.of(first, second, third)).doesNotHaveDuplicates();
+        join(outsider, second);
+        assertRejectedWithoutWrites(owner, HttpMethod.POST, "/api/groups/join", codeBody(third), HttpStatus.CONFLICT);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM group_invitations WHERE consumed_at IS NULL",
+                Integer.class)).isEqualTo(1);
     }
 
     @Test
-    void retriesJoinCodeCollisionsWithoutPartialGroupsOrMemberships() throws Exception {
+    void retriesInvitationHashCollisionsWithoutPartialWrites() throws Exception {
         AuthenticatedClient firstOwner = registerAndLogin("first@example.com", "First");
         AuthenticatedClient secondOwner = registerAndLogin("second@example.com", "Second");
         doReturn(COLLIDING_CODE).when(joinCodes).generate();
@@ -223,8 +215,8 @@ class GroupManagementTest {
 
         doReturn(RETRY_CODE, COLLIDING_CODE, ROTATED_CODE).when(joinCodes).generate();
         HttpResponse<String> rotation = request(secondOwner, HttpMethod.POST,
-                "/api/groups/" + secondGroup + "/join-code", "");
-        assertThat(rotation.statusCode()).isEqualTo(HttpStatus.OK.value());
+                "/api/groups/" + secondGroup + "/invitations", "");
+        assertThat(rotation.statusCode()).isEqualTo(HttpStatus.CREATED.value());
         assertThat(json.readTree(rotation.body()).get("code").asText()).isEqualTo(ROTATED_CODE);
         assertThat(groups.count()).isEqualTo(2);
         assertThat(memberships.count()).isEqualTo(2);
@@ -246,49 +238,18 @@ class GroupManagementTest {
             assertWaitingForGroupLock(gate);
             gate.close();
             assertThat(first.get(10, TimeUnit.SECONDS).statusCode()).isEqualTo(HttpStatus.OK.value());
-            assertThat(second.get(10, TimeUnit.SECONDS).statusCode()).isEqualTo(HttpStatus.OK.value());
+            assertThat(second.get(10, TimeUnit.SECONDS).statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
         }
         assertThat(memberships.findAllByGroupIdAndActiveTrue(groupId)).hasSize(2);
         assertThat(memberships.count()).isEqualTo(2);
         UUID membershipId = memberships.findByGroupIdAndUserId(groupId, member.userId()).orElseThrow().getId();
-        join(member, code);
+        assertRejectedWithoutWrites(member, HttpMethod.POST, "/api/groups/join", codeBody(code), HttpStatus.BAD_REQUEST);
         assertThat(memberships.findByGroupIdAndUserId(groupId, member.userId()).orElseThrow().getId())
                 .isEqualTo(membershipId);
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void joinWaitingOnRegenerationCannotUseCodeAfterNewCodeCommits(boolean formerMember) throws Exception {
-        AuthenticatedClient owner = registerAndLogin("owner@example.com", "Owner");
-        AuthenticatedClient joiner = registerAndLogin("joiner@example.com", "Joiner");
-        UUID groupId = UUID.fromString(createGroup(owner, "Pod").get("id").asText());
-        String oldCode = retrieveCode(owner, groupId);
-        if (formerMember) {
-            join(joiner, oldCode);
-            assertThat(request(joiner, HttpMethod.DELETE, "/api/groups/" + groupId + "/membership", "")
-                    .statusCode()).isEqualTo(HttpStatus.NO_CONTENT.value());
-        }
-        List<Map<String, Object>> beforeMemberships = membershipRows();
-        try (ExecutorService executor = Executors.newFixedThreadPool(2);
-                MembershipReadGate gate = pauseMembershipRead(groupId, owner.userId())) {
-            // Pause the real rotation transaction after its group lock, before it changes the code.
-            Future<HttpResponse<String>> rotation = executor.submit(() -> request(owner, HttpMethod.POST,
-                    "/api/groups/" + groupId + "/join-code", ""));
-            gate.awaitHoldingLock();
-            Future<HttpResponse<String>> join = executor.submit(() ->
-                    request(joiner, HttpMethod.POST, "/api/groups/join", codeBody(oldCode)));
-            assertWaitingForGroupLock(gate);
-            gate.close();
-            HttpResponse<String> rotated = rotation.get(10, TimeUnit.SECONDS);
-            assertThat(rotated.statusCode()).isEqualTo(HttpStatus.OK.value());
-            assertThat(json.readTree(rotated.body()).get("code").asText()).isNotEqualTo(oldCode);
-            assertProblem(join.get(10, TimeUnit.SECONDS), HttpStatus.BAD_REQUEST);
-        }
-        assertThat(membershipRows()).isEqualTo(beforeMemberships);
-    }
-
     @Test
-    void joinHoldingLockCompletesBeforeWaitingRegenerationAndKeepsItsMembership() throws Exception {
+    void joinHoldingLockCompletesBeforeIndependentIssuanceAndKeepsItsMembership() throws Exception {
         AuthenticatedClient owner = registerAndLogin("owner@example.com", "Owner");
         AuthenticatedClient member = registerAndLogin("member@example.com", "Member");
         AuthenticatedClient outsider = registerAndLogin("outsider@example.com", "Outsider");
@@ -300,11 +261,11 @@ class GroupManagementTest {
                     request(member, HttpMethod.POST, "/api/groups/join", codeBody(oldCode)));
             gate.awaitHoldingLock();
             Future<HttpResponse<String>> rotation = executor.submit(() -> request(owner, HttpMethod.POST,
-                    "/api/groups/" + groupId + "/join-code", ""));
+                    "/api/groups/" + groupId + "/invitations", ""));
             assertWaitingForGroupLock(gate);
             gate.close();
             assertThat(join.get(10, TimeUnit.SECONDS).statusCode()).isEqualTo(HttpStatus.OK.value());
-            assertThat(rotation.get(10, TimeUnit.SECONDS).statusCode()).isEqualTo(HttpStatus.OK.value());
+            assertThat(rotation.get(10, TimeUnit.SECONDS).statusCode()).isEqualTo(HttpStatus.CREATED.value());
         }
         assertThat(retrieveCode(owner, groupId)).isNotEqualTo(oldCode);
         GroupMembership joined = memberships.findByGroupIdAndUserId(groupId, member.userId()).orElseThrow();
@@ -314,6 +275,26 @@ class GroupManagementTest {
                 "/api/groups/join", codeBody(oldCode), HttpStatus.BAD_REQUEST);
         assertThat(request(member, HttpMethod.GET, "/api/groups/" + groupId, "").statusCode())
                 .isEqualTo(HttpStatus.OK.value());
+    }
+
+    @Test
+    void expiryAfterInitialValidationRollsBackMembershipAndLeavesInvitationUnconsumed() throws Exception {
+        AuthenticatedClient owner = registerAndLogin("owner@example.com", "Owner");
+        AuthenticatedClient member = registerAndLogin("member@example.com", "Member");
+        UUID groupId = UUID.fromString(createGroup(owner, "Pod").get("id").asText());
+        String code = retrieveCode(owner, groupId);
+        try (ExecutorService executor = Executors.newSingleThreadExecutor();
+                MembershipReadGate gate = pauseMembershipRead(groupId, member.userId())) {
+            Future<HttpResponse<String>> join = executor.submit(() ->
+                    request(member, HttpMethod.POST, "/api/groups/join", codeBody(code)));
+            gate.awaitHoldingLock();
+            jdbc.update("UPDATE group_invitations SET created_at = statement_timestamp() - interval '24 hours', expires_at = statement_timestamp() WHERE group_id = ?", groupId);
+            gate.close();
+            assertProblem(join.get(10, TimeUnit.SECONDS), HttpStatus.BAD_REQUEST);
+        }
+        assertThat(memberships.findByGroupIdAndUserId(groupId, member.userId())).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM group_invitations WHERE group_id = ? AND consumed_at IS NULL",
+                Integer.class, groupId)).isEqualTo(1);
     }
 
     @Test
@@ -338,12 +319,12 @@ class GroupManagementTest {
         assertThat(memberships.count()).isEqualTo(1);
 
         assertThatThrownBy(() -> jdbc.update(
-                "INSERT INTO play_groups (id, name, join_code, owner_id) VALUES (?, ?, ?, ?)",
-                UUID.randomUUID(), " ", RETRY_CODE, owner.userId()))
+                "INSERT INTO play_groups (id, name, owner_id) VALUES (?, ?, ?)",
+                UUID.randomUUID(), " ", owner.userId()))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbc.update(
-                "INSERT INTO play_groups (id, name, join_code, owner_id) VALUES (?, ?, ?, ?)",
-                UUID.randomUUID(), "Ownerless", RETRY_CODE, owner.userId()))
+                "INSERT INTO play_groups (id, name, owner_id) VALUES (?, ?, ?)",
+                UUID.randomUUID(), "Ownerless", owner.userId()))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbc.update(
                 "INSERT INTO group_memberships (id, group_id, user_id, role, active) VALUES (?, ?, ?, ?, ?)",
@@ -404,8 +385,8 @@ class GroupManagementTest {
         UUID groupId = UUID.fromString(createGroup(owner, "Pod").get("id").asText());
         String code = retrieveCode(owner, groupId);
         join(member, code);
-        join(otherMember, code);
-        join(former, code);
+        join(otherMember, retrieveCode(owner, groupId));
+        join(former, retrieveCode(owner, groupId));
         assertThat(request(former, HttpMethod.DELETE, "/api/groups/" + groupId + "/membership", "")
                 .statusCode()).isEqualTo(HttpStatus.NO_CONTENT.value());
         UUID otherMembership = memberships.findByGroupIdAndUserId(groupId, otherMember.userId()).orElseThrow().getId();
@@ -423,7 +404,7 @@ class GroupManagementTest {
             }
             String body = json.writeValueAsString(Map.of(field.getKey(), field.getValue()));
             assertRejectedWithoutWrites(owner, HttpMethod.POST,
-                    "/api/groups/" + groupId + "/join-code", body, HttpStatus.BAD_REQUEST);
+                    "/api/groups/" + groupId + "/invitations", body, HttpStatus.BAD_REQUEST);
             // The authenticated member and the named other member must both remain active and unchanged.
             assertRejectedWithoutWrites(member, HttpMethod.DELETE,
                     "/api/groups/" + groupId + "/membership", body, HttpStatus.BAD_REQUEST);
@@ -435,7 +416,7 @@ class GroupManagementTest {
     }
 
     @Test
-    void allSevenOperationsRequireAuthenticationIndependentlyOfCsrf() throws Exception {
+    void allOperationsRequireAuthenticationIndependentlyOfCsrf() throws Exception {
         AuthenticatedClient owner = registerAndLogin("owner@example.com", "Owner");
         AuthenticatedClient member = registerAndLogin("member@example.com", "Member");
         UUID groupId = UUID.fromString(createGroup(owner, "Pod").get("id").asText());
@@ -445,8 +426,7 @@ class GroupManagementTest {
         List<GroupOperation> operations = new ArrayList<>(unsafeOperations(owner, member, groupId, code));
         operations.add(new GroupOperation(owner, HttpMethod.GET, "/api/groups", ""));
         operations.add(new GroupOperation(owner, HttpMethod.GET, "/api/groups/" + groupId, ""));
-        operations.add(new GroupOperation(owner, HttpMethod.GET, "/api/groups/" + groupId + "/join-code", ""));
-        assertThat(operations).hasSize(7);
+        assertThat(operations).hasSize(6);
         for (GroupOperation operation : operations) {
             assertRejectedWithSession(cookie(anonymous), token(anonymous), operation, HttpStatus.UNAUTHORIZED);
         }
@@ -484,10 +464,8 @@ class GroupManagementTest {
         join(otherMember, retrieveCode(otherOwner, other));
         for (AuthenticatedClient denied : List.of(outsider, former, otherOwner, otherMember)) {
             assertRejectedWithoutWrites(denied, HttpMethod.GET, "/api/groups/" + target, "", HttpStatus.FORBIDDEN);
-            assertRejectedWithoutWrites(denied, HttpMethod.GET,
-                    "/api/groups/" + target + "/join-code", "", HttpStatus.FORBIDDEN);
             assertRejectedWithoutWrites(denied, HttpMethod.POST,
-                    "/api/groups/" + target + "/join-code", "", HttpStatus.FORBIDDEN);
+                    "/api/groups/" + target + "/invitations", "", HttpStatus.FORBIDDEN);
             assertRejectedWithoutWrites(denied, HttpMethod.DELETE,
                     "/api/groups/" + target + "/membership", "", HttpStatus.FORBIDDEN);
         }
@@ -497,7 +475,7 @@ class GroupManagementTest {
             UUID groupId, String code) {
         return List.of(new GroupOperation(owner, HttpMethod.POST, "/api/groups", "{\"name\":\"New group\"}"),
                 new GroupOperation(member, HttpMethod.POST, "/api/groups/join", codeBody(code)),
-                new GroupOperation(owner, HttpMethod.POST, "/api/groups/" + groupId + "/join-code", ""),
+                new GroupOperation(owner, HttpMethod.POST, "/api/groups/" + groupId + "/invitations", ""),
                 new GroupOperation(member, HttpMethod.DELETE, "/api/groups/" + groupId + "/membership", ""));
     }
 
@@ -617,11 +595,14 @@ class GroupManagementTest {
     }
 
     private String retrieveCode(AuthenticatedClient owner, UUID groupId) throws Exception {
-        HttpResponse<String> response = request(owner, HttpMethod.GET,
-                "/api/groups/" + groupId + "/join-code", "");
-        assertThat(response.statusCode()).isEqualTo(HttpStatus.OK.value());
+        HttpResponse<String> response = request(owner, HttpMethod.POST,
+                "/api/groups/" + groupId + "/invitations", "");
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.CREATED.value());
         assertThat(response.headers().firstValue(HttpHeaders.CACHE_CONTROL).orElseThrow()).contains("no-store");
-        return json.readTree(response.body()).get("code").asText();
+        JsonNode invitation = json.readTree(response.body());
+        assertThat(java.time.Instant.parse(invitation.get("expiresAt").asText())).isAfter(java.time.Instant.now());
+        assertThat(invitation.size()).isEqualTo(2);
+        return invitation.get("code").asText();
     }
 
     private String codeBody(String code) {

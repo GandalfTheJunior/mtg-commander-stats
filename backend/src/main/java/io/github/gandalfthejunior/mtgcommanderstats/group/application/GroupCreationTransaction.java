@@ -21,8 +21,8 @@ class GroupCreationTransaction {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    PlayGroup create(UUID ownerId, String name, String joinCode) {
-        PlayGroup group = groups.saveAndFlush(new PlayGroup(ownerId, name, joinCode));
+    PlayGroup create(UUID ownerId, String name) {
+        PlayGroup group = groups.saveAndFlush(new PlayGroup(ownerId, name));
         memberships.saveAndFlush(GroupMembership.owner(group.getId(), ownerId));
         return group;
     }

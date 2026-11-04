@@ -57,8 +57,8 @@ class OwnershipTransferTest extends GameTestSupport {
                 .isEqualTo("ACCEPTED");
         assertOwner(f, f.creator());
         assertThat(groupService.details(f.owner().id(), f.groupId()).role()).isEqualTo(GroupRole.MEMBER);
-        expect(f.owner(), "GET", "/api/groups/" + f.groupId() + "/join-code", "", 403);
-        expect(f.creator(), "GET", "/api/groups/" + f.groupId() + "/join-code", "", 200);
+        expect(f.owner(), "POST", "/api/groups/" + f.groupId() + "/invitations", "", 201);
+        expect(f.creator(), "POST", "/api/groups/" + f.groupId() + "/invitations", "", 201);
         expect(f.owner(), "PATCH", "/api/groups/" + f.groupId() + "/members/" + f.member().id() + "/role",
                 "{\"role\":\"ADMIN\"}", 403);
         groupService.changeRole(f.creator().id(), f.groupId(), f.member().id(), GroupRole.ADMIN);

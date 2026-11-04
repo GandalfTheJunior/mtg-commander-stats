@@ -59,10 +59,9 @@ class GameManagementTest extends GameTestSupport {
         Fixture f = fixture();
         List<GameParticipant> participants = new ArrayList<>(assignments(f));
         participants.add(assignment(f.owner().id(), f.ownerDeck()));
-        String code = groupService.joinCode(f.owner().id(), f.groupId());
         for (int i = 0; i < 3; i++) {
             Actor actor = register("extra" + i, "Extra");
-            groupService.join(actor.id(), code);
+            groupService.join(actor.id(), groupService.createInvitation(f.owner().id(), f.groupId()).code());
             participants.add(assignment(actor.id(), deck(actor)));
         }
         assertThat(expect(f.owner(), "POST", f.path(), body(participants, "WIN", f.member().id()), CREATED.value())

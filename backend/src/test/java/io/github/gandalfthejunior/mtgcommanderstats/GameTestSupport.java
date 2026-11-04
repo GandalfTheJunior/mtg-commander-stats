@@ -88,8 +88,8 @@ abstract class GameTestSupport {
         Actor member = register("member", "Same Name");
         Actor outsider = register("outsider", "Outsider");
         UUID groupId = id(expect(owner, "POST", "/api/groups", "{\"name\":\"Pod\"}", CREATED.value()));
-        String code = expect(owner, "GET", "/api/groups/" + groupId + "/join-code", "", OK.value()).get("code").asText();
         for (Actor actor : List.of(creator, member)) {
+            String code = groupService.createInvitation(owner.id(), groupId).code();
             expect(actor, "POST", "/api/groups/join", json.writeValueAsString(Map.of("code", code)), OK.value());
         }
         return new Fixture(groupId, owner, creator, member, outsider, deck(owner), deck(creator), deck(member),
