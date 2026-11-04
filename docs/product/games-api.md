@@ -231,6 +231,12 @@ receive `403` without revealing whether a particular game or target exists.
 Commander arrays in the examples abbreviate the full saved snapshot contract.
 Each item contains all fields documented in [Deck API](decks-api.md#saved-snapshots-and-updates),
 including choice, base/effective colors and nullable artwork/attribution snapshots.
+Owner-authorized decks, game list/detail/write deck displays and member deck
+selection additionally include nullable `companion`, using the full
+[Companion snapshot](decks-api.md#optional-mtg-companion). It is independent of
+Commander count/colors and is read from the referenced deck without provider
+requests. Game write bodies gain no Companion input or match-level snapshot;
+first committed deck use permanently locks Companion identity.
 
 ## Read facts and schema upgrade
 

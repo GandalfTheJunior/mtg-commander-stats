@@ -81,6 +81,17 @@ public class ScryfallNormalizer {
     }
 
     public GameplayCard resolve(CardDetails card, CommanderSelectionRef reference) {
+        GameplayCard gameplay = resolveIdentity(card, reference);
+        if (!"legal".equals(gameplay.commanderLegality()) || (!gameplay.canBeSoleCommander()
+                && !gameplay.pairing().roles().contains(PairingCapabilities.BACKGROUND)
+                && !gameplay.pairing().roles().contains(PairingCapabilities.COMPANION))) {
+            throw new InvalidScryfallSelectionException();
+        }
+        return gameplay;
+    }
+
+    /** Identity/artwork resolution remains possible after a format ban. */
+    public GameplayCard resolveIdentity(CardDetails card, CommanderSelectionRef reference) {
         if (reference == null || reference.scryfallCardId() == null
                 || !reference.scryfallCardId().equals(card.scryfallCardId())) {
             throw new InvalidScryfallSelectionException();
@@ -145,9 +156,6 @@ public class ScryfallNormalizer {
         String frontType = typeLine.split(" // ", 2)[0];
         boolean background = frontType.contains("Legendary") && frontType.contains("Background");
         boolean companion = oracleText.contains("Doctor's companion");
-        if (!"legal".equals(legality) || (!sole && !background && !companion)) {
-            return;
-        }
         List<String> colors = colors(rules, "color_identity");
         List<String> keywords = stringList(rules.path("keywords"), false);
         JsonNode front = rules.path("card_faces").isArray() && !rules.path("card_faces").isEmpty()
@@ -158,10 +166,13 @@ public class ScryfallNormalizer {
         boolean requiresColor = ChosenColorAbility.requiresChosenColor(oracleText);
         Artwork artwork = defaultArtwork(card, images, index);
         GameplayCard gameplay = new GameplayCard(index, oracleId, name, colors, requiresColor, sole,
-                typeLine, keywords, oracleText, artwork, pairing);
+                typeLine, keywords, oracleText, artwork, pairing, legality,
+                CompanionRules.hasMechanic(stringList(front.path("keywords"), false),
+                        front == rules ? oracleText : combinedText(front, "oracle_text")));
         // Keep every valid original face resolvable, even when two faces have the same Oracle identity.
         gameplayCards.add(gameplay);
-        if (oracleId == null || seen.putIfAbsent(oracleId, Boolean.TRUE) != null) {
+        if (!"legal".equals(legality) || (!sole && !background && !companion)
+                || oracleId == null || seen.putIfAbsent(oracleId, Boolean.TRUE) != null) {
             return;
         }
         CommanderSelectionRef ref = new CommanderSelectionRef(printingId(card), index);
@@ -197,7 +208,7 @@ public class ScryfallNormalizer {
                 text(metadata, "artist"), source);
     }
 
-    private static String thumbnail(JsonNode card, Integer gameplayIndex) {
+    public static String thumbnail(JsonNode card, Integer gameplayIndex) {
         if (gameplayIndex != null) {
             String selected = imageThumbnail(card.path("card_faces").path(gameplayIndex));
             if (selected != null) {

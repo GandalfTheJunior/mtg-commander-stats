@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.Deck;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckCommander;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckCompanion;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidCommanderException;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.ManaBoxUrl;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.DeckRepository;
@@ -57,9 +58,18 @@ public class ManageDecks {
 
     @Transactional
     public Deck create(UUID ownerId, String name, List<CommanderInput> commanders, String manaBoxUrl) {
+        return create(ownerId, name, commanders, manaBoxUrl, null);
+    }
+
+    @Transactional
+    public Deck create(UUID ownerId, String name, List<CommanderInput> commanders, String manaBoxUrl,
+            CompanionInput companion) {
         String normalizedUrl = manaBoxUrl == null ? null : new ManaBoxUrl(manaBoxUrl).value();
         Deck deck = new Deck(ownerId, name, resolve(commanders));
         deck.changeManaBoxUrl(normalizedUrl);
+        if (companion != null) {
+            deck.replaceConfiguration(deck.getCommanders(), new DeckCompanion(scryfall.resolveCompanionOnline(companion.selectionRef())));
+        }
         return decks.save(deck);
     }
 
@@ -71,7 +81,14 @@ public class ManageDecks {
     @Transactional
     public Deck update(UUID ownerId, UUID deckId, String name, List<CommanderInput> commanders,
             boolean manaBoxUrlSupplied, String manaBoxUrl) {
+        return update(ownerId, deckId, name, commanders, manaBoxUrlSupplied, manaBoxUrl, false, null);
+    }
+
+    @Transactional
+    public Deck update(UUID ownerId, UUID deckId, String name, List<CommanderInput> commanders,
+            boolean manaBoxUrlSupplied, String manaBoxUrl, boolean companionSupplied, CompanionInput companion) {
         Deck deck = ownedDeck(ownerId, deckId);
+        List<DeckCommander> prospectiveCommanders = deck.getCommanders();
         if (manaBoxUrlSupplied) {
             deck.changeManaBoxUrl(manaBoxUrl);
         }
@@ -88,9 +105,18 @@ public class ManageDecks {
                         && Objects.equals(saved.getChosenColor(), input.chosenColor());
             }
             if (!unchanged) {
-                deck.replaceCommanders(resolve(commanders));
+                prospectiveCommanders = resolve(commanders);
             }
         }
+        DeckCompanion prospectiveCompanion = deck.getCompanion();
+        if (companionSupplied) {
+            if (companion == null) {
+                prospectiveCompanion = null;
+            } else if (prospectiveCompanion == null || !prospectiveCompanion.selectionRef().equals(companion.selectionRef())) {
+                prospectiveCompanion = new DeckCompanion(scryfall.resolveCompanionOnline(companion.selectionRef()));
+            }
+        }
+        deck.replaceConfiguration(prospectiveCommanders, prospectiveCompanion);
         deck.rename(name);
         return deck;
     }
@@ -103,6 +129,19 @@ public class ManageDecks {
         ResolvedArtwork resolved = scryfall.resolveArtworkOnline(printingId, commander.getOracleId().toString(),
                 commander.getGameplayFaceIndex(), artworkFaceIndex);
         commander.changeArtwork(resolved.selectionRef(), resolved.artwork());
+        return deck;
+    }
+
+    @Transactional
+    public Deck changeCompanionArtwork(UUID ownerId, UUID deckId, UUID printingId, Integer artworkFaceIndex) {
+        Deck deck = ownedDeck(ownerId, deckId);
+        DeckCompanion companion = deck.getCompanion();
+        if (companion == null) {
+            throw new DeckNotFoundException();
+        }
+        ResolvedArtwork resolved = scryfall.resolveArtworkOnline(printingId, companion.getOracleId().toString(),
+                companion.getGameplayFaceIndex(), artworkFaceIndex);
+        companion.changeArtwork(resolved.selectionRef(), resolved.artwork());
         return deck;
     }
 

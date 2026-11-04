@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.ColorIdentityConverter;
 import io.github.gandalfthejunior.mtgcommanderstats.displaytext.DisplayText;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidCompanionSelectionException;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
@@ -42,6 +43,13 @@ public class Deck {
     @BatchSize(size = 100)
     private List<DeckCommander> commanders = new ArrayList<>();
 
+    // At most one row, enforced by deck_companions' deck_id primary key.
+    @ElementCollection(fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SUBSELECT)
+    @CollectionTable(name = "deck_companions", joinColumns = @JoinColumn(name = "deck_id"))
+    @BatchSize(size = 100)
+    private List<DeckCompanion> companions = new ArrayList<>();
+
     @Convert(converter = ColorIdentityConverter.class)
     @Column(name = "color_identity", nullable = false, columnDefinition = "text")
     private ColorIdentity colorIdentity;
@@ -77,7 +85,16 @@ public class Deck {
         return manaBoxUrl;
     }
 
+    public DeckCompanion getCompanion() {
+        return companions.isEmpty() ? null : companions.getFirst();
+    }
+
     public void replaceCommanders(List<DeckCommander> replacement) {
+        replaceConfiguration(replacement, getCompanion());
+    }
+
+    /** Validate the prospective composition together, allowing simultaneous compatible changes. */
+    public void replaceConfiguration(List<DeckCommander> replacement, DeckCompanion companion) {
         if (replacement == null || replacement.isEmpty() || replacement.size() > 2) {
             throw new InvalidCommanderException();
         }
@@ -107,14 +124,37 @@ public class Deck {
                 }
             }
         }
+        DeckCompanion savedCompanion = getCompanion();
+        boolean sameCompanion = savedCompanion == null ? companion == null
+                : companion != null && savedCompanion.getOracleId().equals(companion.getOracleId());
+        if (!sameCompanion && everUsed) {
+            throw new DeckLifecycleConflictException();
+        }
+        if (sameCompanion && companion != null) {
+            if (!savedCompanion.selectionRef().equals(companion.selectionRef())) {
+                throw new InvalidCompanionSelectionException("Companion printing changes require the Companion artwork endpoint.");
+            }
+            companion = savedCompanion;
+        }
+        ColorIdentity prospectiveColors = ColorIdentity.fromSymbols(replacement.stream()
+                .flatMap(commander -> commander.effectiveColorIdentity().symbols().stream()).distinct().toList());
+        if (companion != null && !prospectiveColors.symbols().containsAll(companion.getBaseColorIdentity().symbols())) {
+            throw new InvalidCompanionSelectionException("The saved or selected Companion colors must fit the prospective Commander color identity."
+                    + " Choose compatible Commanders/chosen colors or explicitly remove or replace the Companion on an unused deck.");
+        }
+        if (!sameCompanion) {
+            companions.clear();
+            if (companion != null) {
+                companions.add(companion);
+            }
+        }
         if (same) {
             // An idempotent full update must never revert newer presentation snapshots.
             return;
         }
         this.commanders.clear();
         this.commanders.addAll(replacement);
-        this.colorIdentity = ColorIdentity.fromSymbols(replacement.stream()
-                .flatMap(commander -> commander.effectiveColorIdentity().symbols().stream()).distinct().toList());
+        this.colorIdentity = prospectiveColors;
     }
 
     public void markUsed() {

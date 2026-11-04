@@ -45,7 +45,7 @@ class GameRecordsMigrationTest {
                 connection.commit();
             }
             List<Map<String, Object>> before = jdbc.queryForList("SELECT * FROM " + schema + ".group_memberships");
-            assertThat(Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).load()
+            assertThat(Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).target("13").load()
                     .migrate().migrationsExecuted).isEqualTo(1);
             assertThat(jdbc.queryForList("SELECT * FROM " + schema + ".group_memberships")).isEqualTo(before);
             assertThat(jdbc.queryForObject("SELECT count(*) FROM " + schema + ".group_invitations", Integer.class)).isZero();
@@ -90,6 +90,46 @@ class GameRecordsMigrationTest {
             jdbc.update("UPDATE " + schema + ".group_memberships SET role = 'ADMIN' WHERE user_id = ?", member);
             assertThatThrownBy(() -> jdbc.update("UPDATE " + schema + ".group_memberships SET role = 'ADMIN' WHERE user_id = ?", owner))
                     .hasStackTraceContaining("must have its designated active owner membership");
+        } finally {
+            jdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+        }
+    }
+
+    @Test
+    void companionUpgradeIsAdditiveAndDatabaseEnforcesOneSnapshotPerOwningDeck() {
+        String schema = "companion_upgrade";
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        try {
+            Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).target("13").load().migrate();
+            UUID owner = UUID.randomUUID();
+            UUID unused = UUID.randomUUID();
+            jdbc.update("INSERT INTO " + schema + ".users (id, username, encoded_password, email) VALUES (?, 'Player', 'hash', ?)",
+                    owner, owner + "@example.com");
+            for (String state : List.of("unused", "used", "archived")) {
+                UUID deck = state.equals("unused") ? unused : UUID.randomUUID();
+                jdbc.update("INSERT INTO " + schema + ".decks (id, owner_id, name, color_identity, ever_used, archived, mana_box_url)"
+                        + " VALUES (?, ?, ?, 'R', ?, ?, 'https://manabox.app/decks/Example')",
+                        deck, owner, state, !state.equals("unused"), state.equals("archived"));
+                jdbc.update("INSERT INTO " + schema + ".deck_commanders (deck_id, position, oracle_id, name, base_color_identity, requires_chosen_color, can_be_sole_commander, chosen_color, scryfall_card_id)"
+                        + " VALUES (?, 1, ?, 'Commander', '', true, true, 'R', ?)", deck, UUID.randomUUID(), UUID.randomUUID());
+            }
+            List<Map<String, Object>> before = jdbc.queryForList("SELECT * FROM " + schema + ".decks ORDER BY id");
+            List<Map<String, Object>> commanders = jdbc.queryForList("SELECT * FROM " + schema + ".deck_commanders ORDER BY deck_id");
+            assertThat(Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).target("14").load()
+                    .migrate().migrationsExecuted).isEqualTo(1);
+            assertThat(jdbc.queryForList("SELECT * FROM " + schema + ".decks ORDER BY id")).isEqualTo(before);
+            assertThat(jdbc.queryForList("SELECT * FROM " + schema + ".deck_commanders ORDER BY deck_id")).isEqualTo(commanders);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM " + schema + ".deck_companions", Integer.class)).isZero();
+            String insert = "INSERT INTO " + schema + ".deck_companions (deck_id, oracle_id, name, base_color_identity, scryfall_card_id) VALUES (?, ?, 'Companion', 'R', ?)";
+            jdbc.update(insert, unused, UUID.randomUUID(), UUID.randomUUID());
+            assertThatThrownBy(() -> jdbc.update(insert, unused, UUID.randomUUID(), UUID.randomUUID()))
+                    .hasStackTraceContaining("duplicate key");
+            assertThatThrownBy(() -> jdbc.update(insert, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()))
+                    .hasStackTraceContaining("foreign key");
+            assertThatThrownBy(() -> jdbc.update("UPDATE " + schema + ".deck_companions SET base_color_identity = 'RW'"))
+                    .hasStackTraceContaining("check constraint");
+            jdbc.update("DELETE FROM " + schema + ".decks WHERE id = ?", unused);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM " + schema + ".deck_companions", Integer.class)).isZero();
         } finally {
             jdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
         }

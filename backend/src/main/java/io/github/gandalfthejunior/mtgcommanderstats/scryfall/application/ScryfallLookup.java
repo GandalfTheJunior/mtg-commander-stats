@@ -14,6 +14,9 @@ import java.util.UUID;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.Artwork;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CardDetails;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderChoice;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CompanionChoice;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CompanionRules;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidCompanionSelectionException;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderSelectionRef;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.GameplayCard;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidScryfallSelectionException;
@@ -39,6 +42,8 @@ public class ScryfallLookup {
     private final BoundedCache<String, List<CommanderChoice>> searches =
             new BoundedCache<>(128, CACHE_TTL, System::nanoTime);
     private final BoundedCache<String, List<CommanderChoice>> partnerSearches =
+            new BoundedCache<>(128, CACHE_TTL, System::nanoTime);
+    private final BoundedCache<String, List<CompanionChoice>> companionSearches =
             new BoundedCache<>(128, CACHE_TTL, System::nanoTime);
     private final BoundedCache<UUID, FetchedCard> cards =
             new BoundedCache<>(256, CACHE_TTL, System::nanoTime);
@@ -88,6 +93,51 @@ public class ScryfallLookup {
         List<CommanderChoice> result = List.copyOf(distinct.values());
         searches.put(key, result);
         return result;
+    }
+
+    public List<CompanionChoice> searchCompanions(String input) {
+        String name = normalizeQuery(input);
+        String key = name.toLowerCase(Locale.ROOT);
+        List<CompanionChoice> cached = companionSearches.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        String query = "name:/" + literalRegex(name) + "/ lang:en game:paper f:commander kw:companion";
+        List<JsonNode> rawCards = collectSearch(query, false, MAX_SEARCH_CARDS);
+        Map<String, JsonNode> metadata = reversibleMetadata(rawCards);
+        Map<String, CompanionChoice> distinct = new LinkedHashMap<>();
+        for (JsonNode raw : rawCards) {
+            if (!raw.path("lang").isTextual()) {
+                throw new MalformedScryfallResponseException();
+            }
+            if (!"en".equals(raw.path("lang").asText())) {
+                continue;
+            }
+            CardDetails card = normalizer.normalize(raw, metadata);
+            for (GameplayCard gameplay : card.gameplayCards()) {
+                if (gameplay.oracleId() != null && CompanionRules.rejection(gameplay) == null
+                        && gameplay.name().toLowerCase(Locale.ROOT).contains(key)) {
+                    distinct.putIfAbsent(gameplay.oracleId(), new CompanionChoice(
+                            new CommanderSelectionRef(card.scryfallCardId(), gameplay.gameplayFaceIndex()),
+                            gameplay.name(), gameplay.colorIdentity(), ScryfallNormalizer.thumbnail(raw, gameplay.gameplayFaceIndex())));
+                }
+            }
+        }
+        List<CompanionChoice> result = distinct.values().stream().limit(MAX_SUGGESTIONS).toList();
+        companionSearches.put(key, result);
+        return result;
+    }
+
+    /** Changed Companion selections always use fresh authoritative rules, regardless of search caches. */
+    public ResolvedCompanion resolveCompanionOnline(CommanderSelectionRef reference) {
+        validateReference(reference);
+        CardDetails card = fetchCard(reference.scryfallCardId()).details();
+        GameplayCard gameplay = normalizer.resolveIdentity(card, reference);
+        String rejection = CompanionRules.rejection(gameplay);
+        if (rejection != null) {
+            throw new InvalidCompanionSelectionException(rejection);
+        }
+        return new ResolvedCompanion(card, gameplay);
     }
 
     public CardDetails cardDetails(UUID id) {
@@ -221,7 +271,7 @@ public class ScryfallLookup {
         String oracleId;
         Artwork initialArtwork;
         if ("reversible_card".equals(card.layout())) {
-            GameplayCard gameplay = normalizer.resolve(card, reference);
+            GameplayCard gameplay = normalizer.resolveIdentity(card, reference);
             oracleId = gameplay.oracleId();
             initialArtwork = gameplay.defaultArtwork();
         } else {

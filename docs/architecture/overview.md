@@ -61,6 +61,15 @@ WUBRG-string representation; REST exposes color identity as a canonical symbol
 array. Persisted `ever_used` and `archived` flags govern the permanent lifecycle:
 committed game use permanently locks commander/color identity; names remain
 editable. Only unused decks may be physically deleted, and archival is explicit.
+An optional genuine MTG Companion snapshot lives in `deck_companions`, keyed by
+`deck_id`; a constrained zero-or-one internal collection uses the same batched
+subselect read pattern as Commanders. New Companion selections use fresh Scryfall
+mechanics/current-legality validation plus a separately maintained Companion-only
+restriction policy, and must fit the prospective effective Commander colors.
+The same deck lock and permanent first-use flag protect Companion identity;
+artwork remains independently editable, including after subsequent bans. Saved
+reads and unchanged selections never revalidate provider rules. No game-level
+Companion snapshot or statistics change is needed. See [Companion API](../product/decks-api.md#optional-mtg-companion).
 Commander snapshots live in ordered `deck_commanders` slots keyed by deck/position,
 with distinct Oracle gameplay identities and separately stored printing, gameplay
 face selector and display artwork/attribution. The application resolves changed
@@ -147,7 +156,7 @@ display through the existing feature boundaries, and returns sorted statistics
 DTOs with decimal HALF_UP percentages and null for zero observations. The optional
 `playerCount` filter applies to all four datasets. There are no new tables, counters or
 production dependencies. Empty history skips display lookups; nonempty history
-uses six queries regardless of game count. See [Statistics API](../product/statistics-api.md).
+uses seven queries regardless of game count (including the batched optional Companion snapshots). See [Statistics API](../product/statistics-api.md).
 
 Game operations (including statistics reads and deck selection) lock the group row before
 checking current membership. Join, leave, role changes, member removal and code

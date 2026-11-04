@@ -5,6 +5,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.deck.application.DeckNotFoun
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckLifecycleConflictException;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidColorIdentityException;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidCommanderException;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidCompanionSelectionException;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidManaBoxUrlException;
 import io.github.gandalfthejunior.mtgcommanderstats.displaytext.InvalidDisplayTextException;
 import org.springframework.dao.ConcurrencyFailureException;
@@ -18,6 +19,13 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice(assignableTypes = DeckController.class)
 public class DeckErrors {
+    @ExceptionHandler(InvalidCompanionSelectionException.class)
+    public ProblemDetail invalidCompanion(InvalidCompanionSelectionException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+        problem.setProperty("code", "INVALID_COMPANION");
+        return problem;
+    }
+
     @ExceptionHandler(InvalidManaBoxUrlException.class)
     public ProblemDetail invalidManaBoxUrl() {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
@@ -37,7 +45,7 @@ public class DeckErrors {
             ConcurrencyFailureException.class})
     public ProblemDetail conflict() {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
-                "Used decks retain their commander and color identity and must be archived instead of deleted."
+                "Used decks retain their Commander, Companion and color identity and must be archived instead of deleted."
                         + " A concurrent state conflict may require retrying the request.");
     }
 

@@ -14,6 +14,7 @@ statistics reads do not request Scryfall metadata.
 | Method | Route | Success |
 | --- | --- | --- |
 | GET | `/api/scryfall/commanders?q=atraxa` | `200 CommanderChoice[]` |
+| GET | `/api/scryfall/companions?q=lurrus` | `200 CompanionChoice[]` |
 | GET | `/api/scryfall/cards/{scryfallCardId}` | `200 CardDetails` |
 | GET | `/api/scryfall/cards/{scryfallCardId}/artworks` | `200 Artwork[]` |
 
@@ -114,6 +115,25 @@ The second UI uses the same debounce, thumbnail/placeholder, explicit selection,
 inline Fblthp/Moon copy, retry and abort/stale protection as the first. A context
 change retires the previous results and any selected second Commander.
 
+## Companion name search
+
+`GET /api/scryfall/companions?q=<literal-name>` returns at most 20
+`CompanionChoice` objects: `{selectionRef, name, colorIdentity, thumbnailUrl}`.
+Colors are canonical WUBRG; the thumbnail is nullable. This authenticated English
+search uses the same literal-name normalization, 2–100-character input limits,
+40-card/three-page traversal bounds, provider request gate, timeout/response
+limits and controlled failures as Commander search, plus its own bounded
+128-entry, five-minute cache. It deduplicates eligible stable Oracle identities
+before the result cap. No matches returns `200 []`.
+
+Candidates must have the genuine Companion keyword/anchored Oracle ability and
+current Commander legality. Doctor's companion is a different mechanic. The
+[regular-Commander Companion policy](decks-api.md#optional-mtg-companion) separately
+excludes Lutri and Yorion; general format legality alone is insufficient. Search
+never validates the unknown decklist or authorizes a later write. New/changed
+selections are freshly resolved and checked at write time; saved snapshots and
+unchanged selections stay usable offline after subsequent bans.
+
 ## Selection reference and stable gameplay identity
 
 `CommanderSelectionRef` contains:
@@ -154,7 +174,12 @@ retain their full card-level base `color_identity`, including back-side colors.
 
 Each `GameplayCard` exposes `gameplayFaceIndex`, `oracleId`, `name`,
 `colorIdentity`, `requiresChosenColor`, `canBeSoleCommander`, `typeLine`,
-`keywords`, `oracleText`, and `defaultArtwork`. For independently eligible
+`keywords`, `oracleText`, `defaultArtwork`, `commanderLegality` and
+`hasCompanionMechanic`. Gameplay identity metadata remains available for
+non-Commander cards and later-banned cards so artwork can be verified independently
+of current selection eligibility. `commanderSelections` remains the eligible
+Commander choice list; `hasCompanionMechanic` alone does not establish Companion
+eligibility. For independently eligible
 reversible identities, eligibility, chosen-color detection, and default artwork
 use the selected gameplay face's own metadata. The backend does not invent a
 missing top-level Oracle or illustration identity.

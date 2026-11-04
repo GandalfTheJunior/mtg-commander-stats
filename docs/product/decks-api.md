@@ -10,6 +10,7 @@ separate [read-only game API](games-api.md#read-only-member-deck-selection).
 | POST | `/api/decks` | `201 DeckResponse` |
 | PUT | `/api/decks/{deckId}` | `200 DeckResponse` |
 | PUT | `/api/decks/{deckId}/commanders/{position}/artwork` | `200 DeckResponse` |
+| PUT | `/api/decks/{deckId}/companion/artwork` | `200 DeckResponse` |
 | DELETE | `/api/decks/{deckId}` | `204`, only when never used |
 | POST | `/api/decks/{deckId}/archive` | `200 DeckResponse` |
 
@@ -59,7 +60,7 @@ URLs, are rejected; clients cannot assign authoritative card metadata.
 ## Saved snapshots and updates
 
 Every owner-authorized deck response contains `id`, `name`, `commanders`, `colorIdentity`,
-`everUsed`, `archived` and nullable `manaBoxUrl`. Each ordered `commanders` item contains:
+`everUsed`, `archived`, nullable `manaBoxUrl` and nullable `companion`. Each ordered `commanders` item contains:
 
 | Fields | Meaning |
 | --- | --- |
@@ -89,6 +90,97 @@ of the same gameplay identity returns `400` directing clients to the artwork
 operation; stale full updates cannot overwrite newer presentation snapshots. This applies
 to both slots even when the other Commander is being replaced or a chosen color
 is changed.
+
+## Optional MTG Companion
+
+A regular Commander deck may save zero or one genuine **Companion** as a separate
+permanent gameplay identity. This is unrelated to the Doctor's companion pairing
+role and never adds a Commander slot, colors, game participant or statistics
+appearance. Companion deckbuilding conditions (for example Lurrus/Jegantha/Keruga)
+are the player's responsibility: the application has no complete decklist and
+makes no full-deck legality claim.
+
+POST accepts optional `companion` (omission/null means none). PUT requires `name`
+and distinguishes omission (preserve), explicit null (remove) and a selection
+(add/replace). `commanders` may be omitted on a Companion-only update:
+
+```json
+{"name":"My deck","companion":{"selectionRef":{"scryfallCardId":"<printing UUID>"}}}
+```
+
+Only `selectionRef` is writable, with the same exceptional gameplay-face selector
+rules as Commander references. Names, colors, Oracle identities, pairing/chosen
+colors and image URLs are never client inputs. New/replaced selections are freshly
+resolved online regardless of prior search results. They require the genuine
+Companion keyword/Oracle ability, current Commander legality and the separate
+regular-Commander restriction policy. Lutri is banned **as Companion**; Yorion's
+20-extra-card requirement cannot fit Commander's fixed deck size. Search and writes
+share this policy; `legalities.commander` alone is insufficient.
+
+The authoritative base/full Companion WUBRG must be a subset of the prospective
+effective Commander union, including both slots and any pregame chosen colors.
+An otherwise eligible zero-color Companion can fit a colorless deck. Commander
+and Companion changes are checked together atomically; an incompatible saved
+Companion produces actionable `400`, never implicit removal. An unused deck may
+explicitly remove/replace its Companion together with its Commanders.
+
+Before first committed use, the owner may add, swap or remove the Companion.
+After `everUsed=true`, real identity/add/remove changes permanently return `409`,
+including after all game assignments or games are removed. An unchanged full
+selection preserves the authoritative snapshot offline, without revalidating
+later bans or querying the provider. Commander changes check an unchanged
+Companion against its saved colors. Reads, rename/link-only updates and historical
+game assignments never retroactively apply bans or alter results/statistics.
+Same-Oracle printing changes through deck PUT return `400` with guidance to use
+the artwork endpoint. An idempotent update cannot revert newer artwork.
+
+The owner deck response, member deck selection and game list/detail/write display
+DTOs include `companion: null` or this saved snapshot:
+
+| Fields | Meaning |
+| --- | --- |
+| `oracleId`, `name` | Stable Oracle gameplay identity and authoritative English name |
+| `selectionRef`, `scryfallCardId` | Saved printing and its gameplay-face selector when applicable |
+| `colorIdentity` | Canonical full/base WUBRG, never added to deck colors |
+| `artworkFaceIndex`, `artCropUrl`, `illustrationId`, `artist`, `scryfallUri` | Nullable artwork/attribution/source snapshots |
+
+Missing initial art/attribution is valid. All these reads use stored snapshots
+without Scryfall calls and retain existing owner/group access scopes. Games keep
+only existing deck IDs; first-use locking makes redundant game-level Companion
+snapshots unnecessary. Game write requests gain no Companion fields; statistics
+calculations and statistics response fields are unchanged.
+
+`PUT /api/decks/{deckId}/companion/artwork` uses the Commander `ArtworkRequest`
+shape and face/image rules from [artwork updates](#artwork-only-updates-and-gallery).
+No saved Companion returns `404`. The owner may update used/archived decks. The
+backend freshly verifies the same saved Oracle identity, requires usable `art_crop`,
+and atomically stores the printing-local reference, image and attribution while
+preserving all gameplay snapshots and locks, even if the card was later banned.
+Use the existing Scryfall artworks route for discovery. Failure changes nothing.
+`400` Companion policy/color/printing errors use `code=INVALID_COMPANION` and an
+actionable detail; malformed requests/artwork selectors retain existing controlled
+errors. Session, CSRF, ownership, `404/409` and `503 SCRYFALL_UNAVAILABLE` behavior
+matches other deck operations.
+
+V14 adds only `deck_companions`, keyed by `deck_id` with an owning-deck FK and
+cascade on physical deck deletion. No row means no Companion. Existing decks,
+Commander snapshots, flags, games and links are untouched; no backfill or provider
+calls run during migration. The domain exposes a single nullable snapshot; its
+internal collection mapping batches reads with the existing Hibernate subselect
+pattern. All mutations use the existing pessimistic deck-row lock shared with
+first game use, archive, name/link and Commander artwork changes.
+
+The explicit restriction policy is in `scryfall.domain.CompanionRules`. Reviewed
+on 2026-11-04 against the [Wizards announcement effective February 9, 2026](https://magic.wizards.com/en/news/announcements/commander-banned-and-restricted-february-9-2026)
+and [Commander deck-size rules](https://magic.wizards.com/en/formats/commander).
+Before future policy changes, review authoritative rules and Companion-only bans;
+Scryfall's general format legality cannot automatically detect them. No proactive
+ban monitoring or historical legality flags are implemented.
+
+This backend delivery adds no editor/gallery/game-details UI. #201/#195 own that
+integration. No format discriminator is introduced: #111 must reject a saved
+regular Companion when transitioning to Pauper Commander, without silently
+removing it.
 
 ## Optional ManaBox share link
 
@@ -187,11 +279,11 @@ First committed game use sets `everUsed` in the same transaction as the game,
 including newly assigned decks on edits. It remains true after assignments or
 all games are deleted. Failed/rolled-back games do not lock a deck. All deck and
 first-use writers lock the same deck row before inspecting or changing state.
-After use, real changes to gameplay identity, composition/order, chosen color or
+After use, real changes to Commander/Companion gameplay identity, composition/order, chosen color or
 effective/deck colors return `409`. Name-only edits remain allowed, including
 when archived and when Scryfall is unavailable.
 
-Deleting an unused deck physically removes it and its Commander snapshots.
+Deleting an unused deck physically removes it and its Commander/Companion snapshots.
 Deleting a used deck returns `409`, with no implicit archive. Archive accepts no
 body, `null` or `{}`; fields return `400`. It is idempotent, sets only
 `archived=true`, and never marks an unused deck used. No unarchive exists.

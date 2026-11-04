@@ -8,6 +8,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.scryfall.application.Scryfal
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.Artwork;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CardDetails;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderChoice;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CompanionChoice;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderSelectionRef;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,6 +34,11 @@ public class ScryfallController {
             throw new InvalidScryfallRequestException();
         }
         return scryfall.searchCommanders(q);
+    }
+
+    @GetMapping("/api/scryfall/companions")
+    public List<CompanionChoice> companions(@RequestParam(required = false) String q) {
+        return scryfall.searchCompanions(q);
     }
 
     @GetMapping("/api/scryfall/cards/{scryfallCardId}")
