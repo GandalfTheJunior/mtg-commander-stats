@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
-import { deck, deckApi, editDeck, newDeck, showDeckApp } from './test/deckFixtures'
+import { deck, deckApi, editDeck, newDeck, showDeckApp, signInDeck } from './test/deckFixtures'
 import { deferred, response, uid } from './test/gameFixtures'
 
 afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState(null, '', '/') })
@@ -37,4 +37,18 @@ test('refresh discards a retired list and accepts only fresh server decks', asyn
   fireEvent.click(screen.getByRole('button', { name: 'Decks aktualisieren' }))
   await waitFor(() => expect(screen.getByText('Fresh')).toBeInTheDocument())
   expect(screen.queryByText(deck.name)).not.toBeInTheDocument()
+})
+
+test('logout retires owner links and late list responses cannot restore links in a replacement session', async () => {
+  const api = deckApi([{ ...deck, manaBoxUrl: 'https://manabox.app/decks/Synthetic-Mixed_123' }]), pending = deferred()
+  showDeckApp(); await screen.findByRole('link', { name: /ManaBox/ })
+  api.next('/api/decks', () => pending.promise)
+  fireEvent.click(screen.getByRole('button', { name: 'Decks aktualisieren' }))
+  expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  await screen.findByText('Logged out.')
+  api.state.decks = [deck]
+  await signInDeck()
+  await act(async () => pending.resolve(response([{ ...deck, manaBoxUrl: 'https://manabox.app/decks/Retired' }])))
+  expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
 })

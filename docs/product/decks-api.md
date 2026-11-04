@@ -120,9 +120,12 @@ The same owner, session and CSRF checks apply. No public deck endpoint is added.
 Other players receive a link only through the authorized
 [game detail GET](games-api.md#manabox-links-in-game-details), and only while the
 deck owner is currently an active member of that group. Game lists, game write
-responses, selection and statistics do not expose it. Frontend editing/display
-is delivered separately in #109; this is external linking, not ManaBox API,
-account linking, import or synchronization.
+responses, selection and statistics do not expose it. The owner editor supports
+the optional link on unused, used and archived decks, with explicit clearing,
+dirty-state guards and authoritative reconciliation after uncertain writes.
+Meine Decks exposes an independent safe external action; Dashboard does not.
+See [frontend behavior](../development/frontend-routing.md#manabox-links).
+This is external linking, not ManaBox API, account linking, import or synchronization.
 
 V10 adds nullable `decks.mana_box_url TEXT`, without a default or backfill.
 Existing decks read as null; existing migrations and snapshots are unchanged.

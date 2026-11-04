@@ -417,9 +417,9 @@ contribute their known effective colors. Each qualifying slot has a separate
 mandatory single-choice radio group with no default. Saved selections restore from snapshots. DisplayText blank checks
 match Unicode White_Space plus U+001C–U+001F; payload text is sent unchanged so the
 server owns boundary trimming. Permanently used decks show locked commander and
-colors/choice and omit `commanders` entirely for rename, as do unchanged unused-deck renames. Overflow availability
+colors/choice and omit `commanders` entirely for name/link changes, as do unchanged unused-deck selections. Overflow availability
 and named confirmations follow the [deck lifecycle](../product/decks-api.md).
-Archiving with an unsaved rename additionally announces that the name change will
+Archiving with any unsaved changes additionally announces that all changes will
 be discarded and requires explicit discard-and-archive confirmation; cancel
 retains the draft and restores focus without sending a write.
 
@@ -431,6 +431,49 @@ list but retains the draft for explicit review; newly permanent fields reconcile
 only after that review. Network/5xx/unexpected/malformed successes require an
 explicit server recheck before a manual retry. Creation recovery lists current
 decks so a possibly committed request can be inspected. No write is auto-retried.
+
+### ManaBox links
+
+The optional localized ManaBox-Link field sits beside the deck name in both
+editors. It remains editable on used and archived decks without unlocking gameplay
+fields. Null starts empty. Link text participates in baseline/dirty comparison,
+navigation/cancel protection and pending-write guards. POST without a link omits
+it; PUT omits an unchanged link, sends null for a deliberately cleared saved
+link, and otherwise sends the replacement verbatim. Nonempty whitespace is an
+invalid value, never a removal. Client validation and server 400 feedback remain
+associated with the field and preserve the draft. Helper text explains that
+changes inside ManaBox may require refreshing the shared version there; no
+freshness check or changed share URL is promised.
+
+Conflict/uncertain-write recovery displays draft and fresh server link text for
+explicit inspection before manual retry. Reconciliation preserves the draft link
+and name even if gameplay fields have become permanently locked. No ambiguous
+write is automatically repeated.
+
+`SavedDeckCard` opts into an independent `ManaBoxLink` only in Meine Decks,
+including used/archived decks; Dashboard retains the default with no action.
+The anchor is outside the edit action and artwork/gallery triggers. The dedicated
+game details view uses only each participant's freshly authorized optional link,
+without consulting owner APIs or inferring permissions from the member list.
+Omitted links replace old availability; route/session retirement, denial and
+obsolete-response fencing follow the existing protected view lifetimes.
+
+Both surfaces share strict raw-spelling and standards-based URL checks against
+the [backend v1 shape](../product/decks-api.md#optional-manabox-share-link).
+Missing, malformed or unsafe values render no control. Accepted hrefs remain
+exactly as returned, with `_blank`, `noopener noreferrer`, a destination/new-tab
+accessible name, visible focus and a 48px touch target. Browser/OS universal-link
+handling may open ManaBox or its website; app launch is not guaranteed. No
+provider calls, polling, imports, previews or new dependencies are introduced.
+Game history, recording/editing, selection and statistics do not gain actions.
+
+With Vite running, `python tools/ui/verify-manabox.py` checks the owner actions,
+Dashboard omission, keyboard/new-tab isolation, editor guards and mixed-link
+game details at 1280, 390 and 320px using intercepted synthetic API responses.
+It saves screenshots under `/tmp/mtg-manabox-screenshots` by default;
+`MTG_UI_URL`, `CHROMIUM_PATH` and `MTG_SCREENSHOTS` override the server,
+Chromium executable and output directory. This supplements component/API tests;
+it does not establish live-backend, physical-device or screen-reader acceptance.
 
 ## Responsive presentation
 

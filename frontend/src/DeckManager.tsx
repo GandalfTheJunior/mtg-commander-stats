@@ -41,7 +41,7 @@ export default function DeckManager({ onUnauthorized, onOpen }: {
     {state.status === 'error' && <Typography role="alert">Deine Deckliste ist nicht verfügbar. Bitte erneut aktualisieren.</Typography>}
     {state.status === 'loaded' && (state.decks.length === 0 ? <Typography>Noch keine Decks.</Typography> :
       <Stack component="ul" sx={{ p: 0, m: 0, listStyle: 'none', gap: 2 }}>
-        {state.decks.map(deck => <SavedDeckCard key={deck.id} deck={deck} overview showId onOpenArtwork={openArtwork} onOpen={() => onOpen(deck.id)} />)}
+        {state.decks.map(deck => <SavedDeckCard key={deck.id} deck={deck} overview showId showManaBox onOpenArtwork={openArtwork} onOpen={() => onOpen(deck.id)} />)}
       </Stack>)}
     {gallery}
   </Stack>

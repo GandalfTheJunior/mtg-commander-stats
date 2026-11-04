@@ -14,6 +14,7 @@ export type Deck = {
   colorIdentity: MagicColor[]
   everUsed: boolean
   archived: boolean
+  manaBoxUrl: string | null
 }
 
 export type CommanderSelectionRef = { scryfallCardId: string; gameplayFaceIndex?: number }
@@ -27,7 +28,7 @@ export type SavedCommander = Omit<CommanderChoice, 'thumbnailUrl'> & {
   position: number; oracleId: string; chosenColor: MagicColor | null; effectiveColorIdentity: MagicColor[]
   artworkFaceIndex: number | null; artCropUrl: string | null; illustrationId: string | null; artist: string | null; scryfallUri: string | null
 }
-export type DeckInput = { name: string; commanders?: { selectionRef: CommanderSelectionRef; chosenColor?: MagicColor }[] }
+export type DeckInput = { name: string; manaBoxUrl?: string | null; commanders?: { selectionRef: CommanderSelectionRef; chosenColor?: MagicColor }[] }
 export const commanderNames = (deck: { commanders: { name: string }[] }) => deck.commanders.map(card => card.name).join(' / ')
 export const scryfallUnavailable = 'Scryfall is currently imprisoned in the moon… Please try again later.'
 
@@ -118,6 +119,7 @@ function deckFrom(value: unknown): Deck {
     colorIdentity: value.colorIdentity as MagicColor[],
     everUsed: value.everUsed,
     archived: value.archived,
+    manaBoxUrl: 'manaBoxUrl' in value && typeof value.manaBoxUrl === 'string' ? value.manaBoxUrl : null,
   }
 }
 
@@ -357,7 +359,7 @@ export type GameParticipant = {
   userId: string
   username: string
   deckId: string
-  deck: DeckSelection & { archived: boolean }
+  deck: DeckSelection & { archived: boolean; manaBoxUrl?: string | null }
 }
 export type Game = {
   id: string
@@ -391,7 +393,7 @@ function selectionFrom(value: unknown): DeckSelection {
   return { id: value.id, name: value.name, commanders: commandersFrom(value.commanders), colorIdentity: value.colorIdentity as MagicColor[] }
 }
 
-function gameFrom(value: unknown, groupId: string, gameId?: string): Game {
+function gameFrom(value: unknown, groupId: string, gameId?: string, includeManaBox = false): Game {
   if (!isRecord(value) || !isUuid(value.id) || (gameId !== undefined && value.id.toLowerCase() !== gameId.toLowerCase()) ||
     !isUuid(value.groupId) || value.groupId.toLowerCase() !== groupId.toLowerCase() || !isUuid(value.creatorId) || typeof value.recordedAt !== 'string' ||
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(value.recordedAt) ||
@@ -416,7 +418,8 @@ function gameFrom(value: unknown, groupId: string, gameId?: string): Game {
     const deck = selectionFrom(participant.deck)
     if (deck.id !== participant.deckId) throw new Error('The server returned mismatched game deck data.')
     return { startPosition: participant.startPosition, placement: participant.placement as number | null, stillInGame: participant.stillInGame, userId: participant.userId, username: participant.username, deckId: deck.id,
-      deck: { ...deck, archived: participant.deck.archived } }
+      deck: { ...deck, archived: participant.deck.archived,
+        ...(includeManaBox && typeof participant.deck.manaBoxUrl === 'string' ? { manaBoxUrl: participant.deck.manaBoxUrl } : {}) } }
   })
   const userIds = participants.map((participant) => participant.userId)
   if (new Set(participants.map(p => p.startPosition)).size !== participants.length || new Set(userIds).size !== userIds.length ||
@@ -435,7 +438,7 @@ export async function getGame(groupId: string, gameId: string, signal?: AbortSig
     await fetch(`${gamesPath(groupId)}/${encodeURIComponent(gameId)}`, { ...requestDefaults, ...(signal ? { signal } : {}) }),
     200, 'Could not load game details.',
   )
-  return gameFrom(await response.json(), groupId, gameId)
+  return gameFrom(await response.json(), groupId, gameId, true)
 }
 
 export async function listGames(groupId: string, signal?: AbortSignal): Promise<Game[]> {

@@ -12,7 +12,7 @@ import { goTo } from './test/renderApp'
 import { groupUnavailable } from './groupNavigation'
 
 const owner = { id: uid(1), username: 'Owner' }
-const deck: Deck = { id: uid(101), name: 'Alpha', commanders: [savedCommander('Karn')], colorIdentity: [], archived: false, everUsed: false }
+const deck: Deck = { id: uid(101), name: 'Alpha', commanders: [savedCommander('Karn')], colorIdentity: [], archived: false, everUsed: false, manaBoxUrl: null }
 function setup() {
   const state = { user: owner as CurrentUser | null, loginUser: owner, decks: [deck], groups: [group] as GroupSummary[] }
   const replies = new Map<string, Array<() => Response | Promise<Response>>>()

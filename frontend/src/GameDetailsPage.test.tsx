@@ -8,10 +8,11 @@ import { AppThemeProvider } from './theme/AppThemeProvider'
 import { selectTab } from './test/groupEntry'
 import { statistics } from './test/statisticsFixtures'
 import { gameAction, openGameDetails } from './test/gameEntry'
-import { deferred, gameApi, group, recorded, response, uid } from './test/gameFixtures'
+import { deckFor, deferred, gameApi, group, recorded, response, uid } from './test/gameFixtures'
 import { gameUnavailable, gameUrl } from './gamePresentation'
 import { groupUnavailable, groupUrl } from './groupNavigation'
-import type { CurrentUser, GroupDetails } from './api'
+import { goTo } from './test/renderApp'
+import type { CurrentUser, Game, GroupDetails } from './api'
 
 const groupPath = `/api/groups/${group.id}`
 const gamePath = `${groupPath}/games/${uid(20)}`
@@ -521,4 +522,105 @@ test('fresh details use current deck snapshots, including one to two commanders 
   expect(screen.getByRole('img', { name: 'Keine Illustration für New second verfügbar' })).toBeInTheDocument()
   expect(screen.queryByText('Commander: Commander 2')).not.toBeInTheDocument()
   expect(api.fetchMock.mock.calls.some(([path]) => path.includes('scryfall'))).toBe(false)
+})
+
+const manaBoxUrl = 'https://manabox.app/decks/Synthetic-Mixed_123'
+function linkedGame(count = 4): Game {
+  return recorded({ winnerUserId: uid(1), participants: Array.from({ length: count }, (_, i) => ({
+    userId: uid(i + 1), username: `Player ${i + 1}`, startPosition: i + 1, placement: i + 1, stillInGame: i === 0,
+    deckId: deckFor(i + 1).id, deck: { ...deckFor(i + 1), archived: i === 1, manaBoxUrl: `${manaBoxUrl}-${i + 1}` },
+  })) })
+}
+
+test.each([2, 4, 6])('associates exactly one safe independent ManaBox action with each authorized participant in a %s-player game', async count => {
+  const api = setup(), game = linkedGame(count); api.state.history = [game]; show()
+  const list = await screen.findByRole('list', { name: 'Teilnehmende und Decks' })
+  const cards = within(list).getAllByRole('listitem')
+  expect(within(list).getAllByRole('link', { name: /ManaBox/ })).toHaveLength(count)
+  cards.forEach((card, index) => {
+    const link = within(card).getByRole('link', { name: `Deck ${index + 1}: Deck in ManaBox ansehen (öffnet einen neuen Tab)` })
+    expect(link).toHaveAttribute('href', game.participants[index].deck.manaBoxUrl)
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+    expect(link.closest('button')).toBeNull()
+    expect(link.closest('a')).toBe(link)
+  })
+  expect(within(cards[1]).getByText('Archiviertes Deck')).toBeInTheDocument()
+  fireEvent.click(within(cards[0]).getByRole('link'))
+  expect(window.location.pathname).toBe(detailUrl)
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+test('mixed availability preserves archived/former-member history while omitting absent, null and unsafe actions', async () => {
+  const api = setup(), game = linkedGame(6)
+  delete game.participants[2].deck.manaBoxUrl
+  game.participants[3].deck.manaBoxUrl = null
+  game.participants[4].deck.manaBoxUrl = 'https://evil.test/decks/id'
+  delete game.participants[5].deck.manaBoxUrl
+  api.state.history = [game]; show()
+  const list = await screen.findByRole('list', { name: 'Teilnehmende und Decks' })
+  expect(within(list).getAllByRole('link', { name: /ManaBox/ })).toHaveLength(2)
+  const former = within(list).getAllByRole('listitem')[5]
+  expect(former).toHaveTextContent('Ehemaliges Mitglied')
+  expect(former).toHaveTextContent('Deck 6')
+  expect(former).toHaveTextContent('Platzierung: 6')
+  expect(within(former).queryByRole('link')).not.toBeInTheDocument()
+})
+
+test.each([401, 403, 404, 'omitted'] as const)('fresh details after %s never recover an older authorized link', async outcome => {
+  const api = setup(); api.state.history = [linkedGame()]; show()
+  await screen.findByRole('link', { name: /Deck 1:.*ManaBox/ })
+  fireEvent.click(screen.getByRole('link', { name: 'Zurück zu Spiele' }))
+  await screen.findByRole('link', { name: /^Spieldetails:/ })
+  api.next(gamePath, () => response(outcome === 'omitted' ? recorded() : {}, outcome === 'omitted' ? 200 : outcome))
+  fireEvent.click(screen.getByRole('link', { name: /^Spieldetails:/ }))
+  await waitFor(() => expect(api.calls(gamePath)).toHaveLength(2))
+  await waitFor(() => expect(screen.queryByText('Gruppenberechtigung und Spiel werden geprüft…')).not.toBeInTheDocument())
+  expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
+})
+
+test('game navigation and logout retire links and ignore late authorized responses from an older context', async () => {
+  const api = setup(), pending = deferred()
+  api.state.history = [linkedGame(), linkedGame(2)]
+  api.state.history[1].id = uid(21)
+  api.state.history[1].participants.forEach(person => { delete person.deck.manaBoxUrl })
+  show(); await screen.findByRole('link', { name: /Deck 1:.*ManaBox/ })
+  fireEvent.click(screen.getByRole('link', { name: 'Zurück zu Spiele' }))
+  await screen.findAllByRole('link', { name: /^Spieldetails:/ })
+  expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
+  api.next(gamePath, () => pending.promise)
+  fireEvent.click(screen.getAllByRole('link', { name: /^Spieldetails:/ })[0])
+  await waitFor(() => expect(api.calls(gamePath)).toHaveLength(2))
+  await goTo('Playgroups')
+  fireEvent.click(await screen.findByRole('button', { name: group.name }))
+  const links = await screen.findAllByRole('link', { name: /^Spieldetails:/ })
+  fireEvent.click(links[1]); await screen.findByRole('heading', { name: 'Spieldetails' })
+  await act(async () => pending.resolve(response(linkedGame())))
+  expect(window.location.pathname).toBe(gameUrl(group.id, uid(21)))
+  expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole('list', { name: 'Teilnehmende und Decks' })).not.toBeInTheDocument()
+})
+
+test.each([1, 4])('logout retires visible links and late authorized reads cannot restore them after login as %s', async actor => {
+  const api = setup(), pending = deferred()
+  api.state.history = [linkedGame()]; show()
+  await screen.findByRole('link', { name: /Deck 1:.*ManaBox/ })
+  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
+  await screen.findByText('Logged out.')
+  await login(); await goTo('Playgroups')
+  fireEvent.click(await screen.findByRole('button', { name: group.name }))
+  api.next(gamePath, () => pending.promise)
+  fireEvent.click(await screen.findByRole('link', { name: /^Spieldetails:/ }))
+  await waitFor(() => expect(api.calls(gamePath)).toHaveLength(2))
+  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  await screen.findByText('Logged out.')
+  api.server.loginUser = { id: uid(actor), username: 'Replacement session' }
+  await login()
+  await act(async () => pending.resolve(response(linkedGame())))
+  expect(screen.getByText(/Signed in as/)).toHaveTextContent('Replacement session')
+  expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole('list', { name: 'Teilnehmende und Decks' })).not.toBeInTheDocument()
 })

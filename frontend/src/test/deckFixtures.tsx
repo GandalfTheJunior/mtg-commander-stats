@@ -7,7 +7,7 @@ import { AppThemeProvider } from '../theme/AppThemeProvider'
 import type { CurrentUser, Deck } from '../api'
 import { group, response, uid } from './gameFixtures'
 
-export const deck: Deck = { id: uid(101), name: 'Alpha', commanders: [savedCommander('Karn')], colorIdentity: [], everUsed: false, archived: false }
+export const deck: Deck = { id: uid(101), name: 'Alpha', commanders: [savedCommander('Karn')], colorIdentity: [], everUsed: false, archived: false, manaBoxUrl: null }
 export const owner = { id: uid(1), username: 'Owner' }
 export function deckApi(initial = [deck]) {
   const state = { user: owner as CurrentUser | null, loginUser: owner, decks: initial }
@@ -33,13 +33,15 @@ export function deckApi(initial = [deck]) {
     if (path.endsWith('/statistics')) return response({ players: [], decks: [] })
     if (path === '/api/decks' && method === 'GET') return response(state.decks)
     if (path === '/api/decks' && method === 'POST') {
-      const saved = { ...deck, name: JSON.parse(init!.body as string).name, id: uid(102) }
+      const input = JSON.parse(init!.body as string)
+      const saved = { ...deck, name: input.name, manaBoxUrl: input.manaBoxUrl ?? null, id: uid(102) }
       state.decks = [...state.decks, saved]
       return response(saved, 201)
     }
     const target = state.decks.find(candidate => path === `/api/decks/${candidate.id}` || path === `/api/decks/${candidate.id}/archive`)
     if (target && method === 'PUT') {
-      const saved = { ...target, name: JSON.parse(init!.body as string).name }
+      const input = JSON.parse(init!.body as string)
+      const saved = { ...target, name: input.name, ...('manaBoxUrl' in input ? { manaBoxUrl: input.manaBoxUrl } : {}) }
       state.decks = state.decks.map(candidate => candidate.id === target.id ? saved : candidate)
       return response(saved)
     }

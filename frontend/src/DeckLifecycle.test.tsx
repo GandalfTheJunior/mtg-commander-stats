@@ -81,7 +81,7 @@ test('unused delete conflict refreshes permanent usage, preserving local name an
   expect(JSON.parse(api.writes()[1][1]!.body as string)).toEqual({ name: 'My draft' })
 })
 
-test.each(['/dashboard', '/decks'] as const)('dirty archival explicitly discards the rename and returns to fresh %s only after acknowledgement', async origin => {
+test.each(['/dashboard', '/decks'] as const)('dirty archival explicitly discards changes and returns to fresh %s only after acknowledgement', async origin => {
   const used = { ...deck, everUsed: true }
   const api = deckApi([used]); showDeckApp(origin)
   if (origin === '/dashboard') {
@@ -93,8 +93,8 @@ test.each(['/dashboard', '/decks'] as const)('dirty archival explicitly discards
   const loadedLists = listCount()
   const dialog = await menuAction('Archivieren')
   expect(dialog).toHaveAccessibleName(`${deck.name}: Archivieren?`)
-  expect(dialog).toHaveAccessibleDescription(expect.stringContaining('Deine ungespeicherte Änderung am Decknamen wird verworfen und nicht gespeichert.'))
-  expect(within(dialog).getByRole('button', { name: 'Änderung verwerfen und archivieren' })).toBeInTheDocument()
+  expect(dialog).toHaveAccessibleDescription(expect.stringContaining('Alle ungespeicherten Änderungen werden verworfen und nicht gespeichert.'))
+  expect(within(dialog).getByRole('button', { name: 'Änderungen verwerfen und archivieren' })).toBeInTheDocument()
   expect(within(dialog).queryByRole('button', { name: 'Archivieren bestätigen' })).not.toBeInTheDocument()
   expect(within(dialog).getByRole('button', { name: 'Abbrechen' })).toHaveFocus()
   fireEvent.click(within(dialog).getByRole('button', { name: 'Abbrechen' }))
@@ -105,7 +105,7 @@ test.each(['/dashboard', '/decks'] as const)('dirty archival explicitly discards
   const pending = deferred()
   api.next(`/api/decks/${deck.id}/archive`, () => pending.promise, 'POST')
   await menuAction('Archivieren')
-  const confirm = screen.getByRole('button', { name: 'Änderung verwerfen und archivieren' })
+  const confirm = screen.getByRole('button', { name: 'Änderungen verwerfen und archivieren' })
   fireEvent.click(confirm); fireEvent.click(confirm)
   await waitFor(() => expect(api.writes()).toHaveLength(1))
   expect(api.writes()[0]).toEqual([`/api/decks/${deck.id}/archive`, {
