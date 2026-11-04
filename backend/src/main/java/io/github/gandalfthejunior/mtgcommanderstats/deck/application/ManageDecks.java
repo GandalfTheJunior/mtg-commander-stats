@@ -8,6 +8,7 @@ import java.util.UUID;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.Deck;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckCommander;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidCommanderException;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.ManaBoxUrl;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.DeckRepository;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.application.ScryfallLookup;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.application.ResolvedCommander;
@@ -51,13 +52,29 @@ public class ManageDecks {
 
     @Transactional
     public Deck create(UUID ownerId, String name, List<CommanderInput> commanders) {
+        return create(ownerId, name, commanders, null);
+    }
+
+    @Transactional
+    public Deck create(UUID ownerId, String name, List<CommanderInput> commanders, String manaBoxUrl) {
+        String normalizedUrl = manaBoxUrl == null ? null : new ManaBoxUrl(manaBoxUrl).value();
         Deck deck = new Deck(ownerId, name, resolve(commanders));
+        deck.changeManaBoxUrl(normalizedUrl);
         return decks.save(deck);
     }
 
     @Transactional
     public Deck update(UUID ownerId, UUID deckId, String name, List<CommanderInput> commanders) {
+        return update(ownerId, deckId, name, commanders, false, null);
+    }
+
+    @Transactional
+    public Deck update(UUID ownerId, UUID deckId, String name, List<CommanderInput> commanders,
+            boolean manaBoxUrlSupplied, String manaBoxUrl) {
         Deck deck = ownedDeck(ownerId, deckId);
+        if (manaBoxUrlSupplied) {
+            deck.changeManaBoxUrl(manaBoxUrl);
+        }
         if (commanders != null) {
             if (commanders.isEmpty() || commanders.size() > 2) {
                 throw new InvalidCommanderException();

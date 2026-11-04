@@ -25,6 +25,43 @@ class GameRecordsMigrationTest {
     private DataSource dataSource;
 
     @Test
+    void manaBoxUpgradeLeavesExistingDecksAndCommanderSnapshotsIntactWithNullLinks() {
+        String schema = "mana_box_upgrade";
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        Flyway old = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).target("9").load();
+        try {
+            old.migrate();
+            UUID owner = UUID.randomUUID();
+            jdbc.update("INSERT INTO " + schema + ".users (id, username, encoded_password, email) VALUES (?, 'Player', 'test-hash', ?)",
+                    owner, owner + "@example.com");
+            for (String state : List.of("unused", "used", "archived")) {
+                UUID deck = UUID.randomUUID();
+                jdbc.update("INSERT INTO " + schema + ".decks (id, owner_id, name, color_identity, ever_used, archived) VALUES (?, ?, ?, 'R', ?, ?)",
+                        deck, owner, state, !state.equals("unused"), state.equals("archived"));
+                jdbc.update("INSERT INTO " + schema + ".deck_commanders (deck_id, position, oracle_id, name, base_color_identity, requires_chosen_color, can_be_sole_commander, chosen_color, scryfall_card_id, artist, art_crop_url)"
+                        + " VALUES (?, 1, ?, 'Synthetic Commander', '', true, true, 'R', ?, 'Synthetic Artist', 'https://cards.scryfall.io/art_crop/synthetic.jpg')",
+                        deck, UUID.randomUUID(), UUID.randomUUID());
+            }
+            List<Map<String, Object>> before = jdbc.queryForList("SELECT * FROM " + schema + ".decks ORDER BY id");
+            List<Map<String, Object>> snapshots = jdbc.queryForList("SELECT * FROM " + schema + ".deck_commanders ORDER BY deck_id, position");
+            Flyway upgrade = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).load();
+            assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(1);
+            assertThat(upgrade.validateWithResult().validationSuccessful).isTrue();
+            List<Map<String, Object>> after = jdbc.queryForList("SELECT * FROM " + schema + ".decks ORDER BY id");
+            for (Map<String, Object> deck : after) {
+                assertThat(deck).containsEntry("mana_box_url", null);
+                deck.remove("mana_box_url");
+            }
+            assertThat(after).isEqualTo(before);
+            assertThat(jdbc.queryForList("SELECT * FROM " + schema + ".deck_commanders ORDER BY deck_id, position")).isEqualTo(snapshots);
+            assertThat(jdbc.queryForMap("SELECT data_type, is_nullable, column_default FROM information_schema.columns WHERE table_schema = ? AND table_name = 'decks' AND column_name = 'mana_box_url'", schema))
+                    .containsEntry("data_type", "text").containsEntry("is_nullable", "YES").containsEntry("column_default", null);
+        } finally {
+            jdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+        }
+    }
+
+    @Test
     void playedOnUpgradePreservesCompleteV8GamesAndLeavesTheirDatesUnknown() throws Exception {
         String schema = "played_on_upgrade";
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
@@ -63,7 +100,7 @@ class GameRecordsMigrationTest {
             List<Map<String, Object>> gamesBefore = jdbc.queryForList("SELECT * FROM " + schema + ".games ORDER BY id");
             List<Map<String, Object>> participantsBefore = jdbc.queryForList("SELECT * FROM " + schema + ".game_participants ORDER BY game_id, user_id");
             List<Map<String, Object>> decksBefore = jdbc.queryForList("SELECT * FROM " + schema + ".decks ORDER BY id");
-            Flyway upgrade = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).load();
+            Flyway upgrade = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).target("9").load();
             assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(1);
             assertThat(upgrade.validateWithResult().validationSuccessful).isTrue();
             List<Map<String, Object>> gamesAfter = jdbc.queryForList("SELECT * FROM " + schema + ".games ORDER BY id");

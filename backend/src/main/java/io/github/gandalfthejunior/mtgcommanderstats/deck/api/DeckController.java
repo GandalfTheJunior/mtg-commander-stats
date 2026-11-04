@@ -11,6 +11,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CommanderSu
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.ManageDecks;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.Deck;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidCommanderException;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidManaBoxUrlException;
 import io.github.gandalfthejunior.mtgcommanderstats.security.UserPrincipal;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -40,13 +41,14 @@ public class DeckController {
     @PostMapping("/api/decks")
     @ResponseStatus(HttpStatus.CREATED)
     public DeckResponse create(@AuthenticationPrincipal UserPrincipal user, @RequestBody DeckRequest request) {
-        return DeckResponse.from(decks.create(user.getId(), request.name(), request.commanders()));
+        return DeckResponse.from(decks.create(user.getId(), request.name(), request.commanders(), request.manaBoxUrl));
     }
 
     @PutMapping("/api/decks/{deckId}")
     public DeckResponse update(@AuthenticationPrincipal UserPrincipal user, @PathVariable UUID deckId,
             @RequestBody DeckRequest request) {
-        return DeckResponse.from(decks.update(user.getId(), deckId, request.name(), request.commanders()));
+        return DeckResponse.from(decks.update(user.getId(), deckId, request.name(), request.commanders(),
+                request.manaBoxUrlSupplied, request.manaBoxUrl));
     }
 
     @PutMapping("/api/decks/{deckId}/commanders/{position}/artwork")
@@ -114,6 +116,8 @@ public class DeckController {
     public static class DeckRequest {
         private String name;
         private List<CommanderInput> commanders;
+        private String manaBoxUrl;
+        private boolean manaBoxUrlSupplied;
 
         public String name() {
             return name;
@@ -133,6 +137,15 @@ public class DeckController {
             this.commanders = commanders;
         }
 
+        @JsonSetter
+        public void setManaBoxUrl(JsonNode value) {
+            if (value != null && !value.isNull() && !value.isString()) {
+                throw new InvalidManaBoxUrlException();
+            }
+            manaBoxUrlSupplied = true;
+            manaBoxUrl = value == null || value.isNull() ? null : value.asString();
+        }
+
         @JsonAnySetter
         public void rejectUnknownField(String field, Object value) {
             throw new InvalidCommanderException();
@@ -140,10 +153,10 @@ public class DeckController {
     }
 
     public record DeckResponse(UUID id, String name, List<CommanderSummary> commanders, List<String> colorIdentity,
-            boolean everUsed, boolean archived) {
+            boolean everUsed, boolean archived, String manaBoxUrl) {
         static DeckResponse from(Deck deck) {
             return new DeckResponse(deck.getId(), deck.getName(), deck.getCommanders().stream().map(CommanderSummary::from).toList(),
-                    deck.getColorIdentity().symbols(), deck.isEverUsed(), deck.isArchived());
+                    deck.getColorIdentity().symbols(), deck.isEverUsed(), deck.isArchived(), deck.getManaBoxUrl());
         }
     }
 }

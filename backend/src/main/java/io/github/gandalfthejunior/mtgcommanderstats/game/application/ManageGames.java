@@ -6,7 +6,9 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CommanderSummary;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.GameDecks.DeckDisplay;
@@ -70,7 +72,7 @@ public class ManageGames {
 
     public GameDetails get(UUID actorId, UUID groupId, UUID gameId) {
         groups.lockActiveMember(groupId, actorId);
-        return details(find(groupId, gameId));
+        return details(find(groupId, gameId), true);
     }
 
     public GameDetails replace(UUID actorId, UUID groupId, UUID gameId, List<GameParticipant> participants,
@@ -132,11 +134,18 @@ public class ManageGames {
     }
 
     private GameDetails details(Game game) {
+        return details(game, false);
+    }
+
+    private GameDetails details(Game game, boolean includeManaBoxLinks) {
         List<GameParticipant> participants = game.getParticipants();
+        Set<UUID> linkVisibleOwners = includeManaBoxLinks ? participants.stream()
+                .map(GameParticipant::getUserId).filter(userId -> groups.isActiveMember(game.getGroupId(), userId))
+                .collect(Collectors.toSet()) : Set.of();
         Map<UUID, PublicUser> publicUsers = users.findAll(participants.stream()
                 .map(GameParticipant::getUserId).toList());
         Map<UUID, DeckDisplay> publicDecks = decks.display(participants.stream()
-                .map(GameParticipant::getDeckId).toList());
+                .map(GameParticipant::getDeckId).toList(), linkVisibleOwners);
         return details(game, publicUsers, publicDecks);
     }
 

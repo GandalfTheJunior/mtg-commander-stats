@@ -5,6 +5,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.deck.application.DeckNotFoun
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckLifecycleConflictException;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidColorIdentityException;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidCommanderException;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidManaBoxUrlException;
 import io.github.gandalfthejunior.mtgcommanderstats.displaytext.InvalidDisplayTextException;
 import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -17,6 +18,12 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice(assignableTypes = DeckController.class)
 public class DeckErrors {
+    @ExceptionHandler(InvalidManaBoxUrlException.class)
+    public ProblemDetail invalidManaBoxUrl() {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
+                "Provide a public HTTPS ManaBox deck share URL without extra paths, query or fragment, or null to remove it.");
+    }
+
     @ExceptionHandler({InvalidCommanderException.class, InvalidDisplayTextException.class, InvalidColorIdentityException.class,
             HttpMessageNotReadableException.class, InvalidArchiveRequestException.class,
             MethodArgumentTypeMismatchException.class})

@@ -58,8 +58,8 @@ URLs, are rejected; clients cannot assign authoritative card metadata.
 
 ## Saved snapshots and updates
 
-Every deck response contains `id`, `name`, `commanders`, `colorIdentity`,
-`everUsed` and `archived`. Each ordered `commanders` item contains:
+Every owner-authorized deck response contains `id`, `name`, `commanders`, `colorIdentity`,
+`everUsed`, `archived` and nullable `manaBoxUrl`. Each ordered `commanders` item contains:
 
 | Fields | Meaning |
 | --- | --- |
@@ -89,6 +89,43 @@ of the same gameplay identity returns `400` directing clients to the artwork
 operation; stale full updates cannot overwrite newer presentation snapshots. This applies
 to both slots even when the other Commander is being replaced or a chosen color
 is changed.
+
+## Optional ManaBox share link
+
+Owners may supply `manaBoxUrl` on POST or PUT. POST without it (or with explicit
+null) stores null. PUT omission preserves the existing link; explicit null clears
+it; a valid string replaces it. PUT still requires `name`. To change only the
+link, send the current name and omit `commanders`, for example:
+
+```json
+{"name":"Goblins","manaBoxUrl":"https://manabox.app/decks/Synthetic-Mixed_123"}
+```
+
+The verified v1 format is HTTPS host `manabox.app` with exactly
+`/decks/<opaque-share-id>`. The case-sensitive ID contains one or more ASCII
+letters, digits, `_` or `-`, without a fixed length. One final slash is removed.
+Scheme/host are case-insensitive and stored as `https://manabox.app`; explicit
+default port `443` is accepted and removed. Other ports, hosts (including `www`),
+userinfo, extra path segments, query/fragment (even empty), backslashes, percent
+encodings and malformed/ambiguous URLs are rejected with `400`. Non-string JSON
+values other than null are invalid. URLs are parsed strictly with `java.net.URI`;
+the backend never retrieves, pings or follows redirects to them.
+
+Link changes work for unused, used and archived decks, without altering gameplay,
+chosen colors, artwork, ownership, usage/archival flags, game assignments or
+statistics. Omitting Commanders needs no Scryfall access. All deck changes are
+atomic; validation or provider failures leave the existing link and deck intact.
+The same owner, session and CSRF checks apply. No public deck endpoint is added.
+
+Other players receive a link only through the authorized
+[game detail GET](games-api.md#manabox-links-in-game-details), and only while the
+deck owner is currently an active member of that group. Game lists, game write
+responses, selection and statistics do not expose it. Frontend editing/display
+is delivered separately in #109; this is external linking, not ManaBox API,
+account linking, import or synchronization.
+
+V10 adds nullable `decks.mana_box_url TEXT`, without a default or backfill.
+Existing decks read as null; existing migrations and snapshots are unchanged.
 
 ## Artwork-only updates and gallery
 

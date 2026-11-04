@@ -4,10 +4,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.Deck;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.DeckRepository;
 import org.springframework.stereotype.Service;
@@ -44,15 +46,25 @@ public class GameDecks {
     }
 
     public Map<UUID, DeckDisplay> display(Collection<UUID> deckIds) {
-        return decks.findAllForDisplay(deckIds).stream().map(DeckDisplay::from)
+        return display(deckIds, Set.of());
+    }
+
+    /** Call only after group authorization; the supplied owners must be current active participants. */
+    public Map<UUID, DeckDisplay> display(Collection<UUID> deckIds, Set<UUID> linkVisibleOwners) {
+        return decks.findAllForDisplay(deckIds).stream()
+                .map(deck -> DeckDisplay.from(deck, linkVisibleOwners.contains(deck.getOwnerId())))
                 .collect(Collectors.toMap(DeckDisplay::id, Function.identity()));
     }
 
     public record DeckDisplay(UUID id, String name, List<CommanderSummary> commanders, List<String> colorIdentity,
-            boolean archived) {
+            boolean archived, @JsonInclude(JsonInclude.Include.NON_NULL) String manaBoxUrl) {
         static DeckDisplay from(Deck deck) {
+            return from(deck, false);
+        }
+
+        static DeckDisplay from(Deck deck, boolean includeLink) {
             return new DeckDisplay(deck.getId(), deck.getName(), deck.getCommanders().stream().map(CommanderSummary::from).toList(),
-                    deck.getColorIdentity().symbols(), deck.isArchived());
+                    deck.getColorIdentity().symbols(), deck.isArchived(), includeLink ? deck.getManaBoxUrl() : null);
         }
     }
 }
