@@ -43,6 +43,16 @@ commands: canonical backend verification and the frontend install, lint,
 typecheck, test, and build sequence. The frontend test script must remain CI-safe
 and terminate without interactive watch mode.
 
+Run the canonical commands unchanged where possible. If a local verification
+run deviates from the canonical command for any reason, whether forced by local
+constraints or chosen deliberately (for example extra flags or properties, a
+reduced Spring test context cache, test filters, fewer workers or environment
+changes), report the exact deviation in the PR and label that result as not
+CI-equivalent.
+Such deviations can change test behavior, such as resetting shared application
+state between test classes, so only the unchanged canonical command or the
+required CI job verifies the check.
+
 Disclose required checks that could not run and their blockers in the PR. Never
 claim an unexecuted or unsuccessful check passed. Follow the
 [workflow handoff standard](workflow.md#verification-and-handoff); required CI
