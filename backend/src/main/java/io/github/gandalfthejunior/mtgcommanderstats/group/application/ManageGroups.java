@@ -127,6 +127,41 @@ public class ManageGroups {
         activeMembership(groupId, actorId).leave();
     }
 
+    @Transactional
+    public MemberSummary changeRole(UUID actorId, UUID groupId, UUID userId, GroupRole role) {
+        groups.findByIdForUpdate(groupId).orElseThrow(GroupNotFoundException::new);
+        requireOwner(groupId, actorId);
+        if (role != GroupRole.ADMIN && role != GroupRole.MEMBER) {
+            throw new IllegalArgumentException("Only ADMIN and MEMBER roles may be requested.");
+        }
+        GroupMembership target = activeTarget(groupId, userId);
+        if (target.getRole() == GroupRole.OWNER) {
+            throw new GroupAccessDeniedException();
+        }
+        target.changeRole(role);
+        return memberSummary(target, users.findAll(List.of(userId)));
+    }
+
+    @Transactional
+    public void removeMember(UUID actorId, UUID groupId, UUID userId) {
+        groups.findByIdForUpdate(groupId).orElseThrow(GroupNotFoundException::new);
+        GroupRole role = activeMembership(groupId, actorId).getRole();
+        if (role != GroupRole.OWNER && role != GroupRole.ADMIN) {
+            throw new GroupAccessDeniedException();
+        }
+        GroupMembership target = activeTarget(groupId, userId);
+        if (target.getRole() != GroupRole.MEMBER) {
+            throw new GroupAccessDeniedException();
+        }
+        target.leave();
+    }
+
+    private GroupMembership activeTarget(UUID groupId, UUID userId) {
+        return memberships.findByGroupIdAndUserId(groupId, userId)
+                .filter(GroupMembership::isActive)
+                .orElseThrow(GroupMemberNotFoundException::new);
+    }
+
     private GroupMembership activeMembership(UUID groupId, UUID userId) {
         return memberships.findByGroupIdAndUserId(groupId, userId)
                 .filter(GroupMembership::isActive)

@@ -26,9 +26,9 @@ username or email address) is deferred until after the MVP.
 - The original MVP deferred placements; the approved #116 backend extension now
   records explicit start seats, competition ranks, alternate victories and DRAW
   survival under the [Games API](games-api.md). Editor rollout remains #117.
-- An active group member creates the game and need not participate. Its creator may modify or delete it while
-  they remain an active member. The group OWNER may modify or delete games in
-  that group.
+- An active group member creates the game and need not participate. Its creator
+  may modify or delete it while they remain active. An active group OWNER or
+  ADMIN may modify or delete games in that group.
 - Games are hard-deleted. There is no GameEvent/event system in the MVP.
 
 Backend contracts and history/display rules are documented in the
@@ -45,14 +45,18 @@ or OWNER; server authorization remains authoritative.
 - Join codes remain valid until the OWNER regenerates them. Only the OWNER may
   retrieve or regenerate the current code, and regeneration immediately
   invalidates the previous code.
-- Roles are OWNER and MEMBER. Each group has exactly one OWNER, who is also a
-  group member.
+- Backend roles are OWNER, ADMIN and MEMBER. Each group has exactly one active
+  OWNER. Only OWNER can promote/demote active MEMBER/ADMIN memberships.
+- Active OWNER/ADMIN can remove ordinary MEMBERs, preserving history and revoking
+  protected access immediately. An OWNER must demote an ADMIN before removal.
 - The OWNER cannot leave the group. Ownership transfer is out of scope.
 - Leaving must preserve historical membership, game, and statistics data.
 - A former member may rejoin with the current code. Rejoining reactivates the
   existing stable membership as MEMBER rather than creating a duplicate.
 - Former members lose access that requires active membership.
-- Fine-grained permissions and additional roles are out of scope.
+- Further fine-grained permissions and additional roles are out of scope.
+  Members administration UI, ownership transfer and single-use invitations remain
+  follow-on work; current join-code permissions remain OWNER-only.
 
 The backend API for these rules is implemented and documented in
 [Play groups API](groups-api.md). The browser My groups area supports these

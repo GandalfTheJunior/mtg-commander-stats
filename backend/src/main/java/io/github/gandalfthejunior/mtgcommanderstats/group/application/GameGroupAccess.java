@@ -23,7 +23,7 @@ public class GameGroupAccess {
     }
 
     public GroupRole lockActiveMember(UUID groupId, UUID actorId) {
-        // Join, leave, code rotation and all game operations share this lock.
+        // Join, leave, role changes, removal, code rotation and all game operations share this lock.
         groups.findByIdForUpdate(groupId).orElseThrow(GroupNotFoundException::new);
         return memberships.findByGroupIdAndUserId(groupId, actorId)
                 .filter(GroupMembership::isActive).map(GroupMembership::getRole)
