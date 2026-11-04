@@ -34,27 +34,27 @@ does not change merely because a client has more or fewer tools.
 
 ## Agent Poker planning aid
 
-Agent Poker recommends a reliable Codex execution profile first, then estimates
-its relative impact on the PO's **ChatGPT Plus five-hour Codex allowance**:
+Agent Poker is a relative complexity estimate for an issue. It is independent of
+the agent, model, reasoning effort, client and usage limits, and it describes
+neither duration nor priority. Assess four dimensions: **scope breadth** (areas,
+layers and files affected), **uncertainty** (unknown causes, open design space),
+**risk** (security, data integrity, migrations, concurrency, cutover) and
+**verification effort** (new tests, browser/UI evidence, manual or operational
+checks). The highest dimension determines the size; a small diff can still be a
+Potato or Pumpkin when uncertainty or risk is high.
 
-| Size label | Qualitative planning meaning |
-| --- | --- |
-| `Pea` 🫛 | Very low expected usage; a small, self-contained task plausibly fitting after a Pumpkin or two Potatoes, if capacity remains. |
-| `Potato` 🥔 | More substantial than a Pea; expected to use less than 50% of a fresh allowance, with enough margin for two typical Potatoes to fit together. |
-| `Pumpkin` 🎃 | Expected to use at least 50% of a fresh allowance; start with substantial capacity and consider useful smaller issues. |
+| Size label | Meaning | Reference issues |
+| --- | --- | --- |
+| `Pea` 🫛 | One area, a well-understood change, low risk; existing checks largely suffice. | #143 (dev-only dashboard link), #178 (CI job adjustment) |
+| `Potato` 🥔 | A feature slice across a few files or one to two layers; design decisions resolved; new tests needed; moderate risk or a contained investigation. | #184 (separate game date: migration and API), #104 (Commander art on deck cards), #129 (flaky navigation with unproven root cause) |
+| `Pumpkin` 🎃 | Cross-cutting work (for example backend, frontend and migration), material risk, substantial new verification, or significant remaining uncertainty. Consider independently useful smaller issues. | #116 (Game Records v2 domain, persistence and API), #146 (Codespaces cold-start failure and safe recovery) |
 
-These are qualitative thresholds, not human hours, raw tokens, elapsed runtime,
-or guaranteed percentages. Usage varies with model, reasoning effort, execution
-mode (cloud/local), context, task, tools, and account limits; weekly caps may also
-apply. This is a planning baseline, not a permanent account entitlement; revisit
-it if the PO changes plan or workflow. The PO starts Codex runs manually.
-
-The title convention is `[<Model> // <Reasoning effort>] <Original issue title>`.
-Persist only one concise profile prefix and at most one size label; issue bodies
-carry no estimation prose, scores, percentages, or usage tracking. The
-[Issue Refiner contract](roles/issue-refiner.md#agent-poker) owns profile research,
-estimation, mutation authority, and reassessment. A size is neither readiness nor
-implementation approval.
+Compare a new issue with the reference issues rather than estimating in absolute
+terms. Apply at most one size label per issue; issue bodies carry no estimation
+prose, scores or tracking. A size is neither readiness nor implementation approval.
+Existing issues keep their current size and title until an authorized refinement
+reassesses them. The [Issue Refiner contract](roles/issue-refiner.md#agent-poker)
+owns estimation, mutation authority and reassessment.
 
 ## Role transitions
 
