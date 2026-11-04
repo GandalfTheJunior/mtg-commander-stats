@@ -1,4 +1,4 @@
 package io.github.gandalfthejunior.mtgcommanderstats.group.application;
 
-class JoinCodeCollisionException extends RuntimeException {
+public class AlreadyGroupMemberException extends RuntimeException {
 }

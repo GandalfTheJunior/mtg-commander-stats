@@ -15,7 +15,4 @@ public interface PlayGroupRepository extends JpaRepository<PlayGroup, UUID> {
     @Query("select playGroup from PlayGroup playGroup where playGroup.id = :id")
     Optional<PlayGroup> findByIdForUpdate(@Param("id") UUID id);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select playGroup from PlayGroup playGroup where playGroup.joinCode = :joinCode")
-    Optional<PlayGroup> findByJoinCodeForUpdate(@Param("joinCode") String joinCode);
 }

@@ -79,7 +79,7 @@ Other game DTO uses omit the link. Historical names and saved links survive
 membership loss, while former members' links are withheld from group reads.
 
 The `group` feature uses the same feature layers. `play_groups` owns the stable
-group UUID, DisplayText name, owner UUID, and unique join code;
+group UUID, DisplayText name, owner UUID;
 `group_memberships` owns the stable membership UUID, group/user pair, role, and
 active state. Database foreign keys, code uniqueness, unique group/user
 membership, and a partial unique index for the active OWNER protect persistence
@@ -97,13 +97,20 @@ group. Recipient-only unacknowledged accepted/declined outcomes survive session
 changes; GET never acknowledges them. See the [group API](../product/groups-api.md#ownership-transfer)
 for state, errors and future UI handoff.
 
-Join codes are 128-bit values from `SecureRandom`, encoded as 22 URL-safe Base64
-characters without padding. Creation and regeneration retry unique-code
-collisions in isolated transactions so failed attempts leave no partial writes.
-Join and regeneration take a pessimistic lock on the same group row. This
-serializes the boundary: once regeneration commits, a request using the old code
-cannot add or reactivate a membership. Ordinary group and member responses never
-include codes; only active OWNER-authorized, non-cacheable responses expose them.
+Invitations use 128-bit `SecureRandom` tokens encoded as 22 URL-safe Base64
+characters. Only SHA-256 verifiers are stored in `group_invitations`, with group,
+issuer, creation/expiry timestamps and atomic consumption/consumer metadata.
+V13 drops the legacy group code; deployment requires the coordinated
+[cutover](../development/invitation-cutover.md). Group creation no longer generates
+an admission token. Invitation creation and redemption take the same group-row
+lock as membership, ownership and game operations. Redemption loads only the
+bound group ID before locking, then checks fresh invitation state and current
+membership. After flushing membership writes it conditionally consumes against
+PostgreSQL wall-clock time; rollback retains the invitation and prior membership.
+No invitation lock is acquired before the group lock. Hash collisions during
+creation retry `ON CONFLICT DO NOTHING` without aborting the transaction.
+Public preview is a single query exposing only the live invitation's group name.
+No background expiry job or revocation mechanism is introduced.
 The group application layer uses the `user` feature's public-user directory to
 resolve display usernames without exposing user persistence entities through the
 API.
@@ -264,6 +271,10 @@ same-origin cookies and fresh CSRF bootstrap. Group responses are validated
 before updating the UI. Failed CSRF preparation retains HTTP status information,
 so a 401 follows the same session-expiration path as a business-request 401.
 A 403 remains an access/CSRF error rather than asserting session expiration.
+
+The browser lifecycle below describes the legacy frontend pending #200. Its
+code retrieval/rotation controls are superseded by the invitation backend and
+must be replaced in the coordinated cutover; they cannot run against V13.
 
 Protected browser state is scoped to each confirmed session lifetime, including
 when the same user signs in again. A successful login invalidates callbacks from

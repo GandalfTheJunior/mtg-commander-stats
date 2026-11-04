@@ -1,6 +1,7 @@
 package io.github.gandalfthejunior.mtgcommanderstats.group.api;
 
 import io.github.gandalfthejunior.mtgcommanderstats.displaytext.InvalidDisplayTextException;
+import io.github.gandalfthejunior.mtgcommanderstats.group.application.AlreadyGroupMemberException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupAccessDeniedException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupNotFoundException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupMemberNotFoundException;
@@ -40,7 +41,8 @@ public class GroupErrors {
     }
 
     @ExceptionHandler({DataIntegrityViolationException.class, ConcurrencyFailureException.class,
-            OwnershipTransferConflictException.class})
+            OwnershipTransferConflictException.class,
+            AlreadyGroupMemberException.class})
     public ProblemDetail conflict() {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
                 "The request conflicts with persisted state. Reload and retry.");

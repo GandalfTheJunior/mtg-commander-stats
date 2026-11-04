@@ -193,7 +193,7 @@ class ManaBoxDeckLinksTest extends GameTestSupport {
         expect(f.owner(), "PUT", path, body(f), 200);
         expect(f.creator(), "PUT", "/api/decks/" + f.creatorDeck(), linkBody("Renamed former deck", OTHER_LINK), 200);
         assertThat(expect(f.member(), "GET", path, "", 200).toString()).doesNotContain(LINK);
-        groupService.join(f.creator().id(), groupService.joinCode(f.owner().id(), f.groupId()));
+        groupService.join(f.creator().id(), groupService.createInvitation(f.owner().id(), f.groupId()).code());
         JsonNode rejoined = expect(f.creator(), "GET", path, "", 200);
         assertThat(participantDeck(rejoined, f.creator().id()).get("manaBoxUrl").asText()).isEqualTo(OTHER_LINK);
         assertThat(participantDeck(rejoined, f.creator().id()).get("name").asText()).isEqualTo("Renamed former deck");

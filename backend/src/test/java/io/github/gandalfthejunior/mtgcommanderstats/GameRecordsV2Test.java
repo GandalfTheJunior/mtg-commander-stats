@@ -19,7 +19,7 @@ class GameRecordsV2Test extends GameTestSupport {
         pairs.add(Map.of("userId", f.member().id(), "deckId", f.memberDeck(), "startPosition", 1, "placement", 2));
         pairs.add(Map.of("userId", f.owner().id(), "deckId", f.ownerDeck(), "startPosition", 2, "placement", 2));
         Actor extra = register("fourth", "Fourth");
-        groupService.join(extra.id(), groupService.joinCode(f.owner().id(), f.groupId()));
+        groupService.join(extra.id(), groupService.createInvitation(f.owner().id(), f.groupId()).code());
         pairs.add(Map.of("userId", extra.id(), "deckId", deck(extra), "startPosition", 4, "placement", 4));
         ObjectNode normal = (ObjectNode) json.valueToTree(Map.of("result", "WIN", "alternateWinCon", false, "participants", pairs));
         JsonNode saved = expect(f.owner(), "POST", f.path(), normal.toString(), 201);

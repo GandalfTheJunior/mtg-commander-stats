@@ -285,9 +285,9 @@ class GameIntegrityTest extends GameTestSupport {
     void overlappingDecksAcrossGroupsUseConsistentLockOrder() throws Exception {
         Fixture f = fixture();
         UUID other = groupService.create(f.owner().id(), "Other pod").id();
-        String code = groupService.joinCode(f.owner().id(), other);
+        String code = groupService.createInvitation(f.owner().id(), other).code();
         groupService.join(f.creator().id(), code);
-        groupService.join(f.member().id(), code);
+        groupService.join(f.member().id(), groupService.createInvitation(f.owner().id(), other).code());
         List<GameParticipant> reversed = assignments(f).reversed();
         race(() -> createGame(f.owner().id(), f.groupId(), assignments(f), GameResult.DRAW, null),
                 () -> expect(f.owner(), "POST", "/api/groups/" + other + "/games", body(reversed, "DRAW", null), CREATED.value()),

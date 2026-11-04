@@ -33,7 +33,7 @@ class GroupAdministrationTest extends GameTestSupport {
     }
 
     @Test
-    void ownerManagesRolesAndResponsesReflectCurrentRoleWithoutExpandingCodePermissions() throws Exception {
+    void ownerManagesRolesAndResponsesReflectCurrentRoleAndAllActiveRolesCanIssueInvitations() throws Exception {
         Fixture f = fixture();
         UUID membership = membershipId(f, f.creator());
         JsonNode promoted = role(f, f.owner(), f.creator(), "ADMIN", 200);
@@ -46,10 +46,10 @@ class GroupAdministrationTest extends GameTestSupport {
         assertThat(details.get("members").get(0).get("role").asText()).isEqualTo("OWNER");
         assertThat(details.get("members").get(1).get("role").asText()).isEqualTo("ADMIN");
         assertThat(details.get("members").get(2).get("role").asText()).isEqualTo("MEMBER");
-        expect(f.creator(), "GET", "/api/groups/" + f.groupId() + "/join-code", "", 403);
-        expect(f.creator(), "POST", "/api/groups/" + f.groupId() + "/join-code", "{}", 403);
-        String code = groupService.joinCode(f.owner().id(), f.groupId());
-        assertThat(groupService.join(f.creator().id(), code).role()).isEqualTo(GroupRole.ADMIN);
+        expect(f.creator(), "POST", "/api/groups/" + f.groupId() + "/invitations", "{}", 201);
+        String code = groupService.createInvitation(f.owner().id(), f.groupId()).code();
+        expect(f.creator(), "POST", "/api/groups/join", json.writeValueAsString(Map.of("code", code)), 409);
+        assertThat(groupService.details(f.creator().id(), f.groupId()).role()).isEqualTo(GroupRole.ADMIN);
         role(f, f.owner(), f.creator(), "MEMBER", 200);
         role(f, f.owner(), f.creator(), "MEMBER", 200);
         assertThat(membershipId(f, f.creator())).isEqualTo(membership);
@@ -62,7 +62,7 @@ class GroupAdministrationTest extends GameTestSupport {
         Fixture f = fixture();
         role(f, f.owner(), f.creator(), "ADMIN", 200);
         UUID other = groupService.create(f.outsider().id(), "Other").id();
-        groupService.join(f.member().id(), groupService.joinCode(f.outsider().id(), other));
+        groupService.join(f.member().id(), groupService.createInvitation(f.outsider().id(), other).code());
         groupService.changeRole(f.outsider().id(), other, f.member().id(), GroupRole.ADMIN);
         List<Map<String, Object>> before = jdbc.queryForList("SELECT * FROM group_memberships ORDER BY id");
         for (Actor actor : List.of(f.creator(), f.member(), f.outsider())) {
@@ -139,12 +139,12 @@ class GroupAdministrationTest extends GameTestSupport {
         JsonNode statistics = expect(f.owner(), "GET", "/api/groups/" + f.groupId() + "/statistics", "", 200);
         assertThat(statistics.toString()).contains(f.creator().id().toString());
         assertThat(decks.findById(f.creatorDeck()).orElseThrow().isEverUsed()).isTrue();
-        assertThat(groupService.join(f.creator().id(), groupService.joinCode(f.owner().id(), f.groupId())).role())
+        assertThat(groupService.join(f.creator().id(), groupService.createInvitation(f.owner().id(), f.groupId()).code()).role())
                 .isEqualTo(GroupRole.MEMBER);
         assertThat(membershipId(f, f.creator())).isEqualTo(membership);
         role(f, f.owner(), f.creator(), "ADMIN", 200);
         expect(f.creator(), "DELETE", "/api/groups/" + f.groupId() + "/membership", "", 204);
-        assertThat(groupService.join(f.creator().id(), groupService.joinCode(f.owner().id(), f.groupId())).role())
+        assertThat(groupService.join(f.creator().id(), groupService.createInvitation(f.owner().id(), f.groupId()).code()).role())
                 .isEqualTo(GroupRole.MEMBER);
     }
 

@@ -56,8 +56,8 @@ export async function seed(base, password, onStage = () => {}) {
     const owner = accounts[group.owner].session;
     const created = await owner.call('POST', '/groups', {name: group.name}, 201);
     tables[group.key] = created.id;
-    const {code} = await owner.call('GET', `/groups/${created.id}/join-code`);
     for (const member of group.members.filter(key => key !== group.owner)) {
+      const {code} = await owner.call('POST', `/groups/${created.id}/invitations`, {}, 201);
       await accounts[member].session.call('POST', '/groups/join', {code});
     }
   }

@@ -64,6 +64,17 @@ regressions. See [browser setup and evidence](motion-playground.md#repeatable-br
 for commands and physical Safari acceptance checks; component mocks alone cannot
 verify animation continuity across React commits.
 
+## Invitation request quota isolation
+
+Group HTTP integration tests use real loopback connections and shared Spring
+contexts. Their `InvitationLimitIsolation` test listener clears only the limiter's
+peer cache through a package-private `clear()` before each test method, so
+unrelated fixtures cannot exhaust one another's quota. The production limit is
+neither increased nor disabled. An ordered HTTP regression verifies both the real 120-request limit within a method
+and fresh quota in the next method using the same context. Limiter unit tests
+cover expiry, capacity eviction and IPv6 /64 aggregation. Use the
+[required checks](#required-checks) for complete-suite verification.
+
 ## Coverage baseline (no minimum thresholds)
 
 Coverage reports measure code executed by tests, not correctness or useful

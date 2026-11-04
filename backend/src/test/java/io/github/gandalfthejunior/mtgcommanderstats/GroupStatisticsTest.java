@@ -61,7 +61,7 @@ class GroupStatisticsTest extends GameTestSupport {
             expect(f.owner(), "POST", f.path(), body(participants, winner == null ? "DRAW" : "WIN", winner), CREATED.value());
         }
         UUID sunday = groupService.create(f.owner().id(), "Sunday").id();
-        groupService.join(f.creator().id(), groupService.joinCode(f.owner().id(), sunday));
+        groupService.join(f.creator().id(), groupService.createInvitation(f.owner().id(), sunday).code());
         List<GameParticipant> shared = List.of(assignment(f.owner().id(), dragons),
                 assignment(f.creator().id(), f.creatorDeck()));
         for (int i = 0; i < 3; i++) {
@@ -260,7 +260,7 @@ class GroupStatisticsTest extends GameTestSupport {
         Actor fifth = register("fifth", "Fifth");
         Actor sixth = register("sixth", "Sixth");
         for (Actor actor : List.of(fourth, fifth, sixth)) {
-            groupService.join(actor.id(), groupService.joinCode(f.owner().id(), f.groupId()));
+            groupService.join(actor.id(), groupService.createInvitation(f.owner().id(), f.groupId()).code());
         }
         List<Actor> actors = List.of(f.owner(), f.creator(), f.member(), fourth, fifth, sixth);
         List<List<String>> identities = List.of(List.of("W", "U", "B", "R", "G"), List.of("U", "G"),
