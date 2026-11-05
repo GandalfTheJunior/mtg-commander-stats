@@ -25,6 +25,26 @@ the Reviewer asks the [non-blocking comprehension questions](../agents/roles/rev
 This follow-up supports understanding; it is not a prerequisite for approval or
 merge and does not change the Product Owner's final authority.
 
+## Issue planning metadata
+
+Issue order, grouping and release scope live in native GitHub issue fields, so
+the PO can see the plan in issue lists, the milestone and the project board:
+
+- **Dependencies:** an issue that cannot start before another is finished is
+  marked **blocked by** that issue. Only real prerequisites qualify; mere
+  priority or a loose reference stays prose.
+- **Sub-issues:** an initiative or tracker issue lists its parts as sub-issues
+  instead of a manual checklist.
+- **Milestones:** release scope, such as *First testers*, is a milestone.
+
+These fields are authoritative. Issue bodies may explain why a dependency
+exists but do not restate order or child lists that the fields already express;
+when older prose conflicts with the fields, the fields win and the prose is
+corrected during the next authorized refinement. Closed prerequisites need no
+link. The [Issue Refiner](../agents/roles/issue-refiner.md) proposes and, when
+authorized, maintains these fields; changing them follows the same PO authority
+as any other issue update.
+
 ## Git workflow
 
 1. Start each cohesive implementation task from current `main`.
