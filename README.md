@@ -84,6 +84,12 @@ Successful registration returns `201` with the stable `id` (UUID) and display
 identities return `409`. Email and credentials are never returned. See the
 [registration rules](docs/product/mvp-scope.md#user-identity-and-registration).
 
+Registration validation errors use Spring `ProblemDetail`: the `400` detail
+identifies only failing fields, in email, username, password order. Unreadable
+JSON keeps a safe generic detail. Submitted values are never included in these
+errors. The form shows the password minimum before submission and checks its
+12-code-point length locally; the server remains authoritative for all rules.
+
 Only the exact registration POST is exempt from CSRF. Login and logout require
 CSRF protection; registration does not automatically log the user in. The browser
 API flow is:

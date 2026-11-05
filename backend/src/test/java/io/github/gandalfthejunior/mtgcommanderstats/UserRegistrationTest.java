@@ -24,6 +24,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -120,7 +121,7 @@ class UserRegistrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"  abcdefghij", "abcdefghij  ", "hello world!", "\tabcdefghij\n",
+    @ValueSource(strings = {"  abcdefghij", "abcdefghij  ", "hello world!", "\tabcdefghij\n", "😀😀😀😀😀😀😀😀😀😀😀😀", "éééééé",
             "A long passphrase with whitespace and more than seventy-two bytes of password material!", "  Élf Wizards  "})
     void preservesExactPasswordIncludingWhitespace(String password) throws Exception {
         assertThat(register(EMAIL, "wizard", password).statusCode()).isEqualTo(HttpStatus.CREATED.value());
@@ -169,7 +170,7 @@ class UserRegistrationTest {
     @ParameterizedTest
     @ValueSource(strings = {"", "plain-address", "missing-at.example.com", "user@", "@example.com", "user@example..com"})
     void rejectsInvalidEmailsAtHttpAndApplicationBoundaries(String email) throws Exception {
-        assertThat(register(email, "wizard", PASSWORD).statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertInvalidRegistration(register(email, "wizard", PASSWORD), "Provide a valid email address.");
         assertThatThrownBy(() -> registerUser.register(email, "wizard", PASSWORD))
                 .isInstanceOf(InvalidRegistrationException.class);
         assertThat(users.count()).isZero();
@@ -187,6 +188,48 @@ class UserRegistrationTest {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"", "null", "{", "[]", "{\"password\":{\"secret\":\"PAYLOAD_SECRET\"}}",
+            "{\"email\":\"PAYLOAD_SECRET\",\"password\":\"PASSWORD_SECRET\",",
+            "{\"email\":[],\"username\":\"PAYLOAD_SECRET\",\"password\":\"PASSWORD_SECRET\"}"})
+    void unreadablePayloadKeepsGenericErrorWithoutLeakingInput(String body, CapturedOutput output) throws Exception {
+        assertInvalidRegistration(send("POST", "/api/users", body),
+                "Provide a valid email, a nonblank username, and a nonblank password of at least 12 characters.");
+        assertThat(output.getAll()).doesNotContain("PAYLOAD_SECRET", "PASSWORD_SECRET");
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', textBlock = """
+            {} | Provide a valid email address. Username must not be blank. Password must not be blank or consist only of whitespace.
+            {"email":null,"username":null,"password":null} | Provide a valid email address. Username must not be blank. Password must not be blank or consist only of whitespace.
+            {"username":"wizard","password":"correct horse battery"} | Provide a valid email address.
+            {"email":"wizard@example.com","password":"correct horse battery"} | Username must not be blank.
+            {"email":"wizard@example.com","username":"wizard"} | Password must not be blank or consist only of whitespace.
+            {"email":"EMAIL_SECRET","username":"   ","password":"SECRET"} | Provide a valid email address. Username must not be blank. Password must be at least 12 characters long.
+            {"email":"EMAIL_SECRET","username":"wizard","password":"SECRET"} | Provide a valid email address. Password must be at least 12 characters long.
+            {"email":"wizard@example.com","username":"   ","password":"SECRET"} | Username must not be blank. Password must be at least 12 characters long.
+            """)
+    void reportsOnlyFailingFieldsInStableOrder(String body, String detail, CapturedOutput output) throws Exception {
+        HttpResponse<String> response = send("POST", "/api/users", body);
+        assertInvalidRegistration(response, detail);
+        assertThat(response.body() + output.getAll()).doesNotContain("EMAIL_SECRET", "SECRET", PASSWORD, EMAIL);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"short", "12345678901", "😀😀😀😀😀😀😀😀😀😀😀"})
+    void shortPasswordErrorMentionsOnlyPassword(String password, CapturedOutput output) throws Exception {
+        HttpResponse<String> response = register(EMAIL, "wizard", password);
+        assertInvalidRegistration(response, "Password must be at least 12 characters long.");
+        assertThat(response.body() + output.getAll()).doesNotContain(password, EMAIL);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", " ", "            ", "\u0085\u00A0\u2007\u202F\u2003\t\n            "})
+    void blankPasswordErrorExplainsWhitespace(String password) throws Exception {
+        assertInvalidRegistration(register(EMAIL, "wizard", password),
+                "Password must not be blank or consist only of whitespace.");
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"", "short", "12345678901", "            ", " \t\n            ", "😀😀😀😀😀😀"})
     void rejectsInvalidPasswords(String password) throws Exception {
         assertThat(register(EMAIL, "wizard", password).statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
@@ -194,9 +237,9 @@ class UserRegistrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"", "   ", "\t\n", "\u2003"})
+    @ValueSource(strings = {"", "   ", "\t\n", "\u2003", "\u00A0\u2007\u202F\u0085"})
     void rejectsBlankUsernames(String username) throws Exception {
-        assertThat(register(EMAIL, username, PASSWORD).statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertInvalidRegistration(register(EMAIL, username, PASSWORD), "Username must not be blank.");
         assertThat(users.count()).isZero();
     }
 
@@ -261,6 +304,16 @@ class UserRegistrationTest {
     private void insertUser(String email, String username, String encodedPassword) {
         jdbc.update("INSERT INTO users (id, email, username, encoded_password) VALUES (?, ?, ?, ?)",
                 UUID.randomUUID(), email, username, encodedPassword);
+    }
+
+    private void assertInvalidRegistration(HttpResponse<String> response, String detail) {
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(response.headers().firstValue("Content-Type")).hasValue("application/problem+json");
+        JsonNode problem = json.readTree(response.body());
+        assertThat(problem.get("status").asInt()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(problem.get("detail").asText()).isEqualTo(detail);
+        assertThat(response.body()).doesNotContain(PASSWORD, "encoded_password", "users_email_key", "SQL", "PostgreSQL");
+        assertThat(users.count()).isZero();
     }
 
     private HttpResponse<String> register(String email, String username, String password) throws Exception {

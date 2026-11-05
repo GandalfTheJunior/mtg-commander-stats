@@ -1,6 +1,10 @@
 package io.github.gandalfthejunior.mtgcommanderstats.user.application;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import io.github.gandalfthejunior.mtgcommanderstats.user.domain.InvalidRegistrationException;
+import io.github.gandalfthejunior.mtgcommanderstats.user.domain.InvalidRegistrationException.Reason;
 import io.github.gandalfthejunior.mtgcommanderstats.user.domain.User;
 import io.github.gandalfthejunior.mtgcommanderstats.user.persistence.UserRepository;
 import org.hibernate.exception.ConstraintViolationException;
@@ -23,15 +27,28 @@ public class RegisterUser {
 
     @Transactional
     public User register(String email, String username, String password) {
-        if (!emailAddresses.canCanonicalize(email)) {
-            throw new InvalidRegistrationException();
+        List<Reason> reasons = new ArrayList<>();
+        String canonicalEmail = null;
+        if (emailAddresses.canCanonicalize(email)) {
+            canonicalEmail = users.canonicalizeEmail(email);
         }
-        String canonicalEmail = users.canonicalizeEmail(email);
         if (!emailAddresses.isValid(canonicalEmail)) {
-            throw new InvalidRegistrationException();
+            reasons.add(Reason.INVALID_EMAIL);
         }
-        String trimmedUsername = User.trimUsername(username);
-        User.validatePassword(password);
+        String trimmedUsername = null;
+        try {
+            trimmedUsername = User.trimUsername(username);
+        } catch (InvalidRegistrationException exception) {
+            reasons.addAll(exception.reasons());
+        }
+        try {
+            User.validatePassword(password);
+        } catch (InvalidRegistrationException exception) {
+            reasons.addAll(exception.reasons());
+        }
+        if (!reasons.isEmpty()) {
+            throw new InvalidRegistrationException(reasons);
+        }
         User user = new User(canonicalEmail, trimmedUsername, passwords.encode(password));
         try {
             // Flush inside this boundary so concurrent duplicates receive the same result.

@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import io.github.gandalfthejunior.mtgcommanderstats.displaytext.DisplayText;
 import io.github.gandalfthejunior.mtgcommanderstats.displaytext.InvalidDisplayTextException;
+import io.github.gandalfthejunior.mtgcommanderstats.user.domain.InvalidRegistrationException.Reason;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -30,7 +31,7 @@ public class User {
     public User(String email, String username, String encodedPassword) {
         this.id = UUID.randomUUID();
         if (email == null || email.isBlank()) {
-            throw new InvalidRegistrationException();
+            throw new InvalidRegistrationException(Reason.INVALID_EMAIL);
         }
         this.email = email;
         this.username = trimUsername(username);
@@ -44,14 +45,16 @@ public class User {
         try {
             return new DisplayText(username).value();
         } catch (InvalidDisplayTextException exception) {
-            throw new InvalidRegistrationException();
+            throw new InvalidRegistrationException(Reason.BLANK_USERNAME);
         }
     }
 
     public static void validatePassword(String password) {
-        if (password == null || password.codePoints().allMatch(User::isPasswordWhitespace)
-                || password.codePointCount(0, password.length()) < 12) {
-            throw new InvalidRegistrationException();
+        if (password == null || password.codePoints().allMatch(User::isPasswordWhitespace)) {
+            throw new InvalidRegistrationException(Reason.BLANK_PASSWORD);
+        }
+        if (password.codePointCount(0, password.length()) < 12) {
+            throw new InvalidRegistrationException(Reason.SHORT_PASSWORD);
         }
     }
 

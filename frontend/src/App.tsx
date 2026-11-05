@@ -54,6 +54,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('checking')
   const [registrationNotice, setRegistrationNotice] = useState<Notice>(null)
+  const [registrationPasswordError, setRegistrationPasswordError] = useState(false)
   const [sessionNotice, setSessionNotice] = useState<Notice>(null)
   const [registering, setRegistering] = useState(false)
   const [loggingIn, setLoggingIn] = useState(false)
@@ -89,16 +90,23 @@ export default function App() {
   async function submitRegistration(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (registrationPending.current) return
-    registrationPending.current = true
     const submittedForm = event.currentTarget
-    setRegistering(true)
-    setRegistrationNotice(null)
     const form = new FormData(submittedForm)
+    const password = String(form.get('password'))
+    setRegistrationNotice(null)
+    if (Array.from(password).length < 12) {
+      setRegistrationPasswordError(true)
+      submittedForm.querySelector<HTMLInputElement>('[name="password"]')?.focus()
+      return
+    }
+    setRegistrationPasswordError(false)
+    registrationPending.current = true
+    setRegistering(true)
     try {
       const user = await registerUser({
         email: String(form.get('email')),
         username: String(form.get('username')),
-        password: String(form.get('password')),
+        password,
       })
       setRegistrationNotice({
         kind: 'success',
@@ -394,7 +402,11 @@ export default function App() {
                   aria-describedby={registrationNotice ? 'auth-register-notice' : undefined}>
                   <TextField id="auth-register-email" label="Email" name="email" type="email" autoComplete="email" required fullWidth slotProps={{ inputLabel: { required: false } }} />
                   <TextField id="auth-register-username" label="Username" name="username" autoComplete="username" required fullWidth slotProps={{ inputLabel: { required: false } }} />
-                  <TextField id="auth-register-password" label="Password" name="password" type="password" autoComplete="new-password" required fullWidth slotProps={{ inputLabel: { required: false } }} />
+                  <TextField id="auth-register-password" label="Password" name="password" type="password" autoComplete="new-password" required fullWidth
+                    error={registrationPasswordError}
+                    helperText={registrationPasswordError ? 'Password must be at least 12 characters long.' : 'Use at least 12 characters. Whitespace is allowed and counts toward the minimum.'}
+                    onChange={() => setRegistrationPasswordError(false)}
+                    slotProps={{ inputLabel: { required: false }, formHelperText: { role: registrationPasswordError ? 'alert' : undefined } }} />
                   <Button disabled={registering} type="submit" variant="contained" fullWidth>
                     {registering ? 'Creating account…' : 'Create account'}
                   </Button>
