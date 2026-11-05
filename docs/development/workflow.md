@@ -37,11 +37,13 @@ the PO can see the plan in issue lists, the milestone and the project board:
   instead of a manual checklist.
 - **Milestones:** release scope, such as *First testers*, is a milestone.
 
-These fields are authoritative. Issue bodies may explain why a dependency
-exists but do not restate order or child lists that the fields already express;
-when older prose conflicts with the fields, the fields win and the prose is
-corrected during the next authorized refinement. Closed prerequisites need no
-link. The [Issue Refiner](../agents/roles/issue-refiner.md) proposes and, when
+These fields are the normal source of truth for planning metadata. Issue
+bodies may explain why a dependency exists but do not restate order or child
+lists that the fields already express. A missing or stale field never silently
+overrides an explicitly approved prerequisite: when prose and fields contradict
+each other on a material dependency, surface the conflict, reconcile it against
+the latest PO decision, and correct the field or the prose only with the
+appropriate authorization. Closed prerequisites need no link. The [Issue Refiner](../agents/roles/issue-refiner.md) proposes and, when
 authorized, maintains these fields; changing them follows the same PO authority
 as any other issue update.
 
