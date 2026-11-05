@@ -21,7 +21,7 @@ Commanders in ordered slots. PUT requires a name and optionally replaces that
 configuration before first use. The backend validates both identities and
 pairing roles from fresh authoritative Scryfall metadata. Zero, more than two,
 duplicate identities and incompatible pairs return `400`. No free-text/manual or offline creation
-is supported. Names use DisplayText; Commander names come from Scryfall.
+is supported. Deck names follow the [naming conventions](mvp-scope.md#naming-conventions), with a maximum of 30 grapheme clusters. Name validation returns a 400 ProblemDetail with one `errors` entry (`field=name`, stable name error code, and `maxLength=30` for length errors). Commander names come from Scryfall.
 
 ```json
 {

@@ -1,6 +1,8 @@
 package io.github.gandalfthejunior.mtgcommanderstats.group.api;
 
 import io.github.gandalfthejunior.mtgcommanderstats.displaytext.InvalidDisplayTextException;
+import io.github.gandalfthejunior.mtgcommanderstats.displaytext.InvalidNameException;
+import io.github.gandalfthejunior.mtgcommanderstats.displaytext.api.NameProblems;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.AlreadyGroupMemberException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupAccessDeniedException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupNotFoundException;
@@ -20,6 +22,11 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice(assignableTypes = {GroupController.class, OwnershipTransferController.class})
 public class GroupErrors {
+    @ExceptionHandler(InvalidNameException.class)
+    public ProblemDetail invalidName(InvalidNameException exception) {
+        return NameProblems.invalidName(exception);
+    }
+
     @ExceptionHandler({InvalidDisplayTextException.class, InvalidJoinCodeException.class,
             InvalidGroupRequestException.class,
             HttpMessageNotReadableException.class, MethodArgumentNotValidException.class,

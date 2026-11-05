@@ -2,7 +2,6 @@ package io.github.gandalfthejunior.mtgcommanderstats.group.domain;
 
 import java.util.UUID;
 
-import io.github.gandalfthejunior.mtgcommanderstats.displaytext.DisplayText;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -29,7 +28,7 @@ public class PlayGroup {
         }
         this.id = UUID.randomUUID();
         this.ownerId = ownerId;
-        this.name = new DisplayText(name).value();
+        this.name = new PlaygroupName(name).value();
     }
 
     public void transferOwnership(UUID newOwnerId) {

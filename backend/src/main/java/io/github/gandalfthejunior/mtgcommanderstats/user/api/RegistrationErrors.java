@@ -1,9 +1,11 @@
 package io.github.gandalfthejunior.mtgcommanderstats.user.api;
 
 import java.util.stream.Collectors;
+import java.util.Map;
 
 import io.github.gandalfthejunior.mtgcommanderstats.user.application.DuplicateEmailException;
 import io.github.gandalfthejunior.mtgcommanderstats.user.domain.InvalidRegistrationException;
+import io.github.gandalfthejunior.mtgcommanderstats.user.domain.Username;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.NestedExceptionUtils;
@@ -21,10 +23,22 @@ public class RegistrationErrors {
         String detail = exception.reasons().stream().map(reason -> switch (reason) {
             case INVALID_EMAIL -> "Provide a valid email address.";
             case BLANK_USERNAME -> "Username must not be blank.";
+            case INVALID_USERNAME -> "Username contains unsupported characters or repeated spaces.";
+            case LONG_USERNAME -> "Username must be at most " + Username.MAX_LENGTH + " characters long.";
             case BLANK_PASSWORD -> "Password must not be blank or consist only of whitespace.";
             case SHORT_PASSWORD -> "Password must be at least 12 characters long.";
         }).collect(Collectors.joining(" "));
-        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
+        problem.setProperty("errors", exception.reasons().stream().map(reason -> switch (reason) {
+            case INVALID_EMAIL -> Map.of("field", "email", "code", "INVALID_EMAIL");
+            case BLANK_USERNAME -> Map.of("field", "username", "code", "USERNAME_BLANK");
+            case INVALID_USERNAME -> Map.of("field", "username", "code", "NAME_INVALID_CHARACTERS");
+            case LONG_USERNAME -> Map.of("field", "username", "code", "NAME_TOO_LONG",
+                    "maxLength", Username.MAX_LENGTH);
+            case BLANK_PASSWORD -> Map.of("field", "password", "code", "PASSWORD_BLANK");
+            case SHORT_PASSWORD -> Map.of("field", "password", "code", "PASSWORD_TOO_SHORT");
+        }).toList());
+        return problem;
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

@@ -8,7 +8,7 @@ import {fileURLToPath} from 'node:url';
 import {snapshotRuntime} from './runtime.mjs';
 import {environment} from './demo.mjs';
 
-test('completed private archives retain all SQL bytes when Maven output is replaced', () => {
+test('completed private archives retain SQL and Java migrations when Maven output is replaced', () => {
   const temp = mkdtempSync(join(tmpdir(), 'mtg runtime '));
   try {
     const target = join(temp, 'target');
@@ -16,6 +16,8 @@ test('completed private archives retain all SQL bytes when Maven output is repla
     mkdirSync(target);
     mkdirSync(classes);
     cpSync(fileURLToPath(new URL('../../backend/src/main/resources/', import.meta.url)), classes, {recursive: true});
+    // Only archive readability is exercised here; Flyway executes the real class in backend tests.
+    writeFileSync(join(classes, 'db/migration/V16__validate_names.class'), Buffer.from([0xca, 0xfe, 0xba, 0xbe]));
     const original = join(target, 'app.jar.original');
     execFileSync('jar', ['cf', original, '-C', classes, '.']);
     copyFileSync(original, join(target, 'app.jar'));
@@ -50,5 +52,10 @@ test('completed private archives retain all SQL bytes when Maven output is repla
     rmSync(join(classes, 'db/migration/V2__use_email_for_authentication.sql'));
     execFileSync('jar', ['cf', join(target, 'app.jar'), '-C', classes, '.']);
     assert.throws(() => snapshotRuntime(target, join(temp, 'missing-migration')));
+    copyFileSync(fileURLToPath(new URL('../../backend/src/main/resources/db/migration/V2__use_email_for_authentication.sql', import.meta.url)),
+      join(classes, 'db/migration/V2__use_email_for_authentication.sql'));
+    rmSync(join(classes, 'db/migration/V16__validate_names.class'));
+    execFileSync('jar', ['cf', join(target, 'app.jar'), '-C', classes, '.']);
+    assert.throws(() => snapshotRuntime(target, join(temp, 'missing-java-migration')));
   } finally { rmSync(temp, {recursive: true, force: true}); }
 });

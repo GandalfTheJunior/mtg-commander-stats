@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.UUID;
 
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.ColorIdentityConverter;
-import io.github.gandalfthejunior.mtgcommanderstats.displaytext.DisplayText;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidCompanionSelectionException;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -80,7 +79,7 @@ public class Deck {
     }
 
     public void rename(String name) {
-        this.name = new DisplayText(name).value();
+        this.name = new DeckName(name).value();
     }
 
     public void changeManaBoxUrl(String value) {

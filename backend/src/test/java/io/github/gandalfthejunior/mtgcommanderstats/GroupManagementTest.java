@@ -104,10 +104,10 @@ class GroupManagementTest {
         AuthenticatedClient carol = registerAndLogin("carol@example.com", "Carol");
         AuthenticatedClient dave = registerAndLogin("dave@example.com", "Same Name");
 
-        JsonNode created = createGroup(alice, "\u00a0 Friday  Commander \u202f");
+        JsonNode created = createGroup(alice, "\u00a0 Friday Commander \u202f");
         UUID groupId = UUID.fromString(created.get("id").asText());
         assertThat(created).isEqualTo(json.readTree("{\"id\":\"" + groupId
-                + "\",\"name\":\"Friday  Commander\",\"role\":\"OWNER\"}"));
+                + "\",\"name\":\"Friday Commander\",\"role\":\"OWNER\"}"));
         assertThat(created.toString()).doesNotContain("code", "ownerId", "email", "password");
 
         for (AuthenticatedClient member : List.of(bob, carol, dave)) {
@@ -127,7 +127,7 @@ class GroupManagementTest {
             JsonNode details = json.readTree(response.body());
             assertThat(memberList(details)).containsExactlyInAnyOrderElementsOf(expectedMembers);
             assertThat(details.get("id").asText()).isEqualTo(groupId.toString());
-            assertThat(details.get("name").asText()).isEqualTo("Friday  Commander");
+            assertThat(details.get("name").asText()).isEqualTo("Friday Commander");
             assertThat(details.get("role").asText()).isEqualTo(member == alice ? "OWNER" : "MEMBER");
             assertThat(details.toString()).doesNotContain("email", "password", "code");
         }

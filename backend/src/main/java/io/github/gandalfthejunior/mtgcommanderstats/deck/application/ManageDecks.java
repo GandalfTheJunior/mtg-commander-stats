@@ -6,6 +6,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.Deck;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckName;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckFormat;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidDeckFormatException;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckCommander;
@@ -76,7 +77,8 @@ public class ManageDecks {
             throw new InvalidDeckFormatException();
         }
         String normalizedUrl = manaBoxUrl == null ? null : new ManaBoxUrl(manaBoxUrl).value();
-        Deck deck = new Deck(ownerId, name, resolve(commanders, format));
+        String canonicalName = new DeckName(name).value();
+        Deck deck = new Deck(ownerId, canonicalName, resolve(commanders, format));
         deck.replaceConfiguration(deck.getCommanders(), null, format);
         deck.changeManaBoxUrl(normalizedUrl);
         if (companion != null) {
@@ -108,6 +110,7 @@ public class ManageDecks {
             boolean manaBoxUrlSupplied, String manaBoxUrl, boolean companionSupplied, CompanionInput companion,
             DeckFormat format) {
         Deck deck = ownedDeck(ownerId, deckId);
+        String canonicalName = new DeckName(name).value();
         DeckFormat target = format == null ? deck.getFormat() : format;
         boolean formatChanged = target != deck.getFormat();
         deck.requireFormatChangeAllowed(target);
@@ -148,7 +151,7 @@ public class ManageDecks {
             }
         }
         deck.replaceConfiguration(prospectiveCommanders, prospectiveCompanion, target);
-        deck.rename(name);
+        deck.rename(canonicalName);
         return deck;
     }
 

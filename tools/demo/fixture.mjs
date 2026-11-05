@@ -16,13 +16,13 @@ function commander(card, chosenColor, gameplayFaceIndex, artworkFaceIndex) {
 const c = commander;
 // Each owner has two played decks and one unused artwork/pairing example.
 export const users = [
-  ['ada', 'Ada', [['Dragon Engine', [c('The Ur-Dragon')]], ['Patient Constructs', [c('Karn, Silver Golem')]], ['A very long expedition name for Pir and Toothy beyond the edge of the map', [c('Pir, Imaginative Rascal'), c('Toothy, Imaginary Friend')]]]],
-  ['bruno', 'Bruno', [['Goblin Workshop', [c('Krenko, Mob Boss')]], ['Forest Council', [c('The Prismatic Piper', 'G'), c('Gilanra, Caller of Wirewood')]], ['The Prismatic Bridge on the other side of Esika', [c('Esika, God of the Tree', undefined, undefined, 1)]]]],
-  ['cleo', 'Cleo', [['Graveyard Shift', [c('Meren of Clan Nel Toth')]], ['Sea Stories', [c('Talrand, Sky Summoner')]], ['Avacyn and the back-side Purifier illustration', [c('Archangel Avacyn', undefined, undefined, 1)]]]],
-  ['dara', 'Dara', [['Sunlit Tokens', [c('Faceless One', 'W'), c('Acolyte of Bahamut')]], ['Old Artifacts', [c('Breya, Etherium Shaper')]], ['Dragon Engine — a different illustration', [c('The Ur-Dragon (alternate art)')]]]],
-  ['emil', 'Emil', [['Wild Lands', [c('Omnath, Locus of Rage')]], ['Spirit Parade', [c('Clara Oswald', 'W'), c('The Second Doctor')]], ['Zndrsplt: reversible printing, same Oracle identity', [c('Zndrsplt (reversible)', undefined, 0, 1)]]]],
+  ['ada', 'Ada', [['Dragon Engine', [c('The Ur-Dragon')]], ['Patient Constructs', [c('Karn, Silver Golem')]], ['Pir and Toothy\'s Expedition', [c('Pir, Imaginative Rascal'), c('Toothy, Imaginary Friend')]]]],
+  ['bruno', 'Bruno', [['Goblin Workshop', [c('Krenko, Mob Boss')]], ['Forest Council', [c('The Prismatic Piper', 'G'), c('Gilanra, Caller of Wirewood')]], ['Esika\'s Prismatic Bridge', [c('Esika, God of the Tree', undefined, undefined, 1)]]]],
+  ['cleo', 'Cleo', [['Graveyard Shift', [c('Meren of Clan Nel Toth')]], ['Sea Stories', [c('Talrand, Sky Summoner')]], ['Avacyn\'s Purifier', [c('Archangel Avacyn', undefined, undefined, 1)]]]],
+  ['dara', 'Dara', [['Sunlit Tokens', [c('Faceless One', 'W'), c('Acolyte of Bahamut')]], ['Old Artifacts', [c('Breya, Etherium Shaper')]], ['Dragon Engine — Alternate Art', [c('The Ur-Dragon (alternate art)')]]]],
+  ['emil', 'Emil', [['Wild Lands', [c('Omnath, Locus of Rage')]], ['Spirit Parade', [c('Clara Oswald', 'W'), c('The Second Doctor')]], ['Zndrsplt — Reversible', [c('Zndrsplt (reversible)', undefined, 0, 1)]]]],
   ['gideon', 'Gideon', [['Dragon Encore', [c('The Ur-Dragon (alternate art)')]], ['Cloud Fleet', [c('Talrand, Sky Summoner')]], ['Goblin Encore', [c('Krenko, Mob Boss')]]]],
-  ['faye', 'Faye', [['Night Court', [c('Queen Marchesa')]], ['Spore Garden', [c('The Mycotyrant')]], ['Friends forever across all five colors', [c('Cecily, Haunted Mage'), c('Othelm, Sigardian Outcast')]]]],
+  ['faye', 'Faye', [['Night Court', [c('Queen Marchesa')]], ['Spore Garden', [c('The Mycotyrant')]], ['Friends Across Five Colors', [c('Cecily, Haunted Mage'), c('Othelm, Sigardian Outcast')]]]],
 ].map(([key, name, decks]) => ({key, name, email: `${key}@commander.example`, decks: decks.map(([name, commanders], index) => ({key: `${key}-${index}`, name, commanders, colorIdentity: colors(commanders.flatMap(c => c.effectiveColorIdentity))}))}));
 
 export function deckRequest(deck) {

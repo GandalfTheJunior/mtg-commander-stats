@@ -9,6 +9,8 @@ import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidDeckForma
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidCompanionSelectionException;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidManaBoxUrlException;
 import io.github.gandalfthejunior.mtgcommanderstats.displaytext.InvalidDisplayTextException;
+import io.github.gandalfthejunior.mtgcommanderstats.displaytext.InvalidNameException;
+import io.github.gandalfthejunior.mtgcommanderstats.displaytext.api.NameProblems;
 import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -20,6 +22,11 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice(assignableTypes = DeckController.class)
 public class DeckErrors {
+    @ExceptionHandler(InvalidNameException.class)
+    public ProblemDetail invalidName(InvalidNameException exception) {
+        return NameProblems.invalidName(exception);
+    }
+
     @ExceptionHandler(InvalidDeckFormatException.class)
     public ProblemDetail invalidFormat(InvalidDeckFormatException exception) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());

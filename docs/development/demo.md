@@ -318,7 +318,7 @@ tests; they are never seeded as demo decks.
 | Partner, chosen green | Bruno's Forest Council: The Prismatic Piper + Gilanra |
 | Choose a Background, chosen white | Dara's Sunlit Tokens: Faceless One + Acolyte of Bahamut |
 | Doctor's companion, chosen white | Emil's Spirit Parade: Clara Oswald + The Second Doctor |
-| Reciprocal Partner with, long names | Ada's unused Pir + Toothy expedition |
+| Reciprocal Partner with, bounded names | Ada's unused Pir + Toothy expedition |
 | Generic named Partner—Friends forever | Faye's unused Cecily + Othelm deck |
 | Same Commander, different print/illustration | Ada's Dragon Engine vs Dara's unused Dragon Engine |
 | Modal / transform back illustration | Bruno's unused Esika; Cleo's unused Archangel Avacyn |
@@ -330,7 +330,7 @@ tests; they are never seeded as demo decks.
 Seed a fresh demo, start the ordinary backend and Vite, then check:
 
 1. As Ada, Dashboard and Decks show a single illustration, colorless Karn and
-   the unused two-Commander Pir/Toothy deck with its long name. Open/cancel the
+   the unused two-Commander Pir/Toothy expedition deck. Open/cancel the
    editor, inspect used vs unused status, and verify separate attribution links.
 2. As Bruno, Dara and Emil, inspect both saved Commander names and canonical
    effective colors on the played chosen-color pairs. Their gameplay/color
@@ -338,7 +338,7 @@ Seed a fresh demo, start the ordinary backend and Vite, then check:
    visible in history and absent from new-game choices.
 3. Inspect Esika/Avacyn/Zndrsplt's saved back-side artwork and its attribution.
    Compare both Ur-Dragon illustrations. At desktop and narrow mobile sizes,
-   check the existing single/overlapped-dual layout, long names and fallback.
+   check the existing single/overlapped-dual layout, bounded deck names and fallback.
 4. With Scryfall available, activate either dual artwork to open the correct
    slot gallery; selecting another illustration must retain gameplay/colors,
    usage and history. This explicit gallery smoke needs live Scryfall and is
