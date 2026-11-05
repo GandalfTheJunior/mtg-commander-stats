@@ -1,5 +1,7 @@
 package io.github.gandalfthejunior.mtgcommanderstats.user.api;
 
+import java.util.stream.Collectors;
+
 import io.github.gandalfthejunior.mtgcommanderstats.user.application.DuplicateEmailException;
 import io.github.gandalfthejunior.mtgcommanderstats.user.domain.InvalidRegistrationException;
 import org.slf4j.Logger;
@@ -14,7 +16,18 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice(assignableTypes = UserRegistrationController.class)
 public class RegistrationErrors {
     private static final Logger LOGGER = LoggerFactory.getLogger(RegistrationErrors.class);
-    @ExceptionHandler({InvalidRegistrationException.class, HttpMessageNotReadableException.class})
+    @ExceptionHandler(InvalidRegistrationException.class)
+    public ProblemDetail invalidRegistration(InvalidRegistrationException exception) {
+        String detail = exception.reasons().stream().map(reason -> switch (reason) {
+            case INVALID_EMAIL -> "Provide a valid email address.";
+            case BLANK_USERNAME -> "Username must not be blank.";
+            case BLANK_PASSWORD -> "Password must not be blank or consist only of whitespace.";
+            case SHORT_PASSWORD -> "Password must be at least 12 characters long.";
+        }).collect(Collectors.joining(" "));
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
     public ProblemDetail invalidInput() {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
                 "Provide a valid email, a nonblank username, and a nonblank password of at least 12 characters.");

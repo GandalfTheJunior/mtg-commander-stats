@@ -162,12 +162,78 @@ test('registers an account without treating it as an authenticated session', asy
   })
 })
 
-test('surfaces a safe registration failure', async () => {
+test('shows an accessible password hint before registration', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 401)))
+  render(<App />)
+  await screen.findByText('Not signed in.')
+
+  const input = registrationForm().getByLabelText('Password')
+  expect(input).toHaveAccessibleDescription('Use at least 12 characters. Whitespace is allowed and counts toward the minimum.')
+  expect(registrationForm().getByText(/Use at least 12 characters/)).toBeVisible()
+  expect(input).not.toHaveAttribute('minlength')
+  expect(loginForm().getByLabelText('Password')).not.toHaveAccessibleDescription()
+})
+
+test.each(['short', '12345678901', '😀'.repeat(11)])('blocks a short registration password by code-point length: %s', async (shortPassword) => {
+  const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}, 401))
+  vi.stubGlobal('fetch', fetchMock)
+  render(<App />)
+  await screen.findByText('Not signed in.')
+
+  const form = registrationForm()
+  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'gandalf@example.com' } })
+  fireEvent.change(form.getByLabelText('Username'), { target: { value: 'Gandalf' } })
+  const input = form.getByLabelText('Password')
+  fireEvent.change(input, { target: { value: shortPassword } })
+  fireEvent.click(form.getByRole('button', { name: 'Create account' }))
+
+  expect(form.getByRole('alert')).toHaveTextContent('Password must be at least 12 characters long.')
+  expect(input).toHaveAccessibleDescription('Password must be at least 12 characters long.')
+  expect(input).toHaveAttribute('aria-invalid', 'true')
+  expect(input).toHaveFocus()
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  expect(form.queryByText(/valid email|Username must/)).not.toBeInTheDocument()
+  expect(document.body.textContent).not.toContain(shortPassword)
+
+  fireEvent.change(input, { target: { value: password } })
+  expect(form.queryByRole('alert')).not.toBeInTheDocument()
+  expect(input).toHaveAttribute('aria-invalid', 'false')
+})
+
+test.each(['😀'.repeat(12), '  abcdefghij', 'abcdefghij  ', 'e\u0301'.repeat(6)])('submits a valid passphrase unchanged: %s', async (passphrase) => {
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce(jsonResponse({}, 401))
+    .mockResolvedValueOnce(jsonResponse(user, 201))
+  vi.stubGlobal('fetch', fetchMock)
+  render(<App />)
+  await screen.findByText('Not signed in.')
+
+  const form = registrationForm()
+  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'gandalf@example.com' } })
+  fireEvent.change(form.getByLabelText('Username'), { target: { value: 'Gandalf' } })
+  fireEvent.change(form.getByLabelText('Password'), { target: { value: passphrase } })
+  fireEvent.click(form.getByRole('button', { name: 'Create account' }))
+
+  expect(await screen.findByText('Account created for Gandalf. Sign in separately to continue.')).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenLastCalledWith('/api/users', expect.objectContaining({
+    body: JSON.stringify({ email: 'gandalf@example.com', username: 'Gandalf', password: passphrase }),
+  }))
+  expect(form.getByLabelText('Password')).toHaveValue('')
+  expect(screen.getByText('Not signed in.')).toBeInTheDocument()
+})
+
+test.each([
+  [409, 'Email is already registered.'],
+  [400, 'Provide a valid email address.'],
+  [400, 'Username must not be blank.'],
+  [400, 'Password must not be blank or consist only of whitespace.'],
+  [400, 'Provide a valid email address. Username must not be blank.'],
+])('surfaces a safe registration failure (%i): %s', async (status, detail) => {
   const fetchMock = vi
     .fn()
     .mockResolvedValueOnce(jsonResponse({}, 401))
     .mockResolvedValueOnce(
-      jsonResponse({ detail: 'Email is already registered.' }, 409),
+      jsonResponse({ detail }, status),
     )
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
@@ -185,7 +251,7 @@ test('surfaces a safe registration failure', async () => {
   })
   fireEvent.click(form.getByRole('button', { name: 'Create account' }))
 
-  expect(await screen.findByText('Email is already registered.')).toBeInTheDocument()
+  expect(await screen.findByRole('alert')).toHaveTextContent(detail)
   expect(document.body.textContent).not.toContain(password)
 })
 
