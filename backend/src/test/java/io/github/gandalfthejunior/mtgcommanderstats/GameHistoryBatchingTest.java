@@ -91,8 +91,8 @@ class GameHistoryBatchingTest extends GameTestSupport {
             assertThat(history.toString()).doesNotContain("email", "password", "joinCode", "ownerId");
             assertThat(multipleGameStatements).as("SQL statements for six games versus one game")
                     .isEqualTo(singleGameStatements);
-            // Group lock, requesting membership, games with participants, users, decks, Commander snapshots.
-            assertThat(multipleGameStatements).isEqualTo(6);
+            // Group lock, requesting membership, games with participants, users, decks, Commander snapshots and the optional Companion snapshot.
+            assertThat(multipleGameStatements).isEqualTo(7);
             expect(f.member(), "GET", f.path(), "", FORBIDDEN.value());
             expect(f.outsider(), "GET", f.path(), "", FORBIDDEN.value());
         } finally {

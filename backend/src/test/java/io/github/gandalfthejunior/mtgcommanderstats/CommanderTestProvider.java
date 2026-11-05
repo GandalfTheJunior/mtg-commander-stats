@@ -63,6 +63,18 @@ class CommanderTestProvider extends ScryfallClient {
                 .filter(card -> !"reversible_card".equals(card.path("layout").asText())).toList()));
     }
 
+    @Override
+    public JsonNode printings(String query) {
+        if (offline) {
+            throw new ScryfallClientException(ScryfallClientException.Kind.UNAVAILABLE);
+        }
+        String oracleId = query.substring("oracleid:".length());
+        return JSON.valueToTree(Map.of("object", "list", "has_more", false, "data", CARDS.values().stream()
+                .filter(card -> oracleId.equals(card.path("oracle_id").asText())
+                        || card.path("card_faces").valueStream().anyMatch(face -> oracleId.equals(face.path("oracle_id").asText())))
+                .toList()));
+    }
+
     @TestConfiguration(proxyBeanMethods = false)
     static class Configuration {
         @Bean

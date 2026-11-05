@@ -93,3 +93,19 @@ boundary with their ability present in Oracle text. Future provider schema or
 indexing changes cannot be ruled out by today's observations. No production
 change was justified by this verification. The PR review thread records the
 full live-query evidence and test results.
+
+## Optional Companion coverage
+
+`DeckCompanionsTest` and `ScryfallCompanionsTest` build explicit, synthetic
+provider records in memory (random printing/Oracle UUIDs, English rules,
+keywords, legalities, colors and optional face/image data). The restricted Lutri
+and Yorion cases pin their real Oracle IDs, checked through Scryfall's exact-name
+API on 2026-11-05; printing IDs and the remaining test metadata stay synthetic.
+They cover genuine
+Companion versus Doctor's companion, Lutri/Yorion restrictions, later bans,
+color unions and chosen colors, reversible/alternative printings, offline
+snapshots and transactional lifecycle races. These are controlled test records,
+not captured live cards. `CommanderTestProvider` serves printing discovery from
+the same pinned in-memory records, so no Companion integration test contacts
+Scryfall. Existing demo decks remain valid without Companions; no UI integration
+or demo backfill is introduced.

@@ -4,7 +4,8 @@ import java.util.List;
 
 public record GameplayCard(Integer gameplayFaceIndex, String oracleId, String name,
         List<String> colorIdentity, boolean requiresChosenColor, boolean canBeSoleCommander,
-        String typeLine, List<String> keywords, String oracleText, Artwork defaultArtwork, PairingCapabilities pairing) {
+        String typeLine, List<String> keywords, String oracleText, Artwork defaultArtwork, PairingCapabilities pairing,
+        String commanderLegality, boolean hasCompanionMechanic) {
     public GameplayCard {
         colorIdentity = List.copyOf(colorIdentity);
         keywords = List.copyOf(keywords);

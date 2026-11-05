@@ -57,14 +57,14 @@ public class GameDecks {
     }
 
     public record DeckDisplay(UUID id, String name, List<CommanderSummary> commanders, List<String> colorIdentity,
-            boolean archived, @JsonInclude(JsonInclude.Include.NON_NULL) String manaBoxUrl) {
+            CompanionSummary companion, boolean archived, @JsonInclude(JsonInclude.Include.NON_NULL) String manaBoxUrl) {
         static DeckDisplay from(Deck deck) {
             return from(deck, false);
         }
 
         static DeckDisplay from(Deck deck, boolean includeLink) {
             return new DeckDisplay(deck.getId(), deck.getName(), deck.getCommanders().stream().map(CommanderSummary::from).toList(),
-                    deck.getColorIdentity().symbols(), deck.isArchived(), includeLink ? deck.getManaBoxUrl() : null);
+                    deck.getColorIdentity().symbols(), CompanionSummary.from(deck.getCompanion()), deck.isArchived(), includeLink ? deck.getManaBoxUrl() : null);
         }
     }
 }

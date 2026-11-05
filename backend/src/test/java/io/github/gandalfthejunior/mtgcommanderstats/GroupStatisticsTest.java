@@ -178,7 +178,7 @@ class GroupStatisticsTest extends GameTestSupport {
             jdbc.update("UPDATE users SET username = 'Same Name' WHERE id = ?", f.owner().id());
             sql.clear();
             JsonNode result = statistics(f.owner(), f.groupId());
-            assertThat(sql.getPrepareStatementCount()).isEqualTo(singleStatements).isEqualTo(6);
+            assertThat(sql.getPrepareStatementCount()).isEqualTo(singleStatements).isEqualTo(7);
             assertThat(sql.getEntityUpdateCount()).isZero();
             assertThat(sql.getEntityInsertCount()).isZero();
             assertThat(sql.getEntityDeleteCount()).isZero();

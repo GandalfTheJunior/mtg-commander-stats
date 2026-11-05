@@ -7,12 +7,15 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.Nulls;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CommanderInput;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CompanionInput;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CompanionSummary;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CommanderSummary;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.ManageDecks;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.Deck;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidCommanderException;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidManaBoxUrlException;
 import io.github.gandalfthejunior.mtgcommanderstats.security.UserPrincipal;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidCompanionSelectionException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -41,14 +44,14 @@ public class DeckController {
     @PostMapping("/api/decks")
     @ResponseStatus(HttpStatus.CREATED)
     public DeckResponse create(@AuthenticationPrincipal UserPrincipal user, @RequestBody DeckRequest request) {
-        return DeckResponse.from(decks.create(user.getId(), request.name(), request.commanders(), request.manaBoxUrl));
+        return DeckResponse.from(decks.create(user.getId(), request.name(), request.commanders(), request.manaBoxUrl, request.companion));
     }
 
     @PutMapping("/api/decks/{deckId}")
     public DeckResponse update(@AuthenticationPrincipal UserPrincipal user, @PathVariable UUID deckId,
             @RequestBody DeckRequest request) {
         return DeckResponse.from(decks.update(user.getId(), deckId, request.name(), request.commanders(),
-                request.manaBoxUrlSupplied, request.manaBoxUrl));
+                request.manaBoxUrlSupplied, request.manaBoxUrl, request.companionSupplied, request.companion));
     }
 
     @PutMapping("/api/decks/{deckId}/commanders/{position}/artwork")
@@ -58,6 +61,16 @@ public class DeckController {
             throw new InvalidCommanderException();
         }
         return DeckResponse.from(decks.changeArtwork(user.getId(), deckId, position,
+                request.scryfallCardId, request.artworkFaceIndex));
+    }
+
+    @PutMapping("/api/decks/{deckId}/companion/artwork")
+    public DeckResponse changeCompanionArtwork(@AuthenticationPrincipal UserPrincipal user, @PathVariable UUID deckId,
+            @RequestBody ArtworkRequest request) {
+        if (request.scryfallCardId == null) {
+            throw new InvalidCompanionSelectionException("Provide a Companion artwork printing UUID in scryfallCardId.");
+        }
+        return DeckResponse.from(decks.changeCompanionArtwork(user.getId(), deckId,
                 request.scryfallCardId, request.artworkFaceIndex));
     }
 
@@ -118,6 +131,14 @@ public class DeckController {
         private List<CommanderInput> commanders;
         private String manaBoxUrl;
         private boolean manaBoxUrlSupplied;
+        private CompanionInput companion;
+        private boolean companionSupplied;
+
+        @JsonSetter
+        public void setCompanion(CompanionInput companion) {
+            this.companionSupplied = true;
+            this.companion = companion;
+        }
 
         public String name() {
             return name;
@@ -153,10 +174,10 @@ public class DeckController {
     }
 
     public record DeckResponse(UUID id, String name, List<CommanderSummary> commanders, List<String> colorIdentity,
-            boolean everUsed, boolean archived, String manaBoxUrl) {
+            boolean everUsed, boolean archived, String manaBoxUrl, CompanionSummary companion) {
         static DeckResponse from(Deck deck) {
             return new DeckResponse(deck.getId(), deck.getName(), deck.getCommanders().stream().map(CommanderSummary::from).toList(),
-                    deck.getColorIdentity().symbols(), deck.isEverUsed(), deck.isArchived(), deck.getManaBoxUrl());
+                    deck.getColorIdentity().symbols(), deck.isEverUsed(), deck.isArchived(), deck.getManaBoxUrl(), CompanionSummary.from(deck.getCompanion()));
         }
     }
 }

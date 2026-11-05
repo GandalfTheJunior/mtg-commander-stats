@@ -102,7 +102,7 @@ class PairingCapabilitiesTest {
 
     private static GameplayCard card(String name, String type, String text) {
         return new GameplayCard(null, UUID.randomUUID().toString(), name, List.of(), false, true,
-                type, List.of(), text, null, PairingCapabilities.classify(type, List.of(), text));
+                type, List.of(), text, null, PairingCapabilities.classify(type, List.of(), text), "legal", false);
     }
 
     private static ObjectNode raw(JsonMapper json, String name, String type, String text) {
