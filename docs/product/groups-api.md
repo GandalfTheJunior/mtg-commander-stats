@@ -46,7 +46,7 @@ Email addresses and credentials are never returned.
 ### Create a group
 
 `POST /api/groups` with `{"name":"Friday Commander"}` returns `201` and a
-`GroupSummary`. The name follows the shared `DisplayText` rule. Creation stores
+`GroupSummary`. The name follows the [naming conventions](mvp-scope.md#naming-conventions), with a maximum of 30 grapheme clusters. Name validation returns a 400 ProblemDetail with one `errors` entry (`field=name`, stable name error code, and `maxLength=30` for length errors). Creation stores
 the group and the actor's active `OWNER` membership in one
 transaction.
 

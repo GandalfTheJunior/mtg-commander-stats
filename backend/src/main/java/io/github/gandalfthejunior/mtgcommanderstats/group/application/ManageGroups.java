@@ -13,6 +13,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.displaytext.DisplayText;
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.GroupMembership;
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.GroupRole;
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.PlayGroup;
+import io.github.gandalfthejunior.mtgcommanderstats.group.domain.PlaygroupName;
 import io.github.gandalfthejunior.mtgcommanderstats.group.persistence.GroupMembershipRepository;
 import io.github.gandalfthejunior.mtgcommanderstats.group.persistence.InvitationRepository;
 import io.github.gandalfthejunior.mtgcommanderstats.group.persistence.PlayGroupRepository;
@@ -44,7 +45,7 @@ public class ManageGroups {
     }
 
     public GroupSummary create(UUID actorId, String name) {
-        String canonicalName = new DisplayText(name).value();
+        String canonicalName = new PlaygroupName(name).value();
         PlayGroup group = creation.create(actorId, canonicalName);
         return new GroupSummary(group.getId(), group.getName(), GroupRole.OWNER);
     }

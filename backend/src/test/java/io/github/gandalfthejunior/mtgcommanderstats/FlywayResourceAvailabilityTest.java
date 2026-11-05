@@ -46,7 +46,7 @@ class FlywayResourceAvailabilityTest {
                             catch (IOException failure) { throw new IllegalStateException(failure); }
                         }
                     }).load();
-            assertThat(discovered.info().pending()).hasSize(15);
+            assertThat(discovered.info().pending()).hasSize(16);
             assertThatThrownBy(discovered::migrate).hasStackTraceContaining("Unable to obtain inputstream for resource");
         }
     }
@@ -70,10 +70,10 @@ class FlywayResourceAvailabilityTest {
                 URLClassLoader loader = migrationsLoader(archive)) {
             database.start();
             Flyway flyway = configure(database, loader);
-            assertThat(flyway.info().pending()).hasSize(15);
-            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(15);
+            assertThat(flyway.info().pending()).hasSize(16);
+            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(16);
             assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
-            assertThat(flyway.info().applied()).hasSize(15);
+            assertThat(flyway.info().applied()).hasSize(16);
         }
     }
 
@@ -84,7 +84,10 @@ class FlywayResourceAvailabilityTest {
     private List<Path> copyMigrations(Path classes) throws IOException {
         Path destination = Files.createDirectories(classes.resolve("db/migration"));
         try (java.util.stream.Stream<Path> files = Files.list(Path.of("src/main/resources/db/migration"))) {
-            List<Path> migrations = files.sorted().toList();
+            List<Path> migrations = new java.util.ArrayList<>(files.sorted().toList());
+            // Include the Java migration in both exploded and archive resource scans.
+            Path javaMigration = Path.of("target/classes/db/migration/V16__validate_names.class");
+            migrations.add(javaMigration);
             for (Path migration : migrations) Files.copy(migration, destination.resolve(migration.getFileName()));
             return migrations.stream().map(path -> destination.resolve(path.getFileName())).toList();
         }

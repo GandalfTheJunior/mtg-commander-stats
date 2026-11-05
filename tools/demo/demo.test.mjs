@@ -91,6 +91,24 @@ test('fixture eligibility, ownership, outcomes, lifecycle and checkable manifest
   }
 });
 
+test('demo display names conform to the server naming contract', () => {
+  const segmenter = new Intl.Segmenter('und', {granularity: 'grapheme'});
+  for (const [name, maximum] of [
+    ...users.map(user => [user.name, 20]),
+    ...users.flatMap(user => user.decks.map(deck => [deck.name, 30])),
+    ...groups.map(group => [group.name, 30]),
+  ]) {
+    assert.equal(name.normalize('NFC'), name);
+    assert.equal(name.trim(), name);
+    assert.ok(name.length > 0);
+    assert.ok([...segmenter.segment(name)].length <= maximum);
+    assert.ok([...name].length <= 4 * maximum);
+    assert.doesNotMatch(name, /[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}\p{Zl}\p{Zp}\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0E\uFE0F]/u);
+    assert.ok([...name].every(character => character === ' ' || !/\s/u.test(character)));
+    assert.ok(!name.includes('  '));
+  }
+});
+
 test('fresh demo account passwords have exactly 12 random characters; existing 32-character credentials remain valid', () => {
   const generated = Array.from({length: 32}, generateCredentials);
   assert.equal(new Set(generated.map(c => c.accountPassword)).size, generated.length);

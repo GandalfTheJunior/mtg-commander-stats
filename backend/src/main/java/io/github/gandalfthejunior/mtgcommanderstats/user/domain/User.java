@@ -2,8 +2,7 @@ package io.github.gandalfthejunior.mtgcommanderstats.user.domain;
 
 import java.util.UUID;
 
-import io.github.gandalfthejunior.mtgcommanderstats.displaytext.DisplayText;
-import io.github.gandalfthejunior.mtgcommanderstats.displaytext.InvalidDisplayTextException;
+import io.github.gandalfthejunior.mtgcommanderstats.displaytext.InvalidNameException;
 import io.github.gandalfthejunior.mtgcommanderstats.user.domain.InvalidRegistrationException.Reason;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -43,9 +42,13 @@ public class User {
 
     public static String trimUsername(String username) {
         try {
-            return new DisplayText(username).value();
-        } catch (InvalidDisplayTextException exception) {
-            throw new InvalidRegistrationException(Reason.BLANK_USERNAME);
+            return new Username(username).value();
+        } catch (InvalidNameException exception) {
+            throw new InvalidRegistrationException(switch (exception.reason()) {
+                case BLANK -> Reason.BLANK_USERNAME;
+                case INVALID_CHARACTERS -> Reason.INVALID_USERNAME;
+                case TOO_LONG -> Reason.LONG_USERNAME;
+            });
         }
     }
 

@@ -88,7 +88,7 @@ Other game DTO uses omit the link. Historical names and saved links survive
 membership loss, while former members' links are withheld from group reads.
 
 The `group` feature uses the same feature layers. `play_groups` owns the stable
-group UUID, DisplayText name, owner UUID;
+group UUID, PlaygroupName name, owner UUID;
 `group_memberships` owns the stable membership UUID, group/user pair, role, and
 active state. Database foreign keys, code uniqueness, unique group/user
 membership, and a partial unique index for the active OWNER protect persistence
@@ -174,8 +174,15 @@ conscious MVP tradeoff; no distributed locks or event infrastructure are added.
 
 Required human-readable labels use the small cross-feature `DisplayText` value
 rule. It trims only the product-defined boundary-whitespace set and preserves
-casing and internal whitespace. Username and deck name reuse this
-rule; email canonicalization and exact password handling remain separate.
+casing and internal whitespace. Field-specific `Username`, `DeckName` and
+`PlaygroupName` records apply the [naming conventions](../product/mvp-scope.md#naming-conventions)
+on top: NFC, character validation and bounded extended grapheme clusters. Java 25
+provides Unicode pictographic properties and regex `\X` segmentation; no extra
+Unicode dependency is needed. V16 is a Java Flyway migration under
+`src/main/java/db/migration`, sharing those validation rules and refusing
+noncanonical or invalid existing rows. Only generous code-point bounds are added
+as database CHECK constraints. Email canonicalization and exact password handling
+remain separate.
 
 Email canonicalization is owned by the Flyway-defined `canonical_email`
 function: trim the product-defined boundary whitespace, apply PostgreSQL 18

@@ -79,7 +79,7 @@ operations; see the [usage guide](../../README.md#local-development).
 - Authenticated users can list, create, edit, and delete their own currently unused
   decks. Ownership comes from the authenticated user's stable UUID and is enforced
   by the backend; clients do not choose an owner.
-- Deck names use the shared `DisplayText` rule and need not be unique. Commander
+- Deck names use the [naming conventions](#naming-conventions) and need not be unique. Commander
   identities, names and base colors are authoritatively resolved online through
   [Scryfall](scryfall-api.md); saved snapshots need no provider access.
 - Color identity is the backend-derived WUBRG union of the selected Commanders'
@@ -185,8 +185,8 @@ outside this MVP.
   identifier. Registration strips the defined boundary whitespace and stores a
   case-insensitive canonical value. Canonical emails are unique. Provider-specific
   transformations such as dot removal or `+tag` stripping are not applied.
-- A username is required as a display/profile name and uses the shared
-  `DisplayText` rule. Usernames are not login identifiers and are not unique.
+- A username is required as a display/profile name and follows the
+  [naming conventions](#naming-conventions). Usernames are not login identifiers and are not unique.
 - Passwords require at least 12 characters (Unicode code points). Whitespace is
   allowed and counts toward that minimum. Passwords are validated and encoded
   exactly as supplied, without trimming, case conversion, or normalization.
@@ -195,8 +195,9 @@ outside this MVP.
 
 ## Display text
 
-Required user-entered labels such as display usernames and deck names share the
-`DisplayText` rule. Commander names are authoritative Scryfall snapshots. Leading and trailing product
+The base `DisplayText` rule is shared by required human-readable labels.
+[User-entered names](#naming-conventions) add stricter rules below. Commander
+names are authoritative Scryfall snapshots. Leading and trailing product
 boundary whitespace is removed before persistence; casing and all internal
 whitespace are preserved. Null, missing, or blank-after-trimming values are
 invalid.
@@ -207,6 +208,45 @@ NBSP (U+202F), and next line (U+0085). Zero-width space (U+200B) and BOM (U+FEFF
 are not whitespace under this rule. Email keeps its separate database-owned
 canonicalization, and passwords remain validated and encoded exactly as supplied
 without applying `DisplayText` trimming.
+
+## Naming conventions
+
+Usernames, deck names and playgroup names build on `DisplayText` with additional
+server-enforced rules. Normalize to Unicode NFC, then trim the boundary whitespace
+defined above; reject empty results. Preserve case and punctuation, including
+markup-like `<` and `>` (output encoding remains responsible for XSS protection).
+Letters and combining marks of all scripts, digits, punctuation and symbols are
+allowed. Inside a name, only single U+0020 spaces are permitted.
+
+Reject Unicode control (`Cc`), format (`Cf`), private-use (`Co`), unassigned (`Cn`)
+and surrogate code points, line/paragraph separators, other internal whitespace,
+and repeated spaces. Emoji rejection covers every `Extended_Pictographic` code
+point, emoji presentation selectors U+FE0E/U+FE0F and regional indicators.
+
+After normalization, trimming and character validation, count extended grapheme
+clusters: usernames allow at most **20**, deck and playgroup names at most **30**.
+Also reject more than four times that maximum in code points (80/120) to bound
+stacked combining marks. Store the canonical value without truncation.
+`DisplayText` itself remains limit-free; Commander/Companion snapshots, emails,
+passwords and invitation tokens keep their existing rules.
+
+Registration and deck/group name validation return `400` ProblemDetail with a
+human-readable `detail` plus an `errors` array of `field` and stable `code`.
+Name errors use `NAME_BLANK`, `NAME_INVALID_CHARACTERS` or `NAME_TOO_LONG`;
+length-limit errors include `maxLength`. Registration retains `USERNAME_BLANK`
+for blank usernames and adds `INVALID_EMAIL`, `PASSWORD_BLANK` and
+`PASSWORD_TOO_SHORT` for its existing reasons. It returns all failing fields
+in email → username → password order and preserves the existing detail texts.
+Deck/group name errors contain one entry with `field=name`. Malformed JSON keeps
+its safe generic error; request parsing failures are distinct from field validation.
+Rejected requests perform no partial writes.
+
+V16 validates all existing names, including NFC and boundary trimming, using the
+same Java Unicode rules and refuses nonconforming rows without rewriting data.
+Reset nonconforming development/demo databases before retrying. PostgreSQL CHECK
+constraints enforce only the generous 80/120 code-point bounds; full grapheme
+and character validation belongs to the application. Username uniqueness and
+prohibited-content filtering remain separate follow-ups.
 
 ## Explicitly out of scope
 

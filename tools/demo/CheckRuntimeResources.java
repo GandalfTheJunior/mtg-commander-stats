@@ -30,7 +30,15 @@ class CheckRuntimeResources {
                     digest.update(bytes);
                 }
             }
-            System.out.println("runtime-resources: readable=" + packaged + " sha256=" + HexFormat.of().formatHex(digest.digest()));
+            ZipEntry javaMigration = jar.getEntry(prefix + "db/migration/V16__validate_names.class");
+            if (javaMigration == null) throw new IllegalStateException();
+            try (InputStream stream = jar.getInputStream(javaMigration)) {
+                byte[] bytes = stream.readAllBytes();
+                if (bytes.length < 4 || bytes[0] != (byte) 0xCA || bytes[1] != (byte) 0xFE
+                        || bytes[2] != (byte) 0xBA || bytes[3] != (byte) 0xBE) throw new IllegalStateException();
+                digest.update(bytes);
+            }
+            System.out.println("runtime-resources: readable=" + (packaged + 1) + " sha256=" + HexFormat.of().formatHex(digest.digest()));
         } catch (Exception failure) {
             // No paths, environment values, archive contents or exception messages.
             System.err.println("runtime-resources: verification-failed");

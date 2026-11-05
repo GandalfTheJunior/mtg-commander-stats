@@ -85,7 +85,10 @@ identities return `409`. Email and credentials are never returned. See the
 [registration rules](docs/product/mvp-scope.md#user-identity-and-registration).
 
 Registration validation errors use Spring `ProblemDetail`: the `400` detail
-identifies only failing fields, in email, username, password order. Unreadable
+identifies only failing fields, in email, username, password order. The added
+`errors` array provides stable `field`/`code` entries and `maxLength` for name
+length errors. Usernames allow 20 grapheme clusters; deck/playgroup names allow
+30 under the [shared naming conventions](docs/product/mvp-scope.md#naming-conventions). Unreadable
 JSON keeps a safe generic detail. Submitted values are never included in these
 errors. The form shows the password minimum before submission and checks its
 12-code-point length locally; the server remains authoritative for all rules.
