@@ -10,6 +10,10 @@ import org.flywaydb.core.api.migration.BaseJavaMigration;
 import org.flywaydb.core.api.migration.Context;
 
 public class V16__validate_names extends BaseJavaMigration {
+    // This unreleased migration intentionally shares the approved go-live rules.
+    // Before changing NameRules after V16 ships, freeze its current validator here
+    // and introduce a new migration: pending V16 upgrades must keep their original
+    // semantics. Java migrations do not receive an automatic source checksum.
     @Override
     public void migrate(Context context) throws Exception {
         validate(context, "users", "username", 20);

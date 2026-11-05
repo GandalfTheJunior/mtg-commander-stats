@@ -12,8 +12,7 @@ public class InvalidNameException extends IllegalArgumentException {
         super(switch (reason) {
             case BLANK -> "Name must not be blank.";
             case INVALID_CHARACTERS -> "Name contains unsupported characters or repeated spaces.";
-            case TOO_LONG -> "Name must be at most " + maxLength + " characters and "
-                    + (4 * maxLength) + " code points long.";
+            case TOO_LONG -> "Name must be at most " + maxLength + " characters long.";
         });
         this.reason = reason;
         this.maxLength = maxLength;

@@ -24,8 +24,7 @@ public class RegistrationErrors {
             case INVALID_EMAIL -> "Provide a valid email address.";
             case BLANK_USERNAME -> "Username must not be blank.";
             case INVALID_USERNAME -> "Username contains unsupported characters or repeated spaces.";
-            case LONG_USERNAME -> "Username must be at most " + Username.MAX_LENGTH + " characters and "
-                    + (4 * Username.MAX_LENGTH) + " code points long.";
+            case LONG_USERNAME -> "Username must be at most " + Username.MAX_LENGTH + " characters long.";
             case BLANK_PASSWORD -> "Password must not be blank or consist only of whitespace.";
             case SHORT_PASSWORD -> "Password must be at least 12 characters long.";
         }).collect(Collectors.joining(" "));

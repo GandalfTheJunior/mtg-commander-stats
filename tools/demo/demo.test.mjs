@@ -103,6 +103,7 @@ test('demo display names conform to the server naming contract', () => {
     assert.ok(name.length > 0);
     assert.ok([...segmenter.segment(name)].length <= maximum);
     assert.ok([...name].length <= 4 * maximum);
+    assert.match(name, /^[\p{L}\p{M}0-9\p{P}\p{Sc}+=<> ]+$/u);
     assert.doesNotMatch(name, /[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}\p{Zl}\p{Zp}\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0E\uFE0F]/u);
     assert.ok([...name].every(character => character === ' ' || !/\s/u.test(character)));
     assert.ok(!name.includes('  '));

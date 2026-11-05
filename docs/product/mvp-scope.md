@@ -215,13 +215,23 @@ Usernames, deck names and playgroup names build on `DisplayText` with additional
 server-enforced rules. Normalize to Unicode NFC, then trim the boundary whitespace
 defined above; reject empty results. Preserve case and punctuation, including
 markup-like `<` and `>` (output encoding remains responsible for XSS protection).
-Letters and combining marks of all scripts, digits, punctuation and symbols are
-allowed. Inside a name, only single U+0020 spaces are permitted.
+Characters use the PO-approved allowlist from #203:
 
-Reject Unicode control (`Cc`), format (`Cf`), private-use (`Co`), unassigned (`Cn`)
-and surrogate code points, line/paragraph separators, other internal whitespace,
-and repeated spaces. Emoji rejection covers every `Extended_Pictographic` code
-point, emoji presentation selectors U+FE0E/U+FE0F and regional indicators.
+- Letters (`L*`) and combining marks (`M*`) of all scripts.
+- ASCII digits `0`–`9`.
+- Punctuation (`P*`), including apostrophes, en/em dashes and typographic quotes.
+- Currency symbols (`Sc`), such as `$` and `€`.
+- Exactly the math characters `+ = < >`.
+- Single U+0020 spaces between words.
+
+Everything outside that allowlist is rejected. This includes other symbols
+(`So`: `© ® ™ ♥ ♠ ★ ✓`), modifier symbols (`Sk`: circumflex and backtick),
+other math symbols (`Sm`: `→ | ~ × ÷`), non-ASCII digits, letter numbers (`Nl`)
+and other numbers (`No`: `² ½ Ⅻ ①`). Controls, format/private-use/unassigned
+and surrogate code points, line/paragraph separators, other internal whitespace
+and repeated spaces remain invalid. The existing emoji ban also remains in
+force: reject `Extended_Pictographic` code points, emoji presentation selectors
+U+FE0E/U+FE0F and regional indicators, even if their category is allowlisted.
 
 After normalization, trimming and character validation, count extended grapheme
 clusters: usernames allow at most **20**, deck and playgroup names at most **30**.

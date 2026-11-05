@@ -10,8 +10,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidCompa
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidManaBoxUrlException;
 import io.github.gandalfthejunior.mtgcommanderstats.displaytext.InvalidDisplayTextException;
 import io.github.gandalfthejunior.mtgcommanderstats.displaytext.InvalidNameException;
-import java.util.List;
-import java.util.Map;
+import io.github.gandalfthejunior.mtgcommanderstats.displaytext.api.NameProblems;
 import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -25,16 +24,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 public class DeckErrors {
     @ExceptionHandler(InvalidNameException.class)
     public ProblemDetail invalidName(InvalidNameException exception) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
-        String code = switch (exception.reason()) {
-            case BLANK -> "NAME_BLANK";
-            case INVALID_CHARACTERS -> "NAME_INVALID_CHARACTERS";
-            case TOO_LONG -> "NAME_TOO_LONG";
-        };
-        problem.setProperty("errors", List.of(exception.reason() == InvalidNameException.Reason.TOO_LONG
-                ? Map.of("field", "name", "code", code, "maxLength", exception.maxLength())
-                : Map.of("field", "name", "code", code)));
-        return problem;
+        return NameProblems.invalidName(exception);
     }
 
     @ExceptionHandler(InvalidDeckFormatException.class)

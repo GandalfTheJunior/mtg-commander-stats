@@ -51,13 +51,34 @@ class NameRulesTest {
 
     @ParameterizedTest
     @MethodSource("fields")
-    void allowsLettersMarksDigitsPunctuationSymbolsAndMarkup(Field field) {
+    void allowsLettersMarksAsciiDigitsPunctuationCurrencyAndExplicitMath(Field field) {
         for (String value : new String[] {"Ärger Straße 123", "東京 デッキ", "العربية", "किरण",
-                "Krark & Sakashima", "<Name> / !?:.'-()", "Café", "a\u034F", "$ + = ①"}) {
+                "Krark & Sakashima", "<Name> / !?:.'-()", "Café", "a\u034F", "$ € + = 09"}) {
             assertThat(field.normalize().apply(value)).isEqualTo(value);
         }
         assertThat(new DeckName("Atraxa, Praetors' Voice").value()).isEqualTo("Atraxa, Praetors' Voice");
         assertThat(new PlaygroupName("Atraxa, Praetors' Voice").value()).isEqualTo("Atraxa, Praetors' Voice");
+    }
+
+    @ParameterizedTest
+    @MethodSource("fields")
+    void acceptsAllowlistedCategoryBoundaries(Field field) {
+        for (String character : new String[] {"A", "a", "ǅ", "ʰ", "界", "𐐀",
+                "\u0301", "\u093E", "\u20DD", "0", "9", "_", "-", "–", "—", "(", ")",
+                "‘", "’", "“", "”", "'", "\"", "&", "/", "!", "?", ":", ".", ",", "#", "@", "%",
+                "$", "€", "£", "¥", "+", "=", "<", ">"}) {
+            String value = "q" + character + "q";
+            assertThat(field.normalize().apply(value)).as("allowed character %s", character).isEqualTo(value);
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("fields")
+    void rejectsSymbolsAndNumbersOutsideTheAllowlist(Field field) {
+        for (String character : new String[] {"©", "®", "™", "♥", "♠", "★", "✓", "→", "^", "`",
+                "|", "~", "×", "÷", "−", "∞", "٠", "١", "०", "１", "²", "½", "Ⅻ", "①"}) {
+            assertFailure(field, "q" + character + "q", Reason.INVALID_CHARACTERS);
+        }
     }
 
     @ParameterizedTest
@@ -74,7 +95,7 @@ class NameRulesTest {
         int[] forbidden = {0, 1, 0x7F, 0x85, 0x9, 0xA, 0xD, 0x1C, 0xA0, 0x1680, 0x2003,
                 0x2007, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0x200B, 0x200C, 0x200D, 0xFEFF,
                 0x061C, 0x202A, 0x202E, 0x2066, 0x2069, 0xE000, 0xF0000, 0x0378, 0xD800, 0xDFFF,
-                0x1F600, 0x2764, 0x00A9, 0xFE0E, 0xFE0F, 0x1F1E6, 0x1F1FF, 0x1FAE8};
+                0x1F600, 0x2764, 0x00A9, 0x203C, 0x2049, 0xFE0E, 0xFE0F, 0x1F1E6, 0x1F1FF, 0x1FAE8};
         for (int codePoint : forbidden) {
             assertFailure(field, "a" + new String(Character.toChars(codePoint)) + "b", Reason.INVALID_CHARACTERS);
         }

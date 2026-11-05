@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -42,7 +43,43 @@ class NamingApiTest extends GameTestSupport {
                 Arguments.of("😀", "NAME_INVALID_CHARACTERS"),
                 Arguments.of("❤", "NAME_INVALID_CHARACTERS"),
                 Arguments.of("a\uFE0Fb", "NAME_INVALID_CHARACTERS"),
-                Arguments.of("🇩🇪", "NAME_INVALID_CHARACTERS"));
+                Arguments.of("🇩🇪", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("©", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("®", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("™", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("♥", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("♠", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("★", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("✓", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("→", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("^", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("`", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("|", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("~", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("×", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("÷", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("١", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("１", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("²", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("½", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("Ⅻ", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("①", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("‼", "NAME_INVALID_CHARACTERS"),
+                Arguments.of("⁉", "NAME_INVALID_CHARACTERS"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Letters Äß 東京", "Numbers 0123456789", "Punctuation ‘–—’_#@%", "Currency $€£¥", "Math + = < >"})
+    void allowlistedCharactersSurviveEveryWrite(String name) throws Exception {
+        Actor owner = register("owner", name);
+        assertThat(users.findById(owner.id()).orElseThrow().getUsername()).isEqualTo(name);
+        JsonNode deck = expect(owner, "POST", "/api/decks", deckBody(name, "Karn", List.of()), 201);
+        assertThat(deck.get("name").asText()).isEqualTo(name);
+        JsonNode renamed = expect(owner, "PUT", "/api/decks/" + id(deck),
+                json.writeValueAsString(Map.of("name", name + "!")), 200);
+        assertThat(renamed.get("name").asText()).isEqualTo(name + "!");
+        JsonNode group = expect(owner, "POST", "/api/groups", json.writeValueAsString(Map.of("name", name)), 201);
+        assertThat(group.get("name").asText()).isEqualTo(name);
     }
 
     @ParameterizedTest
@@ -191,6 +228,11 @@ class NamingApiTest extends GameTestSupport {
 
     private void assertError(JsonNode problem, String field, String code, Integer maximum) {
         assertThat(problem.get("detail").asText()).isNotBlank();
+        if (maximum != null) {
+            assertThat(problem.get("detail").asText()).isEqualTo(
+                    (field.equals("username") ? "Username" : "Name")
+                            + " must be at most " + maximum + " characters long.");
+        }
         Map<String, Object> entry = new java.util.LinkedHashMap<>();
         entry.put("field", field);
         entry.put("code", code);

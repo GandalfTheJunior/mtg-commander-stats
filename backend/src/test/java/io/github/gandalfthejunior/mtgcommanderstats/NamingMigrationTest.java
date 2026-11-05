@@ -37,7 +37,9 @@ class NamingMigrationTest {
             seed(schema, "Player", "Deck", "Group");
             for (String name : List.of("x".repeat(maximum + 1), "q" + "\u0307".repeat(4 * maximum),
                     "bad  name", "😀", "a\tb", "a\u00A0b", "a\u2028b", "a\u200Bb",
-                    "a\u202Eb", "a\uE000b", "a\u0378b", "a\uFE0Fb", "🇩🇪", "a\u0308", " Player ")) {
+                    "a\u202Eb", "a\uE000b", "a\u0378b", "a\uFE0Fb", "🇩🇪", "a\u0308", " Player ",
+                    "©", "®", "™", "♥", "♠", "★", "✓", "→", "^", "`", "|", "~", "×", "÷",
+                    "١", "１", "²", "½", "Ⅻ", "①", "‼", "⁉")) {
                 jdbc.update("UPDATE " + schema + "." + table + " SET " + column + " = ?", name);
                 List<Map<String, Object>> before = snapshot(jdbc, schema);
                 assertThatThrownBy(() -> migrate(schema, "16"))
@@ -67,6 +69,21 @@ class NamingMigrationTest {
                 assertThatThrownBy(() -> jdbc.update("UPDATE " + schema + "." + field[0] + " SET " + field[1] + " = ?",
                         "x".repeat(bound + 1))).isInstanceOf(DataIntegrityViolationException.class);
             }
+        } finally {
+            jdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+        }
+    }
+
+    @Test
+    void acceptsAllowlistedPunctuationCurrencyAndMathWithoutRewriting() throws Exception {
+        String schema = "names_allowlisted";
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        try {
+            migrate(schema, "15");
+            seed(schema, "Äß 東京 09", "Quotes ‘–—’_#@%", "$€£¥ + = < >");
+            List<Map<String, Object>> before = snapshot(jdbc, schema);
+            assertThat(migrate(schema, "16")).isEqualTo(1);
+            assertThat(snapshot(jdbc, schema)).isEqualTo(before);
         } finally {
             jdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
         }

@@ -177,7 +177,7 @@ rule. It trims only the product-defined boundary-whitespace set and preserves
 casing and internal whitespace. Field-specific `Username`, `DeckName` and
 `PlaygroupName` records apply the [naming conventions](../product/mvp-scope.md#naming-conventions)
 on top: NFC, character validation and bounded extended grapheme clusters. Java 25
-provides Unicode pictographic properties and regex `\X` segmentation; no extra
+provides Unicode categories, pictographic properties and regex `\X` segmentation; no extra
 Unicode dependency is needed. V16 is a Java Flyway migration under
 `src/main/java/db/migration`, sharing those validation rules and refusing
 noncanonical or invalid existing rows. Only generous code-point bounds are added

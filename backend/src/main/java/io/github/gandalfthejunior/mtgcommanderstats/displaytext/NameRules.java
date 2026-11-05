@@ -41,10 +41,19 @@ public final class NameRules {
                 || (codePoint >= 0x1F1E6 && codePoint <= 0x1F1FF)) {
             return true;
         }
+        if (codePoint == ' ' || (codePoint >= '0' && codePoint <= '9')
+                || codePoint == '+' || codePoint == '=' || codePoint == '<' || codePoint == '>') {
+            return false;
+        }
         return switch (Character.getType(codePoint)) {
-            case Character.CONTROL, Character.FORMAT, Character.PRIVATE_USE, Character.UNASSIGNED,
-                    Character.SURROGATE, Character.LINE_SEPARATOR, Character.PARAGRAPH_SEPARATOR -> true;
-            default -> false;
+            case Character.UPPERCASE_LETTER, Character.LOWERCASE_LETTER, Character.TITLECASE_LETTER,
+                    Character.MODIFIER_LETTER, Character.OTHER_LETTER,
+                    Character.NON_SPACING_MARK, Character.COMBINING_SPACING_MARK, Character.ENCLOSING_MARK,
+                    Character.CONNECTOR_PUNCTUATION, Character.DASH_PUNCTUATION, Character.START_PUNCTUATION,
+                    Character.END_PUNCTUATION, Character.INITIAL_QUOTE_PUNCTUATION,
+                    Character.FINAL_QUOTE_PUNCTUATION, Character.OTHER_PUNCTUATION,
+                    Character.CURRENCY_SYMBOL -> false;
+            default -> true;
         };
     }
 }
