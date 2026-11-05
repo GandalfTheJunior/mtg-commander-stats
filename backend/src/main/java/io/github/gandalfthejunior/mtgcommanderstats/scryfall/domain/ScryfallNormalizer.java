@@ -10,12 +10,14 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckFormat;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 
 @Component
 public class ScryfallNormalizer {
     private static final List<String> COLORS = List.of("W", "U", "B", "R", "G");
+    private static final Pattern PDH_COMMANDER_TYPE = Pattern.compile("\\b(Creature|Vehicle|Spacecraft)\\b");
     private static final Pattern COMMANDER_PERMISSION = Pattern.compile(
             "(?i)(?:^|[.\\n])[^.\\n]*\\bcan be your commander[.]?(?:$|\\n)");
     private static final Pattern OFF_BATTLEFIELD_CREATURE = Pattern.compile(
@@ -28,6 +30,11 @@ public class ScryfallNormalizer {
 
     /** Supplemental metadata is keyed by authoritative face Oracle UUID, never by face position. */
     public CardDetails normalize(JsonNode card, Map<String, JsonNode> oracleCards) {
+        return normalize(card, oracleCards, DeckFormat.COMMANDER);
+    }
+
+    /** Format controls candidate shape; PDH authorization additionally requires an authoritative eligibility query. */
+    public CardDetails normalize(JsonNode card, Map<String, JsonNode> oracleCards, DeckFormat format) {
         requireObject(card);
         UUID id = printingId(card);
         String name = requiredText(card, "name");
@@ -67,11 +74,11 @@ public class ScryfallNormalizer {
                 }
                 String faceLegality = rules.path("legalities").isObject()
                         ? requiredText(rules.path("legalities"), "commander") : legality;
-                addGameplay(card, rules, index, faceOracleId, faceLegality, images, gameplayCards, choices, seen);
+                addGameplay(card, rules, index, faceOracleId, faceLegality, images, gameplayCards, choices, seen, format);
             }
         } else {
             addGameplay(card, card, null, optionalUuid(card, "oracle_id"), legality,
-                    images, gameplayCards, choices, seen);
+                    images, gameplayCards, choices, seen, format);
         }
 
         return new CardDetails(id, name, optionalUuid(card, "oracle_id"), layout, legality, colors,
@@ -81,8 +88,12 @@ public class ScryfallNormalizer {
     }
 
     public GameplayCard resolve(CardDetails card, CommanderSelectionRef reference) {
+        return resolve(card, reference, DeckFormat.COMMANDER);
+    }
+
+    public GameplayCard resolve(CardDetails card, CommanderSelectionRef reference, DeckFormat format) {
         GameplayCard gameplay = resolveIdentity(card, reference);
-        if (!"legal".equals(gameplay.commanderLegality()) || (!gameplay.canBeSoleCommander()
+        if ((format == DeckFormat.COMMANDER && !"legal".equals(gameplay.commanderLegality())) || (!gameplay.canBeSoleCommander()
                 && !gameplay.pairing().roles().contains(PairingCapabilities.BACKGROUND)
                 && !gameplay.pairing().roles().contains(PairingCapabilities.COMPANION))) {
             throw new InvalidScryfallSelectionException();
@@ -145,14 +156,17 @@ public class ScryfallNormalizer {
 
     private void addGameplay(JsonNode card, JsonNode rules, Integer index, String oracleId,
             String legality, List<Artwork> images, List<GameplayCard> gameplayCards,
-            List<CommanderChoice> choices, Map<String, Boolean> seen) {
+            List<CommanderChoice> choices, Map<String, Boolean> seen, DeckFormat format) {
         String name = requiredText(rules, "name");
         String typeLine = combinedText(rules, "type_line");
         String oracleText = combinedText(rules, "oracle_text");
         if (typeLine.isBlank()) {
             throw new MalformedScryfallResponseException();
         }
-        boolean sole = canBeSoleCommander(typeLine, oracleText);
+        String gameplayType = typeLine.split(" // ", 2)[0];
+        boolean sole = format == DeckFormat.PAUPER_COMMANDER
+                ? PDH_COMMANDER_TYPE.matcher(gameplayType).find()
+                : canBeSoleCommander(typeLine, oracleText);
         String frontType = typeLine.split(" // ", 2)[0];
         boolean background = frontType.contains("Legendary") && frontType.contains("Background");
         boolean companion = oracleText.contains("Doctor's companion");
@@ -171,7 +185,7 @@ public class ScryfallNormalizer {
                         front == rules ? oracleText : combinedText(front, "oracle_text")));
         // Keep every valid original face resolvable, even when two faces have the same Oracle identity.
         gameplayCards.add(gameplay);
-        if (!"legal".equals(legality) || (!sole && !background && !companion)
+        if ((format == DeckFormat.COMMANDER && !"legal".equals(legality)) || (!sole && !background && !companion)
                 || oracleId == null || seen.putIfAbsent(oracleId, Boolean.TRUE) != null) {
             return;
         }

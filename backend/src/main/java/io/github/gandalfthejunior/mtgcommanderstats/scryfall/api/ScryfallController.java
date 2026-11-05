@@ -3,6 +3,7 @@ package io.github.gandalfthejunior.mtgcommanderstats.scryfall.api;
 import java.util.List;
 import java.util.UUID;
 
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckFormat;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.application.InvalidScryfallRequestException;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.application.ScryfallLookup;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.Artwork;
@@ -26,14 +27,21 @@ public class ScryfallController {
     @GetMapping("/api/scryfall/commanders")
     public List<CommanderChoice> commanders(@RequestParam(required = false) String q,
             @RequestParam(required = false) String partnerOf,
-            @RequestParam(required = false) Integer partnerGameplayFaceIndex) {
+            @RequestParam(required = false) Integer partnerGameplayFaceIndex,
+            @RequestParam(required = false) String format) {
+        DeckFormat selectedFormat;
+        try {
+            selectedFormat = format == null ? DeckFormat.COMMANDER : DeckFormat.valueOf(format);
+        } catch (IllegalArgumentException exception) {
+            throw new InvalidScryfallRequestException();
+        }
         if (partnerOf != null) {
-            return scryfall.searchPartners(q, new CommanderSelectionRef(printingId(partnerOf), partnerGameplayFaceIndex));
+            return scryfall.searchPartners(q, new CommanderSelectionRef(printingId(partnerOf), partnerGameplayFaceIndex), selectedFormat);
         }
         if (partnerGameplayFaceIndex != null) {
             throw new InvalidScryfallRequestException();
         }
-        return scryfall.searchCommanders(q);
+        return scryfall.searchCommanders(q, selectedFormat);
     }
 
     @GetMapping("/api/scryfall/companions")

@@ -57,10 +57,60 @@ client-supplied `colorIdentity` write contract is deliberately removed. Unknown
 write fields, including ownership, lifecycle flags, identities and raw artwork
 URLs, are rejected; clients cannot assign authoritative card metadata.
 
+## Deck formats and Pauper Commander
+
+`format` is the persisted enum `COMMANDER` or `PAUPER_COMMANDER`. POST omission
+and all pre-V15 decks default to `COMMANDER`. PUT omission preserves the saved
+format; an explicitly unchanged format is idempotent. Explicit null, unknown,
+non-string and incorrectly cased values return `400`. V15 adds a nonnull,
+checked column without rewriting existing snapshots, users or history.
+
+On creation, replacement of Commanders, and every actual format change, the
+backend freshly validates the selected printing and full ordered configuration
+against the destination format. A format-only PUT revalidates saved references,
+including any gameplay-face selectors. An invalid Commander/pair blocks the
+entire write; no card is cleared or replaced implicitly. A format change is
+permitted only before the first committed game use. The same pessimistic deck
+row lock serializes format changes, other owner writes and first use. Committed
+use permanently locks format even after editing/deleting games; failed or
+rolled-back games do not lock it. A used-deck format change returns `409` before
+requesting provider validation.
+
+```json
+{"name":"Pauper Deck","format":"PAUPER_COMMANDER","commanders":[{"selectionRef":{"scryfallCardId":"<printing UUID>"}}]}
+```
+
+PDH allows eligible uncommon creatures, Vehicles and Spacecraft without a
+legendary requirement. Uncommon Backgrounds require genuine compatible pairing;
+each member of any pair must independently be eligible. Nonlegendary status
+alone grants no pairing permission. The server uses Scryfall's
+`is:PauperCommander` semantics for stable Oracle identities, rather than the
+chosen illustration's rarity or ordinary main-deck legality. It delegates
+qualifying paper/MTGO rarity history, excluded Arena/promo/Secret Lair/local
+release shifts and provider-supported bans to that authoritative mechanism.
+A non-Uncommon illustration of an eligible identity is valid. See
+[PDH lookup](scryfall-api.md#pauper-commander-search-and-validation).
+
+A PDH deck cannot carry a genuine MTG Companion. Switching an unused deck with a
+saved Companion requires explicit removal, optionally in the same PUT with
+`"companion":null`. Implicit removal and adding a Companion to PDH are rejected
+with `400` and `INVALID_DECK_FORMAT`. Doctor's companion pairing remains distinct.
+
+Reads and unchanged-format/name/link updates use saved snapshots offline.
+Artwork-only routes preserve format and all gameplay fields and do not recheck
+current eligibility. Required online validation returns `503` with
+`SCRYFALL_UNAVAILABLE` on provider failure. Future bans do not rewrite existing
+decks, lock them out of safe edits, or invalidate historical assignments.
+
+The service has no full decklists: it does not certify Commons in the other
+99/98 cards, singleton rules, or complete PDH deck legality. Mixed Commander/PDH
+games are unrestricted. No game-format write field, matching restriction,
+format-specific result calculation or PDH statistics filter is introduced.
+
 ## Saved snapshots and updates
 
 Every owner-authorized deck response contains `id`, `name`, `commanders`, `colorIdentity`,
-`everUsed`, `archived`, nullable `manaBoxUrl` and nullable `companion`. Each ordered `commanders` item contains:
+`format`, `everUsed`, `archived`, nullable `manaBoxUrl` and nullable `companion`. Each ordered `commanders` item contains:
 
 | Fields | Meaning |
 | --- | --- |

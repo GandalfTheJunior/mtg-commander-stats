@@ -5,6 +5,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.deck.application.DeckNotFoun
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckLifecycleConflictException;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidColorIdentityException;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidCommanderException;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidDeckFormatException;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidCompanionSelectionException;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidManaBoxUrlException;
 import io.github.gandalfthejunior.mtgcommanderstats.displaytext.InvalidDisplayTextException;
@@ -19,6 +20,13 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice(assignableTypes = DeckController.class)
 public class DeckErrors {
+    @ExceptionHandler(InvalidDeckFormatException.class)
+    public ProblemDetail invalidFormat(InvalidDeckFormatException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+        problem.setProperty("code", "INVALID_DECK_FORMAT");
+        return problem;
+    }
+
     @ExceptionHandler(InvalidCompanionSelectionException.class)
     public ProblemDetail invalidCompanion(InvalidCompanionSelectionException exception) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
@@ -38,14 +46,14 @@ public class DeckErrors {
     public ProblemDetail invalidInput() {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
                 "Provide a valid deck UUID, nonblank name and one standalone Commander or a legal pair of distinct Commanders with each required color."
-                        + " Printing/artwork changes require the artwork endpoint with a printing UUID and an available image side; archive requests must be empty.");
+                        + " Format must be COMMANDER or PAUPER_COMMANDER, never null. Printing/artwork changes require the artwork endpoint with a printing UUID and an available image side; archive requests must be empty.");
     }
 
     @ExceptionHandler({DeckLifecycleConflictException.class, DataIntegrityViolationException.class,
             ConcurrencyFailureException.class})
     public ProblemDetail conflict() {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
-                "Used decks retain their Commander, Companion and color identity and must be archived instead of deleted."
+                "Used decks retain their format, Commander, Companion and color identity and must be archived instead of deleted."
                         + " A concurrent state conflict may require retrying the request.");
     }
 

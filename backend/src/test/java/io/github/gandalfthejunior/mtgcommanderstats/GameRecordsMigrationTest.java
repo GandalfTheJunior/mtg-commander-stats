@@ -2,6 +2,7 @@ package io.github.gandalfthejunior.mtgcommanderstats;
 
 import java.sql.Connection;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import javax.sql.DataSource;
@@ -90,6 +91,65 @@ class GameRecordsMigrationTest {
             jdbc.update("UPDATE " + schema + ".group_memberships SET role = 'ADMIN' WHERE user_id = ?", member);
             assertThatThrownBy(() -> jdbc.update("UPDATE " + schema + ".group_memberships SET role = 'ADMIN' WHERE user_id = ?", owner))
                     .hasStackTraceContaining("must have its designated active owner membership");
+        } finally {
+            jdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+        }
+    }
+
+    @Test
+    void deckFormatUpgradeDefaultsExistingRowsAndPreservesAllSnapshotsAndHistory() throws Exception {
+        String schema = "format_upgrade";
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        try {
+            Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).target("14").load().migrate();
+            try (Connection connection = dataSource.getConnection()) {
+                connection.setAutoCommit(false);
+                connection.setSchema(schema);
+                JdbcTemplate seed = new JdbcTemplate(new SingleConnectionDataSource(connection, true));
+                UUID owner = UUID.randomUUID();
+                UUID member = UUID.randomUUID();
+                UUID group = UUID.randomUUID();
+                UUID game = UUID.randomUUID();
+                UUID first = UUID.randomUUID();
+                UUID second = UUID.randomUUID();
+                for (UUID user : List.of(owner, member)) {
+                    seed.update("INSERT INTO users (id, username, encoded_password, email) VALUES (?, 'Player', 'hash', ?)", user, user + "@example.com");
+                }
+                seed.update("INSERT INTO play_groups (id, name, owner_id) VALUES (?, 'Pod', ?)", group, owner);
+                seed.update("INSERT INTO group_memberships (id, group_id, user_id, role, active) VALUES (?, ?, ?, 'OWNER', true)", UUID.randomUUID(), group, owner);
+                int seat = 0;
+                for (UUID deck : List.of(first, second)) {
+                    UUID user = deck.equals(first) ? owner : member;
+                    seed.update("INSERT INTO decks (id, owner_id, name, color_identity, ever_used, archived, mana_box_url) VALUES (?, ?, 'Deck', 'R', true, ?, 'https://manabox.app/decks/Example')", deck, user, deck.equals(second));
+                    seed.update("INSERT INTO deck_commanders (deck_id, position, oracle_id, name, base_color_identity, requires_chosen_color, can_be_sole_commander, scryfall_card_id) VALUES (?, 1, ?, 'Commander', 'R', false, true, ?)", deck, UUID.randomUUID(), UUID.randomUUID());
+                    seed.update("INSERT INTO deck_companions (deck_id, oracle_id, name, base_color_identity, scryfall_card_id) VALUES (?, ?, 'Companion', 'R', ?)", deck, UUID.randomUUID(), UUID.randomUUID());
+                    if (seat == 0) {
+                        seed.update("INSERT INTO games (id, group_id, creator_id, recorded_at, result, alternate_win_con, played_on) VALUES (?, ?, ?, CURRENT_TIMESTAMP, 'DRAW', false, CURRENT_DATE)", game, group, owner);
+                    }
+                    seed.update("INSERT INTO game_participants (game_id, user_id, deck_id, start_position, still_in_game) VALUES (?, ?, ?, ?, true)", game, user, deck, ++seat);
+                }
+                connection.commit();
+            }
+            List<String> tables = List.of("users", "decks", "deck_commanders", "deck_companions", "games", "game_participants", "play_groups", "group_memberships");
+            Map<String, List<Map<String, Object>>> before = new LinkedHashMap<>();
+            for (String table : tables) {
+                before.put(table, jdbc.queryForList("SELECT * FROM " + schema + "." + table));
+            }
+            assertThat(Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).target("15").load()
+                    .migrate().migrationsExecuted).isEqualTo(1);
+            for (String table : tables) {
+                List<Map<String, Object>> after = jdbc.queryForList("SELECT * FROM " + schema + "." + table);
+                if (table.equals("decks")) {
+                    assertThat(after).allSatisfy(row -> assertThat(row.remove("format")).isEqualTo("COMMANDER"));
+                }
+                assertThat(after).containsExactlyInAnyOrderElementsOf(before.get(table));
+            }
+            for (String invalid : List.of("UNKNOWN", "commander", "")) {
+                assertThatThrownBy(() -> jdbc.update("UPDATE " + schema + ".decks SET format = ?", invalid)).hasStackTraceContaining("decks_format_check");
+            }
+            assertThatThrownBy(() -> jdbc.update("UPDATE " + schema + ".decks SET format = NULL")).hasStackTraceContaining("not-null");
+            jdbc.update("UPDATE " + schema + ".decks SET format = 'PAUPER_COMMANDER'");
+            assertThat(jdbc.queryForList("SELECT format FROM " + schema + ".decks", String.class)).containsOnly("PAUPER_COMMANDER");
         } finally {
             jdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
         }

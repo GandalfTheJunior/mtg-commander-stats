@@ -59,7 +59,10 @@ class CommanderTestProvider extends ScryfallClient {
         if (offline) {
             throw new ScryfallClientException(ScryfallClientException.Kind.UNAVAILABLE);
         }
+        calls.incrementAndGet();
         return JSON.valueToTree(Map.of("object", "list", "has_more", false, "data", CARDS.values().stream()
+                .filter(card -> !query.contains("is:PauperCommander") || card.path("testPdhEligible").asBoolean())
+                .filter(card -> !query.startsWith("oracleid:") || query.substring("oracleid:".length()).split(" ")[0].equals(card.path("oracle_id").asText()))
                 .filter(card -> !"reversible_card".equals(card.path("layout").asText())).toList()));
     }
 

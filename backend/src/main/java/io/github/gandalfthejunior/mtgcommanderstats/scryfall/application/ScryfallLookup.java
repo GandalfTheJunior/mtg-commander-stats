@@ -11,6 +11,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckFormat;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.Artwork;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CardDetails;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderChoice;
@@ -58,16 +59,22 @@ public class ScryfallLookup {
     }
 
     public List<CommanderChoice> searchCommanders(String input) {
+        return searchCommanders(input, DeckFormat.COMMANDER);
+    }
+
+    public List<CommanderChoice> searchCommanders(String input, DeckFormat format) {
         String name = normalizeQuery(input);
-        String key = name.toLowerCase(Locale.ROOT);
+        String literalName = name.toLowerCase(Locale.ROOT);
+        String key = format + ":" + literalName;
         List<CommanderChoice> cached = searches.get(key);
         if (cached != null) {
             return cached;
         }
-        String query = "name:/" + literalRegex(name) + "/ lang:en game:paper f:commander"
-                + " (is:commander or t:background or kw:\"Doctor's companion\")";
+        String query = "name:/" + literalRegex(name) + "/ " + formatFilter(format)
+                + (format == DeckFormat.COMMANDER ? " (is:commander or t:background or kw:\"Doctor's companion\")" : "");
         List<JsonNode> rawCards = collectSearch(query, false, MAX_SEARCH_CARDS);
         Map<String, JsonNode> metadata = reversibleMetadata(rawCards);
+        Set<String> eligibleFaces = format == DeckFormat.PAUPER_COMMANDER ? pauperReversibleIdentities(rawCards) : Set.of();
         Map<String, CommanderChoice> distinct = new LinkedHashMap<>();
         for (JsonNode raw : rawCards) {
             if (!raw.path("lang").isTextual()) {
@@ -76,12 +83,16 @@ public class ScryfallLookup {
             if (!"en".equals(raw.path("lang").asText())) {
                 continue;
             }
-            CardDetails card = normalizer.normalize(raw, metadata);
+            CardDetails card = normalizer.normalize(raw, metadata, format);
             for (CommanderChoice choice : card.commanderSelections()) {
-                if (!choice.name().toLowerCase(Locale.ROOT).contains(key)) {
+                if (!choice.name().toLowerCase(Locale.ROOT).contains(literalName)) {
                     continue;
                 }
-                GameplayCard gameplay = normalizer.resolve(card, choice.selectionRef());
+                GameplayCard gameplay = normalizer.resolve(card, choice.selectionRef(), format);
+                if (format == DeckFormat.PAUPER_COMMANDER && "reversible_card".equals(card.layout())
+                        && !eligibleFaces.contains(gameplay.oracleId())) {
+                    continue;
+                }
                 distinct.putIfAbsent(gameplay.oracleId(), choice);
                 if (distinct.size() == MAX_SUGGESTIONS) {
                     List<CommanderChoice> result = List.copyOf(distinct.values());
@@ -146,11 +157,17 @@ public class ScryfallLookup {
 
     /** Context is an entire gameplay reference. Filtering and identity deduplication precede the cap. */
     public List<CommanderChoice> searchPartners(String input, CommanderSelectionRef partnerOf) {
+        return searchPartners(input, partnerOf, DeckFormat.COMMANDER);
+    }
+
+    public List<CommanderChoice> searchPartners(String input, CommanderSelectionRef partnerOf, DeckFormat format) {
         validateReference(partnerOf);
-        GameplayCard first = normalizer.resolve(ordinaryCard(partnerOf.scryfallCardId()).details(), partnerOf);
+        GameplayCard first = format == DeckFormat.COMMANDER
+                ? normalizer.resolve(ordinaryCard(partnerOf.scryfallCardId()).details(), partnerOf)
+                : resolveCommanderOnline(partnerOf, format).gameplay();
         boolean immediate = input == null || input.isEmpty();
         String name = immediate ? "" : normalizeQuery(input);
-        String key = partnerOf + ":" + name.toLowerCase(Locale.ROOT);
+        String key = format + ":" + partnerOf + ":" + name.toLowerCase(Locale.ROOT);
         List<CommanderChoice> cached = partnerSearches.get(key);
         if (cached != null) {
             return cached;
@@ -160,9 +177,10 @@ public class ScryfallLookup {
             return List.of();
         }
         String query = (immediate ? "" : "name:/" + literalRegex(name) + "/ ")
-                + "lang:en game:paper f:commander (" + String.join(" or ", filters) + ")";
+                + formatFilter(format) + " (" + String.join(" or ", filters) + ")";
         List<JsonNode> candidates = collectSearch(query, false, MAX_PAGES * MAX_PAGE_CARDS);
         Map<String, JsonNode> metadata = reversibleMetadata(candidates);
+        Set<String> eligibleFaces = format == DeckFormat.PAUPER_COMMANDER ? pauperReversibleIdentities(candidates) : Set.of();
         Map<String, CommanderChoice> distinct = new LinkedHashMap<>();
         for (JsonNode raw : candidates) {
             if (!raw.path("lang").isTextual()) {
@@ -171,9 +189,13 @@ public class ScryfallLookup {
             if (!"en".equals(raw.path("lang").asText())) {
                 continue;
             }
-            CardDetails card = normalizer.normalize(raw, metadata);
+            CardDetails card = normalizer.normalize(raw, metadata, format);
             for (CommanderChoice choice : card.commanderSelections()) {
-                GameplayCard second = normalizer.resolve(card, choice.selectionRef());
+                GameplayCard second = normalizer.resolve(card, choice.selectionRef(), format);
+                if (format == DeckFormat.PAUPER_COMMANDER && "reversible_card".equals(card.layout())
+                        && !eligibleFaces.contains(second.oracleId())) {
+                    continue;
+                }
                 if (choice.name().toLowerCase(Locale.ROOT).contains(name.toLowerCase(Locale.ROOT))
                         && PairingCapabilities.compatible(first, second)
                         && (!immediate || (first.pairing().partnerWith().contains(choice.name().toLowerCase(Locale.ROOT))
@@ -227,10 +249,62 @@ public class ScryfallLookup {
 
     /** Always contacts Scryfall for the selected printing, even after a cached search/detail read. */
     public ResolvedCommander resolveCommanderOnline(CommanderSelectionRef reference) {
+        return resolveCommanderOnline(reference, DeckFormat.COMMANDER);
+    }
+
+    public ResolvedCommander resolveCommanderOnline(CommanderSelectionRef reference, DeckFormat format) {
         validateReference(reference);
-        CardDetails card = fetchCard(reference.scryfallCardId()).details();
-        GameplayCard gameplay = normalizer.resolve(card, reference);
+        JsonNode raw = client.card(reference.scryfallCardId());
+        CardDetails card = normalizer.normalize(raw, reversibleMetadata(List.of(raw)), format);
+        if (!reference.scryfallCardId().equals(card.scryfallCardId())) {
+            throw new MalformedScryfallResponseException();
+        }
+        GameplayCard gameplay = normalizer.resolve(card, reference, format);
+        if (format == DeckFormat.PAUPER_COMMANDER && !pauperEligible(gameplay.oracleId())) {
+            throw new InvalidScryfallSelectionException();
+        }
         return new ResolvedCommander(card, gameplay);
+    }
+
+    private static String formatFilter(DeckFormat format) {
+        return format == DeckFormat.PAUPER_COMMANDER
+                ? "lang:en (game:paper or game:mtgo) is:PauperCommander"
+                : "lang:en game:paper f:commander";
+    }
+
+    /** Fresh identity lookup delegates cross-printing rarity, release exclusions and bans to Scryfall. */
+    private boolean pauperEligible(String oracleId) {
+        return collectSearch("oracleid:" + authoritativeUuid(oracleId) + " is:PauperCommander -layout:reversible_card", false, MAX_SEARCH_CARDS)
+                .stream().anyMatch(raw -> !"reversible_card".equals(raw.path("layout").asText())
+                        && oracleId.equals(raw.path("oracle_id").asText()));
+    }
+
+    /** Reversible suggestions must authorize each gameplay identity, with the existing Oracle batch bound. */
+    private Set<String> pauperReversibleIdentities(List<JsonNode> rawCards) {
+        Set<String> required = new LinkedHashSet<>();
+        for (JsonNode raw : rawCards) {
+            if ("reversible_card".equals(raw.path("layout").asText())) {
+                for (JsonNode face : raw.path("card_faces")) {
+                    if (face.hasNonNull("oracle_id")) {
+                        required.add(authoritativeUuid(face.path("oracle_id").asText()));
+                    }
+                }
+            }
+        }
+        List<String> identities = List.copyOf(required);
+        Set<String> eligible = new LinkedHashSet<>();
+        for (int offset = 0; offset < identities.size(); offset += MAX_ORACLE_BATCH) {
+            List<String> batch = identities.subList(offset, Math.min(offset + MAX_ORACLE_BATCH, identities.size()));
+            String query = "(" + String.join(" or ", batch.stream().map(id -> "oracleid:" + id).toList())
+                    + ") is:PauperCommander -layout:reversible_card";
+            for (JsonNode raw : collectSearch(query, false, MAX_PAGE_CARDS)) {
+                String id = raw.path("oracle_id").asText();
+                if (!"reversible_card".equals(raw.path("layout").asText()) && batch.contains(id)) {
+                    eligible.add(id);
+                }
+            }
+        }
+        return Set.copyOf(eligible);
     }
 
     /** Convenience boundary for callers requiring a standalone Commander. */
