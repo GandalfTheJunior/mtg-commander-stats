@@ -196,7 +196,8 @@ class GroupStatisticsTest extends GameTestSupport {
                     .stream().sorted().toList());
             List<JsonNode> deckOrder = new ArrayList<>();
             for (JsonNode row : result.get("decks")) {
-                assertThat(row.size()).isEqualTo(9);
+                assertThat(row.size()).isEqualTo(10);
+                assertThat(row.path("format").asText()).isEqualTo("COMMANDER");
                 assertThat(row.get("ownerUsername").asText()).isEqualTo("Same Name");
                 assertThat(row.get("commanders").get(0).get("name").asText()).isEqualTo("Krenko");
                 assertThat(row.get("commanders").get(0).get("artCropUrl").isNull()).isTrue();

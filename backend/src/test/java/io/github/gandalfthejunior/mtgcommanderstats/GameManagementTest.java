@@ -298,7 +298,8 @@ class GameManagementTest extends GameTestSupport {
         List<UUID> ids = new ArrayList<>();
         for (JsonNode summary : selected) {
             ids.add(id(summary));
-            assertThat(summary.size()).isEqualTo(5);
+            assertThat(summary.size()).isEqualTo(6);
+            assertThat(summary.path("format").asText()).isEqualTo("COMMANDER");
             assertThat(summary.get("companion").isNull()).isTrue();
             assertThat(summary.get("colorIdentity")).isEqualTo(json.readTree("[\"R\"]"));
         }

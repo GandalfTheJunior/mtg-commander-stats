@@ -20,7 +20,7 @@ Success is `200` with four top-level arrays:
 | Field | Row contract |
 | --- | --- |
 | `players` | `{userId, username, games, wins, winRatePercent}` |
-| `decks` | `{deckId, ownerUserId, ownerUsername, name, commanders, archived, games, wins, winRatePercent}` |
+| `decks` | `{deckId, ownerUserId, ownerUsername, name, commanders, format, archived, games, wins, winRatePercent}` |
 | `startPositions` | `{playerCount, seats: [{startPosition, games, wins, winRatePercent}]}` |
 | `manaColors` | `{color, games, wins, winRatePercent}` |
 
@@ -188,3 +188,12 @@ See [games](games-api.md) for recording rules. Backend/API tests use dedicated
 fixtures without opt-in demo seeding. The optional demo fixture, manifest and
 smoke verification adapt to this contract separately in #123; this API change
 does not rewrite or reset demo data.
+
+## Persisted deck format
+
+Every deck row includes the saved `format` (`COMMANDER` or `PAUPER_COMMANDER`)
+through the same authorized, batched deck lookup, including archived/former-member
+historical decks. No game/participant format copy is stored. All-regular,
+all-PDH and mixed games use the same calculations and current filters. A future
+PDH-only subset could require every assigned deck to have saved PDH format;
+this issue adds no such filter and format is no full-deck legality certificate.

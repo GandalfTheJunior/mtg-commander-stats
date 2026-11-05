@@ -12,6 +12,8 @@ import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CompanionSu
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CommanderSummary;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.ManageDecks;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.Deck;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckFormat;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidDeckFormatException;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidCommanderException;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidManaBoxUrlException;
 import io.github.gandalfthejunior.mtgcommanderstats.security.UserPrincipal;
@@ -44,14 +46,15 @@ public class DeckController {
     @PostMapping("/api/decks")
     @ResponseStatus(HttpStatus.CREATED)
     public DeckResponse create(@AuthenticationPrincipal UserPrincipal user, @RequestBody DeckRequest request) {
-        return DeckResponse.from(decks.create(user.getId(), request.name(), request.commanders(), request.manaBoxUrl, request.companion));
+        return DeckResponse.from(decks.create(user.getId(), request.name(), request.commanders(), request.manaBoxUrl, request.companion,
+                request.format == null ? DeckFormat.COMMANDER : request.format));
     }
 
     @PutMapping("/api/decks/{deckId}")
     public DeckResponse update(@AuthenticationPrincipal UserPrincipal user, @PathVariable UUID deckId,
             @RequestBody DeckRequest request) {
         return DeckResponse.from(decks.update(user.getId(), deckId, request.name(), request.commanders(),
-                request.manaBoxUrlSupplied, request.manaBoxUrl, request.companionSupplied, request.companion));
+                request.manaBoxUrlSupplied, request.manaBoxUrl, request.companionSupplied, request.companion, request.format));
     }
 
     @PutMapping("/api/decks/{deckId}/commanders/{position}/artwork")
@@ -127,6 +130,20 @@ public class DeckController {
     }
 
     public static class DeckRequest {
+        private DeckFormat format;
+
+        @JsonSetter(nulls = Nulls.FAIL)
+        public void setFormat(JsonNode value) {
+            if (!value.isString()) {
+                throw new InvalidDeckFormatException();
+            }
+            try {
+                format = DeckFormat.valueOf(value.asString());
+            } catch (IllegalArgumentException exception) {
+                throw new InvalidDeckFormatException();
+            }
+        }
+
         private String name;
         private List<CommanderInput> commanders;
         private String manaBoxUrl;
@@ -174,10 +191,10 @@ public class DeckController {
     }
 
     public record DeckResponse(UUID id, String name, List<CommanderSummary> commanders, List<String> colorIdentity,
-            boolean everUsed, boolean archived, String manaBoxUrl, CompanionSummary companion) {
+            boolean everUsed, boolean archived, String manaBoxUrl, CompanionSummary companion, DeckFormat format) {
         static DeckResponse from(Deck deck) {
             return new DeckResponse(deck.getId(), deck.getName(), deck.getCommanders().stream().map(CommanderSummary::from).toList(),
-                    deck.getColorIdentity().symbols(), deck.isEverUsed(), deck.isArchived(), deck.getManaBoxUrl(), CompanionSummary.from(deck.getCompanion()));
+                    deck.getColorIdentity().symbols(), deck.isEverUsed(), deck.isArchived(), deck.getManaBoxUrl(), CompanionSummary.from(deck.getCompanion()), deck.getFormat());
         }
     }
 }

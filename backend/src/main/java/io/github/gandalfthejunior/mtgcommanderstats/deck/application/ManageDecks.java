@@ -6,6 +6,8 @@ import java.util.Objects;
 import java.util.UUID;
 
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.Deck;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckFormat;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidDeckFormatException;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckCommander;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckCompanion;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidCommanderException;
@@ -29,12 +31,12 @@ public class ManageDecks {
         this.scryfall = scryfall;
     }
 
-    private List<DeckCommander> resolve(List<CommanderInput> inputs) {
+    private List<DeckCommander> resolve(List<CommanderInput> inputs, DeckFormat format) {
         if (inputs == null || inputs.isEmpty() || inputs.size() > 2 || inputs.stream().anyMatch(Objects::isNull)) {
             throw new InvalidCommanderException();
         }
         List<ResolvedCommander> resolved = inputs.stream()
-                .map(input -> scryfall.resolveCommanderOnline(input.selectionRef())).toList();
+                .map(input -> scryfall.resolveCommanderOnline(input.selectionRef(), format)).toList();
         if (resolved.size() == 1 ? !resolved.getFirst().gameplay().canBeSoleCommander()
                 : !PairingCapabilities.compatible(resolved.get(0).gameplay(), resolved.get(1).gameplay())) {
             throw new InvalidCommanderException();
@@ -64,8 +66,18 @@ public class ManageDecks {
     @Transactional
     public Deck create(UUID ownerId, String name, List<CommanderInput> commanders, String manaBoxUrl,
             CompanionInput companion) {
+        return create(ownerId, name, commanders, manaBoxUrl, companion, DeckFormat.COMMANDER);
+    }
+
+    @Transactional
+    public Deck create(UUID ownerId, String name, List<CommanderInput> commanders, String manaBoxUrl,
+            CompanionInput companion, DeckFormat format) {
+        if (format == null || (format == DeckFormat.PAUPER_COMMANDER && companion != null)) {
+            throw new InvalidDeckFormatException();
+        }
         String normalizedUrl = manaBoxUrl == null ? null : new ManaBoxUrl(manaBoxUrl).value();
-        Deck deck = new Deck(ownerId, name, resolve(commanders));
+        Deck deck = new Deck(ownerId, name, resolve(commanders, format));
+        deck.replaceConfiguration(deck.getCommanders(), null, format);
         deck.changeManaBoxUrl(normalizedUrl);
         if (companion != null) {
             deck.replaceConfiguration(deck.getCommanders(), new DeckCompanion(scryfall.resolveCompanionOnline(companion.selectionRef())));
@@ -87,7 +99,26 @@ public class ManageDecks {
     @Transactional
     public Deck update(UUID ownerId, UUID deckId, String name, List<CommanderInput> commanders,
             boolean manaBoxUrlSupplied, String manaBoxUrl, boolean companionSupplied, CompanionInput companion) {
+        return update(ownerId, deckId, name, commanders, manaBoxUrlSupplied, manaBoxUrl,
+                companionSupplied, companion, null);
+    }
+
+    @Transactional
+    public Deck update(UUID ownerId, UUID deckId, String name, List<CommanderInput> commanders,
+            boolean manaBoxUrlSupplied, String manaBoxUrl, boolean companionSupplied, CompanionInput companion,
+            DeckFormat format) {
         Deck deck = ownedDeck(ownerId, deckId);
+        DeckFormat target = format == null ? deck.getFormat() : format;
+        boolean formatChanged = target != deck.getFormat();
+        deck.requireFormatChangeAllowed(target);
+        boolean hasCompanion = companionSupplied ? companion != null : deck.getCompanion() != null;
+        if (target == DeckFormat.PAUPER_COMMANDER && hasCompanion) {
+            throw new InvalidDeckFormatException();
+        }
+        if (formatChanged && commanders == null) {
+            commanders = deck.getCommanders().stream()
+                    .map(saved -> new CommanderInput(saved.selectionRef(), saved.getChosenColor())).toList();
+        }
         List<DeckCommander> prospectiveCommanders = deck.getCommanders();
         if (manaBoxUrlSupplied) {
             deck.changeManaBoxUrl(manaBoxUrl);
@@ -104,8 +135,8 @@ public class ManageDecks {
                 unchanged = input != null && saved.selectionRef().equals(input.selectionRef())
                         && Objects.equals(saved.getChosenColor(), input.chosenColor());
             }
-            if (!unchanged) {
-                prospectiveCommanders = resolve(commanders);
+            if (formatChanged || !unchanged) {
+                prospectiveCommanders = resolve(commanders, target);
             }
         }
         DeckCompanion prospectiveCompanion = deck.getCompanion();
@@ -116,7 +147,7 @@ public class ManageDecks {
                 prospectiveCompanion = new DeckCompanion(scryfall.resolveCompanionOnline(companion.selectionRef()));
             }
         }
-        deck.replaceConfiguration(prospectiveCommanders, prospectiveCompanion);
+        deck.replaceConfiguration(prospectiveCommanders, prospectiveCompanion, target);
         deck.rename(name);
         return deck;
     }

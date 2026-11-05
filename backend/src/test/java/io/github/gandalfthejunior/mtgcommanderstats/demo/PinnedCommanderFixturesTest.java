@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.Deck;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckFormat;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckCommander;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckLifecycleConflictException;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidCommanderException;
@@ -35,6 +36,7 @@ class PinnedCommanderFixturesTest {
             DeckCommander commander = new DeckCommander(1, resolved, color);
             assertThat(commander.effectiveColorIdentity().symbols()).containsExactly(color);
             Deck deck = new Deck(UUID.randomUUID(), "Pinned Commander", List.of(commander));
+            assertThat(deck.getFormat()).isEqualTo(DeckFormat.COMMANDER);
             deck.markUsed();
             String changed = color.equals("R") ? "U" : "R";
             assertThatThrownBy(() -> deck.replaceCommanders(List.of(new DeckCommander(1, resolved, changed))))

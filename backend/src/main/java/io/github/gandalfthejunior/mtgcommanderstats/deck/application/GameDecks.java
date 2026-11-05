@@ -10,6 +10,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckFormat;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.Deck;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.DeckRepository;
 import org.springframework.stereotype.Service;
@@ -57,14 +58,14 @@ public class GameDecks {
     }
 
     public record DeckDisplay(UUID id, String name, List<CommanderSummary> commanders, List<String> colorIdentity,
-            CompanionSummary companion, boolean archived, @JsonInclude(JsonInclude.Include.NON_NULL) String manaBoxUrl) {
+            CompanionSummary companion, DeckFormat format, boolean archived, @JsonInclude(JsonInclude.Include.NON_NULL) String manaBoxUrl) {
         static DeckDisplay from(Deck deck) {
             return from(deck, false);
         }
 
         static DeckDisplay from(Deck deck, boolean includeLink) {
             return new DeckDisplay(deck.getId(), deck.getName(), deck.getCommanders().stream().map(CommanderSummary::from).toList(),
-                    deck.getColorIdentity().symbols(), CompanionSummary.from(deck.getCompanion()), deck.isArchived(), includeLink ? deck.getManaBoxUrl() : null);
+                    deck.getColorIdentity().symbols(), CompanionSummary.from(deck.getCompanion()), deck.getFormat(), deck.isArchived(), includeLink ? deck.getManaBoxUrl() : null);
         }
     }
 }

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckFormat;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CommanderSummary;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.GameDecks.DeckDisplay;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.GameDecks;
@@ -90,7 +91,7 @@ public class ReadGroupStatistics {
             DeckDisplay deck = publicDecks.get(entry.getKey());
             UUID ownerId = deckOwners.get(entry.getKey());
             return new DeckStatistics(deck.id(), ownerId, publicUsers.get(ownerId).username(), deck.name(),
-                    deck.commanders(), deck.archived(), counts.games(), counts.wins(), counts.winRatePercent());
+                    deck.commanders(), deck.format(), deck.archived(), counts.games(), counts.wins(), counts.winRatePercent());
         }).sorted(Comparator.comparing(DeckStatistics::ownerUsername).thenComparing(DeckStatistics::name)
                 .thenComparing(DeckStatistics::deckId)).toList();
         List<StartPositionStatistics> startPositions = new ArrayList<>();
@@ -150,6 +151,6 @@ public class ReadGroupStatistics {
     }
 
     public record DeckStatistics(UUID deckId, UUID ownerUserId, String ownerUsername, String name, List<CommanderSummary> commanders,
-            boolean archived, long games, long wins, BigDecimal winRatePercent) {
+            DeckFormat format, boolean archived, long games, long wins, BigDecimal winRatePercent) {
     }
 }

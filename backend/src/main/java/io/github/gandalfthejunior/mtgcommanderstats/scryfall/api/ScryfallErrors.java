@@ -18,7 +18,7 @@ public class ScryfallErrors {
             MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class})
     public ProblemDetail invalidInput() {
         return problem(HttpStatus.BAD_REQUEST, "INVALID_SCRYFALL_REQUEST",
-                "Provide a card name of 2–100 characters, a valid printing UUID and a valid gameplay selection.");
+                "Provide a card name of 2–100 characters, a valid printing UUID and a valid gameplay selection eligible in the requested COMMANDER or PAUPER_COMMANDER format.");
     }
 
     @ExceptionHandler(ScryfallClientException.class)

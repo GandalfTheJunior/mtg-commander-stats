@@ -111,6 +111,7 @@ async function verify(base, password, {accounts, decks, tables, recordedGames}) 
     assert.deepEqual(ownDecks.map(d => d.id).sort(), user.decks.map(d => decks[d.key]).sort());
     for (const deck of ownDecks) {
       const fixture = user.decks.find(d => decks[d.key] === deck.id);
+      assert.equal(deck.format, 'COMMANDER');
       assert.equal(deck.archived, deck.id === decks[archivedDeck]);
       assert.equal(deck.everUsed, games.some(g => g.participants.some(p => p.deck === fixture.key)));
       assert.deepEqual(deck.colorIdentity, fixture.colorIdentity);
@@ -139,6 +140,7 @@ async function verify(base, password, {accounts, decks, tables, recordedGames}) 
     assert.deepEqual(details.members.map(m => [m.userId, m.role]).sort(), group.members.map(key => [accounts[key].id, key === group.owner ? 'OWNER' : 'MEMBER']).sort());
     for (const member of group.members) {
       const eligible = await session.call('GET', `/groups/${id}/members/${accounts[member].id}/decks`);
+      assert.ok(eligible.every(deck => deck.format === 'COMMANDER'));
       assert.deepEqual(eligible.map(d => d.id).sort(), users.find(u => u.key === member).decks.filter(d => d.key !== archivedDeck).map(d => decks[d.key]).sort());
     }
     const manifest = JSON.parse(readFileSync(new URL('./expected-results.json', import.meta.url)));
@@ -154,7 +156,7 @@ async function verify(base, password, {accounts, decks, tables, recordedGames}) 
       }));
       const expectedDecks = expected.filter(row => row.kind === 'deck').map(row => ({
         deckId: decks[row.deck], ownerUserId: accounts[row.user].id, ownerUsername: users.find(u => u.key === row.user).name,
-        name: row.name,
+        name: row.name, format: 'COMMANDER',
         archived: row.deck === archivedDeck, games: row.games, wins: row.wins, winRatePercent: row.winRatePercent,
       }));
       // Compare by stable IDs here; backend API tests separately enforce name/UUID ordering.
@@ -174,6 +176,7 @@ async function verify(base, password, {accounts, decks, tables, recordedGames}) 
       const participants = game.participants.map(p => {
         const user = users.find(u => accounts[u.key].id === p.userId);
         const deck = user.decks.find(d => decks[d.key] === p.deckId);
+        assert.equal(p.deck.format, 'COMMANDER');
         assert.equal(p.deck.archived, deck.key === archivedDeck);
         verifyCommanders(p.deck.commanders, deck);
         assert.deepEqual(p.deck.colorIdentity, deck.colorIdentity);

@@ -12,6 +12,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -35,6 +37,10 @@ public class Deck {
 
     @Column(name = "mana_box_url", columnDefinition = "text")
     private String manaBoxUrl;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "text")
+    private DeckFormat format = DeckFormat.COMMANDER;
 
     @ElementCollection(fetch = FetchType.EAGER)
     @Fetch(FetchMode.SUBSELECT)
@@ -95,6 +101,27 @@ public class Deck {
 
     /** Validate the prospective composition together, allowing simultaneous compatible changes. */
     public void replaceConfiguration(List<DeckCommander> replacement, DeckCompanion companion) {
+        replaceConfiguration(replacement, companion, format);
+    }
+
+    public void requireFormatChangeAllowed(DeckFormat target) {
+        if (target == null) {
+            throw new InvalidDeckFormatException();
+        }
+        if (target != format && everUsed) {
+            throw new DeckLifecycleConflictException();
+        }
+    }
+
+    public DeckFormat getFormat() {
+        return format;
+    }
+
+    public void replaceConfiguration(List<DeckCommander> replacement, DeckCompanion companion, DeckFormat target) {
+        requireFormatChangeAllowed(target);
+        if (target == DeckFormat.PAUPER_COMMANDER && companion != null) {
+            throw new InvalidDeckFormatException();
+        }
         if (replacement == null || replacement.isEmpty() || replacement.size() > 2) {
             throw new InvalidCommanderException();
         }
@@ -148,6 +175,7 @@ public class Deck {
                 companions.add(companion);
             }
         }
+        this.format = target;
         if (same) {
             // An idempotent full update must never revert newer presentation snapshots.
             return;

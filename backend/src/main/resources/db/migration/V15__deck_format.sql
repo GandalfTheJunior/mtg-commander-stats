@@ -1,0 +1,3 @@
+ALTER TABLE decks
+    ADD COLUMN format text NOT NULL DEFAULT 'COMMANDER',
+    ADD CONSTRAINT decks_format_check CHECK (format IN ('COMMANDER', 'PAUPER_COMMANDER'));

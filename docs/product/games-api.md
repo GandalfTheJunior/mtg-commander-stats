@@ -131,6 +131,7 @@ Neither the UI flow nor the importer is implemented by this backend contract.
         "name": "Goblins",
         "commanders": [{"name": "Krenko", "position": 1, "oracleId": "<Oracle UUID>", "selectionRef": {"scryfallCardId": "<printing UUID>"}}],
         "colorIdentity": ["R"],
+        "format": "COMMANDER",
         "archived": false
       }
     },
@@ -146,6 +147,7 @@ Neither the UI flow nor the importer is implemented by this backend contract.
         "name": "Colorless",
         "commanders": [{"name": "Karn", "position": 1, "oracleId": "<Oracle UUID>", "selectionRef": {"scryfallCardId": "<printing UUID>"}}],
         "colorIdentity": [],
+        "format": "PAUPER_COMMANDER",
         "archived": true
       }
     }
@@ -298,3 +300,14 @@ crop and names over a dark gradient. Missing, unsafe or failed sources fall back
 changing the Commander/source resets image failure state. A fresh details load
 reflects current deck assignment and saved artwork, without provider lookups or
 separate game-level artwork storage. Artwork selection remains in deck editing.
+
+## Persisted deck format in reads
+
+Authorized member deck-selection summaries and all participant deck summaries
+(including details and history) include `format`: `COMMANDER` or
+`PAUPER_COMMANDER`, read from the saved deck in the existing batched lookups.
+Archived decks and former-member historical assignments retain their format.
+Existing membership/ownership authorization and ManaBox link redaction are
+unchanged. Games may freely mix both formats; writes still assign stable deck
+IDs and contain no format field. Game edits/deletes never unlock a used deck's
+format. No Scryfall access is required for game assignment or reads.

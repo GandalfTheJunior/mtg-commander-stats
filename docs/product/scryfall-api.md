@@ -115,6 +115,50 @@ The second UI uses the same debounce, thumbnail/placeholder, explicit selection,
 inline Fblthp/Moon copy, retry and abort/stale protection as the first. A context
 change retires the previous results and any selected second Commander.
 
+## Pauper Commander search and validation
+
+`GET /api/scryfall/commanders?q=<literal-name>&format=PAUPER_COMMANDER`
+uses the same `CommanderChoice[]` contract and bounds. Optional `format` defaults
+to `COMMANDER`, preserving the existing search. Unsupported enum values return
+`400`. General and partner-search cache keys include format. `partnerOf` and
+`partnerGameplayFaceIndex` retain their meanings; both selected identities must
+be eligible in the requested format and the existing pairing validator must
+accept the pair. Ineligible pairs never become warnings.
+
+Partner result-cache hits return before resolving the context or contacting
+Scryfall. For distinct autocomplete queries, PDH context resolution reuses cached
+printing metadata and a bounded 256-entry, five-minute Oracle eligibility cache.
+Both eligible and ineligible results expire normally; provider failures are not
+cached. This cache is only for search: actual deck writes bypass both context
+and eligibility caches and freshly validate the selected printing and identity.
+
+PDH queries use `is:PauperCommander`, which represents Commander eligibility,
+and paper/MTGO availability. `f:pdh` / `format:paupercommander` instead cover the
+main deck and must never authorize a Commander. Eligible nonlegendary creatures,
+Vehicles and Spacecraft can be standalone; Background enchantments require a
+compatible pairing. The existing chosen-color, WUBRG, safe image and exceptional
+reversible-face handling also apply. Card-details and artwork routes retain
+their original format-independent identity/presentation semantics; ordinary
+`CardDetails.commanderSelections` continues describing regular Commander.
+
+`resolveCommanderOnline(selectionRef, format)` always fetches the selected
+printing. For PDH it then freshly performs a constrained
+`oracleid:<selected gameplay Oracle UUID> is:PauperCommander -layout:reversible_card` lookup and requires
+that identity in the results. Search suggestions, client metadata, selected
+printing rarity, ordinary Commander legality and cached successes never replace
+this check. Reversible search choices are also checked per Oracle identity so an
+eligible front cannot authorize an ineligible back. Supplementary authoritative
+face metadata supplies missing face colors; missing data fails closed.
+
+Rarity history and provider-supported bans are delegated to Scryfall instead of
+a local printing-rarity rule engine. This permits rare artwork for a qualifying
+paper/MTGO Uncommon identity and rejects Arena-only or excluded promo, Secret
+Lair, local/special-release rarity shifts. Current rules were checked on
+2026-11-05 against [PDH rules](https://pdhhomebase.com/rules/),
+[Background FAQ](https://pdhhomebase.com/faq/) and the
+[eligibility framework](https://pdhhomebase.com/updating-pdhs-framework/).
+Neither lookup nor deck persistence certifies the unknown 99/98-card decklist.
+
 ## Companion name search
 
 `GET /api/scryfall/companions?q=<literal-name>` returns at most 20
@@ -301,7 +345,8 @@ source links use HTTPS on `scryfall.com`. Missing or unsafe metadata is nullable
 There is no Redis, synchronization task, bulk download, or local card database.
 
 Lookup caches expire after five minutes and hold at most 128 searches, 256 card
-details, 128 artwork collections, and 256 supplementary Oracle metadata entries.
+details, 128 artwork collections, 256 supplementary Oracle metadata entries,
+and 256 PDH search-context eligibility results.
 Collection traversal uses at most three provider pages of at most 175 cards.
 Commander search inspects at most 40 representative cards and returns no more
 than 20 suggestions; artwork discovery returns no more than 200 options.
