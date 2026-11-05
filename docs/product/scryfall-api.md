@@ -125,6 +125,13 @@ to `COMMANDER`, preserving the existing search. Unsupported enum values return
 be eligible in the requested format and the existing pairing validator must
 accept the pair. Ineligible pairs never become warnings.
 
+Partner result-cache hits return before resolving the context or contacting
+Scryfall. For distinct autocomplete queries, PDH context resolution reuses cached
+printing metadata and a bounded 256-entry, five-minute Oracle eligibility cache.
+Both eligible and ineligible results expire normally; provider failures are not
+cached. This cache is only for search: actual deck writes bypass both context
+and eligibility caches and freshly validate the selected printing and identity.
+
 PDH queries use `is:PauperCommander`, which represents Commander eligibility,
 and paper/MTGO availability. `f:pdh` / `format:paupercommander` instead cover the
 main deck and must never authorize a Commander. Eligible nonlegendary creatures,
@@ -338,7 +345,8 @@ source links use HTTPS on `scryfall.com`. Missing or unsafe metadata is nullable
 There is no Redis, synchronization task, bulk download, or local card database.
 
 Lookup caches expire after five minutes and hold at most 128 searches, 256 card
-details, 128 artwork collections, and 256 supplementary Oracle metadata entries.
+details, 128 artwork collections, 256 supplementary Oracle metadata entries,
+and 256 PDH search-context eligibility results.
 Collection traversal uses at most three provider pages of at most 175 cards.
 Commander search inspects at most 40 representative cards and returns no more
 than 20 suggestions; artwork discovery returns no more than 200 options.

@@ -52,6 +52,8 @@ public class ScryfallLookup {
             new BoundedCache<>(128, CACHE_TTL, System::nanoTime);
     private final BoundedCache<String, JsonNode> oracleCards =
             new BoundedCache<>(256, CACHE_TTL, System::nanoTime);
+    private final BoundedCache<String, Boolean> pauperEligibility =
+            new BoundedCache<>(256, CACHE_TTL, System::nanoTime);
 
     public ScryfallLookup(ScryfallClient client, ScryfallNormalizer normalizer) {
         this.client = client;
@@ -162,15 +164,19 @@ public class ScryfallLookup {
 
     public List<CommanderChoice> searchPartners(String input, CommanderSelectionRef partnerOf, DeckFormat format) {
         validateReference(partnerOf);
-        GameplayCard first = format == DeckFormat.COMMANDER
-                ? normalizer.resolve(ordinaryCard(partnerOf.scryfallCardId()).details(), partnerOf)
-                : resolveCommanderOnline(partnerOf, format).gameplay();
         boolean immediate = input == null || input.isEmpty();
         String name = immediate ? "" : normalizeQuery(input);
         String key = format + ":" + partnerOf + ":" + name.toLowerCase(Locale.ROOT);
         List<CommanderChoice> cached = partnerSearches.get(key);
         if (cached != null) {
             return cached;
+        }
+        FetchedCard fetched = ordinaryCard(partnerOf.scryfallCardId());
+        CardDetails context = format == DeckFormat.COMMANDER ? fetched.details()
+                : normalizer.normalize(fetched.raw(), reversibleMetadata(List.of(fetched.raw())), format);
+        GameplayCard first = normalizer.resolve(context, partnerOf, format);
+        if (format == DeckFormat.PAUPER_COMMANDER && !cachedPauperEligible(first.oracleId())) {
+            throw new InvalidScryfallSelectionException();
         }
         List<String> filters = partnerFilters(first.pairing(), immediate);
         if (filters.isEmpty()) {
@@ -277,6 +283,17 @@ public class ScryfallLookup {
         return collectSearch("oracleid:" + authoritativeUuid(oracleId) + " is:PauperCommander -layout:reversible_card", false, MAX_SEARCH_CARDS)
                 .stream().anyMatch(raw -> !"reversible_card".equals(raw.path("layout").asText())
                         && oracleId.equals(raw.path("oracle_id").asText()));
+    }
+
+    /** Search context only; deck writes always bypass this cache through pauperEligible. */
+    private boolean cachedPauperEligible(String oracleId) {
+        Boolean cached = pauperEligibility.get(oracleId);
+        if (cached != null) {
+            return cached;
+        }
+        boolean eligible = pauperEligible(oracleId);
+        pauperEligibility.put(oracleId, eligible);
+        return eligible;
     }
 
     /** Reversible suggestions must authorize each gameplay identity, with the existing Oracle batch bound. */
@@ -391,7 +408,7 @@ public class ScryfallLookup {
         if (!id.equals(result.scryfallCardId())) {
             throw new MalformedScryfallResponseException();
         }
-        return new FetchedCard(result, normalizer.artworks(raw));
+        return new FetchedCard(raw, result, normalizer.artworks(raw));
     }
 
     private Map<String, JsonNode> reversibleMetadata(List<JsonNode> rawCards) {
@@ -567,6 +584,6 @@ public class ScryfallLookup {
         return literal.toString();
     }
 
-    private record FetchedCard(CardDetails details, List<Artwork> artworks) {
+    private record FetchedCard(JsonNode raw, CardDetails details, List<Artwork> artworks) {
     }
 }

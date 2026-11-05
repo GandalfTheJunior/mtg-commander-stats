@@ -92,7 +92,111 @@ class ScryfallPauperCommandersTest {
         assertThat(PairingCapabilities.compatible(normalizer.normalize(first, Map.of(), PDH).gameplayCards().getFirst(),
                 normalizer.normalize(background, Map.of(), PDH).gameplayCards().getFirst())).isTrue();
         when(client.search(eligible)).thenReturn(page(List.of()));
-        assertThatThrownBy(() -> lookup.searchPartners("Test", reference, PDH)).isInstanceOf(InvalidScryfallSelectionException.class);
+        assertThatThrownBy(() -> lookup.resolveCommanderOnline(reference, PDH)).isInstanceOf(InvalidScryfallSelectionException.class);
+    }
+
+    @Test
+    void repeatedAndChangingPdhPartnerQueriesReuseCardAndEligibilityCachesButWritesStayFresh() {
+        ObjectNode first = card("First Partner", "Creature — Human").put("oracle_text", "Partner");
+        ObjectNode second = card("Test Partner", "Creature — Elf").put("oracle_text", "Partner");
+        UUID id = UUID.fromString(first.path("id").asText());
+        String eligibility = "oracleid:" + first.path("oracle_id").asText() + " is:PauperCommander -layout:reversible_card";
+        when(client.card(id)).thenReturn(first);
+        when(client.search(anyString())).thenReturn(page(List.of(second)));
+        when(client.search(eligibility)).thenReturn(page(List.of(first)));
+        CommanderSelectionRef ref = new CommanderSelectionRef(id, null);
+        // A previously fetched ordinary detail response also supplies PDH context metadata.
+        lookup.cardDetails(id);
+        assertThat(lookup.searchPartners("Te", ref, PDH)).hasSize(1);
+        List<CommanderChoice> choices = lookup.searchPartners("Test", ref, PDH);
+        assertThat(choices).hasSize(1);
+        assertThat(lookup.searchPartners(" test ", ref, PDH)).isSameAs(choices);
+        assertThat(lookup.searchPartners("te", ref, PDH)).hasSize(1);
+        verify(client).card(id);
+        verify(client).search(eligibility);
+        verify(client, times(3)).search(anyString()); // One eligibility check and two distinct candidate queries.
+        when(client.search(eligibility)).thenReturn(page(List.of()));
+        assertThatThrownBy(() -> lookup.resolveCommanderOnline(ref, PDH)).isInstanceOf(InvalidScryfallSelectionException.class);
+        verify(client, times(2)).card(id);
+        verify(client, times(2)).search(eligibility);
+    }
+
+    @Test
+    void cachesIneligibleSearchContextWithoutBlockingFreshlyEligibleWrites() {
+        ObjectNode first = card("First Partner", "Creature — Human").put("oracle_text", "Partner");
+        UUID id = UUID.fromString(first.path("id").asText());
+        String eligibility = "oracleid:" + first.path("oracle_id").asText() + " is:PauperCommander -layout:reversible_card";
+        when(client.card(id)).thenReturn(first);
+        when(client.search(eligibility)).thenReturn(page(List.of()));
+        CommanderSelectionRef ref = new CommanderSelectionRef(id, null);
+        assertThatThrownBy(() -> lookup.searchPartners("Te", ref, PDH)).isInstanceOf(InvalidScryfallSelectionException.class);
+        when(client.search(eligibility)).thenReturn(page(List.of(first)));
+        assertThatThrownBy(() -> lookup.searchPartners("Test", ref, PDH)).isInstanceOf(InvalidScryfallSelectionException.class);
+        verify(client).card(id);
+        verify(client).search(eligibility);
+        assertThat(lookup.resolveCommanderOnline(ref, PDH).gameplay().oracleId()).isEqualTo(first.path("oracle_id").asText());
+        verify(client, times(2)).search(eligibility);
+    }
+
+    @Test
+    void providerFailureDoesNotPoisonPdhPartnerEligibilityOrResultCaches() {
+        ObjectNode first = card("First Partner", "Creature — Human").put("oracle_text", "Partner");
+        ObjectNode second = card("Test Partner", "Creature — Elf").put("oracle_text", "Partner");
+        UUID id = UUID.fromString(first.path("id").asText());
+        String eligibility = "oracleid:" + first.path("oracle_id").asText() + " is:PauperCommander -layout:reversible_card";
+        when(client.card(id)).thenReturn(first);
+        when(client.search(anyString())).thenReturn(page(List.of(second)));
+        when(client.search(eligibility)).thenThrow(new ScryfallClientException(ScryfallClientException.Kind.UNAVAILABLE))
+                .thenReturn(page(List.of(first)));
+        CommanderSelectionRef ref = new CommanderSelectionRef(id, null);
+        assertThatThrownBy(() -> lookup.searchPartners("Test", ref, PDH)).isInstanceOf(ScryfallClientException.class);
+        assertThat(lookup.searchPartners("Test", ref, PDH)).hasSize(1);
+        verify(client).card(id);
+        verify(client, times(2)).search(eligibility);
+    }
+
+    @Test
+    void cachedPdhPartnerContextDoesNotAuthorizeAnotherReversibleGameplayFace() {
+        ObjectNode eligible = card("Eligible Partner", "Creature — Human").put("oracle_text", "Partner");
+        ObjectNode ineligible = card("Ineligible Partner", "Creature — Elf").put("oracle_text", "Partner");
+        ObjectNode second = card("Test Partner", "Creature — Dwarf").put("oracle_text", "Partner");
+        ObjectNode reversible = card("Eligible // Ineligible", "Creature — Human").put("layout", "reversible_card");
+        reversible.remove(List.of("oracle_id", "color_identity"));
+        reversible.putArray("card_faces").add(eligible).add(ineligible);
+        UUID id = UUID.fromString(reversible.path("id").asText());
+        when(client.card(id)).thenReturn(reversible);
+        when(client.search(anyString())).thenAnswer(call -> {
+            String query = call.getArgument(0);
+            if (query.startsWith("name:/")) return page(List.of(second));
+            if (!query.contains("is:PauperCommander")) return page(List.of(eligible, ineligible));
+            return page(query.contains(ineligible.path("oracle_id").asText()) ? List.of() : List.of(eligible));
+        });
+        CommanderSelectionRef front = new CommanderSelectionRef(id, 0);
+        CommanderSelectionRef back = new CommanderSelectionRef(id, 1);
+        assertThat(lookup.searchPartners("Test", front, PDH)).hasSize(1);
+        assertThatThrownBy(() -> lookup.searchPartners("Test", back, PDH)).isInstanceOf(InvalidScryfallSelectionException.class);
+        assertThat(lookup.searchPartners("Test", front, PDH)).hasSize(1);
+        assertThatThrownBy(() -> lookup.searchPartners("Other", back, PDH)).isInstanceOf(InvalidScryfallSelectionException.class);
+        verify(client).card(id);
+        verify(client).search("oracleid:" + ineligible.path("oracle_id").asText() + " is:PauperCommander -layout:reversible_card");
+    }
+
+    @Test
+    void mtgoOnlyPauperPrintingWithoutImagesRemainsSelectableWithNullableArtwork() {
+        ObjectNode mtgo = card("Test MTGO Partner", "Creature — Human").put("rarity", "uncommon").put("digital", true);
+        mtgo.putArray("games").add("mtgo");
+        UUID id = UUID.fromString(mtgo.path("id").asText());
+        when(client.card(id)).thenReturn(mtgo);
+        when(client.search(anyString())).thenReturn(page(List.of(mtgo)));
+        List<CommanderChoice> choices = lookup.searchCommanders("Test MTGO", PDH);
+        assertThat(choices).singleElement().satisfies(choice -> {
+            assertThat(choice.thumbnailUrl()).isNull();
+            assertThat(choice.colorIdentity()).containsExactly("R");
+        });
+        ResolvedCommander resolved = lookup.resolveCommanderOnline(choices.getFirst().selectionRef(), PDH);
+        assertThat(resolved.card().scryfallCardId()).isEqualTo(id);
+        assertThat(resolved.gameplay().defaultArtwork().artCropUrl()).isNull();
+        assertThat(resolved.gameplay().canBeSoleCommander()).isTrue();
     }
 
     @Test
