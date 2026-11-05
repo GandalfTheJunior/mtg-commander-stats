@@ -158,7 +158,8 @@ and atomically stores the printing-local reference, image and attribution while
 preserving all gameplay snapshots and locks, even if the card was later banned.
 Use the existing Scryfall artworks route for discovery. Failure changes nothing.
 `400` Companion policy/color/printing errors use `code=INVALID_COMPANION` and an
-actionable detail; malformed requests/artwork selectors retain existing controlled
+actionable detail, including a Companion artwork request missing `scryfallCardId`.
+Other malformed requests/artwork selectors retain existing controlled
 errors. Session, CSRF, ownership, `404/409` and `503 SCRYFALL_UNAVAILABLE` behavior
 matches other deck operations.
 
@@ -170,7 +171,8 @@ internal collection mapping batches reads with the existing Hibernate subselect
 pattern. All mutations use the existing pessimistic deck-row lock shared with
 first game use, archive, name/link and Commander artwork changes.
 
-The explicit restriction policy is in `scryfall.domain.CompanionRules`. Reviewed
+The explicit restriction policy is in `scryfall.domain.CompanionRules`, keyed by
+stable Oracle IDs independently of display names and printings. Reviewed
 on 2026-11-04 against the [Wizards announcement effective February 9, 2026](https://magic.wizards.com/en/news/announcements/commander-banned-and-restricted-february-9-2026)
 and [Commander deck-size rules](https://magic.wizards.com/en/formats/commander).
 Before future policy changes, review authoritative rules and Companion-only bans;

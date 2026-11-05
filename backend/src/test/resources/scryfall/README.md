@@ -98,7 +98,10 @@ full live-query evidence and test results.
 
 `DeckCompanionsTest` and `ScryfallCompanionsTest` build explicit, synthetic
 provider records in memory (random printing/Oracle UUIDs, English rules,
-keywords, legalities, colors and optional face/image data). They cover genuine
+keywords, legalities, colors and optional face/image data). The restricted Lutri
+and Yorion cases pin their real Oracle IDs, checked through Scryfall's exact-name
+API on 2026-11-05; printing IDs and the remaining test metadata stay synthetic.
+They cover genuine
 Companion versus Doctor's companion, Lutri/Yorion restrictions, later bans,
 color unions and chosen colors, reversible/alternative printings, offline
 snapshots and transactional lifecycle races. These are controlled test records,

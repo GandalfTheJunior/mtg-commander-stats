@@ -14,6 +14,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.ScryfallNorm
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClient;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
@@ -34,6 +35,29 @@ class ScryfallCompanionsTest {
     private final JsonMapper json = JsonMapper.builder().build();
     private final ScryfallClient client = mock(ScryfallClient.class);
     private final ScryfallLookup lookup = new ScryfallLookup(client, new ScryfallNormalizer());
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "158a6225-a246-4fd6-aa57-0df8067b4383|Lutri, the Spellchaser",
+            "e15504a7-2b67-4185-b916-172145f10b19|Yorion, Sky Nomad"
+    })
+    void restrictionsFollowOracleIdentityAcrossNamesAndPrintings(String oracleId, String originalName) {
+        ObjectNode renamed = card("Renamed Companion", "Companion").put("oracle_id", oracleId);
+        ObjectNode alternate = renamed.deepCopy().put("id", UUID.randomUUID().toString());
+        when(client.search(anyString())).thenReturn(page(List.of(renamed, alternate)));
+        assertThat(lookup.searchCompanions("Renamed")).isEmpty();
+        for (ObjectNode printing : List.of(renamed, alternate)) {
+            UUID id = UUID.fromString(printing.path("id").asText());
+            when(client.card(id)).thenReturn(printing);
+            assertThatThrownBy(() -> lookup.resolveCompanionOnline(new CommanderSelectionRef(id, null)))
+                    .isInstanceOf(InvalidCompanionSelectionException.class).hasMessageContaining(originalName);
+        }
+        ObjectNode differentIdentity = card(originalName, "Companion").put("oracle_id", UUID.randomUUID().toString());
+        UUID id = UUID.fromString(differentIdentity.path("id").asText());
+        when(client.card(id)).thenReturn(differentIdentity);
+        assertThat(lookup.resolveCompanionOnline(new CommanderSelectionRef(id, null)).gameplay().oracleId())
+                .isEqualTo(differentIdentity.path("oracle_id").asText());
+    }
 
     @Test
     void filtersMechanicRestrictionsLegalityAndLanguageThenDeduplicates() {
@@ -129,8 +153,13 @@ class ScryfallCompanionsTest {
     }
 
     private ObjectNode card(String name, String keyword) {
+        String oracleId = switch (name) {
+            case "Lutri, the Spellchaser" -> "158a6225-a246-4fd6-aa57-0df8067b4383";
+            case "Yorion, Sky Nomad" -> "e15504a7-2b67-4185-b916-172145f10b19";
+            default -> UUID.randomUUID().toString();
+        };
         ObjectNode card = json.createObjectNode().put("id", UUID.randomUUID().toString())
-                .put("oracle_id", UUID.randomUUID().toString()).put("name", name).put("lang", "en")
+                .put("oracle_id", oracleId).put("name", name).put("lang", "en")
                 .put("layout", "normal").put("type_line", "Legendary Creature — Test").put("oracle_text", keyword);
         card.putArray("keywords").add(keyword);
         card.putArray("color_identity").add("B").add("W");

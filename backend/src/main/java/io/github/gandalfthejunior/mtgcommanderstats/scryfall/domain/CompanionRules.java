@@ -11,8 +11,8 @@ public final class CompanionRules {
     // General Scryfall format legality does not represent Companion-only bans. Review this
     // policy against authoritative rule changes before changing it; see docs/product/decks-api.md.
     private static final Map<String, String> RESTRICTIONS = Map.of(
-            "Lutri, the Spellchaser", "Lutri, the Spellchaser is banned as a Companion in Commander.",
-            "Yorion, Sky Nomad", "Yorion, Sky Nomad requires 20 extra cards and cannot be a Companion in a fixed-size Commander deck.");
+            "158a6225-a246-4fd6-aa57-0df8067b4383", "Lutri, the Spellchaser is banned as a Companion in Commander.",
+            "e15504a7-2b67-4185-b916-172145f10b19", "Yorion, Sky Nomad requires 20 extra cards and cannot be a Companion in a fixed-size Commander deck.");
 
     private CompanionRules() {
     }
@@ -28,6 +28,6 @@ public final class CompanionRules {
         if (!"legal".equals(card.commanderLegality())) {
             return "Choose a currently Commander-legal Companion.";
         }
-        return RESTRICTIONS.get(card.name());
+        return RESTRICTIONS.get(card.oracleId());
     }
 }

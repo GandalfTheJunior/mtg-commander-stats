@@ -27,6 +27,19 @@ import static org.awaitility.Awaitility.await;
 
 class DeckCompanionsTest extends GameTestSupport {
     @Test
+    void missingCompanionArtworkPrintingHasAnActionableCompanionError() throws Exception {
+        Actor owner = register("owner", "Owner");
+        UUID printing = store(card("Companion", List.of("R")));
+        JsonNode deck = create(owner, CommanderTestProvider.inputs("Krenko", List.of("R")), printing);
+        int calls = provider.calls.get();
+        JsonNode error = expect(owner, "PUT", artPath(id(deck)), "{}", 400);
+        assertThat(error.path("code").asText()).isEqualTo("INVALID_COMPANION");
+        assertThat(error.path("detail").asText()).contains("Companion", "scryfallCardId").doesNotContain("Commander");
+        assertThat(provider.calls.get()).isEqualTo(calls);
+        assertThat(read(owner, id(deck))).isEqualTo(deck);
+    }
+
+    @Test
     void absentNullAddSwapRemoveAndIdempotenceHaveDistinctOfflineSafeSemantics() throws Exception {
         Actor owner = register("owner", "Owner");
         List<CommanderInput> commanders = CommanderTestProvider.inputs("Commander", List.of("W", "B"));
@@ -431,8 +444,13 @@ class DeckCompanionsTest extends GameTestSupport {
     }
 
     private ObjectNode card(String name, List<String> colors) {
+        String oracleId = switch (name) {
+            case "Lutri, the Spellchaser" -> "158a6225-a246-4fd6-aa57-0df8067b4383";
+            case "Yorion, Sky Nomad" -> "e15504a7-2b67-4185-b916-172145f10b19";
+            default -> UUID.randomUUID().toString();
+        };
         ObjectNode card = json.createObjectNode().put("object", "card").put("id", UUID.randomUUID().toString())
-                .put("oracle_id", UUID.randomUUID().toString()).put("name", name).put("lang", "en")
+                .put("oracle_id", oracleId).put("name", name).put("lang", "en")
                 .put("layout", "normal").put("type_line", "Legendary Creature — Test")
                 .put("oracle_text", "Companion — Your starting deck meets a condition.").put("artist", "Test artist");
         card.putArray("keywords").add("Companion");

@@ -15,6 +15,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.Deck;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidCommanderException;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidManaBoxUrlException;
 import io.github.gandalfthejunior.mtgcommanderstats.security.UserPrincipal;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidCompanionSelectionException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -67,7 +68,7 @@ public class DeckController {
     public DeckResponse changeCompanionArtwork(@AuthenticationPrincipal UserPrincipal user, @PathVariable UUID deckId,
             @RequestBody ArtworkRequest request) {
         if (request.scryfallCardId == null) {
-            throw new InvalidCommanderException();
+            throw new InvalidCompanionSelectionException("Provide a Companion artwork printing UUID in scryfallCardId.");
         }
         return DeckResponse.from(decks.changeCompanionArtwork(user.getId(), deckId,
                 request.scryfallCardId, request.artworkFaceIndex));
