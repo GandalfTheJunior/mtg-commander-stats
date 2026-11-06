@@ -30,7 +30,7 @@ public interface GameRepository extends JpaRepository<Game, UUID> {
                     ORDER BY played_on DESC NULLS LAST, recorded_at DESC, id DESC LIMIT 21)
                 UNION ALL
                 (SELECT id, played_on, recorded_at FROM games WHERE group_id = :groupId AND played_on IS NULL
-                    ORDER BY recorded_at DESC, id DESC LIMIT 21)
+                    ORDER BY played_on DESC NULLS LAST, recorded_at DESC, id DESC LIMIT 21)
             ) candidates ORDER BY played_on DESC NULLS LAST, recorded_at DESC, id DESC LIMIT 21
             """, nativeQuery = true)
     List<UUID> historyKnown(UUID groupId, LocalDate playedOn, Instant recordedAt, UUID id);
@@ -38,7 +38,7 @@ public interface GameRepository extends JpaRepository<Game, UUID> {
     @Query(value = """
             SELECT id FROM games WHERE group_id = :groupId AND played_on IS NULL
                 AND (recorded_at, id) < (:recordedAt, :id)
-            ORDER BY recorded_at DESC, id DESC LIMIT 21
+            ORDER BY played_on DESC NULLS LAST, recorded_at DESC, id DESC LIMIT 21
             """, nativeQuery = true)
     List<UUID> historyUnknown(UUID groupId, Instant recordedAt, UUID id);
 
