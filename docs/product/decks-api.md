@@ -123,6 +123,7 @@ Every owner-authorized deck response contains `id`, `name`, `commanders`, `color
 | `canBeSoleCommander`, `requiresChosenColor` | Saved normalized selection capabilities |
 | `colorIdentity`, `chosenColor`, `effectiveColorIdentity` | Base WUBRG, nullable per-card choice, derived effective WUBRG |
 | `artworkFaceIndex`, `artCropUrl`, `illustrationId`, `artist`, `scryfallUri` | Nullable displayed-illustration/printing snapshots |
+| `cardFaces` | Nullable [full-card display snapshot](#full-card-display-snapshots) |
 
 `artworkFaceIndex` retains the original printing-local face index, including 1
 when only a back image exists; it is independent of the gameplay-face selector.
@@ -142,6 +143,53 @@ of the same gameplay identity returns `400` directing clients to the artwork
 operation; stale full updates cannot overwrite newer presentation snapshots. This applies
 to both slots even when the other Commander is being replaced or a chosen color
 is changed.
+
+## Full-card display snapshots
+
+Commander and Companion read DTOs include nullable `cardFaces`, an ordered array
+of `{faceIndex, name, typeLine, oracleText, imageUrl}` for the saved printing.
+`faceIndex` is the original zero-based `card_faces` index, or null for a single
+card with top-level metadata. Names are required; type/rules/image fields may be
+null. An empty rules string means the face has no rules text, unlike null, which
+means no text was supplied. Every face is retained, including non-Commander back
+faces and faces without imagery. `imageUrl` is the safe Scryfall **normal** image,
+never the small thumbnail or an artwork crop. Split/adventure faces can share
+one complete physical-card image.
+
+V21 adds nullable `card_faces TEXT` JSON snapshots to `deck_commanders` and
+`deck_companions`, without defaults, network access or backfill. Create and actual
+Commander/Companion replacement populate them from the already resolved printing;
+artwork writes replace all faces atomically with the selected printing. Existing
+owner, group-member deck and game-detail reads return the same saved data without
+per-card lookups. Gameplay identity, permissions and first-use locks are unchanged.
+Name/link-only and idempotent unchanged-selection saves remain offline and do not
+refresh legacy snapshots; an artwork save (including the same printing) or actual
+selection replacement refreshes them. Old snapshots expose null and retain their
+saved card name, with honest missing-type/rules/image messages.
+
+The reusable frontend `FullCardView` takes this snapshot, never fetches card
+metadata, and works for both Commanders and Companions. It provides a labelled
+trigger, a MUI dialog with focus trapping, Escape dismissal and focus restoration,
+all faces as explicit buttons, and real text alongside the unmodified complete
+image. The initial face is the exceptional `selectionRef.gameplayFaceIndex` when
+present, otherwise `artworkFaceIndex`, otherwise the first face. Missing/failed
+images do not hide the text; images have no cropping, overlays, distortion or
+color effects.
+
+The own deck collection has a separate **Karte anzeigen** control beside its
+artwork. Artwork activation continues to open the editing gallery. Its preloader
+observes the artwork with zero viewport margin and starts all faces only when
+visible; it adds further cards as the user scrolls. The short game-details view
+preloads all participant cards and makes each Commander artwork a read-only
+trigger. Companion controls use the same component. Preloading is asynchronous,
+deduplicates URLs within a card and releases unfinished image requests when the
+view retires. Text opens immediately even if an image is not yet cached or the
+connection is slow. Only image-file requests to Scryfall's image hosts are used;
+opening never calls an application or Scryfall API.
+
+The shared contract is ready for the redesigned game details (#195), read-only
+member decks (#199) and own collection (#201). Dashboard, game-history (#194)
+and record-match rows (#196) do not preload or open full cards.
 
 ## Optional MTG Companion
 
@@ -195,6 +243,7 @@ DTOs include `companion: null` or this saved snapshot:
 | `selectionRef`, `scryfallCardId` | Saved printing and its gameplay-face selector when applicable |
 | `colorIdentity` | Canonical full/base WUBRG, never added to deck colors |
 | `artworkFaceIndex`, `artCropUrl`, `illustrationId`, `artist`, `scryfallUri` | Nullable artwork/attribution/source snapshots |
+| `cardFaces` | Nullable [full-card display snapshot](#full-card-display-snapshots) |
 
 Missing initial art/attribution is valid. All these reads use stored snapshots
 without Scryfall calls and retain existing owner/group access scopes. Games keep

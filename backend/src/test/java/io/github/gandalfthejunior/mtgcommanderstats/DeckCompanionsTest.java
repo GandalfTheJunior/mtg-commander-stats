@@ -292,7 +292,7 @@ class DeckCompanionsTest extends GameTestSupport {
     private void assertArtworkOnly(JsonNode before, JsonNode after) {
         ObjectNode expected = ((ObjectNode) before).deepCopy();
         ObjectNode actual = ((ObjectNode) after).deepCopy();
-        List<String> presentation = List.of("selectionRef", "scryfallCardId", "artworkFaceIndex", "artCropUrl", "illustrationId", "artist", "scryfallUri");
+        List<String> presentation = List.of("selectionRef", "scryfallCardId", "artworkFaceIndex", "artCropUrl", "illustrationId", "artist", "scryfallUri", "cardFaces");
         ((ObjectNode) expected.path("companion")).remove(presentation);
         ((ObjectNode) actual.path("companion")).remove(presentation);
         assertThat(actual).isEqualTo(expected);

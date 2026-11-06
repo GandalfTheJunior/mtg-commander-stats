@@ -7,11 +7,13 @@ public record CardDetails(UUID scryfallCardId, String name, String oracleId, Str
         String commanderLegality, List<String> colorIdentity, boolean requiresChosenColor,
         String typeLine, List<String> keywords, String oracleText, String thumbnailUrl,
         String artCropUrl, String illustrationId, String artist, String scryfallUri,
-        Artwork defaultArtwork, List<CommanderChoice> commanderSelections, List<GameplayCard> gameplayCards) {
+        Artwork defaultArtwork, List<CommanderChoice> commanderSelections, List<GameplayCard> gameplayCards,
+        List<CardFace> cardFaces) {
     public CardDetails {
         colorIdentity = List.copyOf(colorIdentity);
         keywords = List.copyOf(keywords);
         commanderSelections = List.copyOf(commanderSelections);
         gameplayCards = List.copyOf(gameplayCards);
+        cardFaces = List.copyOf(cardFaces);
     }
 }

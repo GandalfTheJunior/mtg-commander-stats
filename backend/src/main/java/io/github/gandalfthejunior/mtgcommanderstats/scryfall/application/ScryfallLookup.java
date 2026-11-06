@@ -350,7 +350,8 @@ public class ScryfallLookup {
         if (selected == null) {
             throw new InvalidScryfallSelectionException();
         }
-        return new ResolvedArtwork(new CommanderSelectionRef(printingId, gameplay.gameplayFaceIndex()), selected);
+        return new ResolvedArtwork(new CommanderSelectionRef(printingId, gameplay.gameplayFaceIndex()), selected,
+                fetched.details().cardFaces());
     }
 
     public List<Artwork> artworks(UUID id, Integer gameplayFaceIndex) {

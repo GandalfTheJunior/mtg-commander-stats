@@ -1,9 +1,10 @@
-import { useId } from 'react'
+import { useId, useRef } from 'react'
 import { Box, ButtonBase, Card, CardActionArea, Link, Stack, Typography } from '@mui/material'
 import { commanderNames, magicColors, type Deck, type SavedCommander } from './api'
 import { colorNames } from './deckColors'
 import { safeArtworkUrl } from './artworkUrl'
 import { CommanderArtwork } from './CommanderArtwork'
+import { FullCardView } from './FullCardView'
 import { ManaBoxLink } from './ManaBoxLink'
 
 export default function SavedDeckCard({ deck, onOpen, overview = false, showId = false, showManaBox = false, onOpenArtwork }: {
@@ -11,12 +12,13 @@ export default function SavedDeckCard({ deck, onOpen, overview = false, showId =
   onOpenArtwork?: (deck: Deck, commander: SavedCommander, trigger: HTMLButtonElement) => void
 }) {
   const id = useId()
+  const artwork = useRef<HTMLDivElement>(null)
   const paired = deck.commanders.length === 2
   return <Card component="li" sx={{ containerType: 'inline-size', minWidth: 0 }}>
     <Box sx={{ display: 'grid', gridTemplateColumns: 'min(42%, 320px) minmax(0, 1fr)', gap: 2, p: 2,
       '@container (max-width: 560px)': { gridTemplateColumns: 'minmax(0, 1fr)' } }}>
       <Stack sx={{ gap: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
-        <Box className="deck-artwork" sx={{ position: 'relative', isolation: 'isolate', width: '100%',
+        <Box ref={artwork} className="deck-artwork" sx={{ position: 'relative', isolation: 'isolate', width: '100%',
           maxWidth: paired ? 320 : 224, aspectRatio: paired ? '48 / 25' : '4 / 3',
           '@container (max-width: 560px)': { maxWidth: paired ? 256 : 180 } }}>
           {deck.commanders.map((commander, index) => <ButtonBase className="deck-artwork-slot" key={commander.position}
@@ -32,6 +34,8 @@ export default function SavedDeckCard({ deck, onOpen, overview = false, showId =
               width: 28, height: 28, display: 'grid', placeItems: 'center', bgcolor: 'background.paper', color: 'text.primary', boxShadow: 1 }}>✎</Box>
           </ButtonBase>)}
         </Box>
+        {overview && deck.commanders.map(commander => <FullCardView key={commander.position} card={commander} preloadTarget={artwork} />)}
+        {overview && deck.companion && <FullCardView card={deck.companion} />}
         <Box component="ul" aria-label={`Bildnachweise für ${deck.name}`} sx={{ listStyle: 'none', p: 0, m: 0 }}>
           {deck.commanders.map(commander => {
             const source = safeArtworkUrl(commander.scryfallUri, true)

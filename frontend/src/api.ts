@@ -15,6 +15,7 @@ export type Deck = {
   everUsed: boolean
   archived: boolean
   manaBoxUrl: string | null
+  companion?: SavedCompanion | null
 }
 
 export type CommanderSelectionRef = { scryfallCardId: string; gameplayFaceIndex?: number }
@@ -24,7 +25,10 @@ export type CommanderChoice = {
   selectionRef: CommanderSelectionRef; scryfallCardId: string; name: string; colorIdentity: MagicColor[]
   requiresChosenColor: boolean; canBeSoleCommander: boolean; thumbnailUrl: string | null
 }
+export type CardFace = { faceIndex: number | null; name: string; typeLine: string | null; oracleText: string | null; imageUrl: string | null }
+export type SavedCompanion = Pick<SavedCommander, 'oracleId' | 'name' | 'selectionRef' | 'scryfallCardId' | 'colorIdentity' | 'artworkFaceIndex' | 'artCropUrl' | 'illustrationId' | 'artist' | 'scryfallUri' | 'cardFaces'>
 export type SavedCommander = Omit<CommanderChoice, 'thumbnailUrl'> & {
+  cardFaces?: CardFace[] | null
   position: number; oracleId: string; chosenColor: MagicColor | null; effectiveColorIdentity: MagicColor[]
   artworkFaceIndex: number | null; artCropUrl: string | null; illustrationId: string | null; artist: string | null; scryfallUri: string | null
 }
@@ -119,6 +123,7 @@ function deckFrom(value: unknown): Deck {
     colorIdentity: value.colorIdentity as MagicColor[],
     everUsed: value.everUsed,
     archived: value.archived,
+    ...('companion' in value ? { companion: companionFrom(value.companion) } : {}),
     manaBoxUrl: 'manaBoxUrl' in value && typeof value.manaBoxUrl === 'string' ? value.manaBoxUrl : null,
   }
 }
@@ -351,7 +356,7 @@ export async function archiveDeck(id: string, signal?: AbortSignal): Promise<Dec
   return deck
 }
 
-export type DeckSelection = Pick<Deck, 'id' | 'name' | 'commanders' | 'colorIdentity'>
+export type DeckSelection = Pick<Deck, 'id' | 'name' | 'commanders' | 'colorIdentity' | 'companion'>
 export type GameParticipant = {
   startPosition: number
   placement: number | null
@@ -390,7 +395,8 @@ function selectionFrom(value: unknown): DeckSelection {
     value.colorIdentity.join('') !== canonicalColors(value.colorIdentity)) {
     throw new Error('The server returned invalid deck selection data.')
   }
-  return { id: value.id, name: value.name, commanders: commandersFrom(value.commanders), colorIdentity: value.colorIdentity as MagicColor[] }
+  return { id: value.id, name: value.name, commanders: commandersFrom(value.commanders), colorIdentity: value.colorIdentity as MagicColor[],
+    ...('companion' in value ? { companion: companionFrom(value.companion) } : {}) }
 }
 
 function gameFrom(value: unknown, groupId: string, gameId?: string, includeManaBox = false): Game {
@@ -601,6 +607,40 @@ function choiceFrom(value: unknown): CommanderChoice {
     requiresChosenColor: value.requiresChosenColor, canBeSoleCommander: value.canBeSoleCommander,
     thumbnailUrl: typeof value.thumbnailUrl === 'string' && /^https:\/\//.test(value.thumbnailUrl) ? value.thumbnailUrl : null }
 }
+function cardFacesFrom(value: unknown): CardFace[] | null {
+  if (value === null) return null
+  if (!Array.isArray(value) || value.length === 0) throw new Error('The server returned invalid card faces.')
+  const faces = value.map((face: unknown): CardFace => {
+    if (!isRecord(face) || typeof face.name !== 'string' || !face.name ||
+      (face.faceIndex !== null && (typeof face.faceIndex !== 'number' || !Number.isSafeInteger(face.faceIndex) || face.faceIndex < 0)) ||
+      [face.typeLine, face.oracleText, face.imageUrl].some(text => text !== null && typeof text !== 'string')) {
+      throw new Error('The server returned an invalid card face.')
+    }
+    return { faceIndex: face.faceIndex as number | null, name: face.name, typeLine: face.typeLine as string | null,
+      oracleText: face.oracleText as string | null, imageUrl: face.imageUrl as string | null }
+  })
+  if (new Set(faces.map(face => face.faceIndex)).size !== faces.length || (faces.length > 1 && faces.some(face => face.faceIndex === null))) {
+    throw new Error('The server returned ambiguous card faces.')
+  }
+  return faces
+}
+
+function companionFrom(value: unknown): SavedCompanion | null {
+  if (value === null) return null
+  if (!isRecord(value) || !isUuid(value.oracleId) || !isUuid(value.scryfallCardId) || typeof value.name !== 'string' || !value.name ||
+    (value.artworkFaceIndex !== null && (typeof value.artworkFaceIndex !== 'number' || !Number.isSafeInteger(value.artworkFaceIndex) || value.artworkFaceIndex < 0)) ||
+    [value.artCropUrl, value.illustrationId, value.artist, value.scryfallUri].some(text => text !== null && typeof text !== 'string')) {
+    throw new Error('The server returned an invalid saved Companion.')
+  }
+  const selectionRef = referenceFrom(value.selectionRef)
+  if (selectionRef.scryfallCardId !== value.scryfallCardId) throw new Error('The server returned inconsistent Companion printing data.')
+  return { oracleId: value.oracleId, name: value.name, selectionRef, scryfallCardId: value.scryfallCardId,
+    colorIdentity: colorsFrom(value.colorIdentity), artworkFaceIndex: value.artworkFaceIndex as number | null,
+    artCropUrl: value.artCropUrl as string | null, illustrationId: value.illustrationId as string | null,
+    artist: value.artist as string | null, scryfallUri: value.scryfallUri as string | null,
+    ...('cardFaces' in value ? { cardFaces: cardFacesFrom(value.cardFaces) } : {}) }
+}
+
 function commandersFrom(value: unknown): SavedCommander[] {
   if (!Array.isArray(value) || value.length < 1 || value.length > 2) throw new Error('The server returned invalid Commanders.')
   const result = value.map((card: unknown, index): SavedCommander => {
@@ -616,7 +656,7 @@ function commandersFrom(value: unknown): SavedCommander[] {
     }
     const { thumbnailUrl: _thumbnail, ...metadata } = choice
     void _thumbnail
-    return { ...metadata, position: index + 1, oracleId: card.oracleId, chosenColor: card.chosenColor as MagicColor | null,
+    return { ...metadata, ...('cardFaces' in card ? { cardFaces: cardFacesFrom(card.cardFaces) } : {}), position: index + 1, oracleId: card.oracleId, chosenColor: card.chosenColor as MagicColor | null,
       effectiveColorIdentity: colorsFrom(card.effectiveColorIdentity), artworkFaceIndex: card.artworkFaceIndex as number | null,
       artCropUrl: nullableText('artCropUrl'), illustrationId: nullableText('illustrationId'), artist: nullableText('artist'), scryfallUri: nullableText('scryfallUri') }
   })

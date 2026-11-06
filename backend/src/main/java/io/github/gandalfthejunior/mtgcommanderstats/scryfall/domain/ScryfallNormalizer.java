@@ -84,7 +84,28 @@ public class ScryfallNormalizer {
         return new CardDetails(id, name, optionalUuid(card, "oracle_id"), layout, legality, colors,
                 ChosenColorAbility.requiresChosenColor(oracleText), typeLine, keywords, oracleText,
                 thumbnail(card, null), artwork.artCropUrl(), artwork.illustrationId(), artwork.artist(),
-                artwork.scryfallUri(), artwork, choices, gameplayCards);
+                artwork.scryfallUri(), artwork, choices, gameplayCards, cardFaces(card));
+    }
+
+    private static List<CardFace> cardFaces(JsonNode card) {
+        String sharedImage = safeImage(text(card.path("image_uris"), "normal"));
+        JsonNode faces = card.path("card_faces");
+        if (!faces.isArray() || faces.isEmpty()) {
+            return List.of(cardFace(card, null, sharedImage));
+        }
+        List<CardFace> result = new ArrayList<>();
+        for (int index = 0; index < faces.size(); index++) {
+            JsonNode face = faces.get(index);
+            String image = safeImage(text(face.path("image_uris"), "normal"));
+            // Split/adventure faces share the complete top-level image; DFCs retain their own images.
+            result.add(cardFace(face, index, image == null ? sharedImage : image));
+        }
+        return List.copyOf(result);
+    }
+
+    private static CardFace cardFace(JsonNode face, Integer index, String image) {
+        return new CardFace(index, requiredText(face, "name"), text(face, "type_line"),
+                text(face, "oracle_text"), image);
     }
 
     public GameplayCard resolve(CardDetails card, CommanderSelectionRef reference) {

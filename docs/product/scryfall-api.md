@@ -215,6 +215,22 @@ retain their full card-level base `color_identity`, including back-side colors.
 | `defaultArtwork` | The normalized initial `Artwork` snapshot, permitting a null image |
 | `commanderSelections` | Eligible `CommanderChoice[]`, using exactly the search choice contract |
 | `gameplayCards` | Per-gameplay-identity metadata described below |
+| `cardFaces` | All printing faces: `{faceIndex, name, typeLine, oracleText, imageUrl}` for offline full-card display |
+
+`cardFaces` is display metadata independent of gameplay eligibility. It retains
+all original face indices and per-face rules, including missing-image faces.
+Single cards use a null index; split/adventure faces share the whole top-level
+image when supplied. Only safe `image_uris.normal` URLs are used; a small
+thumbnail is never substituted. Normalization neither fetches nor probes images.
+The same fresh printing response supplies deck snapshots on selection/artwork
+writes; no additional API request is introduced for the full-card feature.
+
+The [saved full-card contract](decks-api.md#full-card-display-snapshots) is the
+source for card dialogs. `GET /api/scryfall/cards/{scryfallCardId}` remains a live,
+request-gated lookup and must not be called when opening a saved card. Visible
+artwork preloading fetches image files from `*.scryfall.io`, which are not subject
+to the Scryfall API rate limit. Full-card images retain their printed artist and
+copyright lines and must be displayed completely and without visual alteration.
 
 Each `GameplayCard` exposes `gameplayFaceIndex`, `oracleId`, `name`,
 `colorIdentity`, `requiresChosenColor`, `canBeSoleCommander`, `typeLine`,

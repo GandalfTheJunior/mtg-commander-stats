@@ -59,7 +59,8 @@ class PinnedCommanderFixturesTest {
         assertThat(normalizer.normalize(unknown).gameplayCards().getFirst().requiresChosenColor()).isTrue();
         ObjectNode faceSpecific = unknown.deepCopy();
         faceSpecific.remove("oracle_text");
-        faceSpecific.putArray("card_faces").addObject().put("oracle_text", unknown.path("oracle_text").asText());
+        faceSpecific.putArray("card_faces").addObject().put("name", name)
+                .put("type_line", unknown.path("type_line").asText()).put("oracle_text", unknown.path("oracle_text").asText());
         assertThat(normalizer.normalize(faceSpecific).gameplayCards().getFirst().requiresChosenColor()).isTrue();
         unknown.put("oracle_text", "As this creature enters, choose a color. It is the chosen color.");
         assertThat(normalizer.normalize(unknown).requiresChosenColor()).isFalse();
