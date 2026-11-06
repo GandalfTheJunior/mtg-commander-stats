@@ -47,6 +47,11 @@ stable per-group `deletedNumber` (`null` otherwise); clients display a localized
 label such as "Gelöschtes Profil 1". Anonymization never changes other players'
 counts.
 
+After a [profile claim](groups-api.md#profile-invitations-and-claiming), the
+profile's game observations count for the claiming account. Its player row
+disappears; the account's group totals include both histories. Deck statistics
+retain the same deck IDs and gameplay facts under the account owner.
+
 `startPositions` always has five sections ordered 2,3,4,5,6 for All, or exactly
 the selected N section. Each contains every seat 1…N in ascending order, even
 without observations. Seats from different table sizes are never pooled.

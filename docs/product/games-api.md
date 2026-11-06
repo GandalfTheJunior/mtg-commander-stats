@@ -196,6 +196,12 @@ per-group `deletedNumber`; clients display a localized label such as
 "Gelöschtes Profil 1". Account usernames and quick-profile names can be equal;
 the user UUID keeps them distinct.
 
+When a [profile invitation](groups-api.md#profile-invitations-and-claiming) is
+accepted, the profile's participations reference the claiming account. Game IDs,
+creator, recording time, seats, placements, winners and survivor facts are
+preserved. A same-game account/profile collision blocks the entire claim with
+`409` until an authorized game edit resolves it.
+
 ### ManaBox links in game details
 
 Only `GET /api/groups/{groupId}/games/{gameId}` may add `deck.manaBoxUrl` to a

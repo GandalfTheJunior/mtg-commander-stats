@@ -33,8 +33,11 @@ public class InvitationRequestLimit extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !("GET".equals(request.getMethod()) && request.getRequestURI().startsWith("/api/invitations/"))
-                && !("POST".equals(request.getMethod()) && "/api/groups/join".equals(request.getRequestURI()));
+        String path = request.getRequestURI();
+        return !("GET".equals(request.getMethod()) && (path.startsWith("/api/invitations/")
+                || path.startsWith("/api/profile-invitations/")))
+                && !("POST".equals(request.getMethod()) && ("/api/groups/join".equals(path)
+                || path.matches("/api/profile-invitations/[^/]+/accept")));
     }
 
     @Override

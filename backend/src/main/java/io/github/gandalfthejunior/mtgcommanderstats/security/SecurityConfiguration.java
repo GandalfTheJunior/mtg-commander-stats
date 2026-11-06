@@ -39,7 +39,7 @@ public class SecurityConfiguration {
                 .matcher(HttpMethod.POST, "/api/users");
         http.authorizeHttpRequests(authorize -> authorize
                 .requestMatchers(registration).permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/csrf", "/api/invitations/*").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/csrf", "/api/invitations/*", "/api/profile-invitations/*").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/session").permitAll()
                 .anyRequest().authenticated());
         http.headers(headers -> headers.referrerPolicy(policy -> policy.policy(

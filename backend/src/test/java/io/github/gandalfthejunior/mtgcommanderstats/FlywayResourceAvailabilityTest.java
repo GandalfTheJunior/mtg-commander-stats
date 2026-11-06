@@ -35,7 +35,7 @@ class FlywayResourceAvailabilityTest {
             Flyway absent = configure(database, loader);
             assertThat(absent.info().all()).isEmpty();
             assertThat(absent.migrate().migrationsExecuted).isZero();
-            copyMigrations(classes);
+            List<Path> migrations = copyMigrations(classes);
             Flyway discovered = Flyway.configure(loader).dataSource(database.getJdbcUrl(), database.getUsername(), database.getPassword())
                     .callbacks(new Callback() {
                         public boolean supports(Event event, Context context) { return event == Event.AFTER_VALIDATE; }
@@ -46,7 +46,7 @@ class FlywayResourceAvailabilityTest {
                             catch (IOException failure) { throw new IllegalStateException(failure); }
                         }
                     }).load();
-            assertThat(discovered.info().pending()).hasSize(21);
+            assertThat(discovered.info().pending()).hasSize(migrations.size());
             assertThatThrownBy(discovered::migrate).hasStackTraceContaining("Unable to obtain inputstream for resource");
         }
     }
@@ -70,10 +70,10 @@ class FlywayResourceAvailabilityTest {
                 URLClassLoader loader = migrationsLoader(archive)) {
             database.start();
             Flyway flyway = configure(database, loader);
-            assertThat(flyway.info().pending()).hasSize(21);
-            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(21);
+            assertThat(flyway.info().pending()).hasSize(migrations.size());
+            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(migrations.size());
             assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
-            assertThat(flyway.info().applied()).hasSize(21);
+            assertThat(flyway.info().applied()).hasSize(migrations.size());
         }
     }
 

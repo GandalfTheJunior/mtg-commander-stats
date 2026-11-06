@@ -99,9 +99,13 @@ UI work is separate (#196, #198, #199, #201).
   retained, the membership is deactivated, the decks are archived, and history
   and other players' statistics stay intact. Clients show a localized label
   (German: "Gelöschtes Profil") with a stable per-group `deletedNumber` suffix.
-- Claiming or merging a profile into an account, profile invitations, retention
-  periods and the legal basis for data about people without accounts are separate
-  follow-up topics.
+- An active OWNER/ADMIN can issue a one-hour, single-use profile invitation.
+  After authenticating and explicitly accepting it, an account receives the
+  profile's decks, game participations and group membership atomically. A shared
+  game between account and profile blocks the claim until corrected. See the
+  [profile invitation API](groups-api.md#profile-invitations-and-claiming).
+  The accept UI, QR rendering, audit retention periods and legal basis for data
+  about people without accounts are separate follow-up topics.
 
 ## Decks
 
