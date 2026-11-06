@@ -13,6 +13,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckFormat;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.Deck;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.DeckRepository;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.DeckClaimRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,9 +23,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(propagation = Propagation.MANDATORY)
 public class GameDecks {
     private final DeckRepository decks;
+    private final DeckClaimRepository claims;
 
-    public GameDecks(DeckRepository decks) {
+    public GameDecks(DeckRepository decks, DeckClaimRepository claims) {
         this.decks = decks;
+        this.claims = claims;
     }
 
     public void use(Map<UUID, UUID> deckOwners) {
@@ -39,6 +42,16 @@ public class GameDecks {
             selected.add(deck);
         }
         selected.forEach(Deck::markUsed);
+    }
+
+    /** Call after the home-group lock; lock both owners' decks in UUID order. */
+    public void lockForClaim(UUID profileId, UUID accountId) {
+        claims.lockOwners(profileId, accountId);
+    }
+
+    /** The caller updates participations before committing the deferred ownership constraint. */
+    public void moveForClaim(UUID profileId, UUID accountId) {
+        claims.move(profileId, accountId);
     }
 
     public List<DeckDisplay> eligible(UUID ownerId) {

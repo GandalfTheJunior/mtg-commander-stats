@@ -7,6 +7,7 @@ import java.net.InetAddress;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -20,6 +21,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class InvitationRequestLimit extends OncePerRequestFilter {
     private static final int MAX_PEERS = 4096;
     private static final int REQUESTS_PER_MINUTE = 120;
+    private static final Pattern PROFILE_ACCEPT = Pattern.compile("/api/profile-invitations/[^/]+/accept");
     private final Map<String, Window> peers = new LinkedHashMap<>();
     private final Clock clock;
 
@@ -33,8 +35,11 @@ public class InvitationRequestLimit extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !("GET".equals(request.getMethod()) && request.getRequestURI().startsWith("/api/invitations/"))
-                && !("POST".equals(request.getMethod()) && "/api/groups/join".equals(request.getRequestURI()));
+        String path = request.getServletPath();
+        return !("GET".equals(request.getMethod()) && (path.startsWith("/api/invitations/")
+                || path.startsWith("/api/profile-invitations/")))
+                && !("POST".equals(request.getMethod()) && ("/api/groups/join".equals(path)
+                || PROFILE_ACCEPT.matcher(path).matches()));
     }
 
     @Override

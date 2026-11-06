@@ -424,6 +424,12 @@ former members and invalid CSRF return `403`; a missing group, or an unknown,
 anonymized or other-group profile returns `404`; a deck owned by someone else
 returns `403`. Anonymized profiles' decks are archived and cannot be managed.
 
+Accepting a [profile invitation](groups-api.md#profile-invitations-and-claiming)
+moves every profile deck to the account with its UUID, name, format, Commanders,
+Companion, `everUsed` lock and archived state intact. The deck owner/participant
+foreign key is deferred only for the atomic claim transaction; other writers
+retain immediate validation.
+
 ## Disposable local data and migration
 
 V6 introduces `deck_commanders` and drops the free-text column. Existing

@@ -38,7 +38,7 @@ public class QuickProfileAccess {
                 .orElseThrow(GroupAccessDeniedException::new);
     }
 
-    /** Call after {@link #lockActiveMember}; anonymized profiles are no longer manageable. */
+    /** Call after group authorization; management writes lock the group first. */
     public User activeProfile(UUID groupId, UUID profileId) {
         return membership(groupId, profileId).filter(GroupMembership::isActive)
                 .flatMap(membership -> profiles.find(profileId))

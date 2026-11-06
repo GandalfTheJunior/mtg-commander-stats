@@ -6,6 +6,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.deck.application.ManageDecks
 import io.github.gandalfthejunior.mtgcommanderstats.game.application.GameParticipations;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupAccessDeniedException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.QuickProfileAccess;
+import io.github.gandalfthejunior.mtgcommanderstats.group.application.ManageProfileInvitations;
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.GroupRole;
 import io.github.gandalfthejunior.mtgcommanderstats.user.application.QuickProfiles;
 import io.github.gandalfthejunior.mtgcommanderstats.user.domain.User;
@@ -21,14 +22,16 @@ public class ManageQuickProfiles {
     private final QuickProfileNameGenerator names;
     private final GameParticipations participations;
     private final ManageDecks decks;
+    private final ManageProfileInvitations invitations;
 
     public ManageQuickProfiles(QuickProfileAccess access, QuickProfiles profiles, QuickProfileNameGenerator names,
-            GameParticipations participations, ManageDecks decks) {
+            GameParticipations participations, ManageDecks decks, ManageProfileInvitations invitations) {
         this.access = access;
         this.profiles = profiles;
         this.names = names;
         this.participations = participations;
         this.decks = decks;
+        this.invitations = invitations;
     }
 
     /** Any active member; the group lock serializes name generation within the group. */
@@ -56,6 +59,7 @@ public class ManageQuickProfiles {
             throw new GroupAccessDeniedException();
         }
         User profile = access.activeProfile(groupId, profileId);
+        invitations.revokeForProfileDeletion(profileId);
         if (participations.hasPlayed(profileId)) {
             decks.archiveAllOwnedBy(profileId);
             access.deactivate(profile);

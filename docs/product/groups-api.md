@@ -182,9 +182,9 @@ Group-authorized deck selection and game history/recording are documented in the
 
 Quick profiles (#223) are credential-less placeholder members for friends without
 an account; see the [product rules](mvp-scope.md#quick-profiles). Every route
-requires an authenticated active member of the path group and CSRF for writes,
-and locks the group row first, sharing the lock with membership changes and game
-writes.
+requires an authenticated active member of the path group and CSRF for writes.
+Mutations lock the group row first, sharing the lock with membership changes and
+game writes.
 
 | Route | Who | Result |
 | --- | --- | --- |
@@ -233,6 +233,48 @@ deferred trigger requires exactly one membership per profile: `MEMBER` in the
 home group, active unless anonymized. The #214 username index now covers accounts
 only; the partial index `users_quick_profile_name_key` enforces per-group profile
 name uniqueness. Existing rows become accounts unchanged.
+
+### Profile invitations and claiming
+
+An active OWNER or ADMIN can invite an active, non-anonymized quick profile's
+future account holder. All management routes are under
+`/api/groups/{groupId}/quick-profiles/{profileId}/invitation`:
+
+| Method | Success | Response |
+| --- | --- | --- |
+| `POST` (empty body or `{}`) | `201` | `{"code":"<22-character code>","expiresAt":"<UTC instant>"}` |
+| `GET` | `200` | `{"active":true,"expiresAt":"<UTC instant>"}` or `{"active":false,"expiresAt":null}`; never the code |
+| `DELETE` (empty body or `{}`) | `204` | No body |
+
+Creation revokes the prior open invitation, including an expired one. The new
+code expires exactly one hour after database creation time. Issuer departure does
+not revoke it. `DELETE` revokes the open invitation, if any. Deleting or
+anonymizing the profile also revokes its invitation. MEMBERs and outsiders
+receive `403`; unknown, anonymized, claimed or other-group profiles receive `404`.
+The status `GET` authorizes without taking an exclusive group lock. Every
+response uses `Cache-Control: no-store`.
+
+`GET /api/profile-invitations/{code}` is public. An available code returns only
+`{"groupName":"<name>","profileName":"<name>"}`. A malformed, unknown,
+expired, consumed, revoked, superseded or deleted-profile code returns the same
+`400` problem. The frontend constructs the shareable link and QR code; the API
+has no token-bearing image endpoint. Preview never consumes the invitation.
+
+`POST /api/profile-invitations/{code}/accept` is the explicit, authenticated,
+CSRF-protected confirmation and returns `204`. It merges the profile into the
+authenticated account in one transaction. If both already participated in one
+game it returns `409` with `code: "PROFILE_CLAIM_SAME_GAME"`, changes nothing,
+and leaves the code available until expiry. Otherwise, all decks and game
+participations move to the account, which joins the group as MEMBER unless it
+already has an active membership. An inactive membership is reactivated as
+MEMBER; an active role is preserved. The profile and its membership are removed.
+Unavailable codes return the same `400` as preview, including after a lock wait.
+
+Preview and accept share the invitation request limit (120 requests per minute
+per peer, IPv6 peers grouped by /64). All profile-invitation responses are
+`no-store` with `Referrer-Policy: no-referrer`. Only SHA-256 token hashes are
+stored. Consumed and revoked rows remain for audit; a claimed profile's
+`profile_id` becomes null when the profile is deleted.
 
 ## Ownership transfer
 
