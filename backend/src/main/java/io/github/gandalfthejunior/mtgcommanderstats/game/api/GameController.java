@@ -114,6 +114,10 @@ public class GameController {
         return value.booleanValue();
     }
 
+    private static Boolean nullableBool(JsonNode value) {
+        return value == null || value.isNull() ? null : bool(value, true);
+    }
+
     public record GameRequest(List<ParticipantRequest> participants, String result, JsonNode alternateWinCon,
             JsonNode playedOn) {
         LocalDate playedOnDate() {
@@ -137,14 +141,23 @@ public class GameController {
             return participants.stream()
                     .map(participant -> new GameParticipant(uuid(participant.userId()), uuid(participant.deckId()),
                             integer(participant.startPosition(), true), placement(participant),
-                            bool(participant.winner(), false), bool(participant.stillInGame(), false))).toList();
+                            bool(participant.winner(), false), survival(participant))).toList();
+        }
+
+        private Boolean survival(ParticipantRequest participant) {
+            if (participant.stillInGame() != null && GameResult.parse(result) == GameResult.WIN
+                    && (!Boolean.TRUE.equals(alternate())
+                            || Boolean.TRUE.equals(bool(participant.winner(), false)))) {
+                throw new InvalidGameException();
+            }
+            return nullableBool(participant.stillInGame());
         }
 
         private Integer placement(ParticipantRequest participant) {
             // Keep field presence distinct from a nullable value in modes that forbid placement.
             boolean forbidden = GameResult.parse(result) == GameResult.DRAW
                     || (Boolean.TRUE.equals(alternate()) && (Boolean.TRUE.equals(bool(participant.winner(), false))
-                            || Boolean.TRUE.equals(bool(participant.stillInGame(), false))));
+                            || Boolean.TRUE.equals(nullableBool(participant.stillInGame()))));
             if (forbidden && participant.placement() != null) {
                 throw new InvalidGameException();
             }

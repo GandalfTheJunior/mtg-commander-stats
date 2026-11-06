@@ -78,6 +78,7 @@ public class Game {
         List<Integer> ranks = new ArrayList<>();
         int winners = 0;
         int survivors = 0;
+        int unknownOutcomes = 0;
         for (GameParticipant p : participants) {
             if (p == null || p.getUserId() == null || p.getDeckId() == null
                     || !users.add(p.getUserId()) || !decks.add(p.getDeckId())
@@ -99,6 +100,8 @@ public class Game {
                 }
                 if (place != null) {
                     ranks.add(place);
+                } else {
+                    unknownOutcomes++;
                 }
                 if (Integer.valueOf(1).equals(place)) {
                     winners++;
@@ -110,10 +113,15 @@ public class Game {
                 winners++;
                 ranks.add(1);
             } else {
-                if (p.getWinner() != null || p.getStillInGame() == null) {
+                if (p.getWinner() != null) {
                     throw new InvalidGameException();
                 }
-                if (p.getStillInGame()) {
+                if (p.getStillInGame() == null) {
+                    if (place != null) {
+                        throw new InvalidGameException();
+                    }
+                    unknownOutcomes++;
+                } else if (p.getStillInGame()) {
                     if (place != null) {
                         throw new InvalidGameException();
                     }
@@ -134,26 +142,25 @@ public class Game {
                 throw new InvalidGameException();
             }
         } else {
-            if (winners != 1 || (alternateWinCon && survivors == 0)) {
+            if (winners != 1 || (unknownOutcomes != 0 && unknownOutcomes != participants.size() - 1)
+                    || (unknownOutcomes == 0 && alternateWinCon && survivors == 0)
+                    || (unknownOutcomes == 0 && ranks.size() != participants.size())) {
                 throw new InvalidGameException();
             }
-            validatePartialRanks(ranks, participants.size());
+            if (unknownOutcomes == 0) {
+                validateCompleteRanks(ranks, participants.size());
+            }
         }
     }
 
-    private static void validatePartialRanks(List<Integer> ranks, int playerCount) {
+    private static void validateCompleteRanks(List<Integer> ranks, int playerCount) {
         ranks.sort(Integer::compareTo);
-        int unknown = playerCount - ranks.size();
         int nextRank = 1;
         for (int i = 0; i < ranks.size();) {
             int rank = ranks.get(i);
-            // Each gap needs this many unknown players before the next known tie group.
-            // Overlapping groups cannot be repaired by adding unknown results.
-            int gap = rank - nextRank;
-            if (rank < 1 || rank > playerCount || gap < 0 || gap > unknown) {
+            if (rank != nextRank || rank > playerCount) {
                 throw new InvalidGameException();
             }
-            unknown -= gap;
             int count = 0;
             while (i < ranks.size() && ranks.get(i) == rank) {
                 count++;
@@ -197,11 +204,11 @@ public class Game {
         return p.getPlacement();
     }
 
-    public boolean stillInGame(GameParticipant p) {
+    public Boolean stillInGame(GameParticipant p) {
         if (result == GameResult.WIN && !alternateWinCon) {
             return Integer.valueOf(1).equals(p.getPlacement());
         }
-        return Boolean.TRUE.equals(p.getWinner()) || Boolean.TRUE.equals(p.getStillInGame());
+        return Boolean.TRUE.equals(p.getWinner()) ? Boolean.TRUE : p.getStillInGame();
     }
 
     public UUID getId() {
@@ -229,7 +236,6 @@ public class Game {
     }
 
     public UUID getWinnerUserId() {
-        validate(participants, result, alternateWinCon);
         if (result == GameResult.DRAW) {
             return null;
         }

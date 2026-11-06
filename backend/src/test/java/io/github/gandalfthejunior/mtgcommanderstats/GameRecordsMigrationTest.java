@@ -40,8 +40,8 @@ class GameRecordsMigrationTest {
                 connection.setSchema(schema);
                 JdbcTemplate seed = new JdbcTemplate(new SingleConnectionDataSource(connection, true));
                 for (UUID user : List.of(owner, member, third)) {
-                    seed.update("INSERT INTO users (id, username, encoded_password, email) VALUES (?, 'Player', 'test-hash', ?)",
-                            user, user + "@example.com");
+                    seed.update("INSERT INTO users (id, username, encoded_password, email) VALUES (?, ?, 'test-hash', ?)",
+                            user, "Player " + user, user + "@example.com");
                     seed.update("INSERT INTO decks (id, owner_id, name, color_identity, ever_used, archived) VALUES (?, ?, 'Deck', 'R', true, ?)",
                             user, user, user.equals(member));
                 }
@@ -92,6 +92,12 @@ class GameRecordsMigrationTest {
                         .hasStackTraceContaining("Invalid");
                 assertThat(updated.queryForObject("SELECT count(*) FROM games", Integer.class)).isEqualTo(3);
             }
+            List<Map<String, Object>> partialRows = jdbc.queryForList("SELECT * FROM " + schema + ".game_participants");
+            Flyway latest = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).target("23").load();
+            assertThat(latest.migrate().migrationsExecuted).isEqualTo(6);
+            assertThat(jdbc.queryForList("SELECT * FROM " + schema + ".game_participants"))
+                    .containsExactlyInAnyOrderElementsOf(partialRows);
+            assertThat(latest.validateWithResult().validationSuccessful).isTrue();
         } finally {
             jdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
         }
