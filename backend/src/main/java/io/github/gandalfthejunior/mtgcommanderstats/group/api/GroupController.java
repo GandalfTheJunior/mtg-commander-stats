@@ -132,9 +132,9 @@ public class GroupController {
         }
     }
 
-    public record MemberResponse(UUID userId, String username, GroupRole role) {
-        static MemberResponse from(MemberSummary member) {
-            return new MemberResponse(member.userId(), member.username(), member.role());
+    public record MemberResponse(UUID userId, String username, GroupRole role, boolean quickProfile) {
+        public static MemberResponse from(MemberSummary member) {
+            return new MemberResponse(member.userId(), member.username(), member.role(), member.quickProfile());
         }
     }
 

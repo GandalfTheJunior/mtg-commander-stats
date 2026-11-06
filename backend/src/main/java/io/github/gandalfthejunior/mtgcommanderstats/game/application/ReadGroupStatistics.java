@@ -83,14 +83,17 @@ public class ReadGroupStatistics {
         }
         List<PlayerStatistics> players = playerCounts.entrySet().stream().map(entry -> {
             Counts counts = entry.getValue();
-            return new PlayerStatistics(entry.getKey(), publicUsers.get(entry.getKey()).username(),
-                    counts.games(), counts.wins(), counts.winRatePercent());
+            PublicUser user = publicUsers.get(entry.getKey());
+            return new PlayerStatistics(entry.getKey(), user.username(), user.quickProfile(), user.deleted(),
+                    user.deletedNumber(), counts.games(), counts.wins(), counts.winRatePercent());
         }).sorted(Comparator.comparing(PlayerStatistics::username).thenComparing(PlayerStatistics::userId)).toList();
         List<DeckStatistics> deckRows = deckCounts.entrySet().stream().map(entry -> {
             Counts counts = entry.getValue();
             DeckDisplay deck = publicDecks.get(entry.getKey());
             UUID ownerId = deckOwners.get(entry.getKey());
-            return new DeckStatistics(deck.id(), ownerId, publicUsers.get(ownerId).username(), deck.name(),
+            PublicUser owner = publicUsers.get(ownerId);
+            return new DeckStatistics(deck.id(), ownerId, owner.username(), owner.quickProfile(), owner.deleted(),
+                    owner.deletedNumber(), deck.name(),
                     deck.commanders(), deck.format(), deck.archived(), counts.games(), counts.wins(), counts.winRatePercent());
         }).sorted(Comparator.comparing(DeckStatistics::ownerUsername).thenComparing(DeckStatistics::name)
                 .thenComparing(DeckStatistics::deckId)).toList();
@@ -147,10 +150,12 @@ public class ReadGroupStatistics {
     public record ManaColorStatistics(String color, long games, long wins, BigDecimal winRatePercent) {
     }
 
-    public record PlayerStatistics(UUID userId, String username, long games, long wins, BigDecimal winRatePercent) {
+    public record PlayerStatistics(UUID userId, String username, boolean quickProfile, boolean deleted,
+            Integer deletedNumber, long games, long wins, BigDecimal winRatePercent) {
     }
 
-    public record DeckStatistics(UUID deckId, UUID ownerUserId, String ownerUsername, String name, List<CommanderSummary> commanders,
+    public record DeckStatistics(UUID deckId, UUID ownerUserId, String ownerUsername, boolean ownerQuickProfile,
+            boolean ownerDeleted, Integer ownerDeletedNumber, String name, List<CommanderSummary> commanders,
             DeckFormat format, boolean archived, long games, long wins, BigDecimal winRatePercent) {
     }
 }

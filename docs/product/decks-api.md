@@ -1,7 +1,9 @@
 # Deck API and permanent lifecycle
 
 Deck operations use the authenticated principal's user UUID. Only the owner may
-create, change, delete, or archive their decks. Group deck selection is a
+create, change, delete, or archive their decks. The only delegation is for
+[quick-profile decks](#quick-profile-decks), which any active member of the
+profile's group manages. Group deck selection is a
 separate [read-only game API](games-api.md#read-only-member-deck-selection).
 
 | Method | Route | Success |
@@ -348,6 +350,30 @@ returns `400`, lifecycle/concurrency conflicts return `409`. Scryfall failure
 returns controlled `503` ProblemDetail with `code=SCRYFALL_UNAVAILABLE`; failed
 validation leaves all existing data intact. Security filters retain their
 status-only responses.
+
+## Quick-profile decks
+
+[Quick profiles](groups-api.md#quick-profiles) own decks like accounts. Any active
+OWNER, ADMIN or MEMBER of the profile's home group manages them through
+group-scoped routes under `/api/groups/{groupId}/quick-profiles/{userId}/decks`:
+
+| Method | Route suffix | Success |
+| --- | --- | --- |
+| GET | `/decks` | `200 DeckResponse[]`, including archived decks |
+| POST | `/decks` | `201 DeckResponse` |
+| PUT | `/decks/{deckId}` | `200 DeckResponse` |
+| PUT | `/decks/{deckId}/commanders/{position}/artwork` | `200 DeckResponse` |
+| PUT | `/decks/{deckId}/companion/artwork` | `200 DeckResponse` |
+| DELETE | `/decks/{deckId}` | `204`, only when never used |
+| POST | `/decks/{deckId}/archive` | `200 DeckResponse` |
+
+Requests, responses, validation, the [permanent lifecycle](#permanent-lifecycle-and-security),
+Scryfall behavior and error codes are exactly those of `/api/decks`, with the
+profile as owner. Each write first locks the group row and checks the actor's
+active membership and the profile, then locks the deck row as usual. Outsiders,
+former members and invalid CSRF return `403`; a missing group, or an unknown,
+anonymized or other-group profile returns `404`; a deck owned by someone else
+returns `403`. Anonymized profiles' decks are archived and cannot be managed.
 
 ## Disposable local data and migration
 

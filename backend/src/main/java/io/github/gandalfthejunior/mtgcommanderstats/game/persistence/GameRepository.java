@@ -10,6 +10,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.game.domain.Game;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface GameRepository extends JpaRepository<Game, UUID> {
     Optional<Game> findByIdAndGroupId(UUID id, UUID groupId);
@@ -52,4 +53,7 @@ public interface GameRepository extends JpaRepository<Game, UUID> {
 
     @EntityGraph(attributePaths = "participants")
     List<Game> findAllByGroupIdAndIdIn(UUID groupId, List<UUID> ids);
+
+    @Query(value = "SELECT EXISTS (SELECT 1 FROM game_participants WHERE user_id = :userId)", nativeQuery = true)
+    boolean hasParticipant(@Param("userId") UUID userId);
 }

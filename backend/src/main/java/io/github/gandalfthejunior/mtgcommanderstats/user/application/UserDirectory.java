@@ -22,10 +22,12 @@ public class UserDirectory {
     @Transactional(readOnly = true)
     public Map<UUID, PublicUser> findAll(Collection<UUID> userIds) {
         return users.findAllById(userIds).stream()
-                .map(user -> new PublicUser(user.getId(), user.getUsername()))
+                .map(user -> new PublicUser(user.getId(), user.getUsername(), user.isQuickProfile(),
+                        user.isDeleted(), user.getDeletedNumber()))
                 .collect(Collectors.toMap(PublicUser::id, Function.identity()));
     }
 
-    public record PublicUser(UUID id, String username) {
+    /** Display data only; quick-profile flags let clients label placeholders and anonymized profiles. */
+    public record PublicUser(UUID id, String username, boolean quickProfile, boolean deleted, Integer deletedNumber) {
     }
 }

@@ -2,6 +2,7 @@ package io.github.gandalfthejunior.mtgcommanderstats.user.application;
 
 import io.github.gandalfthejunior.mtgcommanderstats.security.UserPrincipal;
 import io.github.gandalfthejunior.mtgcommanderstats.user.domain.User;
+import io.github.gandalfthejunior.mtgcommanderstats.user.domain.UserKind;
 import io.github.gandalfthejunior.mtgcommanderstats.user.persistence.UserRepository;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -29,7 +30,8 @@ public class UserAuthenticationDetails implements UserDetailsService {
         if (!emailAddresses.isValid(canonicalEmail)) {
             throw new UsernameNotFoundException("Invalid credentials.");
         }
-        User user = users.findByEmail(canonicalEmail)
+        // Quick profiles have no email or password and can never become principals.
+        User user = users.findByEmail(canonicalEmail).filter(found -> found.getKind() == UserKind.ACCOUNT)
                 .orElseThrow(() -> new UsernameNotFoundException("Invalid credentials."));
         return new UserPrincipal(user.getId(), user.getEmail(), user.getUsername(), user.getEncodedPassword());
     }

@@ -188,10 +188,13 @@ public class ManageGames {
         Game.validate(game.getParticipants(), game.getResult(), game.isAlternateWinCon());
         List<ParticipantDetails> summaries = game.getParticipants().stream()
                 .sorted(Comparator.comparing(GameParticipant::getUserId))
-                .map(participant -> new ParticipantDetails(participant.getUserId(),
-                        publicUsers.get(participant.getUserId()).username(), participant.getDeckId(),
-                        publicDecks.get(participant.getDeckId()), participant.getStartPosition(),
-                        game.placement(participant), game.stillInGame(participant)))
+                .map(participant -> {
+                    PublicUser user = publicUsers.get(participant.getUserId());
+                    return new ParticipantDetails(participant.getUserId(), user.username(),
+                            user.quickProfile(), user.deleted(), user.deletedNumber(), participant.getDeckId(),
+                            publicDecks.get(participant.getDeckId()), participant.getStartPosition(),
+                            game.placement(participant), game.stillInGame(participant));
+                })
                 .toList();
         return new GameDetails(game.getId(), game.getGroupId(), game.getCreatorId(), game.getRecordedAt(),
                 game.getPlayedOn(), game.getResult(), game.isAlternateWinCon(), game.getWinnerUserId(), summaries);
@@ -204,7 +207,8 @@ public class ManageGames {
             boolean alternateWinCon, UUID winnerUserId, List<ParticipantDetails> participants) {
     }
 
-    public record ParticipantDetails(UUID userId, String username, UUID deckId, DeckDisplay deck,
+    public record ParticipantDetails(UUID userId, String username, boolean quickProfile, boolean deleted,
+            Integer deletedNumber, UUID deckId, DeckDisplay deck,
             int startPosition, Integer placement, boolean stillInGame) {
     }
 

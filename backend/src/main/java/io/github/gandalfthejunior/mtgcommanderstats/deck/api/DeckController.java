@@ -46,8 +46,8 @@ public class DeckController {
     @PostMapping("/api/decks")
     @ResponseStatus(HttpStatus.CREATED)
     public DeckResponse create(@AuthenticationPrincipal UserPrincipal user, @RequestBody DeckRequest request) {
-        return DeckResponse.from(decks.create(user.getId(), request.name(), request.commanders(), request.manaBoxUrl, request.companion,
-                request.format == null ? DeckFormat.COMMANDER : request.format));
+        return DeckResponse.from(decks.create(user.getId(), request.name(), request.commanders(), request.manaBoxUrl,
+                request.companion, request.formatOrDefault()));
     }
 
     @PutMapping("/api/decks/{deckId}")
@@ -94,6 +94,14 @@ public class DeckController {
             } catch (IllegalArgumentException exception) {
                 throw new InvalidCommanderException();
             }
+        }
+
+        UUID scryfallCardId() {
+            return scryfallCardId;
+        }
+
+        Integer artworkFaceIndex() {
+            return artworkFaceIndex;
         }
 
         @JsonSetter(nulls = Nulls.FAIL)
@@ -165,6 +173,30 @@ public class DeckController {
             return commanders;
         }
 
+        DeckFormat format() {
+            return format;
+        }
+
+        DeckFormat formatOrDefault() {
+            return format == null ? DeckFormat.COMMANDER : format;
+        }
+
+        String manaBoxUrl() {
+            return manaBoxUrl;
+        }
+
+        boolean manaBoxUrlSupplied() {
+            return manaBoxUrlSupplied;
+        }
+
+        CompanionInput companion() {
+            return companion;
+        }
+
+        boolean companionSupplied() {
+            return companionSupplied;
+        }
+
         @JsonSetter
         public void setName(String name) {
             this.name = name;
@@ -192,7 +224,7 @@ public class DeckController {
 
     public record DeckResponse(UUID id, String name, List<CommanderSummary> commanders, List<String> colorIdentity,
             boolean everUsed, boolean archived, String manaBoxUrl, CompanionSummary companion, DeckFormat format) {
-        static DeckResponse from(Deck deck) {
+        public static DeckResponse from(Deck deck) {
             return new DeckResponse(deck.getId(), deck.getName(), deck.getCommanders().stream().map(CommanderSummary::from).toList(),
                     deck.getColorIdentity().symbols(), deck.isEverUsed(), deck.isArchived(), deck.getManaBoxUrl(), CompanionSummary.from(deck.getCompanion()), deck.getFormat());
         }

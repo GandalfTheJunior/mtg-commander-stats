@@ -38,7 +38,7 @@ class GroupAdministrationTest extends GameTestSupport {
         UUID membership = membershipId(f, f.creator());
         JsonNode promoted = role(f, f.owner(), f.creator(), "ADMIN", 200);
         assertThat(promoted).isEqualTo(json.valueToTree(Map.of("userId", f.creator().id(),
-                "username", "Sam", "role", "ADMIN")));
+                "username", "Sam", "role", "ADMIN", "quickProfile", false)));
         assertThat(role(f, f.owner(), f.creator(), "ADMIN", 200)).isEqualTo(promoted);
         assertThat(expect(f.creator(), "GET", "/api/groups", "", 200).get(0).get("role").asText()).isEqualTo("ADMIN");
         JsonNode details = expect(f.creator(), "GET", "/api/groups/" + f.groupId(), "", 200);

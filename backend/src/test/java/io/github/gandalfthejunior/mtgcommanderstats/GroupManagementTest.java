@@ -526,7 +526,8 @@ class GroupManagementTest {
     }
 
     private JsonNode memberJson(AuthenticatedClient actor, String username, String role) {
-        return json.valueToTree(Map.of("userId", actor.userId().toString(), "username", username, "role", role));
+        return json.valueToTree(Map.of("userId", actor.userId().toString(), "username", username, "role", role,
+                "quickProfile", false));
     }
 
     private List<JsonNode> memberList(JsonNode details) {

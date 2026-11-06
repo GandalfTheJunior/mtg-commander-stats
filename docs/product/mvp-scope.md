@@ -69,6 +69,40 @@ The backend API for these rules is implemented and documented in
 [Play groups API](groups-api.md). The browser My groups area supports these
 operations; see the [usage guide](../../README.md#local-development).
 
+### Quick profiles
+
+Quick profiles (#223) let a group track games with friends who have no account.
+The backend contract is documented in the [group API](groups-api.md#quick-profiles);
+UI work is separate (#196, #198, #199, #201).
+
+- A quick profile is a credential-less placeholder member: a `users` row of kind
+  `QUICK_PROFILE` without email or password. It can never log in, act, hold an
+  elevated role, receive an ownership transfer, leave, issue invitations or
+  create games. The database enforces these rules.
+- It belongs to exactly one playgroup (its home group) as an active `MEMBER` and
+  never appears outside that group. Profiles in several groups are not supported.
+- Any active member of the group may create a profile, rename it and manage its
+  decks under the unchanged deck lifecycle. Only OWNER/ADMINs may delete it.
+- The server generates the initial name as `<adjective> <creature type>`, for
+  example `Hairy Zombie`, from curated word lists in
+  `backend/src/main/resources/quick-profile-names/`. Generated names have at most
+  17 graphemes; after repeated collisions the smallest free numeric suffix is
+  appended (`Hairy Zombie 2`). Stored names never change when the lists change.
+- Renaming accepts free text under the [naming conventions](#naming-conventions).
+  Names must only be real names with the person's consent (a UI hint, not a
+  server rule). Names are unique case-insensitively among the group's
+  non-deleted profiles (`409 QUICK_PROFILE_NAME_TAKEN`); account usernames and
+  quick-profile names do not conflict in either direction.
+- Quick profiles are full participants in games and statistics.
+- Deleting a profile without games removes it and its decks. Deleting a profile
+  with games anonymizes it: the name is replaced by a fixed placeholder and not
+  retained, the membership is deactivated, the decks are archived, and history
+  and other players' statistics stay intact. Clients show a localized label
+  (German: "Gelöschtes Profil") with a stable per-group `deletedNumber` suffix.
+- Claiming or merging a profile into an account, profile invitations, retention
+  periods and the legal basis for data about people without accounts are separate
+  follow-up topics.
+
 ## Decks
 
 - Decks belong to users. Owners enter a deck name and explicitly select one
@@ -205,10 +239,11 @@ outside this MVP.
 - Usernames cannot be changed after registration; profile editing remains
   post-MVP. A future rename feature must reuse the same uniqueness and reserved
   name rules.
-- Equal account usernames can no longer occur. Existing UI disambiguation by
-  shortened user IDs for identical names is therefore dormant for accounts; it
-  is kept until quick profiles (#223) define how group-local names relate to
-  account names, and removing it is a decision for the UI issues.
+- Equal account usernames can no longer occur. Quick profiles (#223) are
+  excluded from this global uniqueness, so an account and a quick profile can
+  share a display name. Existing UI disambiguation by shortened user IDs for
+  identical names therefore remains relevant; responses mark quick profiles with
+  `quickProfile: true`, and identical names are ordered by user UUID.
 - Passwords require at least 12 characters (Unicode code points). Whitespace is
   allowed and counts toward that minimum. Passwords are validated and encoded
   exactly as supplied, without trimming, case conversion, or normalization.

@@ -191,14 +191,21 @@ class GroupStatisticsTest extends GameTestSupport {
             counts(find(result.get("manaColors"), "color", "R"), 17, 1, "5.88");
             List<UUID> playerOrder = new ArrayList<>();
             for (JsonNode row : result.get("players")) {
-                assertThat(row.size()).isEqualTo(5);
+                // Quick-profile flags (#223) complete the account rows: quickProfile, deleted, deletedNumber.
+                assertThat(row.size()).isEqualTo(8);
+                assertThat(row.get("quickProfile").asBoolean()).isFalse();
+                assertThat(row.get("deleted").asBoolean()).isFalse();
+                assertThat(row.get("deletedNumber").isNull()).isTrue();
                 assertThat(row.get("username").asText()).isEqualTo(currentNames.get(row.get("userId").asText()));
                 playerOrder.add(UUID.fromString(row.get("userId").asText()));
             }
             assertThat(playerOrder).containsExactly(f.member().id(), f.owner().id(), f.creator().id());
             List<JsonNode> deckOrder = new ArrayList<>();
             for (JsonNode row : result.get("decks")) {
-                assertThat(row.size()).isEqualTo(10);
+                assertThat(row.size()).isEqualTo(13);
+                assertThat(row.get("ownerQuickProfile").asBoolean()).isFalse();
+                assertThat(row.get("ownerDeleted").asBoolean()).isFalse();
+                assertThat(row.get("ownerDeletedNumber").isNull()).isTrue();
                 assertThat(row.path("format").asText()).isEqualTo("COMMANDER");
                 assertThat(row.get("ownerUsername").asText()).isEqualTo(currentNames.get(row.get("ownerUserId").asText()));
                 assertThat(row.get("commanders").get(0).get("name").asText()).isEqualTo("Krenko");

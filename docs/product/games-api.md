@@ -140,6 +140,9 @@ Neither the UI flow nor the importer is implemented by this backend contract.
     {
       "userId": "<user UUID>",
       "username": "Gandalf",
+      "quickProfile": false,
+      "deleted": false,
+      "deletedNumber": null,
       "startPosition": 2,
       "placement": 1,
       "stillInGame": true,
@@ -155,7 +158,10 @@ Neither the UI flow nor the importer is implemented by this backend contract.
     },
     {
       "userId": "<other user UUID>",
-      "username": "Aragorn",
+      "username": "Deleted profile",
+      "quickProfile": true,
+      "deleted": true,
+      "deletedNumber": 1,
       "startPosition": 1,
       "placement": null,
       "stillInGame": false,
@@ -181,6 +187,14 @@ newest `recordedAt` first, then UUID descending for ties. This API ordering is
 retained regardless of `playedOn`, including unknown dates. Participants are ordered
 by user UUID using Java UUID ordering. This history route has no pagination;
 statistics use the separate [group statistics endpoint](statistics-api.md).
+
+`quickProfile` marks [quick profiles](groups-api.md#quick-profiles), which take
+part in games like accounts, including as winners. They can never be the game
+creator. An anonymized (deleted) profile keeps its participations with
+`deleted: true`, the stored placeholder `username` `Deleted profile` and a stable
+per-group `deletedNumber`; clients display a localized label such as
+"Gelöschtes Profil 1". Account usernames and quick-profile names can be equal;
+the user UUID keeps them distinct.
 
 ### ManaBox links in game details
 
@@ -301,7 +315,10 @@ used decks, ordered by name then deck UUID ascending:
 ```
 
 No eligible decks returns `200 []`. Archived decks and decks of former members or
-users outside the group are excluded. Selection never grants modification,
+users outside the group are excluded. Active quick profiles of the group are
+selectable members; anonymized profiles are no longer members, so selection
+returns `404` and new assignments are rejected with `400`, while unchanged
+assignments in existing games are retained on replacement. Selection never grants modification,
 deletion, or archival rights to another member's decks. There is no opt-in,
 private-deck mode, or visibility setting in this milestone.
 
