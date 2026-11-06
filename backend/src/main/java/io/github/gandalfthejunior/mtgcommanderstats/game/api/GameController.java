@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
@@ -44,6 +45,12 @@ public class GameController {
     @GetMapping("/api/groups/{groupId}/games")
     public List<GameDetails> list(@AuthenticationPrincipal UserPrincipal user, @PathVariable UUID groupId) {
         return games.list(user.getId(), groupId);
+    }
+
+    @GetMapping("/api/groups/{groupId}/games/history")
+    public ManageGames.HistoryPage history(@AuthenticationPrincipal UserPrincipal user, @PathVariable UUID groupId,
+            @RequestParam(required = false) String cursor) {
+        return games.history(user.getId(), groupId, cursor);
     }
 
     @GetMapping("/api/groups/{groupId}/games/{gameId}")

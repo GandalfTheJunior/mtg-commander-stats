@@ -2,6 +2,7 @@ package io.github.gandalfthejunior.mtgcommanderstats.game.api;
 
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.InvalidDeckAssignmentException;
 import io.github.gandalfthejunior.mtgcommanderstats.game.application.GameNotFoundException;
+import io.github.gandalfthejunior.mtgcommanderstats.game.application.InvalidHistoryCursorException;
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.InvalidGameException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupAccessDeniedException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupNotFoundException;
@@ -22,6 +23,11 @@ public class GameErrors {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
                 "Provide only documented fields, 2–6 distinct eligible players with their decks,"
                         + " unique start seats and complete mode-specific WIN/DRAW facts with valid competition ranks.");
+    }
+
+    @ExceptionHandler(InvalidHistoryCursorException.class)
+    public ProblemDetail invalidCursor() {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Provide a valid history cursor for this group.");
     }
 
     @ExceptionHandler(GroupAccessDeniedException.class)

@@ -20,6 +20,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.game.domain.GameParticipant;
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.GameResult;
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.InvalidGameException;
 import io.github.gandalfthejunior.mtgcommanderstats.game.persistence.GameRepository;
+import io.github.gandalfthejunior.mtgcommanderstats.game.persistence.GameRepository.HistoryPosition;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GameGroupAccess;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupAccessDeniedException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.GroupRole;
@@ -60,6 +61,38 @@ public class ManageGames {
     public List<GameDetails> list(UUID actorId, UUID groupId) {
         groups.lockActiveMember(groupId, actorId);
         List<Game> history = games.findAllByGroupIdOrderByRecordedAtDescIdDesc(groupId);
+        return historyDetails(history);
+    }
+
+    public HistoryPage history(UUID actorId, UUID groupId, String token) {
+        groups.lockActiveMember(groupId, actorId);
+        HistoryCursor cursor = HistoryCursor.decode(token, groupId);
+        List<HistoryPosition> positions;
+        if (cursor == null) {
+            positions = games.historyStart(groupId);
+        } else if (cursor.playedOn() == null) {
+            positions = games.historyUnknown(groupId, cursor.recordedAt(), cursor.gameId());
+        } else {
+            positions = games.historyKnown(groupId, cursor.playedOn(), cursor.recordedAt(), cursor.gameId());
+        }
+        boolean more = positions.size() > 20;
+        List<HistoryPosition> selected = positions.stream().limit(20).toList();
+        if (selected.isEmpty()) {
+            return new HistoryPage(List.of(), null);
+        }
+        Map<UUID, Game> loaded = games.findAllByGroupIdAndIdIn(groupId,
+                selected.stream().map(HistoryPosition::getId).toList()).stream()
+                .collect(Collectors.toMap(Game::getId, game -> game));
+        List<Game> page = selected.stream().map(HistoryPosition::getId).map(loaded::get)
+                .filter(java.util.Objects::nonNull).toList();
+        // Keep continuation anchored to the selected position even if external writes remove loaded rows.
+        HistoryPosition last = selected.getLast();
+        String next = more
+                ? new HistoryCursor(groupId, last.getPlayedOn(), last.getRecordedAt(), last.getId()).encode() : null;
+        return new HistoryPage(historyDetails(page), next);
+    }
+
+    private List<GameDetails> historyDetails(List<Game> history) {
         if (history.isEmpty()) {
             return List.of();
         }
@@ -162,6 +195,9 @@ public class ManageGames {
                 .toList();
         return new GameDetails(game.getId(), game.getGroupId(), game.getCreatorId(), game.getRecordedAt(),
                 game.getPlayedOn(), game.getResult(), game.isAlternateWinCon(), game.getWinnerUserId(), summaries);
+    }
+
+    public record HistoryPage(List<GameDetails> games, String nextCursor) {
     }
 
     public record GameDetails(UUID id, UUID groupId, UUID creatorId, Instant recordedAt, LocalDate playedOn, GameResult result,
