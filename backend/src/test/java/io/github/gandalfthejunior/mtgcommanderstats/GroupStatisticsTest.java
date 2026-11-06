@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.Game;
@@ -73,11 +74,11 @@ class GroupStatisticsTest extends GameTestSupport {
         assertThat(friday.get("decks").size()).isEqualTo(4);
         assertThat(friday.get("players").get(0).get("username").asText()).isEqualTo("Ada");
         assertThat(friday.get("players").get(1).get("username").asText()).isEqualTo("Emil");
-        assertThat(friday.get("players").get(2).get("username").asText()).isEqualTo("Same Name");
+        assertThat(friday.get("players").get(2).get("username").asText()).isEqualTo("Morgan");
         assertThat(friday.get("decks").get(0).get("name").asText()).isEqualTo("Dragon Engine");
         assertThat(friday.get("decks").get(1).get("name").asText()).isEqualTo("Patient Constructs");
         assertThat(friday.get("decks").get(2).get("ownerUsername").asText()).isEqualTo("Emil");
-        assertThat(friday.get("decks").get(3).get("ownerUsername").asText()).isEqualTo("Same Name");
+        assertThat(friday.get("decks").get(3).get("ownerUsername").asText()).isEqualTo("Morgan");
         assertThat(friday.get("decks").get(0).get("commanders").get(0).get("name").asText()).isEqualTo("The Ur-Dragon");
         counts(find(friday.get("players"), "userId", f.owner().id().toString()), 12, 6, "50");
         counts(find(friday.get("players"), "userId", f.creator().id().toString()), 12, 1, "8.33");
@@ -175,7 +176,9 @@ class GroupStatisticsTest extends GameTestSupport {
             deckService.archive(f.member().id(), f.memberDeck());
             groupService.leave(f.member().id(), f.groupId());
             // Current directory data must win over the session's original username.
-            jdbc.update("UPDATE users SET username = 'Same Name' WHERE id = ?", f.owner().id());
+            jdbc.update("UPDATE users SET username = 'Renamed Owner' WHERE id = ?", f.owner().id());
+            Map<String, String> currentNames = Map.of(f.owner().id().toString(), "Renamed Owner",
+                    f.creator().id().toString(), "Sam", f.member().id().toString(), "Morgan");
             sql.clear();
             JsonNode result = statistics(f.owner(), f.groupId());
             assertThat(sql.getPrepareStatementCount()).isEqualTo(singleStatements).isEqualTo(7);
@@ -189,16 +192,15 @@ class GroupStatisticsTest extends GameTestSupport {
             List<UUID> playerOrder = new ArrayList<>();
             for (JsonNode row : result.get("players")) {
                 assertThat(row.size()).isEqualTo(5);
-                assertThat(row.get("username").asText()).isEqualTo("Same Name");
+                assertThat(row.get("username").asText()).isEqualTo(currentNames.get(row.get("userId").asText()));
                 playerOrder.add(UUID.fromString(row.get("userId").asText()));
             }
-            assertThat(playerOrder).containsExactlyElementsOf(List.of(f.owner().id(), f.creator().id(), f.member().id())
-                    .stream().sorted().toList());
+            assertThat(playerOrder).containsExactly(f.member().id(), f.owner().id(), f.creator().id());
             List<JsonNode> deckOrder = new ArrayList<>();
             for (JsonNode row : result.get("decks")) {
                 assertThat(row.size()).isEqualTo(10);
                 assertThat(row.path("format").asText()).isEqualTo("COMMANDER");
-                assertThat(row.get("ownerUsername").asText()).isEqualTo("Same Name");
+                assertThat(row.get("ownerUsername").asText()).isEqualTo(currentNames.get(row.get("ownerUserId").asText()));
                 assertThat(row.get("commanders").get(0).get("name").asText()).isEqualTo("Krenko");
                 assertThat(row.get("commanders").get(0).get("artCropUrl").isNull()).isTrue();
                 assertThat(row.get("archived").isBoolean()).isTrue();

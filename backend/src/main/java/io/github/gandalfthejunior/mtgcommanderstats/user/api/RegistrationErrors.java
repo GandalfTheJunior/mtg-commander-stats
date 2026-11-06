@@ -1,9 +1,11 @@
 package io.github.gandalfthejunior.mtgcommanderstats.user.api;
 
-import java.util.stream.Collectors;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import io.github.gandalfthejunior.mtgcommanderstats.user.application.DuplicateEmailException;
+import io.github.gandalfthejunior.mtgcommanderstats.user.application.DuplicateUsernameException;
 import io.github.gandalfthejunior.mtgcommanderstats.user.domain.InvalidRegistrationException;
 import io.github.gandalfthejunior.mtgcommanderstats.user.domain.Username;
 import org.slf4j.Logger;
@@ -25,6 +27,7 @@ public class RegistrationErrors {
             case BLANK_USERNAME -> "Username must not be blank.";
             case INVALID_USERNAME -> "Username contains unsupported characters or repeated spaces.";
             case LONG_USERNAME -> "Username must be at most " + Username.MAX_LENGTH + " characters long.";
+            case RESERVED_USERNAME -> "Username is reserved.";
             case BLANK_PASSWORD -> "Password must not be blank or consist only of whitespace.";
             case SHORT_PASSWORD -> "Password must be at least 12 characters long.";
         }).collect(Collectors.joining(" "));
@@ -35,6 +38,7 @@ public class RegistrationErrors {
             case INVALID_USERNAME -> Map.of("field", "username", "code", "NAME_INVALID_CHARACTERS");
             case LONG_USERNAME -> Map.of("field", "username", "code", "NAME_TOO_LONG",
                     "maxLength", Username.MAX_LENGTH);
+            case RESERVED_USERNAME -> Map.of("field", "username", "code", "USERNAME_RESERVED");
             case BLANK_PASSWORD -> Map.of("field", "password", "code", "PASSWORD_BLANK");
             case SHORT_PASSWORD -> Map.of("field", "password", "code", "PASSWORD_TOO_SHORT");
         }).toList());
@@ -50,6 +54,14 @@ public class RegistrationErrors {
     @ExceptionHandler(DuplicateEmailException.class)
     public ProblemDetail duplicateEmail() {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "Email is already registered.");
+    }
+
+    @ExceptionHandler(DuplicateUsernameException.class)
+    public ProblemDetail duplicateUsername() {
+        // Usernames are public display names, so reporting a taken name is acceptable.
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "Username is already taken.");
+        problem.setProperty("errors", List.of(Map.of("field", "username", "code", "USERNAME_TAKEN")));
+        return problem;
     }
 
     @ExceptionHandler(Exception.class)

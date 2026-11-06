@@ -88,8 +88,8 @@ abstract class GameTestSupport {
 
     protected Fixture fixture() throws Exception {
         Actor owner = register("owner", "Owner");
-        Actor creator = register("creator", "Same Name");
-        Actor member = register("member", "Same Name");
+        Actor creator = register("creator", "Sam");
+        Actor member = register("member", "Morgan");
         Actor outsider = register("outsider", "Outsider");
         UUID groupId = id(expect(owner, "POST", "/api/groups", "{\"name\":\"Pod\"}", CREATED.value()));
         for (Actor actor : List.of(creator, member)) {

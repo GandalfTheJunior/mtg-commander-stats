@@ -38,7 +38,8 @@ responses never contain the join code.
 }
 ```
 
-Stable user UUIDs distinguish members when display usernames are identical.
+Stable user UUIDs identify members; account usernames are case-insensitively
+unique (see [registration rules](mvp-scope.md#user-identity-and-registration)).
 Email addresses and credentials are never returned.
 
 ## Operations

@@ -4,7 +4,8 @@ import java.util.List;
 
 public class InvalidRegistrationException extends RuntimeException {
     public enum Reason {
-        INVALID_EMAIL, BLANK_USERNAME, INVALID_USERNAME, LONG_USERNAME, BLANK_PASSWORD, SHORT_PASSWORD
+        INVALID_EMAIL, BLANK_USERNAME, INVALID_USERNAME, LONG_USERNAME, RESERVED_USERNAME, BLANK_PASSWORD,
+        SHORT_PASSWORD
     }
 
     private final List<Reason> reasons;

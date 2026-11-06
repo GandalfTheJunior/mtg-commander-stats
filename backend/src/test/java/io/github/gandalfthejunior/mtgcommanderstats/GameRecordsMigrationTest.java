@@ -76,7 +76,7 @@ class GameRecordsMigrationTest {
             for (String table : List.of("users", "decks", "games", "game_participants", "play_groups", "group_memberships")) {
                 before.put(table, jdbc.queryForList("SELECT * FROM " + schema + "." + table));
             }
-            Flyway upgrade = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).load();
+            Flyway upgrade = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).target("17").load();
             assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(1);
             assertThat(upgrade.validateWithResult().validationSuccessful).isTrue();
             for (String table : before.keySet()) {

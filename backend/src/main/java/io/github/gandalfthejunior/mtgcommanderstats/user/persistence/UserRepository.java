@@ -14,4 +14,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     // PostgreSQL owns the canonical representation used by registration, login, and constraints.
     @Query(value = "SELECT canonical_email(:email)", nativeQuery = true)
     String canonicalizeEmail(@Param("email") String email);
+
+    // The same database function backs the unique index on usernames.
+    @Query(value = "SELECT canonical_username(:username)", nativeQuery = true)
+    String canonicalizeUsername(@Param("username") String username);
 }

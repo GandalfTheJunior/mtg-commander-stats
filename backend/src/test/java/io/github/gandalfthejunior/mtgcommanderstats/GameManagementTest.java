@@ -35,7 +35,8 @@ class GameManagementTest extends GameTestSupport {
         assertThat(first.get("recordedAt").asText()).isNotBlank();
         assertThat(first.get("participants").size()).isEqualTo(2);
         for (JsonNode participant : first.get("participants")) {
-            assertThat(participant.get("username").asText()).isEqualTo("Same Name");
+            assertThat(participant.get("username").asText()).isEqualTo(
+                    participant.get("userId").asText().equals(f.creator().id().toString()) ? "Sam" : "Morgan");
             assertThat(participant.get("deck").get("id")).isEqualTo(participant.get("deckId"));
             assertThat(participant.get("deck").get("commanders").get(0).get("name").asText()).isEqualTo("Krenko");
         }
@@ -60,7 +61,7 @@ class GameManagementTest extends GameTestSupport {
         List<GameParticipant> participants = new ArrayList<>(assignments(f));
         participants.add(assignment(f.owner().id(), f.ownerDeck()));
         for (int i = 0; i < 3; i++) {
-            Actor actor = register("extra" + i, "Extra");
+            Actor actor = register("extra" + i, "Extra " + i);
             groupService.join(actor.id(), groupService.createInvitation(f.owner().id(), f.groupId()).code());
             participants.add(assignment(actor.id(), deck(actor)));
         }
@@ -241,7 +242,7 @@ class GameManagementTest extends GameTestSupport {
         expect(f.member(), "POST", "/api/decks/" + f.memberDeck() + "/archive", "{}", OK.value());
         groupService.leave(f.member().id(), f.groupId());
         JsonNode history = expect(f.owner(), "GET", path, "", OK.value());
-        assertThat(history.get("participants").toString()).contains("Same Name", f.memberDeck().toString(),
+        assertThat(history.get("participants").toString()).contains("Morgan", f.memberDeck().toString(),
                 "\"archived\":true");
         expect(f.creator(), "PUT", path, body(assignments(f), "DRAW", null), OK.value());
         List<GameParticipant> changed = List.of(assignments(f).get(0), assignment(f.member().id(), replacement));
