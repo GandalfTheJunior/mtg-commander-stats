@@ -90,24 +90,24 @@ class GameRulesTest {
 
     @Test
     void unknownRanksRemainUnknownAndWinnerAndSurvivalDoNotDependOnSeatOrArrayOrder() {
-        List<GameParticipant> players = normal(Arrays.asList(null, 4, 1, null));
+        List<GameParticipant> players = normal(Arrays.asList(null, null, 1, null));
         Game game = new Game(UUID.randomUUID(), UUID.randomUUID(), players, GameResult.WIN, false);
-        assertThat(players.stream().map(game::placement)).containsExactly(null, 4, 1, null);
+        assertThat(players.stream().map(game::placement)).containsExactly(null, null, 1, null);
         assertThat(players.stream().map(game::stillInGame)).containsExactly(false, false, true, false);
         assertThat(game.getWinnerUserId()).isEqualTo(players.get(2).getUserId());
         game.replace(normal(Arrays.asList(null, null, 1, null)), GameResult.WIN, false);
         assertThat(game.getParticipants().stream().map(game::placement)).containsExactly(null, null, 1, null);
 
-        List<GameParticipant> alternate = List.of(p(1, null, null, false), p(2, null, null, true),
-                p(3, null, true, null), p(4, 4, null, false));
+        List<GameParticipant> alternate = List.of(p(1, null, null, null), p(2, null, null, null),
+                p(3, null, true, null), p(4, null, null, null));
         game.replace(alternate, GameResult.WIN, true);
-        assertThat(alternate.stream().map(game::placement)).containsExactly(null, 2, 1, 4);
-        assertThat(alternate.stream().map(game::stillInGame)).containsExactly(false, true, true, false);
+        assertThat(alternate.stream().map(game::placement)).containsExactly(null, null, 1, null);
+        assertThat(alternate.stream().map(game::stillInGame)).containsExactly(null, null, true, null);
         assertThat(game.getWinnerUserId()).isEqualTo(alternate.get(2).getUserId());
     }
 
     @Test
-    void everyPartialRankingForTwoThroughSixPlayersAgreesWithAnIndependentCompletionOracle() {
+    void everyWinnerOnlyOrCompleteRankingForTwoThroughSixPlayersAgreesWithAnIndependentCompletionOracle() {
         for (int size = 2; size <= 6; size++) {
             List<List<Integer>> completions = new ArrayList<>();
             completeRankings(new ArrayList<>(List.of(1)), size, completions);
@@ -139,9 +139,8 @@ class GameRulesTest {
             }
             return;
         }
-        boolean possible = completions.stream().anyMatch(complete -> ranks.stream().filter(rank -> rank != null)
-                .allMatch(rank -> ranks.stream().filter(rank::equals).count()
-                        <= complete.stream().filter(rank::equals).count()));
+        boolean possible = ranks.stream().skip(1).allMatch(rank -> rank == null)
+                || isCompleteRanking(ranks, completions);
         List<GameParticipant> players = normal(ranks);
         if (possible) {
             assertThatCode(() -> Game.validate(players, GameResult.WIN, false)).as("%s", ranks).doesNotThrowAnyException();
@@ -158,11 +157,7 @@ class GameRulesTest {
                 else if (Integer.valueOf(2).equals(rank)) { alternate.add(p(i + 1, null, null, true)); }
                 else { alternate.add(p(i + 1, rank, null, false)); }
             }
-            boolean alternatePossible = completions.stream()
-                    .filter(complete -> complete.stream().filter(Integer.valueOf(2)::equals).count() == survivors)
-                    .anyMatch(complete -> ranks.stream().filter(rank -> rank != null)
-                            .allMatch(rank -> ranks.stream().filter(rank::equals).count()
-                                    <= complete.stream().filter(rank::equals).count()));
+            boolean alternatePossible = isCompleteRanking(ranks, completions);
             if (alternatePossible) {
                 assertThatCode(() -> Game.validate(alternate, GameResult.WIN, true)).as("alternate %s", ranks).doesNotThrowAnyException();
             } else {
@@ -170,6 +165,15 @@ class GameRulesTest {
                         .isInstanceOf(InvalidGameException.class);
             }
         }
+    }
+
+    private boolean isCompleteRanking(List<Integer> ranks, List<List<Integer>> completions) {
+        if (ranks.contains(null)) {
+            return false;
+        }
+        List<Integer> sorted = new ArrayList<>(ranks);
+        sorted.sort(Integer::compareTo);
+        return completions.contains(sorted);
     }
 
     private List<GameParticipant> normal(List<Integer> ranks) {

@@ -185,7 +185,6 @@ public class ManageGames {
     }
 
     private GameDetails details(Game game, Map<UUID, PublicUser> publicUsers, Map<UUID, DeckDisplay> publicDecks) {
-        Game.validate(game.getParticipants(), game.getResult(), game.isAlternateWinCon());
         List<ParticipantDetails> summaries = game.getParticipants().stream()
                 .sorted(Comparator.comparing(GameParticipant::getUserId))
                 .map(participant -> {
@@ -209,7 +208,7 @@ public class ManageGames {
 
     public record ParticipantDetails(UUID userId, String username, boolean quickProfile, boolean deleted,
             Integer deletedNumber, UUID deckId, DeckDisplay deck,
-            int startPosition, Integer placement, boolean stillInGame) {
+            int startPosition, Integer placement, Boolean stillInGame) {
     }
 
     public record DeckSelectionSummary(UUID id, String name, List<CommanderSummary> commanders, List<String> colorIdentity, CompanionSummary companion, DeckFormat format) {

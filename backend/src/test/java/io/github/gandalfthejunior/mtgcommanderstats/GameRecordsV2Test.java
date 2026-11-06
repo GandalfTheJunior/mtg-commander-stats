@@ -127,8 +127,6 @@ class GameRecordsV2Test extends GameTestSupport {
             ((ObjectNode) contradictory.get("participants").get(1)).set(field, json.readTree(field.equals("placement") ? "2" : "false"));
             invalid.add(contradictory);
         }
-        ObjectNode missingStatus = altValid.deepCopy();
-        ((ObjectNode) missingStatus.get("participants").get(1)).remove("stillInGame"); invalid.add(missingStatus);
         ObjectNode twoWinners = altValid.deepCopy();
         ((ObjectNode) twoWinners.get("participants").get(1)).remove("stillInGame");
         ((ObjectNode) twoWinners.get("participants").get(1)).put("winner", true); invalid.add(twoWinners);

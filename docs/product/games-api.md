@@ -34,25 +34,25 @@ integer `startPosition`: unique contiguous seats 1…N, independent of array ord
 
 | Mode | Required participant result fields | Forbidden fields |
 | --- | --- | --- |
-| WIN / false | Exactly one player: `placement: 1`; every other placement is optional (integer 2…N, omitted or null) | `winner`, `stillInGame` |
-| WIN / true | Sole winner: `winner: true`; every opponent: boolean `stillInGame`; eliminated opponents may supply `placement` (integer, omitted or null) | Winner: placement/status; opponents: `winner` (even false); surviving opponents: placement |
+| WIN / false | Exactly one player: `placement: 1`; all other placements are either omitted/null or all are known integers | `winner`, `stillInGame` |
+| WIN / true | Sole winner: `winner: true`; every opponent has either unknown status and placement, or an explicit boolean status with a complete effective ranking | Winner: placement/status; opponents: `winner` (even false); surviving opponents: placement |
 | DRAW / false | Every player: boolean `stillInGame`; at least one survivor | `winner`, `placement` |
 
-`DRAW/true` is invalid. Alternate victory requires at least one surviving opponent.
+`DRAW/true` is invalid. A complete alternate victory requires at least one surviving opponent.
 The server derives alternate winner rank 1 and surviving-opponent rank 2; these
-are never separately stored. Eliminated opponents may submit ranks greater than
-2 and at most N, compatible with the number of survivors. Their omitted/null
-placements remain unknown. Normal WIN still requires exactly one submitted rank
-1; alternate WIN still requires exactly one explicit `winner: true` marker.
+are never separately stored. In complete mode, eliminated opponents submit ranks
+greater than 2 and at most N, compatible with the number of survivors. In
+winner-only mode, every opponent status and placement is unknown. Normal WIN
+still requires exactly one submitted rank 1; alternate WIN still requires
+exactly one explicit `winner: true` marker.
 
-Known normal/alternate effective ranks must be extendable to at least one complete
-standard-competition ranking of all N participants, with exactly one winner and
-all alternate survivors fixed at rank 2. Unknown ranks can account for gaps:
-`1,null,3,null` and `1,3,3,null` are valid four-player results. Complete `1,2,2,4`
-is valid; `1,2,2,3` is invalid. Even with unknown players, overlapping tie groups
-such as `1,2,2,3,null` are impossible. Two alternate survivors occupy rank 2,
-so a known eliminated rank must be at least 4. Validation proves a possible
-completion without assigning missing ranks in storage or responses.
+Every WIN write is either winner-only or a complete standard-competition ranking.
+Winner-only normal WIN has no other known rank. Winner-only alternate WIN has no
+known opponent status or placement, and needs no identified survivor. Complete
+alternate WIN has an explicit boolean status for every opponent and a known rank
+for every eliminated opponent. All survivors have derived rank 2. `1,2,2,4`
+and `1,2,3,3` are valid; `1,2,2,3` and mixed known/unknown outcomes are invalid.
+Two alternate survivors occupy rank 2, so the first eliminated rank is 4.
 The backend checks numeric ranks only; users assign ties for eliminations during
 the same turn. No turn/event log, elimination timestamps or timing verification
 exists.
@@ -73,14 +73,17 @@ Example normal WIN with an unknown non-winner placement (array order does not im
 `winnerUserId` is read-only and always rejected on writes, including null.
 Extraneous mode-specific fields, including explicit nulls, are rejected rather
 than ignored. The nullable-placement exception applies only to normal-WIN
-non-winners and alternate-WIN eliminated opponents. DRAW participants, alternate
-winners and alternate surviving opponents must omit `placement` entirely.
+non-winners and alternate-WIN opponents with unknown or eliminated status.
+Alternate opponents may omit or explicitly null `stillInGame` only in winner-only
+mode. DRAW participants, alternate winners and alternate surviving opponents must
+omit `placement` entirely.
 Missing/null required fields, unknown fields, fractional seats or
 ranks and malformed UUIDs fail. UUIDs require standard hyphenated representation.
-There is no partial update or incomplete historical-game edit path. Participants
-and seats remain complete on PUT; an omitted/null optional placement removes a
-previous rank, a supplied rank replaces it, and resupplying it retains it. The
-separate omission-preserves-value behavior of `playedOn` does not apply to ranks.
+There is no partial update. Participants and seats remain complete on PUT; switching
+to winner-only clears every optional rank and, for alternate WIN, every opponent
+status. Editing a historical partial result requires explicitly choosing a complete
+ranking or winner-only. The separate omission-preserves-value behavior of
+`playedOn` does not apply to ranks.
 
 On creation, every participant must be an active member of this group, and each
 selected deck must be theirs and unarchived. On replacement, an unchanged
@@ -370,11 +373,12 @@ explicit JSON null), alongside unchanged `recordedAt`.
 GET list/detail always include the same keys: game `result`, boolean
 `alternateWinCon`, derived `winnerUserId` (explicit JSON null for DRAW); participant
 `startPosition`, effective `placement` (explicit JSON null for DRAW and unknown
-non-winner ranks) and boolean `stillInGame`. Unknown ranks are never inferred
+non-winner ranks) and nullable boolean `stillInGame`. Unknown ranks are never inferred
 from seats, array order, timestamps or other players. Normal WIN survival is true
 only for rank 1; an unknown non-winner rank still has `stillInGame: false`.
-Alternate WIN survival is
-true for the winner and active opponents. DRAW reflects stored survivor flags.
+Alternate WIN survival is true for the winner and active opponents, false for known
+eliminated opponents, and null when an opponent's outcome is unknown. DRAW reflects
+stored survivor flags.
 Participant UUID ordering is retained and never defines start order. Basic
 player/deck games, wins and win-rate semantics remain unchanged; DRAW adds no win.
 
@@ -399,13 +403,20 @@ migrations are unchanged. Player/deck wins, seat totals and Mana-color statistic
 continue to use the sole actual winner; an unknown placement adds no inferred win
 or rank.
 
-## Browser integration handoff (#220)
+V23 replaces the deferred validator to require winner-only or complete WIN writes.
+It preserves existing partial rows without backfill or changes to applied migrations.
+Historical list/detail reads continue to return their stored known and unknown facts;
+any subsequent write must satisfy the new two-state rule. Statistics still count
+only the actual winner.
 
-The backend optional-placement contract is required for the complete #172 release.
+## Browser integration handoff (#196, #195)
+
+The backend two-state ranking contract is required for the complete #172 release.
 The existing browser parser in `frontend/src/api.ts` still requires numeric WIN
-placements; the current editor also requires complete ranks. They must be aligned
-as part of the dependent frontend work before winner-only recording is released.
-No frontend changes are included in backend issue #220.
+placements and boolean survivor flags; the current editor also requires complete
+ranks. They must be aligned as part of the dependent frontend work before
+winner-only recording is released.
+No frontend changes are included in backend issue #228.
 
 - #196 must accept/display unknown non-winner and eliminated-opponent placements
   without selecting or submitting inferred ranks, including when editing an
@@ -413,6 +424,9 @@ No frontend changes are included in backend issue #220.
 - #195 must render null as unknown, omit numeric place/indentation claims for that
   participant, and highlight the winner using `winnerUserId`. The current details
   sorting/indentation assumes numeric WIN ranks and needs that adjustment.
+- #196 must discard all optional ranks and alternate opponent statuses when the
+  user confirms saving without placements. #195 must display unknown alternate
+  survival without an invented alive/dead status or rank 2.
 - #194/#193 history/overview must consume the nullable read contract while deriving
   the displayed winner/draw from `winnerUserId`/`result`, never a reconstructed
   complete ranking. The shared parser must accept these responses.

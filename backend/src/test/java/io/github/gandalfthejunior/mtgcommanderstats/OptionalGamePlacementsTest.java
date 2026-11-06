@@ -27,11 +27,16 @@ class OptionalGamePlacementsTest extends GameTestSupport {
         assertRead(f, request, saved);
         assertStatistics(f, saved);
         String path = f.path() + "/" + id(saved);
-        // Full replacement may add a known last place, remove it, or keep it unknown.
-        participant(request, 0).put("placement", size);
+        // A replacement can add a complete ranking, then clear every optional rank.
+        int nextRank = 2;
+        for (int i = 0; i < size; i++) {
+            if (i != Math.min(2, size - 1)) { participant(request, i).put("placement", nextRank++); }
+        }
         JsonNode ranked = expect(f.creator(), "PUT", path, request.toString(), 200);
         assertRead(f, request, ranked);
-        participant(request, 0).remove("placement");
+        for (int i = 0; i < size; i++) {
+            if (i != Math.min(2, size - 1)) { participant(request, i).remove("placement"); }
+        }
         request.remove("playedOn");
         JsonNode unknown = expect(f.creator(), "PUT", path, request.toString(), 200);
         assertRead(f, request, unknown);
@@ -51,21 +56,59 @@ class OptionalGamePlacementsTest extends GameTestSupport {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(ints = {2, 4, 6})
+    void alternateWinnerOnlyCanBeCreatedAndReplacedWithCompleteRanking(int size) throws Exception {
+        Fixture f = fixture();
+        ObjectNode request = normal(f, size).put("alternateWinCon", true);
+        int winner = Math.min(2, size - 1);
+        for (int i = 0; i < size; i++) {
+            ObjectNode p = participant(request, i);
+            p.remove("placement");
+            if (i == winner) { p.put("winner", true); }
+            else if (i % 2 == 0) { p.putNull("stillInGame"); }
+        }
+        JsonNode saved = expect(f.owner(), "POST", f.path(), request.toString(), 201);
+        assertRead(f, request, saved);
+        assertStatistics(f, saved);
+        int survivor = winner == 0 ? 1 : 0;
+        int nextRank = 3;
+        for (int i = 0; i < size; i++) {
+            if (i == winner) { continue; }
+            ObjectNode p = participant(request, i);
+            p.put("stillInGame", i == survivor);
+            if (i != survivor) { p.put("placement", size == 4 ? 3 : nextRank++); }
+        }
+        JsonNode complete = expect(f.owner(), "PUT", f.path() + "/" + id(saved), request.toString(), 200);
+        assertRead(f, request, complete);
+        assertStatistics(f, complete);
+        for (int i = 0; i < size; i++) {
+            if (i != winner) { participant(request, i).putNull("stillInGame").putNull("placement"); }
+        }
+        assertRead(f, request, expect(f.owner(), "PUT", f.path() + "/" + id(saved), request.toString(), 200));
+    }
+
     @Test
-    void alternateUnknownEliminationsRoundTripAndCreditOnlyTheWinnerIncludingSeatAndColors() throws Exception {
+    void alternateCompleteAndWinnerOnlyRoundTripAndCreditOnlyTheWinner() throws Exception {
         Fixture f = fixture();
         ObjectNode request = alternate(f);
         JsonNode saved = expect(f.owner(), "POST", f.path(), request.toString(), 201);
         assertRead(f, request, saved);
         assertStatistics(f, saved);
-        // Two survivors at rank 2 require the next known rank to be at least 4.
+        // Two survivors at rank 2 require the first eliminated rank to be 4.
         participant(request, 3).put("stillInGame", true).remove("placement");
+        participant(request, 0).put("placement", 4);
         participant(request, 4).put("placement", 5);
+        participant(request, 5).put("placement", 6);
         JsonNode replaced = expect(f.owner(), "PUT", f.path() + "/" + id(saved), request.toString(), 200);
         assertRead(f, request, replaced);
         assertStatistics(f, replaced);
-        participant(request, 4).putNull("placement");
-        assertRead(f, request, expect(f.owner(), "PUT", f.path() + "/" + id(saved), request.toString(), 200));
+        for (int i = 0; i < 6; i++) {
+            if (i != 2) { participant(request, i).putNull("stillInGame").putNull("placement"); }
+        }
+        JsonNode winnerOnly = expect(f.owner(), "PUT", f.path() + "/" + id(saved), request.toString(), 200);
+        assertRead(f, request, winnerOnly);
+        assertStatistics(f, winnerOnly);
     }
 
     @Test
@@ -89,6 +132,8 @@ class OptionalGamePlacementsTest extends GameTestSupport {
         ObjectNode tooFewUnknown = normal.deepCopy();
         for (int i : List.of(0, 1, 3, 4)) { participant(tooFewUnknown, i).put("placement", 4); }
         invalid.add(tooFewUnknown);
+        ObjectNode extendablePartial = normal.deepCopy();
+        participant(extendablePartial, 0).put("placement", 2); invalid.add(extendablePartial);
         for (String field : List.of("winner", "stillInGame", "unknownField")) {
             ObjectNode wrong = normal.deepCopy(); participant(wrong, 0).putNull(field); invalid.add(wrong);
         }
@@ -100,6 +145,9 @@ class OptionalGamePlacementsTest extends GameTestSupport {
         ObjectNode altOverlap = alt.deepCopy();
         participant(altOverlap, 3).put("stillInGame", true).remove("placement");
         participant(altOverlap, 4).put("placement", 3); invalid.add(altOverlap);
+        ObjectNode altPartialStatus = alt.deepCopy(); participant(altPartialStatus, 0).putNull("stillInGame").remove("placement"); invalid.add(altPartialStatus);
+        ObjectNode altPartialRank = alt.deepCopy(); participant(altPartialRank, 0).remove("placement"); invalid.add(altPartialRank);
+        ObjectNode altNoSurvivor = alt.deepCopy(); participant(altNoSurvivor, 1).put("stillInGame", false).put("placement", 3); invalid.add(altNoSurvivor);
         for (String field : List.of("winner", "stillInGame")) {
             ObjectNode wrong = alt.deepCopy(); participant(wrong, 0).putNull(field); invalid.add(wrong);
         }
@@ -158,16 +206,68 @@ class OptionalGamePlacementsTest extends GameTestSupport {
     }
 
     @Test
-    void deferredDatabaseChecksAcceptOnlyCompletablePartialRankingsAndPreserveWinnerRules() throws Exception {
+    void historicalPartialRankingRemainsReadableAndRequiresExplicitChoiceOnEdit() throws Exception {
+        Fixture f = fixture();
+        ObjectNode complete = normal(f, 4);
+        participant(complete, 0).put("placement", 2);
+        participant(complete, 1).put("placement", 3);
+        participant(complete, 3).put("placement", 4);
+        JsonNode saved = expect(f.owner(), "POST", f.path(), complete.toString(), 201);
+        UUID game = id(saved);
+        // Model a row written under V17 without weakening the current deferred checks afterward.
+        jdbc.execute("ALTER TABLE game_participants DISABLE TRIGGER participants_complete_record");
+        try {
+            jdbc.update("UPDATE game_participants SET placement = NULL WHERE game_id = ? AND start_position = ?",
+                    game, participant(complete, 1).get("startPosition").asInt());
+        } finally {
+            jdbc.execute("ALTER TABLE game_participants ENABLE TRIGGER participants_complete_record");
+        }
+        JsonNode historical = expect(f.owner(), "GET", f.path() + "/" + game, "", 200);
+        assertThat(historical.get("participants").valueStream().filter(p -> p.get("placement").isNull()).count()).isEqualTo(1);
+        assertThat(expect(f.owner(), "GET", f.path(), "", 200)).containsExactly(historical);
+        assertStatistics(f, historical);
+        ObjectNode invalidEdit = complete.deepCopy();
+        participant(invalidEdit, 1).putNull("placement");
+        expect(f.owner(), "PUT", f.path() + "/" + game, invalidEdit.toString(), 400);
+        assertThat(expect(f.owner(), "GET", f.path() + "/" + game, "", 200)).isEqualTo(historical);
+        for (int i : List.of(0, 1, 3)) { participant(complete, i).remove("placement"); }
+        assertRead(f, complete, expect(f.owner(), "PUT", f.path() + "/" + game, complete.toString(), 200));
+    }
+
+    @Test
+    void historicalAlternatePartialRankingPreservesKnownStatusUntilExplicitReplacement() throws Exception {
+        Fixture f = fixture();
+        ObjectNode complete = toAlternate(normal(f, 4));
+        JsonNode saved = expect(f.owner(), "POST", f.path(), complete.toString(), 201);
+        UUID game = id(saved);
+        jdbc.execute("ALTER TABLE game_participants DISABLE TRIGGER participants_complete_record");
+        try {
+            jdbc.update("UPDATE game_participants SET placement = NULL WHERE game_id = ? AND start_position = ?",
+                    game, participant(complete, 3).get("startPosition").asInt());
+        } finally {
+            jdbc.execute("ALTER TABLE game_participants ENABLE TRIGGER participants_complete_record");
+        }
+        ObjectNode historicalRequest = complete.deepCopy();
+        participant(historicalRequest, 3).putNull("placement");
+        JsonNode historical = expect(f.owner(), "GET", f.path() + "/" + game, "", 200);
+        assertRead(f, historicalRequest, historical);
+        assertStatistics(f, historical);
+        expect(f.owner(), "PUT", f.path() + "/" + game, historicalRequest.toString(), 400);
+        for (int i : List.of(0, 1, 3)) {
+            participant(complete, i).putNull("stillInGame").putNull("placement");
+        }
+        assertRead(f, complete, expect(f.owner(), "PUT", f.path() + "/" + game, complete.toString(), 200));
+    }
+
+    @Test
+    void deferredDatabaseChecksAcceptOnlyWinnerOnlyOrCompleteRankingsAndPreserveWinnerRules() throws Exception {
         Fixture f = fixture();
         JsonNode saved = expect(f.owner(), "POST", f.path(), normal(f, 6).toString(), 201);
         UUID game = id(saved);
         for (Integer[] ranks : List.of(
                 new Integer[] {1, null, null, null, null, null},
                 new Integer[] {1, 2, 2, 4, 5, 6},
-                new Integer[] {1, 3, 3, null, 5, null},
-                new Integer[] {1, 2, 2, null, 5, null},
-                new Integer[] {1, 6, null, null, null, null})) {
+                new Integer[] {1, 2, 3, 3, 5, 6})) {
             assertThatCode(() -> databaseRanks(game, ranks)).doesNotThrowAnyException();
             assertThat(jdbc.queryForList("SELECT placement FROM game_participants WHERE game_id = ? ORDER BY start_position",
                     Integer.class, game)).containsExactly(ranks);
@@ -176,6 +276,9 @@ class OptionalGamePlacementsTest extends GameTestSupport {
                 Integer.class, game);
         for (Integer[] ranks : List.of(
                 new Integer[] {1, 2, 2, 3, null, null},
+                new Integer[] {1, 3, 3, null, 5, null},
+                new Integer[] {1, 2, 2, null, 5, null},
+                new Integer[] {1, 6, null, null, null, null},
                 new Integer[] {1, 4, 4, 4, 4, null},
                 new Integer[] {1, 1, null, null, null, null},
                 new Integer[] {null, null, null, null, null, null},
@@ -187,12 +290,12 @@ class OptionalGamePlacementsTest extends GameTestSupport {
         }
         transactions.executeWithoutResult(status -> {
             jdbc.update("UPDATE games SET alternate_win_con = true WHERE id = ?", game);
-            jdbc.update("UPDATE game_participants SET placement = NULL, winner = CASE WHEN start_position = 1 THEN true END, "
+            jdbc.update("UPDATE game_participants SET placement = CASE WHEN start_position > 3 THEN start_position END, winner = CASE WHEN start_position = 1 THEN true END, "
                     + "still_in_game = CASE WHEN start_position > 1 THEN start_position IN (2, 3) END WHERE game_id = ?", game);
         });
-        assertThatCode(() -> jdbc.update("UPDATE game_participants SET placement = 5 WHERE game_id = ? AND start_position = 6", game))
+        assertThatCode(() -> jdbc.update("UPDATE game_participants SET placement = 6 WHERE game_id = ? AND start_position = 6", game))
                 .doesNotThrowAnyException();
-        for (String change : List.of("placement = 3", "placement = 2", "winner = true", "winner = false", "still_in_game = NULL")) {
+        for (String change : List.of("placement = 3", "placement = 2", "placement = NULL", "winner = true", "winner = false", "still_in_game = NULL")) {
             assertThatThrownBy(() -> jdbc.update("UPDATE game_participants SET " + change + " WHERE game_id = ? AND start_position = 6", game))
                     .isInstanceOf(DataIntegrityViolationException.class);
         }
@@ -243,7 +346,7 @@ class OptionalGamePlacementsTest extends GameTestSupport {
             if (i == 2) { p.put("winner", true); }
             else {
                 p.put("stillInGame", i == 1);
-                if (i != 1 && i % 2 == 0) { p.putNull("placement"); }
+                if (i != 1) { p.put("placement", i < 2 ? 3 : i + 1); }
             }
         }
         return request;
@@ -273,7 +376,11 @@ class OptionalGamePlacementsTest extends GameTestSupport {
             assertThat(actual.has("placement")).isTrue();
             if (rank == null) { assertThat(actual.get("placement").isNull()).isTrue(); }
             else { assertThat(actual.get("placement").asInt()).isEqualTo(rank); }
-            assertThat(actual.get("stillInGame").asBoolean()).isEqualTo(winner || supplied.path("stillInGame").asBoolean());
+            if (alternate && !winner && (!supplied.has("stillInGame") || supplied.get("stillInGame").isNull())) {
+                assertThat(actual.get("stillInGame").isNull()).isTrue();
+            } else {
+                assertThat(actual.get("stillInGame").asBoolean()).isEqualTo(winner || supplied.path("stillInGame").asBoolean());
+            }
         }
     }
 
