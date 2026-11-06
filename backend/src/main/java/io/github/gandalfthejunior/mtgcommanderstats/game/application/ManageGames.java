@@ -60,6 +60,36 @@ public class ManageGames {
     public List<GameDetails> list(UUID actorId, UUID groupId) {
         groups.lockActiveMember(groupId, actorId);
         List<Game> history = games.findAllByGroupIdOrderByRecordedAtDescIdDesc(groupId);
+        return historyDetails(history);
+    }
+
+    public HistoryPage history(UUID actorId, UUID groupId, String token) {
+        groups.lockActiveMember(groupId, actorId);
+        HistoryCursor cursor = HistoryCursor.decode(token, groupId);
+        List<UUID> ids;
+        if (cursor == null) {
+            ids = games.historyStart(groupId);
+        } else if (cursor.playedOn() == null) {
+            ids = games.historyUnknown(groupId, cursor.recordedAt(), cursor.gameId());
+        } else {
+            ids = games.historyKnown(groupId, cursor.playedOn(), cursor.recordedAt(), cursor.gameId());
+        }
+        boolean more = ids.size() > 20;
+        List<UUID> selected = ids.stream().limit(20).toList();
+        if (selected.isEmpty()) {
+            return new HistoryPage(List.of(), null);
+        }
+        Map<UUID, Game> loaded = games.findAllByGroupIdAndIdIn(groupId, selected).stream()
+                .collect(Collectors.toMap(Game::getId, game -> game));
+        List<Game> page = selected.stream().map(loaded::get).filter(java.util.Objects::nonNull).toList();
+        // The group lock serializes application writes; tolerate deleted rows on external writes.
+        Game last = page.isEmpty() ? null : page.getLast();
+        String next = more && last != null
+                ? new HistoryCursor(groupId, last.getPlayedOn(), last.getRecordedAt(), last.getId()).encode() : null;
+        return new HistoryPage(historyDetails(page), next);
+    }
+
+    private List<GameDetails> historyDetails(List<Game> history) {
         if (history.isEmpty()) {
             return List.of();
         }
@@ -162,6 +192,9 @@ public class ManageGames {
                 .toList();
         return new GameDetails(game.getId(), game.getGroupId(), game.getCreatorId(), game.getRecordedAt(),
                 game.getPlayedOn(), game.getResult(), game.isAlternateWinCon(), game.getWinnerUserId(), summaries);
+    }
+
+    public record HistoryPage(List<GameDetails> games, String nextCursor) {
     }
 
     public record GameDetails(UUID id, UUID groupId, UUID creatorId, Instant recordedAt, LocalDate playedOn, GameResult result,

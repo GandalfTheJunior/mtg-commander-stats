@@ -14,6 +14,7 @@ them after acknowledged game creation, replacement or deletion.
 | GET | `/api/groups/{groupId}/members/{userId}/decks` | `200 DeckSelectionSummary[]` |
 | POST | `/api/groups/{groupId}/games` | `201 GameDetails` |
 | GET | `/api/groups/{groupId}/games` | `200 GameDetails[]` |
+| GET | `/api/groups/{groupId}/games/history?cursor=<opaque-token>` | `200 {games: GameDetails[], nextCursor: string or null}` |
 | GET | `/api/groups/{groupId}/games/{gameId}` | `200 GameDetails` |
 | PUT | `/api/groups/{groupId}/games/{gameId}` | `200 GameDetails` |
 | DELETE | `/api/groups/{groupId}/games/{gameId}` | `204`, empty body |
@@ -206,6 +207,77 @@ each participant whose fresh response includes a valid link. Omission is normal:
 the frontend neither infers membership permission nor recovers previously seen
 links. Historical presentation remains intact. History cards, game editing and
 selection, Dashboard and statistics expose no ManaBox actions.
+
+## Paginated history
+
+`GET /api/groups/{groupId}/games/history` returns the newest **at most 20** games
+in `playedOn DESC NULLS LAST, recordedAt DESC, id DESC` order. Unknown play dates
+remain last, regardless of recording time. UUID ties use PostgreSQL UUID order.
+The existing `/games` route remains an unpaginated bare `GameDetails[]`, ordered
+by `recordedAt DESC, id DESC`; details by UUID remain unchanged.
+
+Example requests:
+
+```http
+GET /api/groups/<group UUID>/games/history
+GET /api/groups/<group UUID>/games/history?cursor=<nextCursor from previous response>
+```
+
+A response contains actual full `GameDetails` objects under `games`, using the
+representation above, including saved Commander/Companion display data, nullable
+placements and play dates. Listing does not include optional ManaBox links.
+`nextCursor` is an opaque URL-safe string only when more games exist; otherwise
+it is explicit JSON null. Empty history returns:
+
+```json
+{"games": [], "nextCursor": null}
+```
+
+For a nonempty page, the schema is:
+
+```text
+{ "games": [ GameDetails, ... ], "nextCursor": string | null }
+```
+
+For example, this abbreviated response shows one game on a final page (the
+remaining `GameDetails` fields are as defined above):
+
+```json
+{
+  "games": [{
+    "id": "cd57aa28-83d5-4d28-9abd-b514dccdcd70",
+    "playedOn": "2026-10-31",
+    "recordedAt": "2026-11-01T08:00:00.123456Z",
+    "result": "DRAW",
+    "winnerUserId": null
+  }],
+  "nextCursor": null
+}
+```
+
+Clients pass the returned cursor unchanged. There is no client-controlled page
+size, offset, sorting or filtering. Even an exhausted page of exactly 20 games
+has null `nextCursor`; no additional empty request is needed.
+
+Cursors encode a version, group UUID and the last emitted complete sort tuple,
+including the unknown-date branch. Invalid, oversized (over 256 characters),
+noncanonical, wrong-group and unsupported-version tokens return `400`
+`application/problem+json` with a safe cursor-specific detail. Encoding is not
+an authorization control: session and active requesting membership are checked
+on every page, including old cursors after leaving/removal (existing `401`, `403`
+and `404` conventions apply). Tokens are positions, not signed capabilities.
+
+Paging uses bounded ID queries (21 candidates), then loads participants and
+batched display data for only the selected at-most-20 games. V19 adds a group /
+play-date / recording-time / UUID index, retaining the legacy history index.
+Known-date continuation bounds both the known and unknown candidate branches
+before merging at most 42 IDs; no collection-fetch pagination is used.
+
+This is not a multi-request snapshot. New entries before a cursor appear on a
+fresh first page. Date edits or deletions between requests may move/remove rows;
+a cursor still works if its original game has changed or disappeared. Consumers
+refresh and deduplicate by game ID when needed. Writes, statistics, deck lifecycle
+and external-provider access remain unchanged. UI scrolling belongs to #194.
 
 ## Read-only member deck selection
 
