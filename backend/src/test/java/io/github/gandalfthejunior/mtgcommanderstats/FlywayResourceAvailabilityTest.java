@@ -46,7 +46,7 @@ class FlywayResourceAvailabilityTest {
                             catch (IOException failure) { throw new IllegalStateException(failure); }
                         }
                     }).load();
-            assertThat(discovered.info().pending()).hasSize(16);
+            assertThat(discovered.info().pending()).hasSize(17);
             assertThatThrownBy(discovered::migrate).hasStackTraceContaining("Unable to obtain inputstream for resource");
         }
     }
@@ -70,10 +70,10 @@ class FlywayResourceAvailabilityTest {
                 URLClassLoader loader = migrationsLoader(archive)) {
             database.start();
             Flyway flyway = configure(database, loader);
-            assertThat(flyway.info().pending()).hasSize(16);
-            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(16);
+            assertThat(flyway.info().pending()).hasSize(17);
+            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(17);
             assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
-            assertThat(flyway.info().applied()).hasSize(16);
+            assertThat(flyway.info().applied()).hasSize(17);
         }
     }
 

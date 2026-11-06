@@ -88,7 +88,7 @@ public class GameController {
     }
 
     private static Integer integer(JsonNode value, boolean required) {
-        if (value == null && !required) {
+        if ((value == null || value.isNull()) && !required) {
             return null;
         }
         if (value == null || !value.isIntegralNumber() || !value.canConvertToInt()) {
@@ -129,8 +129,19 @@ public class GameController {
             }
             return participants.stream()
                     .map(participant -> new GameParticipant(uuid(participant.userId()), uuid(participant.deckId()),
-                            integer(participant.startPosition(), true), integer(participant.placement(), false),
+                            integer(participant.startPosition(), true), placement(participant),
                             bool(participant.winner(), false), bool(participant.stillInGame(), false))).toList();
+        }
+
+        private Integer placement(ParticipantRequest participant) {
+            // Keep field presence distinct from a nullable value in modes that forbid placement.
+            boolean forbidden = GameResult.parse(result) == GameResult.DRAW
+                    || (Boolean.TRUE.equals(alternate()) && (Boolean.TRUE.equals(bool(participant.winner(), false))
+                            || Boolean.TRUE.equals(bool(participant.stillInGame(), false))));
+            if (forbidden && participant.placement() != null) {
+                throw new InvalidGameException();
+            }
+            return integer(participant.placement(), false);
         }
 
         Boolean alternate() {

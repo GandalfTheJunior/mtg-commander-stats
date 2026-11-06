@@ -33,19 +33,30 @@ integer `startPosition`: unique contiguous seats 1…N, independent of array ord
 
 | Mode | Required participant result fields | Forbidden fields |
 | --- | --- | --- |
-| WIN / false | Every player: integer `placement`; exactly one rank 1 | `winner`, `stillInGame` |
-| WIN / true | Sole winner: `winner: true`; every opponent: boolean `stillInGame`; eliminated opponents also supply `placement` | Winner: placement/status; opponents: `winner` (even false); surviving opponents: placement |
+| WIN / false | Exactly one player: `placement: 1`; every other placement is optional (integer 2…N, omitted or null) | `winner`, `stillInGame` |
+| WIN / true | Sole winner: `winner: true`; every opponent: boolean `stillInGame`; eliminated opponents may supply `placement` (integer, omitted or null) | Winner: placement/status; opponents: `winner` (even false); surviving opponents: placement |
 | DRAW / false | Every player: boolean `stillInGame`; at least one survivor | `winner`, `placement` |
 
 `DRAW/true` is invalid. Alternate victory requires at least one surviving opponent.
 The server derives alternate winner rank 1 and surviving-opponent rank 2; these
-are never separately stored. Eliminated opponents submit ranks greater than 2.
-Normal WIN and alternate effective ranks use standard competition ranking:
-`1,2,2,4` is valid; `1,2,2,3` is invalid. The backend checks numeric ranks only;
-users assign ties for eliminations during the same turn. No turn/event log,
-elimination timestamps or timing verification exists.
+are never separately stored. Eliminated opponents may submit ranks greater than
+2 and at most N, compatible with the number of survivors. Their omitted/null
+placements remain unknown. Normal WIN still requires exactly one submitted rank
+1; alternate WIN still requires exactly one explicit `winner: true` marker.
 
-Example normal WIN (physical array order does not imply starting order):
+Known normal/alternate effective ranks must be extendable to at least one complete
+standard-competition ranking of all N participants, with exactly one winner and
+all alternate survivors fixed at rank 2. Unknown ranks can account for gaps:
+`1,null,3,null` and `1,3,3,null` are valid four-player results. Complete `1,2,2,4`
+is valid; `1,2,2,3` is invalid. Even with unknown players, overlapping tie groups
+such as `1,2,2,3,null` are impossible. Two alternate survivors occupy rank 2,
+so a known eliminated rank must be at least 4. Validation proves a possible
+completion without assigning missing ranks in storage or responses.
+The backend checks numeric ranks only; users assign ties for eliminations during
+the same turn. No turn/event log, elimination timestamps or timing verification
+exists.
+
+Example normal WIN with an unknown non-winner placement (array order does not imply starting order):
 
 ```json
 {
@@ -53,16 +64,22 @@ Example normal WIN (physical array order does not imply starting order):
   "alternateWinCon": false,
   "participants": [
     {"userId": "<user A UUID>", "deckId": "<A deck UUID>", "startPosition": 2, "placement": 1},
-    {"userId": "<user B UUID>", "deckId": "<B deck UUID>", "startPosition": 1, "placement": 2}
+    {"userId": "<user B UUID>", "deckId": "<B deck UUID>", "startPosition": 1, "placement": null}
   ]
 }
 ```
 
 `winnerUserId` is read-only and always rejected on writes, including null.
 Extraneous mode-specific fields, including explicit nulls, are rejected rather
-than ignored. Missing/null required fields, unknown fields, fractional seats or
+than ignored. The nullable-placement exception applies only to normal-WIN
+non-winners and alternate-WIN eliminated opponents. DRAW participants, alternate
+winners and alternate surviving opponents must omit `placement` entirely.
+Missing/null required fields, unknown fields, fractional seats or
 ranks and malformed UUIDs fail. UUIDs require standard hyphenated representation.
-There is no partial update or incomplete historical-game edit path.
+There is no partial update or incomplete historical-game edit path. Participants
+and seats remain complete on PUT; an omitted/null optional placement removes a
+previous rank, a supplied rank replaces it, and resupplying it retains it. The
+separate omission-preserves-value behavior of `playedOn` does not apply to ranks.
 
 On creation, every participant must be an active member of this group, and each
 selected deck must be theirs and unarchived. On replacement, an unchanged
@@ -139,7 +156,7 @@ Neither the UI flow nor the importer is implemented by this backend contract.
       "userId": "<other user UUID>",
       "username": "Aragorn",
       "startPosition": 1,
-      "placement": 2,
+      "placement": null,
       "stillInGame": false,
       "deckId": "<other deck UUID>",
       "deck": {
@@ -246,8 +263,11 @@ POST, GET list/detail and PUT always include `playedOn` (an ISO date string or
 explicit JSON null), alongside unchanged `recordedAt`.
 GET list/detail always include the same keys: game `result`, boolean
 `alternateWinCon`, derived `winnerUserId` (explicit JSON null for DRAW); participant
-`startPosition`, effective `placement` (explicit JSON null for DRAW) and boolean
-`stillInGame`. Normal WIN survival derives from rank 1. Alternate WIN survival is
+`startPosition`, effective `placement` (explicit JSON null for DRAW and unknown
+non-winner ranks) and boolean `stillInGame`. Unknown ranks are never inferred
+from seats, array order, timestamps or other players. Normal WIN survival is true
+only for rank 1; an unknown non-winner rank still has `stillInGame: false`.
+Alternate WIN survival is
 true for the winner and active opponents. DRAW reflects stored survivor flags.
 Participant UUID ordering is retained and never defines start order. Basic
 player/deck games, wins and win-rate semantics remain unchanged; DRAW adds no win.
@@ -263,6 +283,35 @@ records require a separately approved retention/migration plan.
 V9 adds only nullable `games.played_on DATE`, without a default or backfill.
 V8 games, recording timestamps, results, participants and permanent deck-use
 flags are preserved.
+
+V17 replaces the existing deferred complete-game validator to permit unknown
+non-winner placements and validate partial standard-competition rankings. The
+existing nullable column, range/uniqueness/foreign-key constraints and atomic
+replacement remain in use. It preserves all existing rows, including complete
+rankings, and needs no data reset, reconstruction or backfill. Previously applied
+migrations are unchanged. Player/deck wins, seat totals and Mana-color statistics
+continue to use the sole actual winner; an unknown placement adds no inferred win
+or rank.
+
+## Browser integration handoff (#220)
+
+The backend optional-placement contract is required for the complete #172 release.
+The existing browser parser in `frontend/src/api.ts` still requires numeric WIN
+placements; the current editor also requires complete ranks. They must be aligned
+as part of the dependent frontend work before winner-only recording is released.
+No frontend changes are included in backend issue #220.
+
+- #196 must accept/display unknown non-winner and eliminated-opponent placements
+  without selecting or submitting inferred ranks, including when editing an
+  existing game. Its transport/read parser must allow explicit null WIN ranks.
+- #195 must render null as unknown, omit numeric place/indentation claims for that
+  participant, and highlight the winner using `winnerUserId`. The current details
+  sorting/indentation assumes numeric WIN ranks and needs that adjustment.
+- #194/#193 history/overview must consume the nullable read contract while deriving
+  the displayed winner/draw from `winnerUserId`/`result`, never a reconstructed
+  complete ranking. The shared parser must accept these responses.
+
+The following browser sections describe the current UI, pending those changes.
 
 ## Browser game editor
 
