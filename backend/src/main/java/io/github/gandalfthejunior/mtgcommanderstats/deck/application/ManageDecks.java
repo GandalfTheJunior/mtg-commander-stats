@@ -163,7 +163,7 @@ public class ManageDecks {
                 .findFirst().orElseThrow(DeckNotFoundException::new);
         ResolvedArtwork resolved = scryfall.resolveArtworkOnline(printingId, commander.getOracleId().toString(),
                 commander.getGameplayFaceIndex(), artworkFaceIndex);
-        commander.changeArtwork(resolved.selectionRef(), resolved.artwork());
+        commander.changeArtwork(resolved.selectionRef(), resolved.artwork(), resolved.cardFaces());
         return deck;
     }
 
@@ -176,7 +176,7 @@ public class ManageDecks {
         }
         ResolvedArtwork resolved = scryfall.resolveArtworkOnline(printingId, companion.getOracleId().toString(),
                 companion.getGameplayFaceIndex(), artworkFaceIndex);
-        companion.changeArtwork(resolved.selectionRef(), resolved.artwork());
+        companion.changeArtwork(resolved.selectionRef(), resolved.artwork(), resolved.cardFaces());
         return deck;
     }
 

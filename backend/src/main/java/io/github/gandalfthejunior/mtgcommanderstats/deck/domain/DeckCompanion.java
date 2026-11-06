@@ -1,8 +1,11 @@
 package io.github.gandalfthejunior.mtgcommanderstats.deck.domain;
 
+import java.util.List;
 import java.util.UUID;
 
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.ColorIdentityConverter;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.CardFacesConverter;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CardFace;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.application.ResolvedCompanion;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.Artwork;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderSelectionRef;
@@ -45,6 +48,10 @@ public class DeckCompanion {
     @Column(name = "scryfall_uri", columnDefinition = "text")
     private String scryfallUri;
 
+    @Convert(converter = CardFacesConverter.class)
+    @Column(name = "card_faces", columnDefinition = "text")
+    private CardFaces cardFaces;
+
     protected DeckCompanion() {
     }
 
@@ -56,6 +63,7 @@ public class DeckCompanion {
         this.baseColorIdentity = ColorIdentity.fromSymbols(gameplay.colorIdentity());
         Artwork art = gameplay.defaultArtwork();
         this.scryfallCardId = resolved.card().scryfallCardId();
+        this.cardFaces = new CardFaces(resolved.card().cardFaces());
         this.artworkFaceIndex = art.artworkFaceIndex();
         this.artCropUrl = art.artCropUrl();
         this.illustrationId = art.illustrationId();
@@ -63,7 +71,8 @@ public class DeckCompanion {
         this.scryfallUri = art.scryfallUri();
     }
 
-    public void changeArtwork(CommanderSelectionRef reference, Artwork artwork) {
+    public void changeArtwork(CommanderSelectionRef reference, Artwork artwork, List<CardFace> cardFaces) {
+        this.cardFaces = new CardFaces(cardFaces);
         this.scryfallCardId = reference.scryfallCardId();
         // This selector is printing-local; remap it to the same immutable Oracle identity.
         this.gameplayFaceIndex = reference.gameplayFaceIndex();
@@ -112,6 +121,10 @@ public class DeckCompanion {
 
     public String getArtist() {
         return artist;
+    }
+
+    public List<CardFace> getCardFaces() {
+        return cardFaces == null ? null : cardFaces.faces();
     }
 
     public String getScryfallUri() {

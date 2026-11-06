@@ -245,7 +245,7 @@ class CommanderArtworkTest extends GameTestSupport {
     private void assertPresentationOnly(JsonNode before, JsonNode after, int position) {
         ObjectNode expected = ((ObjectNode) before).deepCopy();
         ObjectNode actual = ((ObjectNode) after).deepCopy();
-        List<String> presentation = List.of("scryfallCardId", "selectionRef", "artworkFaceIndex", "artCropUrl", "artist", "illustrationId", "scryfallUri");
+        List<String> presentation = List.of("scryfallCardId", "selectionRef", "artworkFaceIndex", "artCropUrl", "artist", "illustrationId", "scryfallUri", "cardFaces");
         ((ObjectNode) expected.path("commanders").get(position - 1)).remove(presentation);
         ((ObjectNode) actual.path("commanders").get(position - 1)).remove(presentation);
         assertThat(actual).isEqualTo(expected);

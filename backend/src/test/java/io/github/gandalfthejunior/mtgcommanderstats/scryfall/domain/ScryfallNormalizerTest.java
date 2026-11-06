@@ -24,6 +24,39 @@ class ScryfallNormalizerTest {
     private final ScryfallNormalizer normalizer = new ScryfallNormalizer();
 
     @Test
+    void fullCardFacesRetainRulesAndOriginalIndicesWithoutRequiringImagesOrGameplayEligibility() {
+        ObjectNode card = card("Front // Back", "Legendary Creature — Human // Land");
+        card.put("layout", "modal_dfc");
+        ObjectNode front = card("Front", "Legendary Creature — Human");
+        front.put("oracle_text", "First ability\nSecond ability");
+        front.putObject("image_uris").put("normal", "https://evil.test/normal.jpg")
+                .put("small", "https://cards.scryfall.io/small/front.jpg");
+        ObjectNode back = card("Back", "Land");
+        back.put("oracle_text", "{T}: Add {G}.");
+        back.putObject("image_uris").put("normal", "https://cards.scryfall.io/normal/back.jpg");
+        card.set("card_faces", json.valueToTree(List.of(front, back)));
+
+        assertThat(normalizer.normalize(card).cardFaces()).containsExactly(
+                new CardFace(0, "Front", "Legendary Creature — Human", "First ability\nSecond ability", null),
+                new CardFace(1, "Back", "Land", "{T}: Add {G}.", "https://cards.scryfall.io/normal/back.jpg"));
+        back.remove("image_uris");
+        card.set("card_faces", json.valueToTree(List.of(front, back)));
+        assertThat(normalizer.normalize(card).cardFaces()).hasSize(2).allSatisfy(face -> assertThat(face.imageUrl()).isNull());
+    }
+
+    @Test
+    void facesOnOnePhysicalSideShareTheUncroppedNormalImage() {
+        ObjectNode card = card("Creature // Adventure", "Legendary Creature — Human // Sorcery — Adventure");
+        card.put("layout", "adventure");
+        card.putObject("image_uris").put("normal", "https://cards.scryfall.io/normal/whole.jpg")
+                .put("small", "https://cards.scryfall.io/small/whole.jpg");
+        card.set("card_faces", json.valueToTree(List.of(card("Creature", "Legendary Creature — Human"),
+                card("Adventure", "Sorcery — Adventure"))));
+        assertThat(normalizer.normalize(card).cardFaces()).hasSize(2)
+                .allSatisfy(face -> assertThat(face.imageUrl()).isEqualTo("https://cards.scryfall.io/normal/whole.jpg"));
+    }
+
+    @Test
     void normalizesCanonicalColorsTrustedCommanderAndAttribution() {
         ObjectNode card = card("Atraxa", "Legendary Creature — Phyrexian Angel Horror");
         card.set("color_identity", json.valueToTree(List.of("G", "B", "W", "U")));

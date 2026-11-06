@@ -1,4 +1,4 @@
-import { CommanderArtwork } from './CommanderArtwork'
+import { FullCardView } from './FullCardView'
 import { ManaBoxLink } from './ManaBoxLink'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
@@ -169,9 +169,9 @@ export default function GameDetailsPage({ currentUser, onUnauthorized, onNotice,
           }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${person.deck.commanders.length}, minmax(0, 1fr))`, height: { xs: 220, sm: 280 }, minWidth: 0 }}>
               {person.deck.commanders.map(commander => <Box key={`${person.deckId}:${commander.oracleId}:${commander.position}`} sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', '& [role="img"]': { alignItems: 'start', pt: 2 } }}>
-                <CommanderArtwork commander={commander} />
+                <FullCardView card={commander} artwork preload="immediate" />
                 <Box sx={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(to bottom, transparent 20%, rgba(0,0,0,0.65) 60%, #000 100%)' }} />
-                <Typography sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: { xs: 1, sm: 2 }, color: '#fff', fontWeight: 700, lineHeight: 1.3, overflowWrap: 'anywhere' }}>
+                <Typography sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: { xs: 1, sm: 2 }, color: '#fff', pointerEvents: 'none', fontWeight: 700, lineHeight: 1.3, overflowWrap: 'anywhere' }}>
                   Commander: {commander.name}
                 </Typography>
               </Box>)}
@@ -187,6 +187,7 @@ export default function GameDetailsPage({ currentUser, onUnauthorized, onNotice,
               <Typography>Farbidentität: {person.deck.colorIdentity.length ? person.deck.colorIdentity.map(color => `${color} (${colorNames[color]})`).join(' · ') : 'Farblos'}</Typography>
               {person.deck.archived && <Typography sx={{ color: 'text.secondary' }}>Archiviertes Deck</Typography>}
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>Deckkennung: {person.deckId}</Typography>
+              {person.deck.companion && <FullCardView card={person.deck.companion} preload="immediate" />}
               <ManaBoxLink url={person.deck.manaBoxUrl} deckName={person.deck.name} />
             </Box>
           </Card>

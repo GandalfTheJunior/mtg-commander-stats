@@ -27,6 +27,13 @@ Success is `200` with four top-level arrays:
 IDs are UUID strings; usernames and deck names are current saved display data.
 `commanders` contains ordered [saved Commander snapshots](decks-api.md#saved-snapshots-and-updates),
 including artwork and chosen-color fields which can be null. `archived` is boolean.
+The shared Commander summary also carries nullable `cardFaces` with each saved
+printing face's `faceIndex`, `name`, `typeLine`, `oracleText` and `imageUrl`; see
+the [full-card display contract](decks-api.md#full-card-display-snapshots).
+These fields are read from the saved deck without provider requests, including
+in statistics responses. Reusing the shared summary deliberately adds the face
+text and URLs to this payload; statistics does not preload or open full cards.
+Legacy snapshots return null.
 Counts are integers. Percentages are JSON numbers for measured rates, including
 numeric `0` for observations without wins. **No observations** always means
 `games: 0`, `wins: 0`, `winRatePercent: null`.
