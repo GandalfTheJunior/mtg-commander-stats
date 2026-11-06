@@ -349,6 +349,14 @@ Commander count/colors and is read from the referenced deck without provider
 requests. Game write bodies gain no Companion input or match-level snapshot;
 first committed deck use permanently locks Companion identity.
 
+Both Commander and Companion snapshots include nullable `cardFaces`, using the
+[full-card display contract](decks-api.md#full-card-display-snapshots): saved
+printing faces with `faceIndex`, `name`, `typeLine`, `oracleText` and `imageUrl`.
+Game details can display the full card without an additional metadata request.
+The shared summaries also include these fields in game list/write responses and
+member deck selection; this additive payload does not enable card preloading or
+card-view actions in history or record-match rows. Legacy snapshots return null.
+
 ## Read facts and schema upgrade
 
 POST, GET list/detail and PUT always include `playedOn` (an ISO date string or

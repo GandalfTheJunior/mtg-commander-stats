@@ -83,7 +83,8 @@ test('restores the authenticated session and loads its decks', async () => {
 
   expect(await screen.findByRole('heading', { name: 'Meine Decks' })).toBeInTheDocument()
   expect(await screen.findByText('Atraxa Superfriends')).toBeInTheDocument()
-  expect(screen.getByText(/Atraxa, Praetors' Voice/)).toBeInTheDocument()
+  const savedDeck = within(screen.getByRole('heading', { name: deck.name }).closest('li')!)
+  expect(savedDeck.getByText("Commander: Atraxa, Praetors' Voice")).toBeInTheDocument()
   expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/decks', {
     signal: expect.any(AbortSignal),
     credentials: 'same-origin',
