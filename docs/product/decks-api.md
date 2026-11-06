@@ -427,7 +427,8 @@ returns `403`. Anonymized profiles' decks are archived and cannot be managed.
 Accepting a [profile invitation](groups-api.md#profile-invitations-and-claiming)
 moves every profile deck to the account with its UUID, name, format, Commanders,
 Companion, `everUsed` lock and archived state intact. The deck owner/participant
-foreign key is deferred during the atomic reassignment.
+foreign key is deferred only for the atomic claim transaction; other writers
+retain immediate validation.
 
 ## Disposable local data and migration
 

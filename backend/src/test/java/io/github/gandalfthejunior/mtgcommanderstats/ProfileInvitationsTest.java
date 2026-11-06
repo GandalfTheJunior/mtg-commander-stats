@@ -1,5 +1,9 @@
 package io.github.gandalfthejunior.mtgcommanderstats;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -10,15 +14,27 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.GroupRole;
+import io.github.gandalfthejunior.mtgcommanderstats.quickprofile.application.ManageQuickProfiles;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import tools.jackson.databind.JsonNode;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ProfileInvitationsTest extends GameTestSupport {
+    @Value("${local.server.port}")
+    private int port;
+
+    @Autowired
+    private ManageQuickProfiles quickProfiles;
+
     @Test
     void claimMovesDecksGamesMembershipAndStatisticsAndRetainsAudit() throws Exception {
         Fixture f = fixture();
+        assertThat(jdbc.queryForMap("SELECT condeferrable, condeferred FROM pg_constraint"
+                + " WHERE conname = 'game_participants_deck_owner_fk'"))
+                .containsEntry("condeferrable", true).containsEntry("condeferred", false);
         UUID profile = profile(f);
         UUID usedDeck = profileDeck(f, profile, "Used");
         UUID spareDeck = profileDeck(f, profile, "Spare");
@@ -206,6 +222,40 @@ class ProfileInvitationsTest extends GameTestSupport {
     }
 
     @Test
+    void claimWaitingForProfileDeletionCannotPartiallyMerge() throws Exception {
+        Fixture f = fixture();
+        UUID profile = profile(f);
+        String code = invite(f, profile);
+        CountDownLatch deleted = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<?> deletion = executor.submit(() -> transactions.executeWithoutResult(status -> {
+                quickProfiles.delete(f.owner().id(), f.groupId(), profile);
+                deleted.countDown();
+                try {
+                    release.await(10, TimeUnit.SECONDS);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(exception);
+                }
+            }));
+            assertThat(deleted.await(5, TimeUnit.SECONDS)).isTrue();
+            Future<Integer> claim = executor.submit(() -> send(f.member(), "POST", accept(code), "").statusCode());
+            try {
+                org.assertj.core.api.Assertions.assertThatThrownBy(() -> claim.get(300, TimeUnit.MILLISECONDS))
+                        .isInstanceOf(TimeoutException.class);
+            } finally {
+                release.countDown();
+            }
+            deletion.get(10, TimeUnit.SECONDS);
+            assertThat(claim.get(10, TimeUnit.SECONDS)).isEqualTo(400);
+        }
+        assertThat(users.findById(profile)).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM profile_invitations WHERE consumer_id IS NOT NULL",
+                Integer.class)).isZero();
+    }
+
+    @Test
     void publicPreviewIsLimitedTo120RequestsPerPeer() throws Exception {
         Actor owner = register("limit-owner", "Limit Owner");
         UUID group = id(expect(owner, "POST", "/api/groups", "{\"name\":\"Limited\"}", 201));
@@ -217,6 +267,82 @@ class ProfileInvitationsTest extends GameTestSupport {
             expect(null, "GET", preview(code), "", 200);
         }
         assertThat(send(null, "GET", preview(code), "").statusCode()).isEqualTo(429);
+    }
+
+    @Test
+    void percentEncodedPreviewPathUsesTheSamePeerQuota() throws Exception {
+        Actor owner = register("encoded-preview", "Preview Owner");
+        UUID group = id(expect(owner, "POST", "/api/groups", "{\"name\":\"Limited\"}", 201));
+        UUID profile = UUID.fromString(expect(owner, "POST", "/api/groups/" + group + "/quick-profiles",
+                "", 201).get("userId").asText());
+        String code = expect(owner, "POST", "/api/groups/" + group + "/quick-profiles/" + profile
+                + "/invitation", "", 201).get("code").asText();
+        String encodedPath = "/api/profile-invitation%73/" + code;
+        for (int i = 0; i < 120; i++) {
+            expect(null, "GET", encodedPath, "", 200);
+        }
+        assertThat(send(null, "GET", encodedPath, "").statusCode()).isEqualTo(429);
+    }
+
+    @Test
+    void acceptAndPercentEncodedAcceptPathsUseThePeerQuota() throws Exception {
+        Actor actor = register("accept-limit", "Accept Owner");
+        String unknown = "/api/profile-invitations/AAAAAAAAAAAAAAAAAAAAAA/accept";
+        for (int i = 0; i < 120; i++) {
+            expect(actor, "POST", unknown, "", 400);
+        }
+        assertThat(send(actor, "POST", unknown, "").statusCode()).isEqualTo(429);
+    }
+
+    @Test
+    void percentEncodedAcceptPathUsesTheSamePeerQuota() throws Exception {
+        Actor actor = register("encoded-accept", "Accept Owner");
+        String encodedPath = "/api/profile-invitations/AAAAAAAAAAAAAAAAAAAAAA/accep%74";
+        for (int i = 0; i < 120; i++) {
+            expect(actor, "POST", encodedPath, "", 400);
+        }
+        assertThat(send(actor, "POST", encodedPath, "").statusCode()).isEqualTo(429);
+    }
+
+    @Test
+    void deletingOrAnonymizingAProfileRevokesItsInvitation() throws Exception {
+        Fixture f = fixture();
+        UUID unused = profile(f);
+        String unusedCode = invite(f, unused);
+        expect(f.owner(), "DELETE", "/api/groups/" + f.groupId() + "/quick-profiles/" + unused, "", 204);
+        assertThat(jdbc.queryForObject("SELECT revoked_at IS NOT NULL FROM profile_invitations"
+                + " WHERE profile_id IS NULL", Boolean.class)).isTrue();
+        String unavailable = send(null, "GET", preview("AAAAAAAAAAAAAAAAAAAAAA"), "").body();
+        assertThat(send(null, "GET", preview(unusedCode), "").body()).isEqualTo(unavailable);
+        assertThat(send(f.member(), "POST", accept(unusedCode), "").body()).isEqualTo(unavailable);
+
+        UUID played = profile(f);
+        UUID deck = profileDeck(f, played, "Played");
+        expect(f.owner(), "POST", f.path(), body(List.of(assignment(played, deck),
+                assignment(f.creator().id(), f.creatorDeck())), "WIN", played), 201);
+        String playedCode = invite(f, played);
+        expect(f.owner(), "DELETE", "/api/groups/" + f.groupId() + "/quick-profiles/" + played, "", 204);
+        assertThat(jdbc.queryForObject("SELECT revoked_at IS NOT NULL FROM profile_invitations"
+                + " WHERE profile_id = ?", Boolean.class, played)).isTrue();
+        assertThat(send(null, "GET", preview(playedCode), "").body()).isEqualTo(unavailable);
+        assertThat(send(f.member(), "POST", accept(playedCode), "").body()).isEqualTo(unavailable);
+    }
+
+    @Test
+    void unsupportedAcceptBodyGets415WithoutConsumingTheInvitation() throws Exception {
+        Fixture f = fixture();
+        String code = invite(f, profile(f));
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + accept(code)))
+                .header("Content-Type", "text/plain")
+                .header("Cookie", f.member().cookie())
+                .header("X-CSRF-TOKEN", f.member().token())
+                .POST(HttpRequest.BodyPublishers.ofString("confirm"))
+                .build();
+        HttpResponse<String> response = HttpClient.newHttpClient().send(request,
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(415);
+        assertThat(response.body()).doesNotContain(code);
+        expect(null, "GET", preview(code), "", 200);
     }
 
     private UUID profile(Fixture f) throws Exception {

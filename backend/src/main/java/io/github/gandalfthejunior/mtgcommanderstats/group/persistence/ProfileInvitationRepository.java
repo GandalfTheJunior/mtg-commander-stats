@@ -1,7 +1,6 @@
 package io.github.gandalfthejunior.mtgcommanderstats.group.persistence;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -62,28 +61,6 @@ public class ProfileInvitationRepository {
                 WHERE i.token_hash = ? AND i.consumed_at IS NULL AND i.revoked_at IS NULL
                   AND i.expires_at > clock_timestamp() AND u.kind = 'QUICK_PROFILE' AND NOT u.deleted
                 """, (row, index) -> row.getObject(1, UUID.class), hash).stream().findFirst();
-    }
-
-    public boolean sameGame(UUID profileId, UUID accountId) {
-        return Boolean.TRUE.equals(jdbc.queryForObject("""
-                SELECT EXISTS (SELECT 1 FROM game_participants p
-                    JOIN game_participants a ON a.game_id = p.game_id
-                    WHERE p.user_id = ? AND a.user_id = ?)
-                """, Boolean.class, profileId, accountId));
-    }
-
-    public void lockDecks(UUID profileId, UUID accountId) {
-        List<UUID> ids = jdbc.query("SELECT id FROM decks WHERE owner_id IN (?, ?) ORDER BY id",
-                (row, index) -> row.getObject(1, UUID.class), profileId, accountId);
-        for (UUID id : ids) {
-            jdbc.query("SELECT id FROM decks WHERE id = ? FOR UPDATE",
-                    (row, index) -> row.getObject(1, UUID.class), id);
-        }
-    }
-
-    public void repoint(UUID profileId, UUID accountId) {
-        jdbc.update("UPDATE decks SET owner_id = ? WHERE owner_id = ?", accountId, profileId);
-        jdbc.update("UPDATE game_participants SET user_id = ? WHERE user_id = ?", accountId, profileId);
     }
 
     public boolean consume(String hash, UUID accountId) {

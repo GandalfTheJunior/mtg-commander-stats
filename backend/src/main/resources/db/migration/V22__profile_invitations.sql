@@ -1,8 +1,8 @@
--- Deferred ownership validation permits an atomic deck/participation reassignment.
+-- A claim defers this constraint only for its transaction; other writers retain immediate validation.
 ALTER TABLE game_participants DROP CONSTRAINT game_participants_deck_owner_fk;
 ALTER TABLE game_participants ADD CONSTRAINT game_participants_deck_owner_fk
     FOREIGN KEY (deck_id, user_id) REFERENCES decks(id, owner_id)
-    DEFERRABLE INITIALLY DEFERRED;
+    DEFERRABLE INITIALLY IMMEDIATE;
 
 CREATE TABLE profile_invitations (
     token_hash varchar(64) PRIMARY KEY CHECK (token_hash ~ '^[0-9a-f]{64}$'),

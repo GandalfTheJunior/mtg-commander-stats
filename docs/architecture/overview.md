@@ -119,16 +119,17 @@ PostgreSQL wall-clock time; rollback retains the invitation and prior membership
 No invitation lock is acquired before the group lock. Hash collisions during
 creation retry `ON CONFLICT DO NOTHING` without aborting the transaction.
 Public preview is a single query exposing only the live invitation's group name.
+No background expiry job or revocation mechanism is introduced for group invitations.
 
 Profile invitations (V22) reuse the token generator and SHA-256 verifier but
 expire after one hour. A partial unique index allows one open invitation per
 profile; replacement and revocation serialize through the group lock. Acceptance
 locks that group and then the profile's and account's decks in UUID order. A
-deferred deck-owner foreign key permits deck and participation reassignment in
-one transaction, after a same-game conflict check. The profile and membership
+deferrable deck-owner foreign key is deferred only by the claim transaction.
+The deck and game application operations reassign their own data after a
+same-game conflict check. The profile and membership
 are removed; consumed invitation audit rows retain their hash and consumer but
 lose the deleted profile reference.
-No background expiry job or revocation mechanism is introduced.
 The group application layer uses the `user` feature's public-user directory to
 resolve display usernames without exposing user persistence entities through the
 API.

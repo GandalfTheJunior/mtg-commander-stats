@@ -7,6 +7,8 @@ import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupNotFo
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.InvalidProfileInvitationException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.ProfileClaimConflictException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.QuickProfileNotFoundException;
+import org.springframework.dao.ConcurrencyFailureException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.CacheControl;
@@ -14,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -32,6 +35,16 @@ public class ProfileInvitationErrors {
             MethodArgumentTypeMismatchException.class})
     public ResponseEntity<ProblemDetail> invalidRequest() {
         return problem(HttpStatus.BAD_REQUEST, "Invalid request.");
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ProblemDetail> unsupportedContentType() {
+        return problem(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported content type.");
+    }
+
+    @ExceptionHandler({DataIntegrityViolationException.class, ConcurrencyFailureException.class})
+    public ResponseEntity<ProblemDetail> conflict() {
+        return problem(HttpStatus.CONFLICT, "The request conflicts with persisted state. Reload and retry.");
     }
 
     @ExceptionHandler(ProfileClaimConflictException.class)

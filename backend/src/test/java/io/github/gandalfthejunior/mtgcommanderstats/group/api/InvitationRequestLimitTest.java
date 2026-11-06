@@ -70,6 +70,7 @@ class InvitationRequestLimitTest {
             assertThat(limit.admit("192.0.2.1")).isTrue();
         }
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/invitations/secret");
+        request.setServletPath("/api/invitations/secret");
         request.setRemoteAddr("192.0.2.1");
         MockHttpServletResponse response = new MockHttpServletResponse();
         limit.doFilter(request, response, (req, res) -> { throw new AssertionError("Rejected request reached controller"); });

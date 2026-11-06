@@ -182,9 +182,9 @@ Group-authorized deck selection and game history/recording are documented in the
 
 Quick profiles (#223) are credential-less placeholder members for friends without
 an account; see the [product rules](mvp-scope.md#quick-profiles). Every route
-requires an authenticated active member of the path group and CSRF for writes,
-and locks the group row first, sharing the lock with membership changes and game
-writes.
+requires an authenticated active member of the path group and CSRF for writes.
+Mutations lock the group row first, sharing the lock with membership changes and
+game writes.
 
 | Route | Who | Result |
 | --- | --- | --- |
@@ -248,9 +248,11 @@ future account holder. All management routes are under
 
 Creation revokes the prior open invitation, including an expired one. The new
 code expires exactly one hour after database creation time. Issuer departure does
-not revoke it. `DELETE` revokes the open invitation, if any. MEMBERs and outsiders
+not revoke it. `DELETE` revokes the open invitation, if any. Deleting or
+anonymizing the profile also revokes its invitation. MEMBERs and outsiders
 receive `403`; unknown, anonymized, claimed or other-group profiles receive `404`.
-Every response uses `Cache-Control: no-store`.
+The status `GET` authorizes without taking an exclusive group lock. Every
+response uses `Cache-Control: no-store`.
 
 `GET /api/profile-invitations/{code}` is public. An available code returns only
 `{"groupName":"<name>","profileName":"<name>"}`. A malformed, unknown,

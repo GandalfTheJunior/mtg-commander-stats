@@ -5,6 +5,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import io.github.gandalfthejunior.mtgcommanderstats.deck.application.GameDecks;
+import io.github.gandalfthejunior.mtgcommanderstats.game.application.GameParticipations;
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.GroupMembership;
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.GroupRole;
 import io.github.gandalfthejunior.mtgcommanderstats.group.persistence.GroupMembershipRepository;
@@ -15,6 +17,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.user.domain.User;
 import io.github.gandalfthejunior.mtgcommanderstats.user.persistence.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 @Service
 public class ManageProfileInvitations {
@@ -26,10 +29,13 @@ public class ManageProfileInvitations {
     private final GroupMembershipRepository memberships;
     private final UserRepository users;
     private final JoinCodeGenerator codes;
+    private final GameDecks decks;
+    private final GameParticipations participations;
 
     public ManageProfileInvitations(QuickProfileAccess access, QuickProfiles profiles,
             ProfileInvitationRepository invitations, PlayGroupRepository groups,
-            GroupMembershipRepository memberships, UserRepository users, JoinCodeGenerator codes) {
+            GroupMembershipRepository memberships, UserRepository users, JoinCodeGenerator codes,
+            GameDecks decks, GameParticipations participations) {
         this.access = access;
         this.profiles = profiles;
         this.invitations = invitations;
@@ -37,6 +43,8 @@ public class ManageProfileInvitations {
         this.memberships = memberships;
         this.users = users;
         this.codes = codes;
+        this.decks = decks;
+        this.participations = participations;
     }
 
     @Transactional
@@ -54,9 +62,15 @@ public class ManageProfileInvitations {
         throw new IllegalStateException("Could not generate a unique profile invitation.");
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public Status current(UUID actorId, UUID groupId, UUID profileId) {
-        requireManager(actorId, groupId);
+        groups.findById(groupId).orElseThrow(GroupNotFoundException::new);
+        GroupRole role = memberships.findByGroupIdAndUserId(groupId, actorId)
+                .filter(GroupMembership::isActive).map(GroupMembership::getRole)
+                .orElseThrow(GroupAccessDeniedException::new);
+        if (role != GroupRole.OWNER && role != GroupRole.ADMIN) {
+            throw new GroupAccessDeniedException();
+        }
         access.activeProfile(groupId, profileId);
         Instant expiry = invitations.current(profileId).orElse(null);
         return new Status(expiry != null, expiry);
@@ -66,6 +80,12 @@ public class ManageProfileInvitations {
     public void revoke(UUID actorId, UUID groupId, UUID profileId) {
         requireManager(actorId, groupId);
         access.activeProfile(groupId, profileId);
+        invitations.revoke(profileId);
+    }
+
+    /** Called after the profile's group lock, before anonymizing or deleting it. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void revokeForProfileDeletion(UUID profileId) {
         invitations.revoke(profileId);
     }
 
@@ -89,11 +109,12 @@ public class ManageProfileInvitations {
             throw new InvalidProfileInvitationException();
         }
         // Game writes take the group lock before deck locks; use that same order.
-        invitations.lockDecks(profileId, account.getId());
-        if (invitations.sameGame(profileId, accountId)) {
+        decks.lockForClaim(profileId, account.getId());
+        if (participations.conflictsWithClaim(profileId, accountId)) {
             throw new ProfileClaimConflictException();
         }
-        invitations.repoint(profileId, accountId);
+        decks.moveForClaim(profileId, accountId);
+        participations.moveForClaim(profileId, accountId);
         GroupMembership existing = memberships.findByGroupIdAndUserId(groupId, accountId).orElse(null);
         if (existing == null) {
             memberships.save(GroupMembership.member(groupId, accountId));
