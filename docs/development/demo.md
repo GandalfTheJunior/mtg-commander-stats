@@ -32,7 +32,8 @@ backend** on a random loopback port and random context path, supplies the demo
 connection explicitly, waits for startup, seeds, verifies the API results and
 stops it. It does not connect to an independently running backend. It may take
 about a minute on first startup. Success reports 7 accounts, 2 groups, 14 played plus 7 unused decks,
-32 games and the login/file locations, without printing any password.
+32 games and the login/file locations, without printing any password. The seed also
+creates one quick profile with one unused deck (see below).
 
 `backend` then starts the ordinary application jar for interactive use on **127.0.0.1:8080**.
 Stop any other backend on 8080 first. The wrapper sets these variables in the
@@ -217,6 +218,13 @@ excluded from new-game deck selection. Gideon has genuine pinned alternate-art U
 decks and is Friday-only; Faye remains Sunday-only. Ada, Bruno and Gideon cannot
 read Sunday; Faye cannot read Friday. Ownership and joining use normal APIs.
 The catalog already contains all selected printings; no new card data is needed.
+
+Demo Sunday Table also has one [quick profile](../product/groups-api.md#quick-profiles),
+created by Cleo, with a server-generated name such as `Hairy Zombie` (never a
+real person's name) and one unused Krenko deck (Guest Goblins). It plays no
+games, so it has no statistics rows and the manifest below is unchanged; it is
+selectable for new Sunday games and its deck is managed through the group-scoped
+quick-profile deck routes.
 
 [expected-results.json](../../tools/demo/expected-results.json) records All under
 `groups` and every `playerCount=2…6` under `filters`. Each includes all logical

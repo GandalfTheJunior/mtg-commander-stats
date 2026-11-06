@@ -144,7 +144,8 @@ public class ManageGroups {
             throw new IllegalArgumentException("Only ADMIN and MEMBER roles may be requested.");
         }
         GroupMembership target = activeTarget(groupId, userId);
-        if (target.getRole() == GroupRole.OWNER) {
+        // Quick profiles never hold elevated roles (#223).
+        if (target.getRole() == GroupRole.OWNER || isQuickProfile(userId)) {
             throw new GroupAccessDeniedException();
         }
         target.changeRole(role);
@@ -159,10 +160,15 @@ public class ManageGroups {
             throw new GroupAccessDeniedException();
         }
         GroupMembership target = activeTarget(groupId, userId);
-        if (target.getRole() != GroupRole.MEMBER) {
+        // Quick profiles are deleted through their own endpoint instead of being removed.
+        if (target.getRole() != GroupRole.MEMBER || isQuickProfile(userId)) {
             throw new GroupAccessDeniedException();
         }
         target.leave();
+    }
+
+    private boolean isQuickProfile(UUID userId) {
+        return users.findAll(List.of(userId)).values().stream().anyMatch(PublicUser::quickProfile);
     }
 
     private GroupMembership activeTarget(UUID groupId, UUID userId) {
@@ -204,7 +210,7 @@ public class ManageGroups {
 
     private MemberSummary memberSummary(GroupMembership membership, Map<UUID, PublicUser> publicUsers) {
         PublicUser user = publicUsers.get(membership.getUserId());
-        return new MemberSummary(user.id(), user.username(), membership.getRole());
+        return new MemberSummary(user.id(), user.username(), membership.getRole(), user.quickProfile());
     }
 
     public record GroupSummary(UUID id, String name, GroupRole role) {
@@ -213,6 +219,6 @@ public class ManageGroups {
     public record GroupDetails(UUID id, String name, GroupRole role, List<MemberSummary> members) {
     }
 
-    public record MemberSummary(UUID userId, String username, GroupRole role) {
+    public record MemberSummary(UUID userId, String username, GroupRole role, boolean quickProfile) {
     }
 }

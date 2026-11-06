@@ -81,8 +81,9 @@ abstract class GameTestSupport {
     void clearData() {
         provider.offline = false;
         games.deleteAll();
-        groups.deleteAll();
+        // Quick profiles (and their decks) belong to a home group; delete decks first.
         decks.deleteAll();
+        groups.deleteAll();
         users.deleteAll();
     }
 
@@ -104,14 +105,18 @@ abstract class GameTestSupport {
         String email = key + "@example.com";
         JsonNode registered = expect(null, "POST", "/api/users",
                 json.writeValueAsString(Map.of("email", email, "username", username, "password", PASSWORD)), CREATED.value());
-        HttpResponse<String> csrf = send(null, "GET", "/api/csrf", "");
-        Actor anonymous = new Actor(cookie(csrf), json.readTree(csrf.body()).get("token").asText(), null);
+        Actor anonymous = anonymous();
         HttpResponse<String> login = send(anonymous, "POST", "/api/session",
                 json.writeValueAsString(Map.of("email", email, "password", PASSWORD)));
         assertThat(login.statusCode()).isEqualTo(OK.value());
         Actor authenticated = new Actor(cookie(login), null, id(registered));
         JsonNode token = expect(authenticated, "GET", "/api/csrf", "", OK.value());
         return new Actor(authenticated.cookie(), token.get("token").asText(), authenticated.id());
+    }
+
+    protected Actor anonymous() throws Exception {
+        HttpResponse<String> csrf = send(null, "GET", "/api/csrf", "");
+        return new Actor(cookie(csrf), json.readTree(csrf.body()).get("token").asText(), null);
     }
 
     protected UUID deck(Actor owner) throws Exception {

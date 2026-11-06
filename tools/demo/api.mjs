@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {DemoApiError, DemoRequestError} from './diagnostics.mjs';
-import {users, groups, games, archivedDeck, results, deckRequest, cards, readOutcome} from './fixture.mjs';
+import {users, groups, games, archivedDeck, results, deckRequest, cards, readOutcome, quickProfile, quickProfileName} from './fixture.mjs';
 
 // One cookie jar per real session. Never log responses, cookies, tokens or bodies.
 export class Session {
@@ -61,6 +61,13 @@ export async function seed(base, password, onStage = () => {}) {
       await accounts[member].session.call('POST', '/groups/join', {code});
     }
   }
+  const creator = accounts[quickProfile.creator].session;
+  const profilePath = `/groups/${tables[quickProfile.group]}/quick-profiles`;
+  const profile = await creator.call('POST', profilePath, undefined, 201);
+  assert.match(profile.username, quickProfileName);
+  assert.deepEqual({role: profile.role, quickProfile: profile.quickProfile}, {role: 'MEMBER', quickProfile: true});
+  accounts.quickProfile = {id: profile.userId};
+  decks[quickProfile.deck.key] = (await creator.call('POST', `${profilePath}/${profile.userId}/decks`, deckRequest(quickProfile.deck), 201)).id;
   onStage('games');
   for (const game of games) {
     const group = groups.find(g => g.key === game.group);
@@ -137,7 +144,19 @@ async function verify(base, password, {accounts, decks, tables, recordedGames}) 
   for (const group of groups) {
     const session = accounts[group.owner].session, id = tables[group.key];
     const details = await session.call('GET', `/groups/${id}`);
-    assert.deepEqual(details.members.map(m => [m.userId, m.role]).sort(), group.members.map(key => [accounts[key].id, key === group.owner ? 'OWNER' : 'MEMBER']).sort());
+    const profiles = group.key === quickProfile.group ? [accounts.quickProfile.id] : [];
+    assert.deepEqual(details.members.map(m => [m.userId, m.role, m.quickProfile]).sort(), [
+      ...group.members.map(key => [accounts[key].id, key === group.owner ? 'OWNER' : 'MEMBER', false]),
+      ...profiles.map(profile => [profile, 'MEMBER', true])].sort());
+    for (const profile of profiles) {
+      assert.match(details.members.find(m => m.userId === profile).username, quickProfileName);
+      const eligible = await session.call('GET', `/groups/${id}/members/${profile}/decks`);
+      assert.deepEqual(eligible.map(d => d.id), [decks[quickProfile.deck.key]]);
+      const owned = await session.call('GET', `/groups/${id}/quick-profiles/${profile}/decks`);
+      assert.equal(owned.length, 1);
+      assert.equal(owned[0].everUsed, false);
+      verifyCommanders(owned[0].commanders, quickProfile.deck);
+    }
     for (const member of group.members) {
       const eligible = await session.call('GET', `/groups/${id}/members/${accounts[member].id}/decks`);
       assert.ok(eligible.every(deck => deck.format === 'COMMANDER'));
@@ -152,10 +171,12 @@ async function verify(base, password, {accounts, decks, tables, recordedGames}) 
       assert.deepEqual(statistics.startPositions, expectedGroup.startPositions);
       assert.deepEqual(statistics.manaColors, expectedGroup.manaColors);
       const expectedPlayers = expected.filter(row => row.kind === 'player').map(row => ({
-        userId: accounts[row.user].id, username: row.name, games: row.games, wins: row.wins, winRatePercent: row.winRatePercent,
+        userId: accounts[row.user].id, username: row.name, quickProfile: false, deleted: false, deletedNumber: null,
+        games: row.games, wins: row.wins, winRatePercent: row.winRatePercent,
       }));
       const expectedDecks = expected.filter(row => row.kind === 'deck').map(row => ({
         deckId: decks[row.deck], ownerUserId: accounts[row.user].id, ownerUsername: users.find(u => u.key === row.user).name,
+        ownerQuickProfile: false, ownerDeleted: false, ownerDeletedNumber: null,
         name: row.name, format: 'COMMANDER',
         archived: row.deck === archivedDeck, games: row.games, wins: row.wins, winRatePercent: row.winRatePercent,
       }));
@@ -193,7 +214,7 @@ async function verify(base, password, {accounts, decks, tables, recordedGames}) 
     participants: game.participants.map(p => ({userId: accounts[p.user].id, deckId: decks[p.deck], startPosition: p.startPosition, stillInGame: true})), result: 'DRAW', alternateWinCon: false,
   }, 400);
   assert.equal((await accounts[group.owner].session.call('GET', `/groups/${tables[group.key]}/games`)).length, games.filter(g => g.group === group.key).length);
-  for (const {session} of Object.values(accounts)) await session.call('DELETE', '/session', undefined, 204);
+  for (const {session} of Object.values(accounts)) if (session) await session.call('DELETE', '/session', undefined, 204);
 }
 
 function assertGame(actual, expected, accounts) {

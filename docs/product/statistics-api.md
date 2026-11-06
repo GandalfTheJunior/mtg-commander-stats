@@ -19,8 +19,8 @@ Success is `200` with four top-level arrays:
 
 | Field | Row contract |
 | --- | --- |
-| `players` | `{userId, username, games, wins, winRatePercent}` |
-| `decks` | `{deckId, ownerUserId, ownerUsername, name, commanders, format, archived, games, wins, winRatePercent}` |
+| `players` | `{userId, username, quickProfile, deleted, deletedNumber, games, wins, winRatePercent}` |
+| `decks` | `{deckId, ownerUserId, ownerUsername, ownerQuickProfile, ownerDeleted, ownerDeletedNumber, name, commanders, format, archived, games, wins, winRatePercent}` |
 | `startPositions` | `{playerCount, seats: [{startPosition, games, wins, winRatePercent}]}` |
 | `manaColors` | `{color, games, wins, winRatePercent}` |
 
@@ -32,6 +32,13 @@ numeric `0` for observations without wins. **No observations** always means
 `games: 0`, `wins: 0`, `winRatePercent: null`.
 Emails, credentials and join codes are never exposed. Stable IDs distinguish
 duplicate display names.
+
+[Quick profiles](groups-api.md#quick-profiles) count like any other player.
+`quickProfile`/`ownerQuickProfile` mark them. An anonymized profile keeps its
+rows with `deleted: true`, the placeholder `username` `Deleted profile` and a
+stable per-group `deletedNumber` (`null` otherwise); clients display a localized
+label such as "Gelöschtes Profil 1". Anonymization never changes other players'
+counts.
 
 `startPositions` always has five sections ordered 2,3,4,5,6 for All, or exactly
 the selected N section. Each contains every seat 1…N in ascending order, even
@@ -154,7 +161,8 @@ four-player games, even if the group has games of other sizes:
 - Former members and archived decks remain when recorded games reference them.
   User and deck labels are current; Commanders use the saved deck snapshots.
   Former members cannot read after leaving, even when their rows remain.
-- Players sort by username then user UUID; decks sort by owner username, deck
+- Players sort by username then user UUID (so an account and a quick profile
+  with the same display name stay separate, ordered by UUID); decks sort by owner username, deck
   name, then deck UUID, ascending. Strings use Java's case-sensitive natural
   order and UUID ties use Java UUID natural order. Counts do not affect order;
   these lists have no ranking or leaderboard semantics.

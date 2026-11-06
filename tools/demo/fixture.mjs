@@ -25,6 +25,13 @@ export const users = [
   ['faye', 'Faye', [['Night Court', [c('Queen Marchesa')]], ['Spore Garden', [c('The Mycotyrant')]], ['Friends Across Five Colors', [c('Cecily, Haunted Mage'), c('Othelm, Sigardian Outcast')]]]],
 ].map(([key, name, decks]) => ({key, name, email: `${key}@commander.example`, decks: decks.map(([name, commanders], index) => ({key: `${key}-${index}`, name, commanders, colorIdentity: colors(commanders.flatMap(c => c.effectiveColorIdentity))}))}));
 
+// A quick profile (#223) for a friend without an account. The server generates its
+// playful name; it owns one unused deck and plays no games, so results are unchanged.
+export const quickProfile = {group: 'sunday', creator: 'cleo',
+  deck: (commanders => ({key: 'quick-profile-0', name: 'Guest Goblins', commanders,
+    colorIdentity: colors(commanders.flatMap(c => c.effectiveColorIdentity))}))([c('Krenko, Mob Boss')])};
+export const quickProfileName = /^\p{Lu}\p{Ll}+ \p{Lu}\p{Ll}+$/u;
+
 export function deckRequest(deck) {
   return {name: deck.name, commanders: deck.commanders.map(({selectionRef, chosenColor}) => ({selectionRef, ...(chosenColor === undefined ? {} : {chosenColor})}))};
 }

@@ -19,6 +19,9 @@ public interface DeckRepository extends JpaRepository<Deck, UUID> {
     List<Deck> findAllByOwnerId(UUID ownerId);
     List<Deck> findAllByOwnerIdAndArchivedFalseOrderByNameAscIdAsc(UUID ownerId);
 
+    @Query("select deck.id from Deck deck where deck.ownerId = :ownerId")
+    List<UUID> findIdsByOwnerId(@Param("ownerId") UUID ownerId);
+
     // Display-only loads must not dirty-check converted value objects at commit.
     @QueryHints(@QueryHint(name = HibernateHints.HINT_READ_ONLY, value = "true"))
     @Query("select deck from Deck deck where deck.id in :ids")

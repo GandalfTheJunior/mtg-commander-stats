@@ -19,6 +19,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.scryfall.application.Resolve
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.application.ResolvedArtwork;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.PairingCapabilities;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -191,6 +192,29 @@ public class ManageDecks {
         Deck deck = ownedDeck(ownerId, deckId);
         deck.archive();
         return deck;
+    }
+
+    /** Archives every deck of an owner, locking decks one by one in the ascending order used by game writes. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void archiveAllOwnedBy(UUID ownerId) {
+        lockAllOwnedBy(ownerId).forEach(Deck::archive);
+        decks.flush();
+    }
+
+    /**
+     * Physically deletes every deck of an owner regardless of the usage lock. Only for owners without
+     * participations: the participant foreign key still rejects deleting a deck referenced by a game.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void deleteAllOwnedBy(UUID ownerId) {
+        decks.deleteAll(lockAllOwnedBy(ownerId));
+        decks.flush();
+    }
+
+    private List<Deck> lockAllOwnedBy(UUID ownerId) {
+        return decks.findIdsByOwnerId(ownerId).stream().sorted()
+                .map(deckId -> decks.findByIdForUpdate(deckId).orElseThrow(DeckNotFoundException::new))
+                .toList();
     }
 
     private Deck ownedDeck(UUID ownerId, UUID deckId) {

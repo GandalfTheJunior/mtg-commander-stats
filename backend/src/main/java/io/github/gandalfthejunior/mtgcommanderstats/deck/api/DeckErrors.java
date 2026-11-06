@@ -11,6 +11,9 @@ import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidManaBoxUr
 import io.github.gandalfthejunior.mtgcommanderstats.displaytext.InvalidDisplayTextException;
 import io.github.gandalfthejunior.mtgcommanderstats.displaytext.InvalidNameException;
 import io.github.gandalfthejunior.mtgcommanderstats.displaytext.api.NameProblems;
+import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupAccessDeniedException;
+import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupNotFoundException;
+import io.github.gandalfthejunior.mtgcommanderstats.group.application.QuickProfileNotFoundException;
 import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -20,7 +23,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-@RestControllerAdvice(assignableTypes = DeckController.class)
+@RestControllerAdvice(assignableTypes = {DeckController.class, QuickProfileDeckController.class})
 public class DeckErrors {
     @ExceptionHandler(InvalidNameException.class)
     public ProblemDetail invalidName(InvalidNameException exception) {
@@ -72,5 +75,16 @@ public class DeckErrors {
     @ExceptionHandler(DeckAccessDeniedException.class)
     public ProblemDetail forbidden() {
         return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, "You do not own this deck.");
+    }
+
+    @ExceptionHandler({GroupNotFoundException.class, QuickProfileNotFoundException.class})
+    public ProblemDetail groupResourceNotFound() {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "Requested group resource not found.");
+    }
+
+    @ExceptionHandler(GroupAccessDeniedException.class)
+    public ProblemDetail groupAccessDenied() {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN,
+                "Active group membership with the required role is needed.");
     }
 }

@@ -32,11 +32,15 @@ responses never contain the join code.
   "name":"Friday Commander",
   "role":"MEMBER",
   "members":[
-    {"userId":"<user UUID>","username":"Gandalf","role":"OWNER"},
-    {"userId":"<user UUID>","username":"Aragorn","role":"MEMBER"}
+    {"userId":"<user UUID>","username":"Gandalf","role":"OWNER","quickProfile":false},
+    {"userId":"<user UUID>","username":"Hairy Zombie","role":"MEMBER","quickProfile":true}
   ]
 }
 ```
+
+`quickProfile` marks [quick profiles](#quick-profiles). Members are ordered by
+role, display name and user UUID, so an account and a quick profile with the same
+display name keep a deterministic order.
 
 Stable user UUIDs identify members; account usernames are case-insensitively
 unique (see [registration rules](mvp-scope.md#user-identity-and-registration)).
@@ -114,8 +118,9 @@ and historical record. An `OWNER` cannot leave.
 `PATCH /api/groups/{groupId}/members/{userId}/role` accepts only
 `{"role":"ADMIN"}` or `{"role":"MEMBER"}`. Only the active OWNER can change
 an active MEMBER/ADMIN target. OWNER reassignment is forbidden. Success returns
-`200` with `{"userId":"<UUID>","username":"<display name>","role":"ADMIN"}`
-(or MEMBER). Requesting the current eligible role returns the same `200`
+`200` with `{"userId":"<UUID>","username":"<display name>","role":"ADMIN","quickProfile":false}`
+(or MEMBER). A quick profile target returns `403`: quick profiles never hold
+elevated roles. Requesting the current eligible role returns the same `200`
 representation without creating a new membership. Missing/null, unsupported or
 non-string roles and unknown fields return `400`.
 
@@ -127,7 +132,8 @@ MEMBER. Neither can remove OWNER or ADMIN; an OWNER can first demote an ADMIN.
 Removal deactivates the stable membership, immediately revokes protected access,
 and retains games, statistics, membership UUIDs and permanent deck usage.
 Removal is not a ban: rejoining with a valid unused invitation reactivates the same
-membership as MEMBER, never restoring ADMIN.
+membership as MEMBER, never restoring ADMIN. Removal does not apply to quick
+profiles (`403`); [deleting the profile](#quick-profiles) replaces it.
 
 Both mutations lock the group row before checking current actor and target
 membership, sharing the lock with join, leave, invitation creation and game operations.
@@ -171,6 +177,62 @@ details. A missing group is distinguished with `404` as part of this contract.
 
 Group-authorized deck selection and game history/recording are documented in the
 [Commander games API](games-api.md). Departure retains those historical games.
+
+## Quick profiles
+
+Quick profiles (#223) are credential-less placeholder members for friends without
+an account; see the [product rules](mvp-scope.md#quick-profiles). Every route
+requires an authenticated active member of the path group and CSRF for writes,
+and locks the group row first, sharing the lock with membership changes and game
+writes.
+
+| Route | Who | Result |
+| --- | --- | --- |
+| `POST /api/groups/{groupId}/quick-profiles` (no body or `{}`) | any active member | `201` and the profile |
+| `PATCH /api/groups/{groupId}/quick-profiles/{userId}` with `{"name":"Lena"}` | any active member | `200` and the profile |
+| `DELETE /api/groups/{groupId}/quick-profiles/{userId}` (no body or `{}`) | active OWNER/ADMIN | `204` |
+
+The profile representation matches a member entry:
+
+```json
+{"userId":"<user UUID>","username":"Hairy Zombie","role":"MEMBER","quickProfile":true}
+```
+
+- **Create** accepts no name: the server generates `<adjective> <creature type>`
+  from the curated word lists and stores the profile with its active `MEMBER`
+  membership in one transaction. Fields in the body return `400`.
+- **Rename** applies the username [naming conventions](mvp-scope.md#naming-conventions)
+  (maximum 20 graphemes) and returns the shared name `errors` array on invalid
+  input. A name already used by another non-deleted quick profile of the group,
+  compared case-insensitively in the #214 canonical form, returns `409` with
+  `code: "QUICK_PROFILE_NAME_TAKEN"`. Account usernames never conflict with
+  quick-profile names.
+- **Delete** physically removes a profile without games together with its decks
+  (also decks with the permanent usage lock, since no game references them). A
+  profile with games is anonymized instead: its stored name becomes the fixed
+  placeholder `Deleted profile` (the previous name is not retained), it is marked
+  `deleted` with a stable per-group `deletedNumber` (1, 2, …), its membership is
+  deactivated and its decks are archived. It disappears from group details and
+  deck selection and cannot be selected for new games, while existing games keep
+  it as a participant. Decks are locked in ascending UUID order after the group,
+  like game writes, so concurrent deletion and game writes serialize.
+- MEMBER delete attempts return `403`; outsiders and former members receive `403`
+  for every route; an unknown, deleted or other-group profile, or an account
+  UUID, returns `404`.
+
+Deck management for a profile uses the [group-scoped deck routes](decks-api.md#quick-profile-decks).
+
+Quick profiles cannot be promoted, receive ownership transfers, leave, be
+removed, issue or consume invitations, own groups or create games. The API
+rejects such targets with `403`, and database triggers reject any such reference
+regardless of the API. Login and `/api/me` never resolve a quick profile.
+
+`V20` stores profiles in `users` with `kind = 'QUICK_PROFILE'`, a non-null
+`home_group_id` and null email/password, enforced by `CHECK` constraints. A
+deferred trigger requires exactly one membership per profile: `MEMBER` in the
+home group, active unless anonymized. The #214 username index now covers accounts
+only; the partial index `users_quick_profile_name_key` enforces per-group profile
+name uniqueness. Existing rows become accounts unchanged.
 
 ## Ownership transfer
 

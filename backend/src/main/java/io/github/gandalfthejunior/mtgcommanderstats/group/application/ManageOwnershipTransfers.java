@@ -39,7 +39,9 @@ public class ManageOwnershipTransfers {
         requireOwner(group, actorId);
         GroupMembership target = memberships.findByGroupIdAndUserId(groupId, targetId)
                 .filter(GroupMembership::isActive).orElseThrow(GroupMemberNotFoundException::new);
-        if (target.getRole() != GroupRole.ADMIN) {
+        // Quick profiles are never ADMIN; the explicit check keeps them out of transfers regardless.
+        if (target.getRole() != GroupRole.ADMIN
+                || users.findAll(List.of(targetId)).values().stream().anyMatch(PublicUser::quickProfile)) {
             throw new GroupAccessDeniedException();
         }
         if (transfers.findByGroupIdAndState(groupId, State.PENDING).isPresent()) {
