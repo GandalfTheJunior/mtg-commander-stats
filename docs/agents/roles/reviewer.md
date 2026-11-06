@@ -14,8 +14,9 @@ before merge.
 Inspect the specification, diff, surrounding code, documentation, tests, and CI.
 Run or inspect verification where available. Identify correctness, security,
 scope, architecture, and maintainability issues. Review does not authorize
-implementation edits; publishing review feedback requires the requested scope
-and actual client capability.
+implementation edits; publishing review feedback follows the
+[default publication rule](#default-publication) or the PO's requested scope,
+and requires actual client capability.
 
 ## Required context
 
@@ -74,6 +75,19 @@ remains the final authority for implementation approval and merge decisions.
 
 A prioritized review with actionable findings and an explicit assessment of
 whether the implementation satisfies the task, including verification gaps.
+
+### Default publication
+
+A PO request to review a PR authorizes this publication unless the PO asks for
+something else:
+
+- **Findings exist** (including optional preferences): publish the review on the
+  PR as a GitHub review comment, not as an approval, and summarize it for the PO.
+- **No findings:** publish nothing on GitHub; give the PO an explicit merge
+  recommendation with the checks performed and any verification gaps.
+
+A merge recommendation is not an approval or merge. Required CI results and
+the PO's merge decision remain separate.
 
 ## Completion criteria
 
