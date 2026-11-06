@@ -18,13 +18,13 @@ public interface GameRepository extends JpaRepository<Game, UUID> {
     List<Game> findAllByGroupIdOrderByRecordedAtDescIdDesc(UUID groupId);
 
     @Query(value = """
-            SELECT id FROM games WHERE group_id = :groupId
+            SELECT id, played_on AS playedOn, recorded_at AS recordedAt FROM games WHERE group_id = :groupId
             ORDER BY played_on DESC NULLS LAST, recorded_at DESC, id DESC LIMIT 21
             """, nativeQuery = true)
-    List<UUID> historyStart(UUID groupId);
+    List<HistoryPosition> historyStart(UUID groupId);
 
     @Query(value = """
-            SELECT id FROM (
+            SELECT id, played_on AS playedOn, recorded_at AS recordedAt FROM (
                 (SELECT id, played_on, recorded_at FROM games WHERE group_id = :groupId
                     AND played_on IS NOT NULL AND (played_on, recorded_at, id) < (:playedOn, :recordedAt, :id)
                     ORDER BY played_on DESC NULLS LAST, recorded_at DESC, id DESC LIMIT 21)
@@ -33,14 +33,22 @@ public interface GameRepository extends JpaRepository<Game, UUID> {
                     ORDER BY played_on DESC NULLS LAST, recorded_at DESC, id DESC LIMIT 21)
             ) candidates ORDER BY played_on DESC NULLS LAST, recorded_at DESC, id DESC LIMIT 21
             """, nativeQuery = true)
-    List<UUID> historyKnown(UUID groupId, LocalDate playedOn, Instant recordedAt, UUID id);
+    List<HistoryPosition> historyKnown(UUID groupId, LocalDate playedOn, Instant recordedAt, UUID id);
 
     @Query(value = """
-            SELECT id FROM games WHERE group_id = :groupId AND played_on IS NULL
+            SELECT id, played_on AS playedOn, recorded_at AS recordedAt FROM games WHERE group_id = :groupId AND played_on IS NULL
                 AND (recorded_at, id) < (:recordedAt, :id)
             ORDER BY played_on DESC NULLS LAST, recorded_at DESC, id DESC LIMIT 21
             """, nativeQuery = true)
-    List<UUID> historyUnknown(UUID groupId, Instant recordedAt, UUID id);
+    List<HistoryPosition> historyUnknown(UUID groupId, Instant recordedAt, UUID id);
+
+    interface HistoryPosition {
+        UUID getId();
+
+        LocalDate getPlayedOn();
+
+        Instant getRecordedAt();
+    }
 
     @EntityGraph(attributePaths = "participants")
     List<Game> findAllByGroupIdAndIdIn(UUID groupId, List<UUID> ids);

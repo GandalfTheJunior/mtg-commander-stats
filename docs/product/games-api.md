@@ -259,7 +259,7 @@ Clients pass the returned cursor unchanged. There is no client-controlled page
 size, offset, sorting or filtering. Even an exhausted page of exactly 20 games
 has null `nextCursor`; no additional empty request is needed.
 
-Cursors encode a version, group UUID and the last emitted complete sort tuple,
+Cursors encode a version, group UUID and the last selected complete sort tuple,
 including the unknown-date branch. Invalid, oversized (over 256 characters),
 noncanonical, wrong-group and unsupported-version tokens return `400`
 `application/problem+json` with a safe cursor-specific detail. Encoding is not
@@ -267,7 +267,7 @@ an authorization control: session and active requesting membership are checked
 on every page, including old cursors after leaving/removal (existing `401`, `403`
 and `404` conventions apply). Tokens are positions, not signed capabilities.
 
-Paging uses bounded ID queries (21 candidates), then loads participants and
+Paging uses bounded ID/sort-tuple queries (21 candidates), then loads participants and
 batched display data for only the selected at-most-20 games. V19 adds a group /
 play-date / recording-time / UUID index, retaining the legacy history index.
 Known-date continuation bounds both the known and unknown candidate branches
@@ -275,7 +275,10 @@ before merging at most 42 IDs; no collection-fetch pagination is used.
 
 This is not a multi-request snapshot. New entries before a cursor appear on a
 fresh first page. Date edits or deletions between requests may move/remove rows;
-a cursor still works if its original game has changed or disappeared. Consumers
+a cursor still works if its original game has changed or disappeared. Continuation
+is anchored to the last selected sort tuple, even if rows disappear before
+participant hydration. Such a page may be short or empty and still have a
+non-null `nextCursor`; clients must use the cursor to determine exhaustion. Consumers
 refresh and deduplicate by game ID when needed. Writes, statistics, deck lifecycle
 and external-provider access remain unchanged. UI scrolling belongs to #194.
 
