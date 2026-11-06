@@ -30,25 +30,27 @@ class GameHistoryQueryPlanTest extends GameTestSupport {
                     FROM games g CROSS JOIN game_participants p
                     WHERE g.group_id = ? AND g.id <> ? AND p.game_id = ?
                     """, f.groupId(), source, source);
+            // Plan-only fixture: roll back after inspection to avoid committing thousands of deferred triggers.
+            status.setRollbackOnly();
+            jdbc.execute("ANALYZE games");
+            for (String method : List.of("historyStart", "historyKnown", "historyUnknown")) {
+                java.lang.reflect.Method queryMethod = java.util.Arrays.stream(GameRepository.class.getMethods())
+                        .filter(candidate -> candidate.getName().equals(method)).findFirst().orElseThrow();
+                String sql = queryMethod.getAnnotation(Query.class).value()
+                        .replace(":groupId", "'" + f.groupId() + "'::uuid")
+                        .replace(":playedOn", "DATE '2026-10-10'")
+                        .replace(":recordedAt", "TIMESTAMPTZ '2026-12-01T00:00:00Z'")
+                        .replace(":id", "'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid");
+                String plan = String.join("\n", jdbc.queryForList("EXPLAIN (ANALYZE, BUFFERS) " + sql, String.class));
+                assertThat(plan).as(method).contains("games_group_play_date_history_index")
+                        .doesNotContain("Seq Scan", "Rows Removed by Filter");
+                assertThat(jdbc.queryForList(sql)).hasSize(21);
+            }
+            assertThat(games.historyStart(f.groupId())).hasSize(21);
+            assertThat(games.historyKnown(f.groupId(), LocalDate.of(2026, 10, 10),
+                    Instant.parse("2026-12-01T00:00:00Z"), UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"))).hasSize(21);
+            assertThat(games.historyUnknown(f.groupId(), Instant.parse("2026-12-01T00:00:00Z"),
+                    UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"))).hasSize(21);
         });
-        jdbc.execute("ANALYZE games");
-        for (String method : List.of("historyStart", "historyKnown", "historyUnknown")) {
-            java.lang.reflect.Method queryMethod = java.util.Arrays.stream(GameRepository.class.getMethods())
-                    .filter(candidate -> candidate.getName().equals(method)).findFirst().orElseThrow();
-            String sql = queryMethod.getAnnotation(Query.class).value()
-                    .replace(":groupId", "'" + f.groupId() + "'::uuid")
-                    .replace(":playedOn", "DATE '2026-10-10'")
-                    .replace(":recordedAt", "TIMESTAMPTZ '2026-12-01T00:00:00Z'")
-                    .replace(":id", "'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid");
-            String plan = String.join("\n", jdbc.queryForList("EXPLAIN (ANALYZE, BUFFERS) " + sql, String.class));
-            assertThat(plan).as(method).contains("games_group_play_date_history_index")
-                    .doesNotContain("Seq Scan", "Rows Removed by Filter");
-            assertThat(jdbc.queryForList(sql)).hasSize(21);
-        }
-        assertThat(games.historyStart(f.groupId())).hasSize(21);
-        assertThat(games.historyKnown(f.groupId(), LocalDate.of(2026, 10, 10),
-                Instant.parse("2026-12-01T00:00:00Z"), UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"))).hasSize(21);
-        assertThat(games.historyUnknown(f.groupId(), Instant.parse("2026-12-01T00:00:00Z"),
-                UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"))).hasSize(21);
     }
 }
