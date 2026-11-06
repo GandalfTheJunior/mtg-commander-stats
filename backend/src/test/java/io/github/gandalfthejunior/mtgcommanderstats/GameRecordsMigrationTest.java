@@ -26,6 +26,78 @@ class GameRecordsMigrationTest {
     private DataSource dataSource;
 
     @Test
+    void optionalPlacementsUpgradePreservesV16DataAndRelaxesOnlyNonWinnerRanks() throws Exception {
+        String schema = "optional_placements_upgrade";
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        try {
+            Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).target("16").load().migrate();
+            UUID owner = UUID.randomUUID();
+            UUID member = UUID.randomUUID();
+            UUID third = UUID.randomUUID();
+            UUID group = UUID.randomUUID();
+            try (Connection connection = dataSource.getConnection()) {
+                connection.setAutoCommit(false);
+                connection.setSchema(schema);
+                JdbcTemplate seed = new JdbcTemplate(new SingleConnectionDataSource(connection, true));
+                for (UUID user : List.of(owner, member, third)) {
+                    seed.update("INSERT INTO users (id, username, encoded_password, email) VALUES (?, 'Player', 'test-hash', ?)",
+                            user, user + "@example.com");
+                    seed.update("INSERT INTO decks (id, owner_id, name, color_identity, ever_used, archived) VALUES (?, ?, 'Deck', 'R', true, ?)",
+                            user, user, user.equals(member));
+                }
+                seed.update("INSERT INTO play_groups (id, name, owner_id) VALUES (?, 'Pod', ?)", group, owner);
+                seed.update("INSERT INTO group_memberships (id, group_id, user_id, role, active) VALUES (?, ?, ?, 'OWNER', true)",
+                        UUID.randomUUID(), group, owner);
+                for (String mode : List.of("normal", "alternate", "draw")) {
+                    UUID game = UUID.randomUUID();
+                    seed.update("INSERT INTO games (id, group_id, creator_id, recorded_at, played_on, result, alternate_win_con) "
+                            + "VALUES (?, ?, ?, '2026-11-01T00:30:00.123456Z', '2000-02-29', ?, ?)",
+                            game, group, owner, mode.equals("draw") ? "DRAW" : "WIN", mode.equals("alternate"));
+                    int seat = 0;
+                    for (UUID user : List.of(owner, member, third)) {
+                        seat++;
+                        Integer placement = null;
+                        Boolean winner = null;
+                        Boolean survivor = null;
+                        if (mode.equals("normal")) { placement = seat; }
+                        else if (mode.equals("draw")) { survivor = seat == 1; }
+                        else if (seat == 1) { winner = true; }
+                        else { survivor = seat == 2; if (seat == 3) { placement = 3; } }
+                        seed.update("INSERT INTO game_participants (game_id, user_id, deck_id, start_position, placement, winner, still_in_game) "
+                                + "VALUES (?, ?, ?, ?, ?, ?, ?)", game, user, user, seat, placement, winner, survivor);
+                    }
+                }
+                connection.commit();
+                connection.setAutoCommit(true);
+                assertThatThrownBy(() -> seed.update("UPDATE game_participants SET placement = NULL WHERE user_id = ?", third))
+                        .hasStackTraceContaining("Invalid mode-specific game facts");
+            }
+            Map<String, List<Map<String, Object>>> before = new LinkedHashMap<>();
+            for (String table : List.of("users", "decks", "games", "game_participants", "play_groups", "group_memberships")) {
+                before.put(table, jdbc.queryForList("SELECT * FROM " + schema + "." + table));
+            }
+            Flyway upgrade = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).load();
+            assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(1);
+            assertThat(upgrade.validateWithResult().validationSuccessful).isTrue();
+            for (String table : before.keySet()) {
+                assertThat(jdbc.queryForList("SELECT * FROM " + schema + "." + table)).containsExactlyInAnyOrderElementsOf(before.get(table));
+            }
+            try (Connection connection = dataSource.getConnection()) {
+                connection.setSchema(schema);
+                JdbcTemplate updated = new JdbcTemplate(new SingleConnectionDataSource(connection, true));
+                assertThat(updated.update("UPDATE game_participants SET placement = NULL WHERE user_id = ?", third)).isEqualTo(3);
+                assertThat(updated.queryForObject("SELECT count(*) FROM game_participants WHERE user_id = ? AND placement IS NULL", Integer.class, third))
+                        .isEqualTo(3);
+                assertThatThrownBy(() -> updated.update("UPDATE game_participants SET placement = NULL, winner = NULL WHERE user_id = ?", owner))
+                        .hasStackTraceContaining("Invalid");
+                assertThat(updated.queryForObject("SELECT count(*) FROM games", Integer.class)).isEqualTo(3);
+            }
+        } finally {
+            jdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+        }
+    }
+
+    @Test
     void invitationCutoverInvalidatesLegacyCodesWithoutChangingMemberships() throws Exception {
         String schema = "invitation_upgrade";
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
