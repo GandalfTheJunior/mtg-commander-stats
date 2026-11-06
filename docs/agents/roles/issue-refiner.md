@@ -28,6 +28,9 @@ Inspect readiness labels without treating them as approval.
    facts from product/architectural decisions needing PO input.
 3. Define acceptance criteria, verification scenarios, non-goals, and dependencies
    sufficient for implementation without guessing material decisions.
+   Record prerequisites, parent issues and release scope in the native fields
+   described in [issue planning metadata](../../development/workflow.md#issue-planning-metadata),
+   and verify them after an authorized update.
 4. When scope and verification needs are sufficiently known, follow
    [Agent Poker](#agent-poker) to estimate its size. Reassess on material scope
    changes, not trivial edits.
