@@ -248,12 +248,22 @@ Passwords use Spring Security's versioned PBKDF2 encoder through a delegating
 encoder, supporting long passphrases without bcrypt's 72-byte limit. The User
 owns its UUID, canonical email, display username, and encoded password; API DTOs
 expose only UUID and username. PostgreSQL enforces unique, nonempty canonical
-emails plus a nonblank username, while allowing duplicate display usernames. The
-application maps the named email uniqueness constraint to a conflict even under
-concurrent registration. The V2 Flyway migration removes obsolete username
-canonicalization/uniqueness and deliberately fails on pre-email user rows; local
-development databases containing those rows must be reset rather than assigned
-invented identities. Security-sensitive behavior requires coverage under the
+emails plus a nonblank username. The application maps the named email uniqueness
+constraint to a conflict even under concurrent registration. The V2 Flyway
+migration removes obsolete username canonicalization/uniqueness and deliberately
+fails on pre-email user rows; local development databases containing those rows
+must be reset rather than assigned invented identities.
+
+V18 makes usernames case-insensitively unique while keeping the stored display
+spelling. Like `canonical_email`, the PostgreSQL function `canonical_username`
+owns the canonical form (`casefold` under `pg_unicode_fast`, then `lower` and
+NFC), and the unique expression index `users_username_canonical_key` enforces it.
+Registration asks the database for the canonical form to check reserved names,
+so Java and PostgreSQL cannot disagree, and maps a violation of that index to a
+field-specific `409`. V18 refuses to run on case-insensitively duplicate
+development data without renaming or exposing it. Quick profiles (#223) will
+restrict the index to accounts by recreating it with `WHERE kind = 'ACCOUNT'`
+and reuse `canonical_username` for group-local uniqueness. Security-sensitive behavior requires coverage under the
 testing guide.
 
 ## Decisions and source of truth

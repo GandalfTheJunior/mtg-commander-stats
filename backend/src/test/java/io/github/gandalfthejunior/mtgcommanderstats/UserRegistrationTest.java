@@ -158,14 +158,6 @@ class UserRegistrationTest {
                 .isEqualTo(HttpStatus.CONFLICT.value());
     }
 
-    @Test
-    void differentEmailsMayShareTheSameCasePreservedUsername() throws Exception {
-        assertThat(register("first@example.com", " Gandalf ", PASSWORD).statusCode())
-                .isEqualTo(HttpStatus.CREATED.value());
-        assertThat(register("second@example.com", "Gandalf", PASSWORD).statusCode())
-                .isEqualTo(HttpStatus.CREATED.value());
-        assertThat(users.findAll()).extracting(User::getUsername).containsOnly("Gandalf");
-    }
 
     @ParameterizedTest
     @ValueSource(strings = {"", "plain-address", "missing-at.example.com", "user@", "@example.com", "user@example..com"})
@@ -287,7 +279,7 @@ class UserRegistrationTest {
     @Test
     void passwordHashesAreSalted() {
         User first = registerUser.register("first@example.com", "Same name", PASSWORD);
-        User second = registerUser.register("second@example.com", "Same name", PASSWORD);
+        User second = registerUser.register("second@example.com", "Other name", PASSWORD);
         assertThat(first.getEncodedPassword()).isNotEqualTo(second.getEncodedPassword());
     }
 

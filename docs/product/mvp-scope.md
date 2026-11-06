@@ -186,7 +186,29 @@ outside this MVP.
   case-insensitive canonical value. Canonical emails are unique. Provider-specific
   transformations such as dot removal or `+tag` stripping are not applied.
 - A username is required as a display/profile name and follows the
-  [naming conventions](#naming-conventions). Usernames are not login identifiers and are not unique.
+  [naming conventions](#naming-conventions). Usernames are not login identifiers.
+- Usernames are unique across accounts, case-insensitively (#214). Two names
+  conflict when they are equal after the naming normalization (NFC, trimming)
+  plus Unicode default case folding, so `Gandalf`, `gandalf` and `GANDALF` are
+  the same name, as are `Straße` and `STRASSE`. The stored username keeps the
+  registrant's chosen spelling for display; uniqueness applies to the canonical
+  form only. Visually confusable names across scripts (for example Latin `a`
+  and Cyrillic `а`) are not treated as equal. A taken name returns `409` with
+  `errors: [{"field":"username","code":"USERNAME_TAKEN"}]`; revealing that a
+  public display name is taken is acceptable, unlike emails. A PostgreSQL unique
+  index enforces this atomically under concurrent registrations.
+- A small fixed list of reserved usernames is rejected in canonical form with
+  `400` and `USERNAME_RESERVED`: `admin`, `administrator`, `moderator`,
+  `support`, `system` and the app name (`MTG Commander Stats`,
+  `mtg-commander-stats`, `mtgcommanderstats`). Only the whole name is reserved;
+  `Admin Gandalf` remains available. The list lives in `ReservedUsernames`.
+- Usernames cannot be changed after registration; profile editing remains
+  post-MVP. A future rename feature must reuse the same uniqueness and reserved
+  name rules.
+- Equal account usernames can no longer occur. Existing UI disambiguation by
+  shortened user IDs for identical names is therefore dormant for accounts; it
+  is kept until quick profiles (#223) define how group-local names relate to
+  account names, and removing it is a decision for the UI issues.
 - Passwords require at least 12 characters (Unicode code points). Whitespace is
   allowed and counts toward that minimum. Passwords are validated and encoded
   exactly as supplied, without trimming, case conversion, or normalization.
@@ -244,8 +266,8 @@ Registration and deck/group name validation return `400` ProblemDetail with a
 human-readable `detail` plus an `errors` array of `field` and stable `code`.
 Name errors use `NAME_BLANK`, `NAME_INVALID_CHARACTERS` or `NAME_TOO_LONG`;
 length-limit errors include `maxLength`. Registration retains `USERNAME_BLANK`
-for blank usernames and adds `INVALID_EMAIL`, `PASSWORD_BLANK` and
-`PASSWORD_TOO_SHORT` for its existing reasons. It returns all failing fields
+for blank usernames and adds `INVALID_EMAIL`, `USERNAME_RESERVED`,
+`PASSWORD_BLANK` and `PASSWORD_TOO_SHORT` for its existing reasons. It returns all failing fields
 in email → username → password order and preserves the existing detail texts.
 Deck/group name errors contain one entry with `field=name`. Malformed JSON keeps
 its safe generic error; request parsing failures are distinct from field validation.
@@ -255,8 +277,9 @@ V16 validates all existing names, including NFC and boundary trimming, using the
 same Java Unicode rules and refuses nonconforming rows without rewriting data.
 Reset nonconforming development/demo databases before retrying. PostgreSQL CHECK
 constraints enforce only the generous 80/120 code-point bounds; full grapheme
-and character validation belongs to the application. Username uniqueness and
-prohibited-content filtering remain separate follow-ups.
+and character validation belongs to the application. Prohibited-content
+filtering remains a separate follow-up; username uniqueness is described under
+[user identity and registration](#user-identity-and-registration).
 
 ## Explicitly out of scope
 

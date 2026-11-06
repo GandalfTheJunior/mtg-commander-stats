@@ -100,9 +100,9 @@ class GroupManagementTest {
     @Test
     void createsListsAndSharesGroupDetailsWithFourActiveMembers() throws Exception {
         AuthenticatedClient alice = registerAndLogin("alice@example.com", "Alice");
-        AuthenticatedClient bob = registerAndLogin("bob@example.com", "Same Name");
+        AuthenticatedClient bob = registerAndLogin("bob@example.com", "Bob");
         AuthenticatedClient carol = registerAndLogin("carol@example.com", "Carol");
-        AuthenticatedClient dave = registerAndLogin("dave@example.com", "Same Name");
+        AuthenticatedClient dave = registerAndLogin("dave@example.com", "Dave");
 
         JsonNode created = createGroup(alice, "\u00a0 Friday Commander \u202f");
         UUID groupId = UUID.fromString(created.get("id").asText());
@@ -119,8 +119,8 @@ class GroupManagementTest {
         }
 
         List<JsonNode> expectedMembers = List.of(
-                memberJson(alice, "Alice", "OWNER"), memberJson(bob, "Same Name", "MEMBER"),
-                memberJson(carol, "Carol", "MEMBER"), memberJson(dave, "Same Name", "MEMBER"));
+                memberJson(alice, "Alice", "OWNER"), memberJson(bob, "Bob", "MEMBER"),
+                memberJson(carol, "Carol", "MEMBER"), memberJson(dave, "Dave", "MEMBER"));
         for (AuthenticatedClient member : List.of(alice, bob, carol, dave)) {
             HttpResponse<String> response = request(member, HttpMethod.GET, "/api/groups/" + groupId, "");
             assertThat(response.statusCode()).isEqualTo(HttpStatus.OK.value());

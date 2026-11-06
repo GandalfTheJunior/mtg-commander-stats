@@ -80,8 +80,8 @@ cd backend
 It listens on port 8080. Anonymous `POST /api/users` accepts JSON such as
 `{"email":"gandalf@example.com","username":"Gandalf","password":"exact supplied password"}`.
 Successful registration returns `201` with the stable `id` (UUID) and display
-`username`; invalid input returns `400`, and duplicate case-insensitive email
-identities return `409`. Email and credentials are never returned. See the
+`username`; invalid or reserved input returns `400`, and duplicate case-insensitive email
+identities or usernames return `409`. Email and credentials are never returned. See the
 [registration rules](docs/product/mvp-scope.md#user-identity-and-registration).
 
 Registration validation errors use Spring `ProblemDetail`: the `400` detail

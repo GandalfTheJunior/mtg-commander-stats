@@ -5,6 +5,7 @@ import java.util.List;
 
 import io.github.gandalfthejunior.mtgcommanderstats.user.domain.InvalidRegistrationException;
 import io.github.gandalfthejunior.mtgcommanderstats.user.domain.InvalidRegistrationException.Reason;
+import io.github.gandalfthejunior.mtgcommanderstats.user.domain.ReservedUsernames;
 import io.github.gandalfthejunior.mtgcommanderstats.user.domain.User;
 import io.github.gandalfthejunior.mtgcommanderstats.user.persistence.UserRepository;
 import org.hibernate.exception.ConstraintViolationException;
@@ -41,6 +42,9 @@ public class RegisterUser {
         } catch (InvalidRegistrationException exception) {
             reasons.addAll(exception.reasons());
         }
+        if (trimmedUsername != null && ReservedUsernames.isReserved(users.canonicalizeUsername(trimmedUsername))) {
+            reasons.add(Reason.RESERVED_USERNAME);
+        }
         try {
             User.validatePassword(password);
         } catch (InvalidRegistrationException exception) {
@@ -55,9 +59,13 @@ public class RegisterUser {
             return users.saveAndFlush(user);
         } catch (DataIntegrityViolationException exception) {
             for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
-                if (cause instanceof ConstraintViolationException constraint
-                        && "users_email_key".equals(constraint.getConstraintName())) {
-                    throw new DuplicateEmailException();
+                if (cause instanceof ConstraintViolationException constraint) {
+                    if ("users_email_key".equals(constraint.getConstraintName())) {
+                        throw new DuplicateEmailException();
+                    }
+                    if ("users_username_canonical_key".equals(constraint.getConstraintName())) {
+                        throw new DuplicateUsernameException();
+                    }
                 }
             }
             throw exception;
