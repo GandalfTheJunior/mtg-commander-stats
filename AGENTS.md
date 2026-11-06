@@ -13,8 +13,10 @@ by the human Product Owner (PO).
 - The PO is the final authority for implementation approval and merge decisions.
   Refinement, consultation, investigation, architectural exploration, and review
   do not authorize implementation. Repository mutation requires clear PO intent
-  authorizing implementation or the specific requested mutation. If materially
-  ambiguous, remain non-mutating until intent is resolved.
+  authorizing implementation or the specific requested mutation. A role contract
+  may define a documented default publication that a PO request for that role
+  authorizes; an explicit PO instruction overrides it. If materially ambiguous,
+  remain non-mutating until intent is resolved.
 - Issues labeled `DRAFT` (including `Draft`) are work in progress: inspect,
   discuss, challenge, or refine them, but do not implement them unless the PO
   explicitly overrides that state.

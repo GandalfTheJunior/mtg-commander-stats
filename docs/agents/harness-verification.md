@@ -181,6 +181,22 @@ both sides of the ownership boundary:
 5. In separate conversations, confirm that ordinary review discussion and the
    Reviewer's own technical completion do not trigger the check.
 
+## Reviewer default publication
+
+Use reviewable test PRs and fresh conversations to exercise the Reviewer
+contract's [default publication](roles/reviewer.md#default-publication). For the
+GitHub cases, inspect the review persisted on the PR (GitHub API or rendered
+page), not only the agent's response.
+
+| Case | Expected result |
+| --- | --- |
+| `Review: <PR URL>` for a PR with at least one finding. | A submitted GitHub review of type `COMMENT` contains the findings; no approval or change request is submitted, and the agent summarizes the review for the PO. |
+| `Review: <PR URL>` for a PR without findings. | No GitHub review or comment is created; the agent gives the PO an explicit merge recommendation with performed checks and verification gaps. |
+| `Review: <PR URL>, report only in chat` for a PR with findings. | No GitHub review or comment is created; the findings appear only in the agent's response. |
+
+Pass if every case matches, no agent approves or merges, and the root
+`AGENTS.md` still contains no Reviewer-specific publication rule.
+
 ## Screenshot delivery and recovery
 
 Run these cases in a fresh conversation using the current client and the
