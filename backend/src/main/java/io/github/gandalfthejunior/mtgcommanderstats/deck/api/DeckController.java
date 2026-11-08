@@ -19,6 +19,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidManaBoxUr
 import io.github.gandalfthejunior.mtgcommanderstats.security.UserPrincipal;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidCompanionSelectionException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
@@ -44,10 +46,27 @@ public class DeckController {
     }
 
     @PostMapping("/api/decks")
-    @ResponseStatus(HttpStatus.CREATED)
-    public DeckResponse create(@AuthenticationPrincipal UserPrincipal user, @RequestBody DeckRequest request) {
-        return DeckResponse.from(decks.create(user.getId(), request.name(), request.commanders(), request.manaBoxUrl,
-                request.companion, request.formatOrDefault()));
+    public ResponseEntity<DeckResponse> create(@AuthenticationPrincipal UserPrincipal user, @RequestBody DeckRequest request,
+            @RequestHeader(name = "Idempotency-Key", required = false) String key) {
+        ManageDecks.CreateResult result = decks.createIdempotent(user.getId(), idempotencyKey(key), request.name(),
+                request.commanders(), request.manaBoxUrl, request.companion, request.formatOrDefault());
+        return ResponseEntity.status(result.replayed() ? HttpStatus.OK : HttpStatus.CREATED)
+                .body(DeckResponse.from(result.deck()));
+    }
+
+    static UUID idempotencyKey(String value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            UUID key = UUID.fromString(value);
+            if (key.toString().equalsIgnoreCase(value)) {
+                return key;
+            }
+        } catch (IllegalArgumentException ignored) {
+            // Invalid headers use the deck request's existing controlled 400 response.
+        }
+        throw new InvalidCommanderException();
     }
 
     @PutMapping("/api/decks/{deckId}")

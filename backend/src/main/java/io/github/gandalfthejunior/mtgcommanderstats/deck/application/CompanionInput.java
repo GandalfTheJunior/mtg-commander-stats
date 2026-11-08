@@ -4,15 +4,25 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidCompanionSelectionException;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderSelectionRef;
 import tools.jackson.databind.JsonNode;
 
-public record CompanionInput(CommanderSelectionRef selectionRef) {
+public record CompanionInput(CommanderSelectionRef selectionRef,
+        @JsonInclude(JsonInclude.Include.NON_NULL) ArtworkInput artwork) {
+    public CompanionInput(CommanderSelectionRef selectionRef) {
+        this(selectionRef, null);
+    }
+
     /** Prevent Jackson coercion of strings/fractions into gameplay face indices. */
-    @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
-    public static CompanionInput from(@JsonProperty("selectionRef") JsonNode reference) {
+    @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+    public static CompanionInput from(JsonNode value) {
+        if (value == null || !value.isObject() || !value.path("selectionRef").isObject()
+                || value.size() != (value.has("artwork") ? 2 : 1)) {
+            throw invalidReference();
+        }
+        JsonNode reference = value.path("selectionRef");
         if (reference == null || !reference.isObject() || !reference.path("scryfallCardId").isString()
                 || reference.size() != (reference.has("gameplayFaceIndex") ? 2 : 1)) {
             throw invalidReference();
@@ -35,7 +45,8 @@ public record CompanionInput(CommanderSelectionRef selectionRef) {
             }
             index = face.intValue();
         }
-        return new CompanionInput(new CommanderSelectionRef(printing, index));
+        return new CompanionInput(new CommanderSelectionRef(printing, index),
+                value.has("artwork") ? ArtworkInput.from(value.get("artwork")) : null);
     }
 
     private static InvalidCompanionSelectionException invalidReference() {
@@ -44,6 +55,6 @@ public record CompanionInput(CommanderSelectionRef selectionRef) {
 
     @JsonAnySetter
     public void rejectUnknownField(String field, Object value) {
-        throw new InvalidCompanionSelectionException("Supply only a Companion selectionRef; card metadata is resolved by the server.");
+        throw new InvalidCompanionSelectionException("Supply only a Companion selectionRef and optional artwork; card metadata is resolved by the server.");
     }
 }

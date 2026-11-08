@@ -17,6 +17,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface DeckRepository extends JpaRepository<Deck, UUID> {
     List<Deck> findAllByOwnerId(UUID ownerId);
+    Optional<Deck> findByOwnerIdAndIdempotencyKey(UUID ownerId, UUID idempotencyKey);
     List<Deck> findAllByOwnerIdAndArchivedFalseOrderByNameAscIdAsc(UUID ownerId);
 
     @Query("select deck.id from Deck deck where deck.ownerId = :ownerId")

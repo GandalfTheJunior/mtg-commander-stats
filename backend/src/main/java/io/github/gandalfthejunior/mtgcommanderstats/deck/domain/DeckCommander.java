@@ -62,6 +62,9 @@ public class DeckCommander {
     @Column(name = "artwork_face_index")
     private Integer artworkFaceIndex;
 
+    @Column(name = "usable_artwork_faces")
+    private Integer usableArtworkFaces;
+
     @Column(name = "art_crop_url", columnDefinition = "text")
     private String artCropUrl;
 
@@ -138,6 +141,7 @@ public class DeckCommander {
         this.scryfallCardId = resolved.card().scryfallCardId();
         this.cardFaces = new CardFaces(resolved.card().cardFaces());
         this.artworkFaceIndex = art.artworkFaceIndex();
+        this.usableArtworkFaces = resolved.usableArtworkFaces() < 0 ? null : resolved.usableArtworkFaces();
         this.artCropUrl = art.artCropUrl();
         this.illustrationId = art.illustrationId();
         this.artist = art.artist();
@@ -159,6 +163,9 @@ public class DeckCommander {
     }
 
     void preserveArtwork(DeckCommander previous) {
+        this.scryfallCardId = previous.scryfallCardId;
+        this.gameplayFaceIndex = previous.gameplayFaceIndex;
+        this.cardFaces = previous.cardFaces;
         this.relatedTokens = previous.relatedTokens;
         this.tokenGeneration = previous.tokenGeneration;
         this.tokenDueAt = previous.tokenDueAt;
@@ -166,18 +173,21 @@ public class DeckCommander {
         this.tokenClaim = previous.tokenClaim;
         this.tokenLastFailure = previous.tokenLastFailure;
         this.artworkFaceIndex = previous.artworkFaceIndex;
+        this.usableArtworkFaces = previous.usableArtworkFaces;
         this.artCropUrl = previous.artCropUrl;
         this.illustrationId = previous.illustrationId;
         this.artist = previous.artist;
         this.scryfallUri = previous.scryfallUri;
     }
 
-    public void changeArtwork(CommanderSelectionRef reference, Artwork artwork, List<CardFace> cardFaces) {
+    public void changeArtwork(CommanderSelectionRef reference, Artwork artwork, List<CardFace> cardFaces,
+            int usableArtworkFaces) {
         this.cardFaces = new CardFaces(cardFaces);
         this.scryfallCardId = reference.scryfallCardId();
         // This selector is printing-local; remap it to the same immutable Oracle identity.
         this.gameplayFaceIndex = reference.gameplayFaceIndex();
         this.artworkFaceIndex = artwork.artworkFaceIndex();
+        this.usableArtworkFaces = usableArtworkFaces;
         this.artCropUrl = artwork.artCropUrl();
         this.illustrationId = artwork.illustrationId();
         this.artist = artwork.artist();
@@ -230,6 +240,10 @@ public class DeckCommander {
 
     public Integer getArtworkFaceIndex() {
         return artworkFaceIndex;
+    }
+
+    public Integer getUsableArtworkFaces() {
+        return usableArtworkFaces;
     }
 
     public String getArtCropUrl() {

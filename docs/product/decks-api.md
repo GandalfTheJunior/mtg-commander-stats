@@ -9,7 +9,7 @@ separate [read-only game API](games-api.md#read-only-member-deck-selection).
 | Method | Route | Success |
 | --- | --- | --- |
 | GET | `/api/decks` | `200 DeckResponse[]`, including archived decks |
-| POST | `/api/decks` | `201 DeckResponse` |
+| POST | `/api/decks` | `201 DeckResponse`, or `200` for a repeated keyed creation |
 | PUT | `/api/decks/{deckId}` | `200 DeckResponse` |
 | PUT | `/api/decks/{deckId}/commanders/{position}/artwork` | `200 DeckResponse` |
 | PUT | `/api/decks/{deckId}/companion/artwork` | `200 DeckResponse` |
@@ -58,6 +58,53 @@ the canonical WUBRG union; empty means colorless. The old `commander` and
 client-supplied `colorIdentity` write contract is deliberately removed. Unknown
 write fields, including ownership, lifecycle flags, identities and raw artwork
 URLs, are rejected; clients cannot assign authoritative card metadata.
+
+### Atomic artwork selection and creation retries
+
+Each Commander entry and a non-null Companion may include an optional `artwork`
+object. Its `scryfallCardId` is a printing UUID and `artworkFaceIndex` follows
+the [artwork face rules](#artwork-only-updates-and-gallery): the index may be omitted
+for one usable image, and its original non-negative face index is required for multiple
+usable images. The `selectionRef` identifies the authoritative gameplay Oracle
+identity; `artwork` may refer to another printing of that same identity. The
+server verifies both printings, rejects mismatches and unavailable images, and
+saves the selected image and full-card faces from the artwork printing together.
+
+```json
+{
+  "name": "Two-sided deck",
+  "commanders": [{
+    "selectionRef": {"scryfallCardId": "<gameplay printing UUID>"},
+    "artwork": {"scryfallCardId": "<artwork printing UUID>", "artworkFaceIndex": 1}
+  }]
+}
+```
+
+Omitting `artwork` on creation keeps the default image, including the existing
+allowance for missing default art. On PUT, omission preserves the saved image,
+printing, faces, attribution, tokens and retry state for an unchanged gameplay
+identity, even when a chosen color changes. An explicit selection equal to the
+saved printing and face also leaves those snapshots untouched. When only one
+image exists, omitting its face index is the same selection even if that image
+is on the back face (index 1). A different
+artwork selection replaces the corresponding presentation and face snapshots;
+Commander token enrichment is refreshed for its new printing. A same-identity
+printing change through `selectionRef` alone still returns `400`. With explicit
+`artwork`, an authoritative `selectionRef` from another printing is accepted,
+including on a repeat of the same PUT after the artwork printing was saved.
+Gameplay pairing, colors, Companion eligibility and first-use locks still apply.
+The write is one transaction; a required validation failure leaves no partial
+deck change. Explicit null, malformed UUIDs, arbitrary URLs and unknown artwork
+fields return `400`.
+
+Both personal and quick-profile deck POST accept an optional UUID
+`Idempotency-Key` header. The first successful keyed POST returns `201`. A
+repeat by the same deck owner returns `200` with that deck's current saved state,
+even if the submitted draft has changed; further changes use PUT. Concurrent
+repeats create one deck. Keys are isolated by owner, malformed keys return `400`,
+and omission retains ordinary `201` creation. V25 adds a nullable owner-scoped
+unique key on `decks`; claiming quick-profile decks clears their old keys to
+avoid collisions with the destination account.
 
 ## Deck formats and Pauper Commander
 
@@ -139,9 +186,9 @@ remain based on deck IDs.
 Rename with `{"name":"New name"}` and omit `commanders`. This preserves every
 Commander, color and presentation field without online resolution, for unused,
 used and archived decks. Unchanged full references/choices are also idempotent
-and preserves existing snapshots. Any PUT attempting only to change a printing
-of the same gameplay identity returns `400` directing clients to the artwork
-operation; stale full updates cannot overwrite newer presentation snapshots. This applies
+and preserve existing snapshots. A PUT attempting only to change a printing
+of the same gameplay identity without explicit `artwork` returns `400`; stale
+full updates cannot overwrite newer presentation snapshots. This applies
 to both slots even when the other Commander is being replaced or a chosen color
 is changed.
 
@@ -213,7 +260,7 @@ artwork writes replace all faces atomically with the selected printing. Existing
 owner, group-member deck and game-detail reads return the same saved data without
 per-card lookups. Gameplay identity, permissions and first-use locks are unchanged.
 Name/link-only and idempotent unchanged-selection saves remain offline and do not
-refresh legacy snapshots; an artwork save (including the same printing) or actual
+refresh legacy snapshots; a real artwork change or actual
 selection replacement refreshes them. Old snapshots expose null and retain their
 saved card name, with honest missing-type/rules/image messages.
 
@@ -221,8 +268,8 @@ The reusable frontend `FullCardView` takes this snapshot, never fetches card
 metadata, and works for both Commanders and Companions. It provides a labelled
 trigger, a MUI dialog with focus trapping, Escape dismissal and focus restoration,
 all faces as explicit buttons, and real text alongside the unmodified complete
-image. The initial face is the exceptional `selectionRef.gameplayFaceIndex` when
-present, otherwise `artworkFaceIndex`, otherwise the first face. Missing/failed
+image. The initial face preference for explicitly selected artwork is tracked
+in #239; the backend supplies both selectors and coherent printing snapshots. Missing/failed
 images do not hide the text; images have no cropping, overlays, distortion or
 color effects.
 
@@ -258,7 +305,7 @@ and distinguishes omission (preserve), explicit null (remove) and a selection
 {"name":"My deck","companion":{"selectionRef":{"scryfallCardId":"<printing UUID>"}}}
 ```
 
-Only `selectionRef` is writable, with the same exceptional gameplay-face selector
+`selectionRef` and optional `artwork` are writable, with the same exceptional gameplay-face selector
 rules as Commander references. Names, colors, Oracle identities, pairing/chosen
 colors and image URLs are never client inputs. New/replaced selections are freshly
 resolved online regardless of prior search results. They require the genuine
@@ -281,8 +328,8 @@ selection preserves the authoritative snapshot offline, without revalidating
 later bans or querying the provider. Commander changes check an unchanged
 Companion against its saved colors. Reads, rename/link-only updates and historical
 game assignments never retroactively apply bans or alter results/statistics.
-Same-Oracle printing changes through deck PUT return `400` with guidance to use
-the artwork endpoint. An idempotent update cannot revert newer artwork.
+Same-Oracle printing changes through deck PUT without explicit `artwork` return
+`400`. An idempotent update cannot revert newer artwork.
 
 The owner deck response, member deck selection and game list/detail/write display
 DTOs include `companion: null` or this saved snapshot:

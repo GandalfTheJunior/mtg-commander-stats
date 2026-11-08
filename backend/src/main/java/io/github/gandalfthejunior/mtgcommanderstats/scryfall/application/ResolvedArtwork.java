@@ -8,9 +8,10 @@ import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CardFace;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderSelectionRef;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.RelatedToken;
 
-public record ResolvedArtwork(CommanderSelectionRef selectionRef, Artwork artwork, List<CardFace> cardFaces, List<RelatedToken> relatedTokens, Instant tokenRetryNotBefore) {
+public record ResolvedArtwork(CommanderSelectionRef selectionRef, Artwork artwork, List<CardFace> cardFaces,
+        List<RelatedToken> relatedTokens, Instant tokenRetryNotBefore, int usableArtworkFaces) {
     public ResolvedArtwork(CommanderSelectionRef selectionRef, Artwork artwork, List<CardFace> cardFaces) {
-        this(selectionRef, artwork, cardFaces, null, null);
+        this(selectionRef, artwork, cardFaces, null, null, -1);
     }
 
     public ResolvedArtwork {
