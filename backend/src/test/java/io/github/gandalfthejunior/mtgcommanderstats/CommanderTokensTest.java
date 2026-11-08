@@ -3,6 +3,8 @@ package io.github.gandalfthejunior.mtgcommanderstats;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -19,6 +21,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.ScryfallNorm
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClient;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClientException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -29,6 +32,14 @@ import static org.mockito.Mockito.when;
 
 @org.springframework.test.context.TestPropertySource(properties = "app.tokens.scheduling.enabled=false")
 class CommanderTokensTest extends GameTestSupport {
+    private final Set<UUID> storedPrintings = new HashSet<>();
+
+    @AfterEach
+    void removeProviderFixtures() {
+        storedPrintings.forEach(CommanderTestProvider::remove);
+        provider.failAndGoOfflineAt = null;
+    }
+
     @Autowired
     private CommanderTokenRetries retries;
     @Autowired
@@ -246,7 +257,9 @@ class CommanderTokensTest extends GameTestSupport {
     }
 
     private void store(ObjectNode card) {
-        CommanderTestProvider.put(UUID.fromString(card.path("id").asText()), card.toString());
+        UUID id = UUID.fromString(card.path("id").asText());
+        storedPrintings.add(id);
+        CommanderTestProvider.put(id, card.toString());
     }
 
     private String configuration(ObjectNode commander) {

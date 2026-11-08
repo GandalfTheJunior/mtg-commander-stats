@@ -38,6 +38,10 @@ class CommanderTestProvider extends ScryfallClient {
         return List.of(new CommanderInput(new CommanderSelectionRef(print, null), null));
     }
 
+    static void remove(UUID id) {
+        CARDS.remove(id);
+    }
+
     static void put(UUID id, String raw) {
         CARDS.put(id, JSON.readTree(raw));
     }
