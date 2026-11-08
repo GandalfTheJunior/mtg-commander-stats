@@ -20,6 +20,9 @@ import tools.jackson.databind.json.JsonMapper;
 /** Pinned offline provider data; production resolution/normalization still runs on every write. */
 class CommanderTestProvider extends ScryfallClient {
     volatile UUID failAndGoOfflineAt;
+    volatile boolean slowInline;
+    volatile java.util.concurrent.CountDownLatch inlineStarted;
+    final AtomicInteger inlineCalls = new AtomicInteger();
     private static final Map<UUID, JsonNode> CARDS = new ConcurrentHashMap<>();
     private static final JsonMapper JSON = JsonMapper.builder().build();
     final AtomicInteger calls = new AtomicInteger();
@@ -60,6 +63,19 @@ class CommanderTestProvider extends ScryfallClient {
             throw new ScryfallClientException(ScryfallClientException.Kind.NOT_FOUND);
         }
         return raw;
+    }
+
+    @Override
+    public JsonNode cardBefore(UUID id, long deadlineNanos) {
+        inlineCalls.incrementAndGet();
+        if (slowInline) {
+            if (inlineStarted != null) {
+                inlineStarted.countDown();
+            }
+            java.util.concurrent.locks.LockSupport.parkNanos(Math.max(0, deadlineNanos - System.nanoTime()));
+            throw new ScryfallClientException(ScryfallClientException.Kind.UNAVAILABLE);
+        }
+        return card(id);
     }
 
     @Override

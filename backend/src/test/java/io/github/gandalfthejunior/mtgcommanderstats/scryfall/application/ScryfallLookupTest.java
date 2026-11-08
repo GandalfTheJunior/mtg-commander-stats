@@ -1,10 +1,13 @@
 package io.github.gandalfthejunior.mtgcommanderstats.scryfall.application;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckFormat;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.Artwork;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CardDetails;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderChoice;
@@ -13,13 +16,14 @@ import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidScryf
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.MalformedScryfallResponseException;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.ScryfallNormalizer;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClient;
-import io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClientException;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClientException.Kind;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClientException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -40,7 +44,7 @@ class ScryfallLookupTest {
     private static final UUID ORACLE = id(2);
     private final JsonMapper json = JsonMapper.builder().build();
     private final ScryfallClient client = mock(ScryfallClient.class);
-    private final ScryfallLookup lookup = new ScryfallLookup(client, new ScryfallNormalizer());
+    private final ScryfallLookup lookup = new ScryfallLookup(client, new ScryfallNormalizer(), new RelatedTokenLookup(client));
 
     @Test
     void treatsNameAsLiteralInsteadOfExecutingScryfallQuerySyntax() {
@@ -515,14 +519,44 @@ class ScryfallLookupTest {
         UUID token = UUID.randomUUID();
         commander.withArray("all_parts").addObject().put("component", "token").put("id", token.toString());
         when(client.card(PRINTING)).thenReturn(commander);
-        when(client.card(token)).thenThrow(new ScryfallClientException(Kind.UNAVAILABLE));
+        when(client.cardBefore(org.mockito.ArgumentMatchers.eq(token), org.mockito.ArgumentMatchers.anyLong()))
+                .thenThrow(new ScryfallClientException(Kind.UNAVAILABLE));
         ResolvedCommander resolved = lookup.resolveCommanderOnline(new CommanderSelectionRef(PRINTING, null));
         assertThat(resolved.gameplay().oracleId()).isEqualTo(ORACLE.toString());
         assertThat(resolved.relatedTokens()).isNull();
         when(client.card(PRINTING)).thenThrow(new ScryfallClientException(Kind.UNAVAILABLE));
         assertThatThrownBy(() -> lookup.resolveCommanderOnline(new CommanderSelectionRef(PRINTING, null)))
                 .isInstanceOf(ScryfallClientException.class);
-        verify(client, times(1)).card(token);
+        verify(client, times(1)).cardBefore(org.mockito.ArgumentMatchers.eq(token), org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void pairedCommandersShareOneInlineBudgetAfterBothRequiredLookups() {
+        UUID second = UUID.randomUUID();
+        UUID token = UUID.randomUUID();
+        UUID otherToken = UUID.randomUUID();
+        ObjectNode firstCard = card(PRINTING, ORACLE, "First");
+        ObjectNode secondCard = card(second, UUID.randomUUID(), "Second");
+        firstCard.withArray("all_parts").addObject().put("component", "token").put("id", token.toString());
+        secondCard.withArray("all_parts").addObject().put("component", "token").put("id", otherToken.toString());
+        when(client.card(PRINTING)).thenReturn(firstCard);
+        when(client.card(second)).thenReturn(secondCard);
+        when(client.cardBefore(org.mockito.ArgumentMatchers.eq(token), org.mockito.ArgumentMatchers.anyLong()))
+                .thenAnswer(invocation -> {
+                    long deadline = invocation.getArgument(1);
+                    TimeUnit.NANOSECONDS.sleep(Math.max(0, deadline - System.nanoTime()));
+                    throw new ScryfallClientException(Kind.UNAVAILABLE);
+                });
+        long start = System.nanoTime();
+        List<ResolvedCommander> result = lookup.resolveCommandersOnline(List.of(new CommanderSelectionRef(PRINTING, null),
+                new CommanderSelectionRef(second, null)), DeckFormat.COMMANDER);
+        assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofSeconds(3));
+        assertThat(result).allSatisfy(resolved -> assertThat(resolved.relatedTokens()).isNull());
+        InOrder order = org.mockito.Mockito.inOrder(client);
+        order.verify(client).card(PRINTING);
+        order.verify(client).card(second);
+        order.verify(client).cardBefore(org.mockito.ArgumentMatchers.eq(token), org.mockito.ArgumentMatchers.anyLong());
+        verify(client, never()).cardBefore(org.mockito.ArgumentMatchers.eq(otherToken), org.mockito.ArgumentMatchers.anyLong());
     }
 
     private ObjectNode card(UUID printing, UUID oracle, String name) {

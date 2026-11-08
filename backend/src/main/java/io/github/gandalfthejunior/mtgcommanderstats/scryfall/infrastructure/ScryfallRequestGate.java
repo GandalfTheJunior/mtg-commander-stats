@@ -37,7 +37,16 @@ final class ScryfallRequestGate {
     }
 
     void awaitRequest() throws InterruptedException {
-        if (!lock.tryLock(MAX_CONTENTION_WAIT.toMillis(), TimeUnit.MILLISECONDS)) {
+        awaitRequestBefore(null);
+    }
+
+    /** Optional write enrichment must include contention and spacing in its shared deadline. */
+    void awaitRequestBefore(Long deadlineNanos) throws InterruptedException {
+        long wait = MAX_CONTENTION_WAIT.toNanos();
+        if (deadlineNanos != null) {
+            wait = Math.min(wait, deadlineNanos - nanoTime.getAsLong());
+        }
+        if (wait <= 0 || !lock.tryLock(wait, TimeUnit.NANOSECONDS)) {
             throw new ScryfallClientException(UNAVAILABLE);
         }
         try {
@@ -45,9 +54,15 @@ final class ScryfallRequestGate {
             long now = nanoTime.getAsLong();
             long remaining = REQUEST_SPACING.toNanos() - (now - lastStart);
             if (started && remaining > 0) {
+                if (deadlineNanos != null && remaining >= deadlineNanos - now) {
+                    throw new ScryfallClientException(UNAVAILABLE);
+                }
                 sleeper.sleep(Duration.ofNanos(remaining));
             }
             checkCooldown();
+            if (deadlineNanos != null && nanoTime.getAsLong() >= deadlineNanos) {
+                throw new ScryfallClientException(UNAVAILABLE);
+            }
             lastStart = nanoTime.getAsLong();
             started = true;
         } finally {

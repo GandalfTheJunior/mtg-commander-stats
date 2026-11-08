@@ -34,7 +34,7 @@ import static org.mockito.Mockito.when;
 class ScryfallCompanionsTest {
     private final JsonMapper json = JsonMapper.builder().build();
     private final ScryfallClient client = mock(ScryfallClient.class);
-    private final ScryfallLookup lookup = new ScryfallLookup(client, new ScryfallNormalizer());
+    private final ScryfallLookup lookup = new ScryfallLookup(client, new ScryfallNormalizer(), new RelatedTokenLookup(client));
 
     @ParameterizedTest
     @CsvSource(delimiter = '|', value = {

@@ -32,6 +32,7 @@ import tools.jackson.databind.JsonNode;
 
 @Service
 public class ScryfallLookup {
+    static final Duration INLINE_TOKEN_BUDGET = Duration.ofSeconds(1);
     private static final Duration CACHE_TTL = Duration.ofMinutes(5);
     private static final int MAX_PAGES = 3;
     private static final int MAX_PAGE_CARDS = 175;
@@ -41,6 +42,7 @@ public class ScryfallLookup {
     private static final int MAX_ORACLE_BATCH = 8;
     private final ScryfallClient client;
     private final ScryfallNormalizer normalizer;
+    private final RelatedTokenLookup relatedTokens;
     private final BoundedCache<String, List<CommanderChoice>> searches =
             new BoundedCache<>(128, CACHE_TTL, System::nanoTime);
     private final BoundedCache<String, List<CommanderChoice>> partnerSearches =
@@ -56,9 +58,10 @@ public class ScryfallLookup {
     private final BoundedCache<String, Boolean> pauperEligibility =
             new BoundedCache<>(256, CACHE_TTL, System::nanoTime);
 
-    public ScryfallLookup(ScryfallClient client, ScryfallNormalizer normalizer) {
+    public ScryfallLookup(ScryfallClient client, ScryfallNormalizer normalizer, RelatedTokenLookup relatedTokens) {
         this.client = client;
         this.normalizer = normalizer;
+        this.relatedTokens = relatedTokens;
     }
 
     public List<CommanderChoice> searchCommanders(String input) {
@@ -260,18 +263,27 @@ public class ScryfallLookup {
     }
 
     public ResolvedCommander resolveCommanderOnline(CommanderSelectionRef reference, DeckFormat format) {
-        return enrichCommander(validateCommanderOnline(reference, format));
+        ValidatedCommander validated = validateCommanderOnline(reference, format);
+        return enrichCommander(validated, System.nanoTime() + INLINE_TOKEN_BUDGET.toNanos());
     }
 
     /** Complete every required identity lookup before optional enrichment can set a provider cooldown. */
     public List<ResolvedCommander> resolveCommandersOnline(List<CommanderSelectionRef> references, DeckFormat format) {
-        List<ValidatedCommander> validated = references.stream()
-                .map(reference -> validateCommanderOnline(reference, format)).toList();
-        return validated.stream().map(this::enrichCommander).toList();
+        return resolveCommandersOnline(references, format, Set.of());
     }
 
-    private ResolvedCommander enrichCommander(ValidatedCommander validated) {
-        return new ResolvedCommander(validated.card(), validated.gameplay(), optionalTokens(validated.raw()), client.cooldownUntil());
+    public List<ResolvedCommander> resolveCommandersOnline(List<CommanderSelectionRef> references, DeckFormat format,
+            Set<CommanderSelectionRef> preservedSnapshots) {
+        List<ValidatedCommander> validated = references.stream()
+                .map(reference -> validateCommanderOnline(reference, format)).toList();
+        long deadline = System.nanoTime() + INLINE_TOKEN_BUDGET.toNanos();
+        return validated.stream().map(card -> preservedSnapshots.contains(
+                new CommanderSelectionRef(card.card().scryfallCardId(), card.gameplay().gameplayFaceIndex()))
+                        ? new ResolvedCommander(card.card(), card.gameplay()) : enrichCommander(card, deadline)).toList();
+    }
+
+    private ResolvedCommander enrichCommander(ValidatedCommander validated, long deadline) {
+        return new ResolvedCommander(validated.card(), validated.gameplay(), optionalTokens(validated.raw(), deadline), client.cooldownUntil());
     }
 
     private ValidatedCommander validateCommanderOnline(CommanderSelectionRef reference, DeckFormat format) {
@@ -288,9 +300,9 @@ public class ScryfallLookup {
         return new ValidatedCommander(card, gameplay, raw);
     }
 
-    private List<RelatedToken> optionalTokens(JsonNode raw) {
+    private List<RelatedToken> optionalTokens(JsonNode raw, long deadline) {
         try {
-            return new RelatedTokenLookup(client).resolve(raw);
+            return relatedTokens.resolveInline(raw, deadline);
         } catch (ScryfallClientException | MalformedScryfallResponseException exception) {
             return null;
         }
@@ -380,7 +392,9 @@ public class ScryfallLookup {
             throw new InvalidScryfallSelectionException();
         }
         return new ResolvedArtwork(new CommanderSelectionRef(printingId, gameplay.gameplayFaceIndex()), selected,
-                fetched.details().cardFaces(), commanderTokens ? optionalTokens(fetched.raw()) : null, client.cooldownUntil());
+                fetched.details().cardFaces(), commanderTokens
+                        ? optionalTokens(fetched.raw(), System.nanoTime() + INLINE_TOKEN_BUDGET.toNanos()) : null,
+                client.cooldownUntil());
     }
 
     public List<Artwork> artworks(UUID id, Integer gameplayFaceIndex) {

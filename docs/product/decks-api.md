@@ -165,15 +165,27 @@ printing. Optional token detail failure saves null and durable retry state;
 mandatory fresh Commander identity/eligibility validation still fails with
 `503 SCRYFALL_UNAVAILABLE` on provider failure. Companion snapshots are unchanged.
 Name-only, unchanged-selection and unrelated updates preserve the existing token
-snapshot and work offline. Owner, member-deck and game-detail reads use only
-saved data, under their existing authorization boundaries.
+snapshot and work offline. A format-only revalidation still performs required
+fresh identity/eligibility lookups, but skips optional token detail requests for
+saved selections whose snapshot/retry state will be preserved. Owner,
+member-deck, game-detail and statistics reads use only saved data, under their
+existing authorization boundaries.
+
+The write path retains its existing deck/group serialization. Optional token
+lookups share a one-second monotonic budget per save, including a pair of
+Commanders. Gate contention, request spacing, request timeout and whole-response
+wait all consume that same budget. A printing without token links still resolves
+to [] without detail requests. If the complete linked list cannot finish within
+the budget, save null and queue recovery rather than publishing a subset. This
+bounds additional optional network waiting under the existing locks; mandatory
+identity/eligibility requests retain their existing availability contract.
 
 V24 adds nullable `related_tokens` and retry metadata to `deck_commanders`, with
 no network migration or legacy backfill. Due work survives restart. The worker
 claims at most one slot per 15-second tick per backend instance, with a two-minute
-lease and PostgreSQL deck-row locking/`SKIP LOCKED`. Requests run outside deck
-locks; completion rechecks slot, printing, generation and claim under the deck
-write lock. Replaced/deleted slots and already-complete snapshots reject delayed
+lease and PostgreSQL deck-row locking/`SKIP LOCKED`. Retry-worker provider requests
+run outside deck locks; completion rechecks slot, printing, generation and claim
+under the deck write lock. Replaced/deleted slots and already-complete snapshots reject delayed
 results. Expired leases recover after worker/process failure. Retry failures use
 exponential minute delays capped at a 24-hour base plus up to 25% jitter, never
 before the provider cooldown. Initial enrichment failures also persist an already

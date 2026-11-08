@@ -392,9 +392,21 @@ snapshot remains unknown and is retried by the durable PostgreSQL worker under
 [the saved-deck contract](decks-api.md#linked-commander-token-snapshots). Required
 Commander validation failures still return 503. Only the fully resolved list is
 published; no partial list or arbitrary token-count cutoff is presented as
-complete. Sequential token requests reuse the global request gate, five-second
-response timeout, 2 MiB response bound and 429 Retry-After cooldown. Normalized token snapshots also have a 2 MiB aggregate payload bound; exceeding
-it keeps the entire snapshot pending without truncation. Each token
-resolution pass has a 30-second work budget checked before starting another
-request; exceptional unresolved lists remain pending for later recovery.
-Ordinary saved-deck/game reads never contact Scryfall.
+complete. Sequential requests reuse the global request gate, 2 MiB response bound
+and 429 Retry-After cooldown. Normalized snapshots also have a 2 MiB aggregate
+payload bound; exceeding it keeps the entire snapshot pending without truncation.
+
+Inline selection/artwork enrichment shares a one-second monotonic budget across
+all Commanders in one write, after required validation. Gate contention and
+spacing consume the same deadline; each HTTP request timeout and response wait
+is capped by the remaining budget as well as the standard five-second timeout.
+Expired/incomplete enrichment stays pending for the worker. Mandatory validation
+keeps its existing timeout/error contract. Format revalidation skips optional
+token detail requests for unchanged saved selections whose snapshots are kept.
+
+The independent worker retains a 30-second work budget checked before starting
+another request and the standard five-second per-response timeout. Only worker
+provider requests run outside deck locks; the short inline pass remains under
+the write path's existing deck/group serialization. Exceptional unresolved lists
+remain pending for later recovery. Ordinary saved-deck/game/statistics reads
+never contact Scryfall.

@@ -2,12 +2,15 @@ package io.github.gandalfthejunior.mtgcommanderstats;
 
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.List;
 import java.util.HashSet;
-import java.util.Set;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CommanderTokenRetries.Job;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CommanderTokenRetries;
@@ -20,9 +23,12 @@ import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderSel
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.ScryfallNormalizer;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClient;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClientException;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.TestPropertySource;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -30,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@org.springframework.test.context.TestPropertySource(properties = "app.tokens.scheduling.enabled=false")
+@TestPropertySource(properties = "app.tokens.scheduling.enabled=false")
 class CommanderTokensTest extends GameTestSupport {
     private final Set<UUID> storedPrintings = new HashSet<>();
 
@@ -38,6 +44,8 @@ class CommanderTokensTest extends GameTestSupport {
     void removeProviderFixtures() {
         storedPrintings.forEach(CommanderTestProvider::remove);
         provider.failAndGoOfflineAt = null;
+        provider.slowInline = false;
+        provider.inlineStarted = null;
     }
 
     @Autowired
@@ -187,14 +195,14 @@ class CommanderTokensTest extends GameTestSupport {
         ScryfallClient client =
                 mock(ScryfallClient.class);
         when(client.card(printing)).thenReturn(commander);
-        when(client.card(UUID.fromString(token.path("id").asText())))
+        when(client.cardBefore(org.mockito.ArgumentMatchers.eq(UUID.fromString(token.path("id").asText())), org.mockito.ArgumentMatchers.anyLong()))
                 .thenThrow(new ScryfallClientException(
                         ScryfallClientException.Kind.UNAVAILABLE));
         Instant cooldown = Instant.now().plusSeconds(7200);
         when(client.cooldownUntil()).thenReturn(cooldown);
         ResolvedCommander resolved =
                 new ScryfallLookup(client,
-                        new ScryfallNormalizer())
+                        new ScryfallNormalizer(), new RelatedTokenLookup(client))
                         .resolveCommanderOnline(new CommanderSelectionRef(printing, null));
         Deck saved = decks.saveAndFlush(
                 new Deck(owner.id(), "Cooldown",
@@ -229,6 +237,67 @@ class CommanderTokensTest extends GameTestSupport {
         } finally {
             provider.failAndGoOfflineAt = null;
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"complete", "pending", "legacy"})
+    void formatOnlyValidationPreservesTokenStateWithoutAnyTokenDetailRequests(String state) throws Exception {
+        Actor owner = register("owner", "Owner");
+        ObjectNode commander = linked(card("Spirit")).put("testPdhEligible", true);
+        UUID deck = id(expect(owner, "POST", "/api/decks", configuration(commander), 201));
+        if (state.equals("pending")) {
+            jdbc.update("update deck_commanders set related_tokens = null, token_attempts = 7, token_due_at = CURRENT_TIMESTAMP + INTERVAL '1 hour' where deck_id = ?", deck);
+        } else if (state.equals("legacy")) {
+            jdbc.update("update deck_commanders set related_tokens = null, token_generation = null, token_due_at = null where deck_id = ?", deck);
+        }
+        Map<String, Object> previous = jdbc.queryForMap("select related_tokens, token_generation, token_due_at, token_attempts, token_claim from deck_commanders where deck_id = ?", deck);
+        int inlineCalls = provider.inlineCalls.get();
+        int requiredCalls = provider.calls.get();
+        expect(owner, "PUT", "/api/decks/" + deck, "{\"name\":\"Format changed\",\"format\":\"PAUPER_COMMANDER\"}", 200);
+        assertThat(provider.calls.get()).isEqualTo(requiredCalls + 2); // Fresh printing and fresh format eligibility.
+        assertThat(provider.inlineCalls.get()).isEqualTo(inlineCalls);
+        assertThat(jdbc.queryForMap("select related_tokens, token_generation, token_due_at, token_attempts, token_claim from deck_commanders where deck_id = ?", deck))
+                .isEqualTo(previous);
+    }
+
+    @Test
+    void slowOptionalArtworkEnrichmentReleasesTheDeckLockAndWorkerRecoversTheWholeList() throws Exception {
+        Actor owner = register("owner", "Owner");
+        ObjectNode commander = card("Commander");
+        UUID deck = id(expect(owner, "POST", "/api/decks", configuration(commander), 201));
+        ObjectNode spirit = card("Spirit");
+        ObjectNode soldier = card("Soldier");
+        store(spirit);
+        store(soldier);
+        ObjectNode alternate = commander.deepCopy().put("id", UUID.randomUUID().toString());
+        alternate.withArray("all_parts").addObject().put("component", "token").put("id", spirit.path("id").asText());
+        alternate.withArray("all_parts").addObject().put("component", "token").put("id", soldier.path("id").asText());
+        store(alternate);
+        provider.inlineStarted = new CountDownLatch(1);
+        provider.slowInline = true;
+        int calls = provider.inlineCalls.get();
+        CompletableFuture<JsonNode> saving = CompletableFuture.supplyAsync(() -> {
+            try {
+                return expect(owner, "PUT", "/api/decks/" + deck + "/commanders/1/artwork",
+                        json.writeValueAsString(Map.of("scryfallCardId", alternate.path("id").asText())), 200);
+            } catch (Exception exception) {
+                throw new CompletionException(exception);
+            }
+        });
+        assertThat(provider.inlineStarted.await(5, TimeUnit.SECONDS)).isTrue();
+        CompletableFuture<UUID> waitingWriter = CompletableFuture.supplyAsync(() -> transactions.execute(status ->
+                jdbc.queryForObject("select id from decks where id = ? for update", UUID.class, deck)));
+        assertThat(waitingWriter.get(3, TimeUnit.SECONDS)).isEqualTo(deck);
+        JsonNode saved = saving.get(3, TimeUnit.SECONDS);
+        assertThat(saved.path("commanders").get(0).path("relatedTokens").isNull()).isTrue();
+        assertThat(provider.inlineCalls.get()).isEqualTo(calls + 1);
+        provider.slowInline = false;
+        due(deck);
+        retries.retryDue();
+        JsonNode recovered = expect(owner, "GET", "/api/decks", "", 200).get(0).path("commanders").get(0).path("relatedTokens");
+        assertThat(recovered.size()).isEqualTo(2);
+        assertThat(recovered.get(0).path("scryfallCardId")).isEqualTo(spirit.path("id"));
+        assertThat(recovered.get(1).path("scryfallCardId")).isEqualTo(soldier.path("id"));
     }
 
     private void due(UUID deck) {

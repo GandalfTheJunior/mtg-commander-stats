@@ -36,7 +36,14 @@ public class RelatedTokenLookup {
 
     /** Sequential requests share the provider gate; excessive work remains pending, never truncated. */
     public List<RelatedToken> resolve(JsonNode commander) {
-        long deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
+        return resolve(commander, System.nanoTime() + Duration.ofSeconds(30).toNanos(), false);
+    }
+
+    public List<RelatedToken> resolveInline(JsonNode commander, long deadlineNanos) {
+        return resolve(commander, deadlineNanos, true);
+    }
+
+    private List<RelatedToken> resolve(JsonNode commander, long deadline, boolean inline) {
         JsonNode parts = commander.path("all_parts");
         if (parts.isMissingNode() || parts.isNull()) {
             return List.of();
@@ -57,7 +64,7 @@ public class RelatedTokenLookup {
                 throw new MalformedScryfallResponseException();
             }
             // Construct the fixed API URL from the canonical linked ID; never follow provider URIs.
-            JsonNode raw = client.card(id);
+            JsonNode raw = inline ? client.cardBefore(id, deadline) : client.card(id);
             if (!id.equals(id(raw)) || !"card".equals(raw.path("object").asText())
                     || !raw.path("name").isTextual() || raw.path("name").asText().isBlank()
                     || !raw.path("layout").isTextual()) {
@@ -71,6 +78,9 @@ public class RelatedTokenLookup {
                 throw new MalformedScryfallResponseException();
             }
             result.add(token);
+        }
+        if (inline && !ids.isEmpty() && System.nanoTime() >= deadline) {
+            throw new MalformedScryfallResponseException();
         }
         return List.copyOf(result);
     }

@@ -34,11 +34,16 @@ public class ManageDecks {
     }
 
     private List<DeckCommander> resolve(List<CommanderInput> inputs, DeckFormat format) {
+        return resolve(inputs, format, List.of());
+    }
+
+    private List<DeckCommander> resolve(List<CommanderInput> inputs, DeckFormat format, List<DeckCommander> previous) {
         if (inputs == null || inputs.isEmpty() || inputs.size() > 2 || inputs.stream().anyMatch(Objects::isNull)) {
             throw new InvalidCommanderException();
         }
         List<ResolvedCommander> resolved = scryfall.resolveCommandersOnline(
-                inputs.stream().map(CommanderInput::selectionRef).toList(), format);
+                inputs.stream().map(CommanderInput::selectionRef).toList(), format,
+                previous.stream().map(DeckCommander::selectionRef).collect(java.util.stream.Collectors.toSet()));
         if (resolved.size() == 1 ? !resolved.getFirst().gameplay().canBeSoleCommander()
                 : !PairingCapabilities.compatible(resolved.get(0).gameplay(), resolved.get(1).gameplay())) {
             throw new InvalidCommanderException();
@@ -148,7 +153,7 @@ public class ManageDecks {
                         && Objects.equals(saved.getChosenColor(), input.chosenColor());
             }
             if (formatChanged || !unchanged) {
-                prospectiveCommanders = resolve(commanders, target);
+                prospectiveCommanders = resolve(commanders, target, deck.getCommanders());
             }
         }
         deck.replaceConfiguration(prospectiveCommanders, prospectiveCompanion, target);
