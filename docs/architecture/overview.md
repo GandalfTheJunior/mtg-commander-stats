@@ -82,9 +82,10 @@ name-only updates retain snapshots and lock the existing deck row. The owning AP
 
 The deck also stores an optional strictly validated ManaBox share URL. Updates
 use the same owner-authorized deck lock and transaction; the server never accesses
-the external link. Only game detail GET requests opt into link display, after
-checking requester and deck-owner current active membership under the group lock.
-Other game DTO uses omit the link. Historical names and saved links survive
+the external link. Game detail GET and the authorized member-deck GET may display
+valid saved links after checking requester and deck-owner current active membership
+under the group lock. Other game DTO uses omit the link. Historical names and
+saved links survive
 membership loss, while former members' links are withheld from group reads.
 
 The `group` feature uses the same feature layers. `play_groups` owns the stable

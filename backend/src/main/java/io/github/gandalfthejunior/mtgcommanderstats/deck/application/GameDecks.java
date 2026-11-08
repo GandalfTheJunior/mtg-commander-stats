@@ -12,6 +12,8 @@ import java.util.stream.Collectors;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckFormat;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.Deck;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.InvalidManaBoxUrlException;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.ManaBoxUrl;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.DeckRepository;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.DeckClaimRepository;
 import org.springframework.stereotype.Service;
@@ -56,7 +58,7 @@ public class GameDecks {
 
     public List<DeckDisplay> eligible(UUID ownerId) {
         return decks.findAllByOwnerIdAndArchivedFalseOrderByNameAscIdAsc(ownerId).stream()
-                .map(DeckDisplay::from).toList();
+                .map(deck -> DeckDisplay.from(deck, true)).toList();
     }
 
     public Map<UUID, DeckDisplay> display(Collection<UUID> deckIds) {
@@ -78,7 +80,20 @@ public class GameDecks {
 
         static DeckDisplay from(Deck deck, boolean includeLink) {
             return new DeckDisplay(deck.getId(), deck.getName(), deck.getCommanders().stream().map(CommanderSummary::from).toList(),
-                    deck.getColorIdentity().symbols(), CompanionSummary.from(deck.getCompanion()), deck.getFormat(), deck.isArchived(), includeLink ? deck.getManaBoxUrl() : null);
+                    deck.getColorIdentity().symbols(), CompanionSummary.from(deck.getCompanion()), deck.getFormat(), deck.isArchived(),
+                    includeLink ? safeManaBoxUrl(deck.getManaBoxUrl()) : null);
+        }
+
+        private static String safeManaBoxUrl(String storedUrl) {
+            if (storedUrl == null) {
+                return null;
+            }
+            try {
+                String normalized = new ManaBoxUrl(storedUrl).value();
+                return normalized.equals(storedUrl) ? storedUrl : null;
+            } catch (InvalidManaBoxUrlException exception) {
+                return null;
+            }
         }
     }
 }

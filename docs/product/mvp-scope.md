@@ -125,8 +125,9 @@ UI work is separate (#196, #198, #199, #201).
   There is no manual color override. The editor retains read-only WUBRG controls
   and supplies a separate required W/U/B/R/G picker when appropriate.
 - Optional public ManaBox deck share links can be stored by owners. Active group
-  readers see them only in game details while the deck owner is currently active
-  in that group, including archived decks. This is external linking only; no
+  readers see them in game details, including archived decks, or in the authorized
+  unarchived member-deck list while the deck owner is currently active in that
+  group. This is external linking only; no
   ManaBox API, import, sync, hosted decklist or DeckVersion. See [Deck API](decks-api.md)
   for snapshot fields, strict write contracts and disposable local data migration.
   Owners edit links in the existing deck editor and open them from Meine Decks;

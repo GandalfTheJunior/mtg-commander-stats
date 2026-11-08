@@ -205,14 +205,15 @@ creator, recording time, seats, placements, winners and survivor facts are
 preserved. A same-game account/profile collision blocks the entire claim with
 `409` until an authorized game edit resolves it.
 
-### ManaBox links in game details
+### ManaBox links in authorized reads
 
-Only `GET /api/groups/{groupId}/games/{gameId}` may add `deck.manaBoxUrl` to a
+`GET /api/groups/{groupId}/games/{gameId}` may add `deck.manaBoxUrl` to a
 participant's deck. The requesting user must be an active member of the requested
 group, and the deck owner must also be a **currently active member of that same
 group**. A stored non-null link is then included, even for an archived deck.
-Otherwise the key is omitted. The link reflects the current saved deck value;
-there is no per-game link snapshot. See [link validation and owner updates](decks-api.md#optional-manabox-share-link).
+Otherwise the key is omitted. The link reflects the current valid, normalized
+saved deck value; there is no per-game link snapshot. See
+[link validation and owner updates](decks-api.md#optional-manabox-share-link).
 
 Membership checks and reading the game occur under the existing group lock shared
 with join/leave, role changes and member removal. Departure/removal revokes the
@@ -221,9 +222,10 @@ names, assignments and statistics remain visible, and their stored link is not
 changed. Rejoining restores eligibility for detail-link visibility.
 
 Although the endpoints share response DTOs, GET list, POST and PUT game responses
-deliberately omit this key for everyone. Member deck selection and statistics
-also omit links. No unrelated deck or group becomes accessible. All these reads
-use saved data without contacting ManaBox or Scryfall.
+deliberately omit this key for everyone. The authorized member-deck GET described
+below is the other read that may include a link. Statistics omit links. No
+unrelated deck or group becomes accessible. All these reads use saved data
+without contacting ManaBox or Scryfall.
 
 The dedicated browser details view renders one safe external ManaBox action for
 each participant whose fresh response includes a valid link. Omission is normal:
@@ -318,10 +320,18 @@ used decks, ordered by name then deck UUID ascending:
     "id": "<deck UUID>",
     "name": "Atraxa",
     "commanders": [{"name": "Atraxa, Praetors' Voice", "position": 1, "oracleId": "<Oracle UUID>", "selectionRef": {"scryfallCardId": "<printing UUID>"}}],
-    "colorIdentity": ["W", "U", "B", "G"]
+    "colorIdentity": ["W", "U", "B", "G"],
+    "manaBoxUrl": "https://manabox.app/decks/Synthetic-Mixed_123"
   }
 ]
 ```
+
+`manaBoxUrl` is present only when the deck has a currently saved, valid, normalized
+ManaBox URL; otherwise the property is omitted, including after the owner clears
+the link. The group lock protects the current requester and target membership
+checks through the read. The match editor may receive the field but does not
+render or persist a ManaBox action; the read-only member-deck view in #199 owns
+that presentation.
 
 No eligible decks returns `200 []`. Archived decks and decks of former members or
 users outside the group are excluded. Active quick profiles of the group are
@@ -476,7 +486,7 @@ Authorized member deck-selection summaries and all participant deck summaries
 (including details and history) include `format`: `COMMANDER` or
 `PAUPER_COMMANDER`, read from the saved deck in the existing batched lookups.
 Archived decks and former-member historical assignments retain their format.
-Existing membership/ownership authorization and ManaBox link redaction are
-unchanged. Games may freely mix both formats; writes still assign stable deck
-IDs and contain no format field. Game edits/deletes never unlock a used deck's
+Existing membership/ownership authorization applies, including the optional
+authorized member-deck link. Games may freely mix both formats; writes still
+assign stable deck IDs and contain no format field. Game edits/deletes never unlock a used deck's
 format. No Scryfall access is required for game assignment or reads.
