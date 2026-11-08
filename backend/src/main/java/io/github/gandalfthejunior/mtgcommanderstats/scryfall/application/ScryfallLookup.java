@@ -15,14 +15,15 @@ import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckFormat;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.Artwork;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CardDetails;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderChoice;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderSelectionRef;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CompanionChoice;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CompanionRules;
-import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidCompanionSelectionException;
-import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderSelectionRef;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.GameplayCard;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidCompanionSelectionException;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidScryfallSelectionException;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.MalformedScryfallResponseException;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.PairingCapabilities;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.RelatedToken;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.ScryfallNormalizer;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClient;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClientException;
@@ -269,7 +270,15 @@ public class ScryfallLookup {
         if (format == DeckFormat.PAUPER_COMMANDER && !pauperEligible(gameplay.oracleId())) {
             throw new InvalidScryfallSelectionException();
         }
-        return new ResolvedCommander(card, gameplay);
+        return new ResolvedCommander(card, gameplay, optionalTokens(raw));
+    }
+
+    private List<RelatedToken> optionalTokens(JsonNode raw) {
+        try {
+            return new RelatedTokenLookup(client).resolve(raw);
+        } catch (ScryfallClientException | MalformedScryfallResponseException exception) {
+            return null;
+        }
     }
 
     private static String formatFilter(DeckFormat format) {
@@ -336,6 +345,11 @@ public class ScryfallLookup {
     /** Validate a new printing against the persisted gameplay identity, independently of display side. */
     public ResolvedArtwork resolveArtworkOnline(UUID printingId, String oracleId, Integer previousGameplayFace,
             Integer artworkFaceIndex) {
+        return resolveArtworkOnline(printingId, oracleId, previousGameplayFace, artworkFaceIndex, false);
+    }
+
+    public ResolvedArtwork resolveArtworkOnline(UUID printingId, String oracleId, Integer previousGameplayFace,
+            Integer artworkFaceIndex, boolean commanderTokens) {
         requireId(printingId);
         FetchedCard fetched = fetchCard(printingId);
         List<GameplayCard> matches = fetched.details().gameplayCards().stream()
@@ -351,7 +365,7 @@ public class ScryfallLookup {
             throw new InvalidScryfallSelectionException();
         }
         return new ResolvedArtwork(new CommanderSelectionRef(printingId, gameplay.gameplayFaceIndex()), selected,
-                fetched.details().cardFaces());
+                fetched.details().cardFaces(), commanderTokens ? optionalTokens(fetched.raw()) : null);
     }
 
     public List<Artwork> artworks(UUID id, Integer gameplayFaceIndex) {

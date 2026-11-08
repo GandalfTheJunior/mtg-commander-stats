@@ -368,6 +368,13 @@ Commander count/colors and is read from the referenced deck without provider
 requests. Game write bodies gain no Companion input or match-level snapshot;
 first committed deck use permanently locks Companion identity.
 
+Commander snapshots additionally include nullable `relatedTokens` under the
+[linked token contract](decks-api.md#linked-commander-token-snapshots). These are
+current saved printing snapshots, including recovered token enrichment, rather
+than frozen match facts. Detail reads and full-card opening/expansion never
+resolve provider metadata. Existing group authorization and deck identities
+remain unchanged; Companion snapshots do not gain token metadata.
+
 Both Commander and Companion snapshots include nullable `cardFaces`, using the
 [full-card display contract](decks-api.md#full-card-display-snapshots): saved
 printing faces with `faceIndex`, `name`, `typeLine`, `oracleText` and `imageUrl`.

@@ -509,6 +509,22 @@ class ScryfallLookupTest {
         return card;
     }
 
+    @Test
+    void optionalTokenOutageDoesNotBypassMandatoryValidationOrBlockValidatedCommander() {
+        ObjectNode commander = card(PRINTING, ORACLE, "Commander");
+        UUID token = UUID.randomUUID();
+        commander.withArray("all_parts").addObject().put("component", "token").put("id", token.toString());
+        when(client.card(PRINTING)).thenReturn(commander);
+        when(client.card(token)).thenThrow(new ScryfallClientException(Kind.UNAVAILABLE));
+        ResolvedCommander resolved = lookup.resolveCommanderOnline(new CommanderSelectionRef(PRINTING, null));
+        assertThat(resolved.gameplay().oracleId()).isEqualTo(ORACLE.toString());
+        assertThat(resolved.relatedTokens()).isNull();
+        when(client.card(PRINTING)).thenThrow(new ScryfallClientException(Kind.UNAVAILABLE));
+        assertThatThrownBy(() -> lookup.resolveCommanderOnline(new CommanderSelectionRef(PRINTING, null)))
+                .isInstanceOf(ScryfallClientException.class);
+        verify(client, times(1)).card(token);
+    }
+
     private ObjectNode card(UUID printing, UUID oracle, String name) {
         ObjectNode card = json.createObjectNode();
         card.put("object", "card");

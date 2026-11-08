@@ -1,19 +1,22 @@
 package io.github.gandalfthejunior.mtgcommanderstats.deck.domain;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.ColorIdentityConverter;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.CardFacesConverter;
-import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CardFace;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.ColorIdentityConverter;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.PairingCapabilitiesConverter;
-import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.PairingCapabilities;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.RelatedTokensConverter;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.application.ResolvedCommander;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.Artwork;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CardFace;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderSelectionRef;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.GameplayCard;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.PairingCapabilities;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.RelatedToken;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Embeddable;
@@ -75,10 +78,43 @@ public class DeckCommander {
     @Column(name = "card_faces", columnDefinition = "text")
     private CardFaces cardFaces;
 
+    @Convert(converter = RelatedTokensConverter.class)
+    @Column(name = "related_tokens", columnDefinition = "text")
+    private RelatedTokens relatedTokens;
+
+    @Column(name = "token_generation")
+    private UUID tokenGeneration;
+
+    @Column(name = "token_due_at")
+    private Instant tokenDueAt;
+
+    @Column(name = "token_attempts", nullable = false)
+    private int tokenAttempts;
+
+    @Column(name = "token_claim")
+    private UUID tokenClaim;
+
+    @Column(name = "token_last_failure", columnDefinition = "text")
+    private String tokenLastFailure;
+
+    public void replaceRelatedTokens(List<RelatedToken> tokens) {
+        relatedTokens = tokens == null ? null : new RelatedTokens(tokens);
+        tokenGeneration = UUID.randomUUID();
+        tokenDueAt = tokens == null ? Instant.now().plusSeconds(60) : null;
+        tokenAttempts = 0;
+        tokenClaim = null;
+        tokenLastFailure = tokens == null ? "TOKEN_METADATA_UNAVAILABLE" : null;
+    }
+
+    public List<RelatedToken> getRelatedTokens() {
+        return relatedTokens == null ? null : relatedTokens.tokens();
+    }
+
     protected DeckCommander() {
     }
 
     public DeckCommander(int position, ResolvedCommander resolved, String chosenColor) {
+        replaceRelatedTokens(resolved.relatedTokens());
         GameplayCard gameplay = resolved.gameplay();
         if (position < 1 || position > 2
                 || (gameplay.requiresChosenColor() ? chosenColor == null || !List.of("W", "U", "B", "R", "G").contains(chosenColor)
@@ -119,6 +155,12 @@ public class DeckCommander {
     }
 
     void preserveArtwork(DeckCommander previous) {
+        this.relatedTokens = previous.relatedTokens;
+        this.tokenGeneration = previous.tokenGeneration;
+        this.tokenDueAt = previous.tokenDueAt;
+        this.tokenAttempts = previous.tokenAttempts;
+        this.tokenClaim = previous.tokenClaim;
+        this.tokenLastFailure = previous.tokenLastFailure;
         this.artworkFaceIndex = previous.artworkFaceIndex;
         this.artCropUrl = previous.artCropUrl;
         this.illustrationId = previous.illustrationId;

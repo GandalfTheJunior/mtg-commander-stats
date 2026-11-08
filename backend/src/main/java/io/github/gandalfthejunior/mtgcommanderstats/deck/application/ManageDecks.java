@@ -162,8 +162,9 @@ public class ManageDecks {
         DeckCommander commander = deck.getCommanders().stream().filter(slot -> slot.getPosition() == position)
                 .findFirst().orElseThrow(DeckNotFoundException::new);
         ResolvedArtwork resolved = scryfall.resolveArtworkOnline(printingId, commander.getOracleId().toString(),
-                commander.getGameplayFaceIndex(), artworkFaceIndex);
+                commander.getGameplayFaceIndex(), artworkFaceIndex, true);
         commander.changeArtwork(resolved.selectionRef(), resolved.artwork(), resolved.cardFaces());
+        commander.replaceRelatedTokens(resolved.relatedTokens());
         return deck;
     }
 

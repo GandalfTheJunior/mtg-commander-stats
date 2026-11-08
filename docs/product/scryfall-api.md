@@ -344,7 +344,7 @@ lookups. A previous search/reference remains structurally usable, but does not
 waive the online availability check. Cached derived/Oracle metadata may be
 reused only after the fresh printing request succeeds.
 
-Both methods return `ResolvedCommander(card, gameplay)`, keeping printing
+Both methods return `ResolvedCommander(card, gameplay, relatedTokens)`, keeping printing
 `CardDetails` and the selected `GameplayCard` separate. Subsequent persistence
 uses `gameplay.defaultArtwork` for the initial selected-gameplay snapshot,
 alongside its stable gameplay identity and rules metadata, rather than an
@@ -358,7 +358,8 @@ causes a controlled unavailable response and a `Retry-After` cooldown without
 automatic retry loops. Pagination URLs are restricted to the fixed provider
 search route. Safe image URLs use HTTPS on `scryfall.io` or its subdomains;
 source links use HTTPS on `scryfall.com`. Missing or unsafe metadata is nullable.
-There is no Redis, synchronization task, bulk download, or local card database.
+There is no Redis, bulk download, or local card database. Targeted durable token
+retries are described below.
 
 Lookup caches expire after five minutes and hold at most 128 searches, 256 card
 details, 128 artwork collections, 256 supplementary Oracle metadata entries,
@@ -371,3 +372,24 @@ Reference guidance: [Scryfall API](https://scryfall.com/docs/api),
 [access and rate limits](https://scryfall.com/docs/faqs/i-m-having-trouble-accessing-the-scryfall-api-or-i-m-blocked-17),
 and [image usage](https://scryfall.com/docs/api/images). Automated tests stub the
 provider and do not require live Scryfall access.
+
+## Saved Commander token enrichment
+
+After mandatory fresh Commander validation succeeds, selection and Commander
+artwork writes resolve only `all_parts` entries with `component: "token"`.
+They fetch exactly the linked printing IDs via the fixed `/cards/{id}` route,
+never arbitrary supplied URIs, alternate printings, Oracle text inference or
+full-deck searches. Repeated IDs are deduplicated in first-seen order. Normal
+images and physical card faces reuse the saved face normalization and safe URL
+rules. Missing images are honest nullable fallbacks, not alternate artwork.
+
+Additional token detail failures do not reject a valid save: the complete token
+snapshot remains unknown and is retried by the durable PostgreSQL worker under
+[the saved-deck contract](decks-api.md#linked-commander-token-snapshots). Required
+Commander validation failures still return 503. Only the fully resolved list is
+published; no partial list or arbitrary token-count cutoff is presented as
+complete. Sequential token requests reuse the global request gate, five-second
+response timeout, 2 MiB response bound and 429 Retry-After cooldown. Each token
+resolution pass has a 30-second work budget checked before starting another
+request; exceptional unresolved lists remain pending for later recovery.
+Ordinary saved-deck/game reads never contact Scryfall.

@@ -57,6 +57,10 @@ public class ScryfallClient {
         this.requestTimeout = requestTimeout;
     }
 
+    public java.time.Instant cooldownUntil() {
+        return gate.cooldownUntil();
+    }
+
     public JsonNode card(UUID cardId) {
         return get(URI.create("https://" + API_HOST + "/cards/" + cardId));
     }

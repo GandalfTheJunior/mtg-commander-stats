@@ -86,6 +86,10 @@ final class ScryfallRequestGate {
         }
     }
 
+    Instant cooldownUntil() {
+        return cooldownUntil;
+    }
+
     private void checkCooldown() {
         if (clock.instant().isBefore(cooldownUntil)) {
             throw new ScryfallClientException(UNAVAILABLE);

@@ -124,6 +124,7 @@ Every owner-authorized deck response contains `id`, `name`, `commanders`, `color
 | `colorIdentity`, `chosenColor`, `effectiveColorIdentity` | Base WUBRG, nullable per-card choice, derived effective WUBRG |
 | `artworkFaceIndex`, `artCropUrl`, `illustrationId`, `artist`, `scryfallUri` | Nullable displayed-illustration/printing snapshots |
 | `cardFaces` | Nullable [full-card display snapshot](#full-card-display-snapshots) |
+| `relatedTokens` | Commander-only nullable [linked token snapshot](#linked-commander-token-snapshots) |
 
 `artworkFaceIndex` retains the original printing-local face index, including 1
 when only a back image exists; it is independent of the gameplay-face selector.
@@ -143,6 +144,41 @@ of the same gameplay identity returns `400` directing clients to the artwork
 operation; stale full updates cannot overwrite newer presentation snapshots. This applies
 to both slots even when the other Commander is being replaced or a chosen color
 is changed.
+
+## Linked Commander token snapshots
+
+Saved Commander read DTOs add `relatedTokens`: `null` means legacy, unknown or
+pending enrichment; `[]` means this printing successfully resolved with no
+explicit Scryfall token links. Neither value asserts that the Commander cannot
+produce tokens in gameplay. A nonempty array is complete and follows first-seen
+`all_parts` order, deduplicated by the exact linked Scryfall printing UUID.
+
+Each entry contains `scryfallCardId`, `name`, nullable `typeLine` and `imageUrl`
+(safe HTTPS Scryfall `normal` image), `layout` and ordered `cardFaces` using the
+existing face contract. Missing or unsafe imagery remains null. For
+`double_faced_token`, saved physical faces permit front/back inspection without
+metadata requests. A different token printed on the physical back is not an
+additional claim that this Commander produces it.
+
+Selection and Commander artwork writes save tokens atomically with the selected
+printing. Optional token detail failure saves null and durable retry state;
+mandatory fresh Commander identity/eligibility validation still fails with
+`503 SCRYFALL_UNAVAILABLE` on provider failure. Companion snapshots are unchanged.
+Name-only, unchanged-selection and unrelated updates preserve the existing token
+snapshot and work offline. Owner, member-deck and game-detail reads use only
+saved data, under their existing authorization boundaries.
+
+V24 adds nullable `related_tokens` and retry metadata to `deck_commanders`, with
+no network migration or legacy backfill. Due work survives restart. The worker
+claims at most one slot per 15-second tick per backend instance, with a two-minute
+lease and PostgreSQL deck-row locking/`SKIP LOCKED`. Requests run outside deck
+locks; completion rechecks slot, printing, generation and claim under the deck
+write lock. Replaced/deleted slots and already-complete snapshots reject delayed
+results. Expired leases recover after worker/process failure. Retry failures use
+exponential minute delays capped at a 24-hour base plus up to 25% jitter, never
+before the provider cooldown. Failures remain eligible indefinitely. Operators
+can inspect `token_due_at`, `token_attempts`, `token_last_failure` and WARN logs
+containing only attempt count and next due time. No token calls run on reads.
 
 ## Full-card display snapshots
 
