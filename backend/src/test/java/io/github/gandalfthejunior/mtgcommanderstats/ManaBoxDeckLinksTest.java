@@ -2,12 +2,20 @@ package io.github.gandalfthejunior.mtgcommanderstats;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
+import io.github.gandalfthejunior.mtgcommanderstats.game.application.ManageGames.DeckSelectionSummary;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ManaBoxDeckLinksTest extends GameTestSupport {
     private static final String LINK = "https://manabox.app/decks/Synthetic-Mixed_123";
@@ -154,7 +162,7 @@ class ManaBoxDeckLinksTest extends GameTestSupport {
     }
 
     @Test
-    void onlyDetailReadsExposeCurrentActiveParticipantLinksIncludingArchivedDecks() throws Exception {
+    void gameDetailsAndMemberSelectionExposeLinksWithoutChangingOtherGameResponses() throws Exception {
         Fixture f = fixture();
         expect(f.creator(), "PUT", "/api/decks/" + f.creatorDeck(), linkBody("Deck", LINK), 200);
         expect(f.member(), "PUT", "/api/decks/" + f.memberDeck(), linkBody("Deck", OTHER_LINK), 200);
@@ -164,7 +172,8 @@ class ManaBoxDeckLinksTest extends GameTestSupport {
         String path = f.path() + "/" + id(created);
         assertThat(created.toString()).doesNotContain("manaBoxUrl", LINK, OTHER_LINK);
         assertThat(expect(f.owner(), "GET", f.path(), "", 200).toString()).doesNotContain("manaBoxUrl");
-        assertThat(expect(f.owner(), "GET", f.selection(f.creator().id()), "", 200).toString()).doesNotContain("manaBoxUrl");
+        assertThat(expect(f.owner(), "GET", f.selection(f.creator().id()), "", 200).get(0).get("manaBoxUrl").asText())
+                .isEqualTo(LINK);
         assertThat(expect(f.owner(), "PUT", path, body(f), 200).toString()).doesNotContain("manaBoxUrl");
         expect(f.creator(), "POST", "/api/decks/" + f.creatorDeck() + "/archive", "", 200);
         int calls = provider.calls.get();
@@ -198,6 +207,117 @@ class ManaBoxDeckLinksTest extends GameTestSupport {
         assertThat(participantDeck(rejoined, f.creator().id()).get("manaBoxUrl").asText()).isEqualTo(OTHER_LINK);
         assertThat(participantDeck(rejoined, f.creator().id()).get("name").asText()).isEqualTo("Renamed former deck");
         assertThat(provider.calls.get()).isEqualTo(calls);
+    }
+
+    @Test
+    void memberSelectionUsesCurrentValidLinksAndKeepsUnlinkedArchivedAndOrderingBoundaries() throws Exception {
+        Fixture f = fixture();
+        String memberPath = "/api/decks/" + f.memberDeck();
+        UUID alpha = id(expect(f.member(), "POST", "/api/decks", deckBody("Alpha", "Krenko", List.of("R")), 201));
+        UUID zulu = id(expect(f.member(), "POST", "/api/decks", deckBody("Zulu", "Krenko", List.of("R")), 201));
+        UUID archived = id(expect(f.member(), "POST", "/api/decks", deckBody("Hidden", "Krenko", List.of("R")), 201));
+        expect(f.member(), "PUT", memberPath, linkBody("Deck", LINK + "/"), 200);
+        expect(f.member(), "PUT", "/api/decks/" + zulu, linkBody("Zulu", OTHER_LINK), 200);
+        expect(f.member(), "PUT", "/api/decks/" + archived, linkBody("Hidden", LINK), 200);
+        expect(f.member(), "POST", "/api/decks/" + archived + "/archive", "", 200);
+        expect(f.owner(), "POST", f.path(), body(f), 201);
+
+        int calls = provider.calls.get();
+        provider.offline = true;
+        JsonNode selected = expect(f.creator(), "GET", f.selection(f.member().id()), "", 200);
+        assertThat(selected).hasSize(3);
+        assertThat(List.of(id(selected.get(0)), id(selected.get(1)), id(selected.get(2))))
+                .containsExactly(alpha, f.memberDeck(), zulu);
+        assertThat(selected.get(0).has("manaBoxUrl")).isFalse();
+        assertThat(selected.get(1).get("manaBoxUrl").asText()).isEqualTo(LINK);
+        assertThat(selected.get(2).get("manaBoxUrl").asText()).isEqualTo(OTHER_LINK);
+        assertThat(selected.get(1).get("commanders")).isEqualTo(ownedDeck(f.member(), f.memberDeck()).get("commanders"));
+        assertThat(selected.get(1).get("colorIdentity")).isEqualTo(json.readTree("[\"R\"]"));
+        assertThat(selected.toString()).doesNotContain(archived.toString(), "everUsed", "archived");
+        assertThat(expect(f.member(), "GET", f.selection(f.member().id()), "", 200)).isEqualTo(selected);
+
+        expect(f.member(), "PUT", memberPath, linkBody("Deck", OTHER_LINK), 200);
+        assertThat(expect(f.creator(), "GET", f.selection(f.member().id()), "", 200).get(1).get("manaBoxUrl").asText())
+                .isEqualTo(OTHER_LINK);
+        expect(f.member(), "PUT", memberPath, linkBody("Deck", null), 200);
+        assertThat(expect(f.creator(), "GET", f.selection(f.member().id()), "", 200).get(1).has("manaBoxUrl"))
+                .isFalse();
+
+        jdbc.update("UPDATE decks SET mana_box_url = ? WHERE id = ?", "https://manabox.app.evil.example/decks/a", zulu);
+        assertThat(expect(f.creator(), "GET", f.selection(f.member().id()), "", 200).get(2).has("manaBoxUrl"))
+                .isFalse();
+        jdbc.update("UPDATE decks SET mana_box_url = ? WHERE id = ?", OTHER_LINK + "/", zulu);
+        assertThat(expect(f.creator(), "GET", f.selection(f.member().id()), "", 200).get(2).has("manaBoxUrl"))
+                .isFalse();
+        assertThat(provider.calls.get()).isEqualTo(calls);
+    }
+
+    @Test
+    void memberSelectionLinksRequireCurrentSameGroupMembershipIncludingQuickProfiles() throws Exception {
+        Fixture f = fixture();
+        expect(f.creator(), "PUT", "/api/decks/" + f.creatorDeck(), linkBody("Deck", LINK), 200);
+        String profiles = "/api/groups/" + f.groupId() + "/quick-profiles";
+        UUID profile = UUID.fromString(expect(f.member(), "POST", profiles, "", 201).get("userId").asText());
+        String profileDecks = profiles + "/" + profile + "/decks";
+        ObjectNode payload = (ObjectNode) json.readTree(deckBody("Quick deck", "Krenko", List.of("R")));
+        payload.put("manaBoxUrl", OTHER_LINK + "/");
+        UUID quickDeck = id(expect(f.member(), "POST", profileDecks, payload.toString(), 201));
+        assertThat(expect(f.owner(), "GET", f.selection(profile), "", 200).get(0).get("manaBoxUrl").asText())
+                .isEqualTo(OTHER_LINK);
+        assertThat(id(expect(f.creator(), "GET", f.selection(profile), "", 200).get(0))).isEqualTo(quickDeck);
+        assertThat(expect(f.creator(), "GET", f.selection(f.creator().id()), "", 200).get(0).get("manaBoxUrl").asText())
+                .isEqualTo(LINK);
+        expect(null, "GET", f.selection(profile), "", 401);
+        assertThat(send(null, "GET", f.selection(profile), "").body()).doesNotContain(OTHER_LINK);
+        assertThat(expect(f.outsider(), "GET", f.selection(profile), "", 403).toString()).doesNotContain(OTHER_LINK);
+        UUID otherGroup = id(expect(f.outsider(), "POST", "/api/groups", "{\"name\":\"Other\"}", 201));
+        assertThat(expect(f.outsider(), "GET", "/api/groups/" + otherGroup + "/members/" + profile + "/decks", "", 404)
+                .toString()).doesNotContain(OTHER_LINK);
+        expect(f.creator(), "DELETE", "/api/groups/" + f.groupId() + "/membership", "", 204);
+        assertThat(expect(f.creator(), "GET", f.selection(profile), "", 403).toString()).doesNotContain(OTHER_LINK);
+        assertThat(expect(f.owner(), "GET", f.selection(f.creator().id()), "", 404).toString()).doesNotContain(LINK);
+        expect(f.owner(), "DELETE", profiles + "/" + profile, "", 204);
+        assertThat(expect(f.member(), "GET", f.selection(profile), "", 404).toString()).doesNotContain(OTHER_LINK);
+    }
+
+    @Test
+    void memberSelectionHoldsGroupLockUntilItsAuthorizedResponseIsCommitted() throws Exception {
+        Fixture f = fixture();
+        expect(f.creator(), "PUT", "/api/decks/" + f.creatorDeck(), linkBody("Deck", LINK), 200);
+        CountDownLatch readComplete = new CountDownLatch(1);
+        CountDownLatch releaseRead = new CountDownLatch(1);
+        CountDownLatch leaveStarted = new CountDownLatch(1);
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<List<DeckSelectionSummary>> read =
+                    executor.submit(() -> transactions.execute(status -> {
+                        List<DeckSelectionSummary> result = gameService.eligibleDecks(f.owner().id(), f.groupId(),
+                                f.creator().id());
+                        readComplete.countDown();
+                        try {
+                            if (!releaseRead.await(10, TimeUnit.SECONDS)) {
+                                throw new AssertionError("Timed out waiting to finish authorized read");
+                            }
+                        } catch (InterruptedException exception) {
+                            Thread.currentThread().interrupt();
+                            throw new AssertionError(exception);
+                        }
+                        return result;
+                    }));
+            assertThat(readComplete.await(10, TimeUnit.SECONDS)).isTrue();
+            Future<?> leave = executor.submit(() -> {
+                leaveStarted.countDown();
+                groupService.leave(f.creator().id(), f.groupId());
+            });
+            assertThat(leaveStarted.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThatThrownBy(() -> leave.get(250, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+            releaseRead.countDown();
+            assertThat(read.get(10, TimeUnit.SECONDS).get(0).manaBoxUrl()).isEqualTo(LINK);
+            leave.get(10, TimeUnit.SECONDS);
+        } finally {
+            releaseRead.countDown();
+        }
+        assertThat(expect(f.owner(), "GET", f.selection(f.creator().id()), "", 404).toString())
+                .doesNotContain(LINK);
     }
 
     private String linkBody(String name, String link) {

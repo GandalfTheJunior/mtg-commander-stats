@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckFormat;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CommanderSummary;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CompanionSummary;
@@ -139,7 +140,8 @@ public class ManageGames {
             throw new GameNotFoundException();
         }
         return decks.eligible(targetUserId).stream()
-                .map(deck -> new DeckSelectionSummary(deck.id(), deck.name(), deck.commanders(), deck.colorIdentity(), deck.companion(), deck.format()))
+                .map(deck -> new DeckSelectionSummary(deck.id(), deck.name(), deck.commanders(), deck.colorIdentity(),
+                        deck.companion(), deck.format(), deck.manaBoxUrl()))
                 .toList();
     }
 
@@ -211,6 +213,7 @@ public class ManageGames {
             int startPosition, Integer placement, Boolean stillInGame) {
     }
 
-    public record DeckSelectionSummary(UUID id, String name, List<CommanderSummary> commanders, List<String> colorIdentity, CompanionSummary companion, DeckFormat format) {
+    public record DeckSelectionSummary(UUID id, String name, List<CommanderSummary> commanders, List<String> colorIdentity,
+            CompanionSummary companion, DeckFormat format, @JsonInclude(JsonInclude.Include.NON_NULL) String manaBoxUrl) {
     }
 }

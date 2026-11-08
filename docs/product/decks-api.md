@@ -312,10 +312,13 @@ statistics. Omitting Commanders needs no Scryfall access. All deck changes are
 atomic; validation or provider failures leave the existing link and deck intact.
 The same owner, session and CSRF checks apply. No public deck endpoint is added.
 
-Other players receive a link only through the authorized
-[game detail GET](games-api.md#manabox-links-in-game-details), and only while the
-deck owner is currently an active member of that group. Game lists, game write
-responses, selection and statistics do not expose it. The owner editor supports
+Other players receive a link through the authorized
+[game detail or member-deck GET](games-api.md#manabox-links-in-authorized-reads),
+and only while both requester and deck owner are currently active members of the
+same group. The member-deck GET includes only unarchived decks and omits absent,
+invalid or non-normalized links. Game lists, game write responses and statistics
+do not expose links; the match editor may consume the member-deck response but
+does not show a link action. The owner editor supports
 the optional link on unused, used and archived decks, with explicit clearing,
 dirty-state guards and authoritative reconciliation after uncertain writes.
 Meine Decks exposes an independent safe external action; Dashboard does not.
