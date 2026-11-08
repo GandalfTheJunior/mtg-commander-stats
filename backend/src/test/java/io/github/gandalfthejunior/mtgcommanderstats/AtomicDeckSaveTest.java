@@ -1,8 +1,10 @@
 package io.github.gandalfthejunior.mtgcommanderstats;
 
 import java.net.http.HttpResponse;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -21,9 +23,12 @@ import tools.jackson.databind.node.ObjectNode;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class AtomicDeckSaveTest extends GameTestSupport {
+    private final Set<UUID> storedPrintings = new HashSet<>();
+
     @AfterEach
     void resetProviderFailure() {
         provider.failAndGoOfflineAt = null;
+        storedPrintings.forEach(CommanderTestProvider::remove);
     }
 
     @Test
@@ -362,6 +367,7 @@ class AtomicDeckSaveTest extends GameTestSupport {
     private UUID store(ObjectNode card) {
         UUID id = UUID.fromString(card.path("id").asText());
         CommanderTestProvider.put(id, card.toString());
+        storedPrintings.add(id);
         return id;
     }
 }
