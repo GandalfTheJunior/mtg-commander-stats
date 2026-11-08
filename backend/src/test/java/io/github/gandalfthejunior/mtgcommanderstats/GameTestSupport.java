@@ -85,6 +85,7 @@ abstract class GameTestSupport {
         decks.deleteAll();
         groups.deleteAll();
         users.deleteAll();
+        CommanderTestProvider.clear();
     }
 
     protected Fixture fixture() throws Exception {
