@@ -74,11 +74,13 @@ public class CommanderTokenRetries {
                 return null;
             }
             Job job = jobs.getFirst();
-            jdbc.update("""
+            int claimed = jdbc.update("""
                     UPDATE deck_commanders SET token_claim = ?, token_due_at = CURRENT_TIMESTAMP + INTERVAL '2 minutes'
-                    WHERE deck_id = ? AND position = ?
-                    """, job.claim(), job.deck(), job.position());
-            return job;
+                    WHERE deck_id = ? AND position = ? AND scryfall_card_id = ? AND token_generation = ?
+                        AND related_tokens IS NULL AND token_due_at <= CURRENT_TIMESTAMP
+                    """, job.claim(), job.deck(), job.position(), job.printing(), job.generation());
+            // Recheck with a new statement snapshot: the deck lock alone does not refresh c's earlier snapshot.
+            return claimed == 1 ? job : null;
         });
     }
 
