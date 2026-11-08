@@ -19,7 +19,9 @@ when requested and technically possible, within the root authority constraints.
 
 Resolve the referenced issue and its discussion first. Discover relevant product
 rules, architecture/ADRs, code, and tests using the [registry](../README.md#progressive-context-discovery).
-Inspect readiness labels without treating them as approval.
+Inspect readiness labels without treating them as approval. When the issue
+changes a frontend view, its visual presentation or an interaction flow, also
+follow the [frontend refinement guide](../frontend-refinement.md).
 
 ## Workflow
 

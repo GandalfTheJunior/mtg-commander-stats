@@ -249,3 +249,21 @@ Separately inspect repository labels remotely: `Pea`, `Potato` and `Pumpkin`
 descriptions summarize the complexity meaning from the central definitions and
 mention no model, plan or usage allowance. Label metadata is not a Git diff or
 proof of harness behavior.
+
+## Frontend issue refinement
+
+Run each case in a fresh conversation that is asked only to refine an issue,
+for example `Refine issue #N`, without naming a mode. Use disposable issues in
+a test repository and inspect the persisted issue, repository files and
+conversation rather than the agent's claims. Evaluate against the
+[frontend refinement guide](frontend-refinement.md).
+
+| Case and input | Observable outcome |
+| --- | --- |
+| **Functional:** an unresolved issue for a complex new editor view. | The agent selects Functional mode with an evidence-based reason, without asking the PO to choose. It resolves one open decision at a time (independent closed questions may be batched), presents wireframes individually including relevant non-happy-path states, and does not mark the issue READY before the required approvals and storage exist. |
+| **Visual migration:** replacing a production component with a named Playground variant while behavior stays the same. | The agent selects Visual migration mode. Baseline and target are referenced by file path, component/variant name and commit SHA. It asks which properties migrate, requires no wireframes, preserves existing behavior unless the PO decides otherwise, and approves no unrelated Playground work. |
+| **Small change:** a fully specified, unambiguous change to one control. | No wireframes and no approval ritual; the agent briefly confirms the behavior, affected states and acceptance criteria. |
+| **Artifact negative:** a wireframe exists only in the agent's workspace, or its delivery fails. | The agent does not claim that the PO received or approved it, or that it is persistently stored. The issue stays DRAFT and no implementation starts. |
+
+Pass if every case matches, the PO makes every product and visual decision,
+and refinement of non-frontend issues is unchanged.
