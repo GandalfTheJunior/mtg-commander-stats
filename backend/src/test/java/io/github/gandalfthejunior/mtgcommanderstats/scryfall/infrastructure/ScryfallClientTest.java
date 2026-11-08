@@ -8,10 +8,10 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandler;
 import java.net.http.HttpResponse.BodySubscriber;
 import java.net.http.HttpResponse.PushPromiseHandler;
+import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -20,19 +20,21 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Flow;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSession;
-import java.util.concurrent.atomic.AtomicLong;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -135,6 +137,56 @@ class ScryfallClientTest {
         http.pending = pending;
         assertFailure(() -> client.card(CARD_ID), UNAVAILABLE);
         assertThat(pending.isCancelled()).isTrue();
+    }
+
+    @Test
+    void inlineDeadlineShortensTheFiveSecondResponseTimeoutAndCancelsTheRequest() {
+        client = new ScryfallClient(http, JsonMapper.builder().build(), new ScryfallRequestGate(), Duration.ofSeconds(5));
+        CompletableFuture<HttpResponse<byte[]>> pending = new CompletableFuture<>();
+        http.pending = pending;
+        long start = System.nanoTime();
+        assertFailure(() -> client.cardBefore(CARD_ID, start + Duration.ofMillis(300).toNanos()), UNAVAILABLE);
+        assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofSeconds(2));
+        assertThat(pending.isCancelled()).isTrue();
+        assertThat(http.requests).hasSize(1);
+        assertThat(http.requests.getFirst().timeout().orElseThrow()).isLessThanOrEqualTo(Duration.ofMillis(300));
+    }
+
+    @Test
+    void expiredInlineBudgetMakesNoProviderRequest() {
+        assertFailure(() -> client.cardBefore(CARD_ID, System.nanoTime() - 1), UNAVAILABLE);
+        assertThat(http.requests).isEmpty();
+    }
+
+    @Test
+    void inlineBudgetIncludesContentionForTheGlobalProviderGate() throws Exception {
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        nanos.set(System.nanoTime());
+        ScryfallRequestGate gate = new ScryfallRequestGate(clock, nanos::get, duration -> {
+            entered.countDown();
+            release.await();
+        });
+        gate.awaitRequest();
+        CompletableFuture<Void> other = CompletableFuture.runAsync(() -> {
+            try {
+                gate.awaitRequest();
+            } catch (InterruptedException exception) {
+                throw new CompletionException(exception);
+            }
+        });
+        try {
+            assertThat(entered.await(2, TimeUnit.SECONDS)).isTrue();
+            client = new ScryfallClient(http, JsonMapper.builder().build(), gate, Duration.ofSeconds(5));
+            long start = System.nanoTime();
+            nanos.set(start);
+            assertFailure(() -> client.cardBefore(CARD_ID, start + Duration.ofMillis(100).toNanos()), UNAVAILABLE);
+            assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofMillis(750));
+            assertThat(http.requests).isEmpty();
+        } finally {
+            release.countDown();
+            other.get(2, TimeUnit.SECONDS);
+        }
     }
 
     @Test

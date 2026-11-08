@@ -46,6 +46,11 @@ public final class PinnedScryfallClient extends ScryfallClient {
     }
 
     @Override
+    public JsonNode cardBefore(UUID id, long deadlineNanos) {
+        return card(id);
+    }
+
+    @Override
     public JsonNode search(String query) {
         requests.incrementAndGet();
         // The selected reversible printing requires authoritative ordinary Oracle

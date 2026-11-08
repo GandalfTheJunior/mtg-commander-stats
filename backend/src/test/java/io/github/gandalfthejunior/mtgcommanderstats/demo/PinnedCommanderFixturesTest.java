@@ -1,5 +1,6 @@
 package io.github.gandalfthejunior.mtgcommanderstats.demo;
 
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.application.RelatedTokenLookup;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PinnedCommanderFixturesTest {
     private final PinnedScryfallClient client = new PinnedScryfallClient();
     private final ScryfallNormalizer normalizer = new ScryfallNormalizer();
-    private final ScryfallLookup lookup = new ScryfallLookup(client, normalizer);
+    private final ScryfallLookup lookup = new ScryfallLookup(client, normalizer, new RelatedTokenLookup(client));
 
     @ParameterizedTest
     @ValueSource(strings = {"c78c2713-39e7-4a6e-a132-027099a89665", "25564fba-5765-457b-8dd3-f26b877221b8", "9a1ee042-6713-4e9e-9901-9b94d99d33f1"})

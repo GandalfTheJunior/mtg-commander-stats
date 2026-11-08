@@ -39,6 +39,19 @@ class ScryfallRequestGateTest {
         assertThatThrownBy(gate::awaitRequest).isInstanceOf(ScryfallClientException.class);
     }
 
+    @Test
+    void optionalDeadlineDoesNotWaitPastItsBudgetOrBypassGlobalSpacing() throws Exception {
+        AtomicLong nanos = new AtomicLong();
+        ScryfallRequestGate gate = new ScryfallRequestGate(Clock.fixed(NOW, ZoneOffset.UTC), nanos::get,
+                duration -> nanos.addAndGet(duration.toNanos()));
+        gate.awaitRequest();
+        assertThatThrownBy(() -> gate.awaitRequestBefore(Duration.ofMillis(50).toNanos()))
+                .isInstanceOf(ScryfallClientException.class);
+        assertThat(nanos.get()).isZero();
+        gate.awaitRequest();
+        assertThat(nanos.get()).isEqualTo(Duration.ofMillis(150).toNanos());
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"9223372036854775807", "999999999999999999999999999999999999"})
     void overflowingNumericRetryAfterDoesNotBecomeAShortCooldown(String retryAfter) {

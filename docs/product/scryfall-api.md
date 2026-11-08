@@ -344,7 +344,8 @@ lookups. A previous search/reference remains structurally usable, but does not
 waive the online availability check. Cached derived/Oracle metadata may be
 reused only after the fresh printing request succeeds.
 
-Both methods return `ResolvedCommander(card, gameplay)`, keeping printing
+Both methods return `ResolvedCommander` with card, gameplay, optional token data
+and a token retry-not-before timestamp, keeping printing
 `CardDetails` and the selected `GameplayCard` separate. Subsequent persistence
 uses `gameplay.defaultArtwork` for the initial selected-gameplay snapshot,
 alongside its stable gameplay identity and rules metadata, rather than an
@@ -358,7 +359,8 @@ causes a controlled unavailable response and a `Retry-After` cooldown without
 automatic retry loops. Pagination URLs are restricted to the fixed provider
 search route. Safe image URLs use HTTPS on `scryfall.io` or its subdomains;
 source links use HTTPS on `scryfall.com`. Missing or unsafe metadata is nullable.
-There is no Redis, synchronization task, bulk download, or local card database.
+There is no Redis, bulk download, or local card database. Targeted durable token
+retries are described below.
 
 Lookup caches expire after five minutes and hold at most 128 searches, 256 card
 details, 128 artwork collections, 256 supplementary Oracle metadata entries,
@@ -371,3 +373,40 @@ Reference guidance: [Scryfall API](https://scryfall.com/docs/api),
 [access and rate limits](https://scryfall.com/docs/faqs/i-m-having-trouble-accessing-the-scryfall-api-or-i-m-blocked-17),
 and [image usage](https://scryfall.com/docs/api/images). Automated tests stub the
 provider and do not require live Scryfall access.
+
+## Saved Commander token enrichment
+
+Deck writes complete required Companion validation and every selected Commander
+identity lookup before starting token enrichment, so an optional token 429 cannot
+block a later mandatory lookup within that otherwise valid save.
+After mandatory fresh Commander validation succeeds, selection and Commander
+artwork writes resolve only `all_parts` entries with `component: "token"`.
+They fetch exactly the linked printing IDs via the fixed `/cards/{id}` route,
+never arbitrary supplied URIs, alternate printings, Oracle text inference or
+full-deck searches. Repeated IDs are deduplicated in first-seen order. Normal
+images and physical card faces reuse the saved face normalization and safe URL
+rules. Missing images are honest nullable fallbacks, not alternate artwork.
+
+Additional token detail failures do not reject a valid save: the complete token
+snapshot remains unknown and is retried by the durable PostgreSQL worker under
+[the saved-deck contract](decks-api.md#linked-commander-token-snapshots). Required
+Commander validation failures still return 503. Only the fully resolved list is
+published; no partial list or arbitrary token-count cutoff is presented as
+complete. Sequential requests reuse the global request gate, 2 MiB response bound
+and 429 Retry-After cooldown. Normalized snapshots also have a 2 MiB aggregate
+payload bound; exceeding it keeps the entire snapshot pending without truncation.
+
+Inline selection/artwork enrichment shares a one-second monotonic budget across
+all Commanders in one write, after required validation. Gate contention and
+spacing consume the same deadline; each HTTP request timeout and response wait
+is capped by the remaining budget as well as the standard five-second timeout.
+Expired/incomplete enrichment stays pending for the worker. Mandatory validation
+keeps its existing timeout/error contract. Format revalidation skips optional
+token detail requests for unchanged saved selections whose snapshots are kept.
+
+The independent worker retains a 30-second work budget checked before starting
+another request and the standard five-second per-response timeout. Only worker
+provider requests run outside deck locks; the short inline pass remains under
+the write path's existing deck/group serialization. Exceptional unresolved lists
+remain pending for later recovery. Ordinary saved-deck/game/statistics reads
+never contact Scryfall.

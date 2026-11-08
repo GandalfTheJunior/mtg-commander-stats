@@ -15,14 +15,15 @@ import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckFormat;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.Artwork;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CardDetails;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderChoice;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderSelectionRef;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CompanionChoice;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CompanionRules;
-import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidCompanionSelectionException;
-import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderSelectionRef;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.GameplayCard;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidCompanionSelectionException;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.InvalidScryfallSelectionException;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.MalformedScryfallResponseException;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.PairingCapabilities;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.RelatedToken;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.ScryfallNormalizer;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClient;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClientException;
@@ -31,6 +32,7 @@ import tools.jackson.databind.JsonNode;
 
 @Service
 public class ScryfallLookup {
+    static final Duration INLINE_TOKEN_BUDGET = Duration.ofSeconds(1);
     private static final Duration CACHE_TTL = Duration.ofMinutes(5);
     private static final int MAX_PAGES = 3;
     private static final int MAX_PAGE_CARDS = 175;
@@ -40,6 +42,7 @@ public class ScryfallLookup {
     private static final int MAX_ORACLE_BATCH = 8;
     private final ScryfallClient client;
     private final ScryfallNormalizer normalizer;
+    private final RelatedTokenLookup relatedTokens;
     private final BoundedCache<String, List<CommanderChoice>> searches =
             new BoundedCache<>(128, CACHE_TTL, System::nanoTime);
     private final BoundedCache<String, List<CommanderChoice>> partnerSearches =
@@ -55,9 +58,10 @@ public class ScryfallLookup {
     private final BoundedCache<String, Boolean> pauperEligibility =
             new BoundedCache<>(256, CACHE_TTL, System::nanoTime);
 
-    public ScryfallLookup(ScryfallClient client, ScryfallNormalizer normalizer) {
+    public ScryfallLookup(ScryfallClient client, ScryfallNormalizer normalizer, RelatedTokenLookup relatedTokens) {
         this.client = client;
         this.normalizer = normalizer;
+        this.relatedTokens = relatedTokens;
     }
 
     public List<CommanderChoice> searchCommanders(String input) {
@@ -259,6 +263,30 @@ public class ScryfallLookup {
     }
 
     public ResolvedCommander resolveCommanderOnline(CommanderSelectionRef reference, DeckFormat format) {
+        ValidatedCommander validated = validateCommanderOnline(reference, format);
+        return enrichCommander(validated, System.nanoTime() + INLINE_TOKEN_BUDGET.toNanos());
+    }
+
+    /** Complete every required identity lookup before optional enrichment can set a provider cooldown. */
+    public List<ResolvedCommander> resolveCommandersOnline(List<CommanderSelectionRef> references, DeckFormat format) {
+        return resolveCommandersOnline(references, format, Set.of());
+    }
+
+    public List<ResolvedCommander> resolveCommandersOnline(List<CommanderSelectionRef> references, DeckFormat format,
+            Set<CommanderSelectionRef> preservedSnapshots) {
+        List<ValidatedCommander> validated = references.stream()
+                .map(reference -> validateCommanderOnline(reference, format)).toList();
+        long deadline = System.nanoTime() + INLINE_TOKEN_BUDGET.toNanos();
+        return validated.stream().map(card -> preservedSnapshots.contains(
+                new CommanderSelectionRef(card.card().scryfallCardId(), card.gameplay().gameplayFaceIndex()))
+                        ? new ResolvedCommander(card.card(), card.gameplay()) : enrichCommander(card, deadline)).toList();
+    }
+
+    private ResolvedCommander enrichCommander(ValidatedCommander validated, long deadline) {
+        return new ResolvedCommander(validated.card(), validated.gameplay(), optionalTokens(validated.raw(), deadline), client.cooldownUntil());
+    }
+
+    private ValidatedCommander validateCommanderOnline(CommanderSelectionRef reference, DeckFormat format) {
         validateReference(reference);
         JsonNode raw = client.card(reference.scryfallCardId());
         CardDetails card = normalizer.normalize(raw, reversibleMetadata(List.of(raw)), format);
@@ -269,7 +297,15 @@ public class ScryfallLookup {
         if (format == DeckFormat.PAUPER_COMMANDER && !pauperEligible(gameplay.oracleId())) {
             throw new InvalidScryfallSelectionException();
         }
-        return new ResolvedCommander(card, gameplay);
+        return new ValidatedCommander(card, gameplay, raw);
+    }
+
+    private List<RelatedToken> optionalTokens(JsonNode raw, long deadline) {
+        try {
+            return relatedTokens.resolveInline(raw, deadline);
+        } catch (ScryfallClientException | MalformedScryfallResponseException exception) {
+            return null;
+        }
     }
 
     private static String formatFilter(DeckFormat format) {
@@ -336,6 +372,11 @@ public class ScryfallLookup {
     /** Validate a new printing against the persisted gameplay identity, independently of display side. */
     public ResolvedArtwork resolveArtworkOnline(UUID printingId, String oracleId, Integer previousGameplayFace,
             Integer artworkFaceIndex) {
+        return resolveArtworkOnline(printingId, oracleId, previousGameplayFace, artworkFaceIndex, false);
+    }
+
+    public ResolvedArtwork resolveArtworkOnline(UUID printingId, String oracleId, Integer previousGameplayFace,
+            Integer artworkFaceIndex, boolean commanderTokens) {
         requireId(printingId);
         FetchedCard fetched = fetchCard(printingId);
         List<GameplayCard> matches = fetched.details().gameplayCards().stream()
@@ -351,7 +392,9 @@ public class ScryfallLookup {
             throw new InvalidScryfallSelectionException();
         }
         return new ResolvedArtwork(new CommanderSelectionRef(printingId, gameplay.gameplayFaceIndex()), selected,
-                fetched.details().cardFaces());
+                fetched.details().cardFaces(), commanderTokens
+                        ? optionalTokens(fetched.raw(), System.nanoTime() + INLINE_TOKEN_BUDGET.toNanos()) : null,
+                client.cooldownUntil());
     }
 
     public List<Artwork> artworks(UUID id, Integer gameplayFaceIndex) {
@@ -584,6 +627,8 @@ public class ScryfallLookup {
         }
         return literal.toString();
     }
+
+    private record ValidatedCommander(CardDetails card, GameplayCard gameplay, JsonNode raw) { }
 
     private record FetchedCard(JsonNode raw, CardDetails details, List<Artwork> artworks) {
     }

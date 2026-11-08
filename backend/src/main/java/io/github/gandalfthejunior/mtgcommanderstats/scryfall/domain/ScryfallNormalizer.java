@@ -87,7 +87,7 @@ public class ScryfallNormalizer {
                 artwork.scryfallUri(), artwork, choices, gameplayCards, cardFaces(card));
     }
 
-    private static List<CardFace> cardFaces(JsonNode card) {
+    public static List<CardFace> cardFaces(JsonNode card) {
         String sharedImage = safeImage(text(card.path("image_uris"), "normal"));
         JsonNode faces = card.path("card_faces");
         if (!faces.isArray() || faces.isEmpty()) {

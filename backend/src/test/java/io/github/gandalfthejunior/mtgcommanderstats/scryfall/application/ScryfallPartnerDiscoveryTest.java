@@ -32,7 +32,7 @@ class ScryfallPartnerDiscoveryTest {
     private final JsonMapper json = JsonMapper.builder().build();
     private final ScryfallNormalizer normalizer = new ScryfallNormalizer();
     private final ScryfallClient client = mock(ScryfallClient.class);
-    private final ScryfallLookup lookup = new ScryfallLookup(client, normalizer);
+    private final ScryfallLookup lookup = new ScryfallLookup(client, normalizer, new RelatedTokenLookup(client));
 
     @ParameterizedTest
     @ValueSource(strings = {"Survivors", "Friends forever", "New label"})

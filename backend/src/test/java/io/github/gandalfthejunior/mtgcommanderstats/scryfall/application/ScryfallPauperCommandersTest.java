@@ -32,7 +32,7 @@ class ScryfallPauperCommandersTest {
     private static final DeckFormat PDH = DeckFormat.PAUPER_COMMANDER;
     private final JsonMapper json = JsonMapper.builder().build();
     private final ScryfallClient client = mock(ScryfallClient.class);
-    private final ScryfallLookup lookup = new ScryfallLookup(client, new ScryfallNormalizer());
+    private final ScryfallLookup lookup = new ScryfallLookup(client, new ScryfallNormalizer(), new RelatedTokenLookup(client));
 
     @ParameterizedTest
     @ValueSource(strings = {"Creature — Human", "Artifact — Vehicle", "Artifact — Spacecraft"})
@@ -242,7 +242,7 @@ class ScryfallPauperCommandersTest {
         verify(client).search("(oracleid:" + eligible.path("oracle_id").asText() + " or oracleid:"
                 + ineligible.path("oracle_id").asText() + ") is:PauperCommander -layout:reversible_card");
         eligible.remove("color_identity");
-        ScryfallLookup fresh = new ScryfallLookup(client, new ScryfallNormalizer());
+        ScryfallLookup fresh = new ScryfallLookup(client, new ScryfallNormalizer(), new RelatedTokenLookup(client));
         assertThatThrownBy(() -> fresh.resolveCommanderOnline(new CommanderSelectionRef(id, 0), PDH))
                 .isInstanceOf(MalformedScryfallResponseException.class);
     }

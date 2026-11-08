@@ -33,7 +33,12 @@ the [full-card display contract](decks-api.md#full-card-display-snapshots).
 These fields are read from the saved deck without provider requests, including
 in statistics responses. Reusing the shared summary deliberately adds the face
 text and URLs to this payload; statistics does not preload or open full cards.
-Legacy snapshots return null.
+Legacy snapshots return null. Commander summaries also include nullable
+`relatedTokens` under the [linked token contract](decks-api.md#linked-commander-token-snapshots):
+null for legacy/unknown/pending enrichment, [] for successfully resolved printings
+without explicit token links, or a complete ordered snapshot. Statistics reads
+use only saved data, including later retry recovery; they never resolve provider
+metadata or infer token production from physical reverse faces.
 Counts are integers. Percentages are JSON numbers for measured rates, including
 numeric `0` for observations without wins. **No observations** always means
 `games: 0`, `wins: 0`, `winRatePercent: null`.

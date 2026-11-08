@@ -57,8 +57,17 @@ public class ScryfallClient {
         this.requestTimeout = requestTimeout;
     }
 
+    public java.time.Instant cooldownUntil() {
+        return gate.cooldownUntil();
+    }
+
     public JsonNode card(UUID cardId) {
         return get(URI.create("https://" + API_HOST + "/cards/" + cardId));
+    }
+
+    /** Absolute monotonic deadline shared by all optional lookups in one write. */
+    public JsonNode cardBefore(UUID cardId, long deadlineNanos) {
+        return get(URI.create("https://" + API_HOST + "/cards/" + cardId), deadlineNanos);
     }
 
     public JsonNode search(String query) {
@@ -93,13 +102,19 @@ public class ScryfallClient {
     }
 
     private JsonNode get(URI uri) {
+        return get(uri, null);
+    }
+
+    private JsonNode get(URI uri, Long deadlineNanos) {
         CompletableFuture<HttpResponse<byte[]>> pending = null;
         try {
-            gate.awaitRequest();
-            HttpRequest request = HttpRequest.newBuilder(uri).timeout(requestTimeout)
+            gate.awaitRequestBefore(deadlineNanos);
+            Duration timeout = deadlineNanos == null ? requestTimeout : remaining(deadlineNanos);
+            HttpRequest request = HttpRequest.newBuilder(uri).timeout(timeout)
                     .header("User-Agent", USER_AGENT).header("Accept", MediaType.APPLICATION_JSON_VALUE).GET().build();
             pending = http.sendAsync(request, boundedBody());
-            HttpResponse<byte[]> response = pending.get(requestTimeout.toMillis(), TimeUnit.MILLISECONDS);
+            Duration responseWait = deadlineNanos == null ? requestTimeout : remaining(deadlineNanos);
+            HttpResponse<byte[]> response = pending.get(responseWait.toNanos(), TimeUnit.NANOSECONDS);
             if (response.statusCode() == HttpStatus.TOO_MANY_REQUESTS.value()) {
                 gate.rateLimited(response.headers().firstValue("Retry-After").orElse(null));
                 throw new ScryfallClientException(UNAVAILABLE);
@@ -126,6 +141,14 @@ public class ScryfallClient {
                 pending.cancel(true);
             }
         }
+    }
+
+    private Duration remaining(long deadlineNanos) {
+        long nanos = Math.min(requestTimeout.toNanos(), deadlineNanos - System.nanoTime());
+        if (nanos <= 0) {
+            throw new ScryfallClientException(UNAVAILABLE);
+        }
+        return Duration.ofNanos(nanos);
     }
 
     static BodyHandler<byte[]> boundedBody() {

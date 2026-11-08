@@ -34,11 +34,16 @@ public class ManageDecks {
     }
 
     private List<DeckCommander> resolve(List<CommanderInput> inputs, DeckFormat format) {
+        return resolve(inputs, format, List.of());
+    }
+
+    private List<DeckCommander> resolve(List<CommanderInput> inputs, DeckFormat format, List<DeckCommander> previous) {
         if (inputs == null || inputs.isEmpty() || inputs.size() > 2 || inputs.stream().anyMatch(Objects::isNull)) {
             throw new InvalidCommanderException();
         }
-        List<ResolvedCommander> resolved = inputs.stream()
-                .map(input -> scryfall.resolveCommanderOnline(input.selectionRef(), format)).toList();
+        List<ResolvedCommander> resolved = scryfall.resolveCommandersOnline(
+                inputs.stream().map(CommanderInput::selectionRef).toList(), format,
+                previous.stream().map(DeckCommander::selectionRef).collect(java.util.stream.Collectors.toSet()));
         if (resolved.size() == 1 ? !resolved.getFirst().gameplay().canBeSoleCommander()
                 : !PairingCapabilities.compatible(resolved.get(0).gameplay(), resolved.get(1).gameplay())) {
             throw new InvalidCommanderException();
@@ -79,12 +84,12 @@ public class ManageDecks {
         }
         String normalizedUrl = manaBoxUrl == null ? null : new ManaBoxUrl(manaBoxUrl).value();
         String canonicalName = new DeckName(name).value();
+        // Required Companion validation must also precede optional token requests.
+        DeckCompanion resolvedCompanion = companion == null ? null
+                : new DeckCompanion(scryfall.resolveCompanionOnline(companion.selectionRef()));
         Deck deck = new Deck(ownerId, canonicalName, resolve(commanders, format));
-        deck.replaceConfiguration(deck.getCommanders(), null, format);
+        deck.replaceConfiguration(deck.getCommanders(), resolvedCompanion, format);
         deck.changeManaBoxUrl(normalizedUrl);
-        if (companion != null) {
-            deck.replaceConfiguration(deck.getCommanders(), new DeckCompanion(scryfall.resolveCompanionOnline(companion.selectionRef())));
-        }
         return decks.save(deck);
     }
 
@@ -123,6 +128,14 @@ public class ManageDecks {
             commanders = deck.getCommanders().stream()
                     .map(saved -> new CommanderInput(saved.selectionRef(), saved.getChosenColor())).toList();
         }
+        DeckCompanion prospectiveCompanion = deck.getCompanion();
+        if (companionSupplied) {
+            if (companion == null) {
+                prospectiveCompanion = null;
+            } else if (prospectiveCompanion == null || !prospectiveCompanion.selectionRef().equals(companion.selectionRef())) {
+                prospectiveCompanion = new DeckCompanion(scryfall.resolveCompanionOnline(companion.selectionRef()));
+            }
+        }
         List<DeckCommander> prospectiveCommanders = deck.getCommanders();
         if (manaBoxUrlSupplied) {
             deck.changeManaBoxUrl(manaBoxUrl);
@@ -140,15 +153,7 @@ public class ManageDecks {
                         && Objects.equals(saved.getChosenColor(), input.chosenColor());
             }
             if (formatChanged || !unchanged) {
-                prospectiveCommanders = resolve(commanders, target);
-            }
-        }
-        DeckCompanion prospectiveCompanion = deck.getCompanion();
-        if (companionSupplied) {
-            if (companion == null) {
-                prospectiveCompanion = null;
-            } else if (prospectiveCompanion == null || !prospectiveCompanion.selectionRef().equals(companion.selectionRef())) {
-                prospectiveCompanion = new DeckCompanion(scryfall.resolveCompanionOnline(companion.selectionRef()));
+                prospectiveCommanders = resolve(commanders, target, deck.getCommanders());
             }
         }
         deck.replaceConfiguration(prospectiveCommanders, prospectiveCompanion, target);
@@ -162,8 +167,9 @@ public class ManageDecks {
         DeckCommander commander = deck.getCommanders().stream().filter(slot -> slot.getPosition() == position)
                 .findFirst().orElseThrow(DeckNotFoundException::new);
         ResolvedArtwork resolved = scryfall.resolveArtworkOnline(printingId, commander.getOracleId().toString(),
-                commander.getGameplayFaceIndex(), artworkFaceIndex);
+                commander.getGameplayFaceIndex(), artworkFaceIndex, true);
         commander.changeArtwork(resolved.selectionRef(), resolved.artwork(), resolved.cardFaces());
+        commander.replaceRelatedTokens(resolved.relatedTokens(), resolved.tokenRetryNotBefore());
         return deck;
     }
 
