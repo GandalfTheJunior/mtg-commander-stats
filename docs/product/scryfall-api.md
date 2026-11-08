@@ -376,6 +376,9 @@ provider and do not require live Scryfall access.
 
 ## Saved Commander token enrichment
 
+Deck writes complete required Companion validation and every selected Commander
+identity lookup before starting token enrichment, so an optional token 429 cannot
+block a later mandatory lookup within that otherwise valid save.
 After mandatory fresh Commander validation succeeds, selection and Commander
 artwork writes resolve only `all_parts` entries with `component: "token"`.
 They fetch exactly the linked printing IDs via the fixed `/cards/{id}` route,

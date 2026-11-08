@@ -19,6 +19,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /** Pinned offline provider data; production resolution/normalization still runs on every write. */
 class CommanderTestProvider extends ScryfallClient {
+    volatile UUID failAndGoOfflineAt;
     private static final Map<UUID, JsonNode> CARDS = new ConcurrentHashMap<>();
     private static final JsonMapper JSON = JsonMapper.builder().build();
     final AtomicInteger calls = new AtomicInteger();
@@ -44,6 +45,9 @@ class CommanderTestProvider extends ScryfallClient {
     @Override
     public JsonNode card(UUID id) {
         calls.incrementAndGet();
+        if (id.equals(failAndGoOfflineAt)) {
+            offline = true;
+        }
         if (offline) {
             throw new ScryfallClientException(ScryfallClientException.Kind.UNAVAILABLE);
         }

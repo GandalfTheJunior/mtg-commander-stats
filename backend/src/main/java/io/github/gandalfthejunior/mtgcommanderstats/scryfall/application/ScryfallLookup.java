@@ -260,6 +260,21 @@ public class ScryfallLookup {
     }
 
     public ResolvedCommander resolveCommanderOnline(CommanderSelectionRef reference, DeckFormat format) {
+        return enrichCommander(validateCommanderOnline(reference, format));
+    }
+
+    /** Complete every required identity lookup before optional enrichment can set a provider cooldown. */
+    public List<ResolvedCommander> resolveCommandersOnline(List<CommanderSelectionRef> references, DeckFormat format) {
+        List<ValidatedCommander> validated = references.stream()
+                .map(reference -> validateCommanderOnline(reference, format)).toList();
+        return validated.stream().map(this::enrichCommander).toList();
+    }
+
+    private ResolvedCommander enrichCommander(ValidatedCommander validated) {
+        return new ResolvedCommander(validated.card(), validated.gameplay(), optionalTokens(validated.raw()), client.cooldownUntil());
+    }
+
+    private ValidatedCommander validateCommanderOnline(CommanderSelectionRef reference, DeckFormat format) {
         validateReference(reference);
         JsonNode raw = client.card(reference.scryfallCardId());
         CardDetails card = normalizer.normalize(raw, reversibleMetadata(List.of(raw)), format);
@@ -270,7 +285,7 @@ public class ScryfallLookup {
         if (format == DeckFormat.PAUPER_COMMANDER && !pauperEligible(gameplay.oracleId())) {
             throw new InvalidScryfallSelectionException();
         }
-        return new ResolvedCommander(card, gameplay, optionalTokens(raw), client.cooldownUntil());
+        return new ValidatedCommander(card, gameplay, raw);
     }
 
     private List<RelatedToken> optionalTokens(JsonNode raw) {
@@ -598,6 +613,8 @@ public class ScryfallLookup {
         }
         return literal.toString();
     }
+
+    private record ValidatedCommander(CardDetails card, GameplayCard gameplay, JsonNode raw) { }
 
     private record FetchedCard(JsonNode raw, CardDetails details, List<Artwork> artworks) {
     }

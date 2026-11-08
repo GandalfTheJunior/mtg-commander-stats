@@ -193,6 +193,33 @@ class CommanderTokensTest extends GameTestSupport {
         assertThat(new CommanderTokenRetries(jdbc, transactions, tokens, provider).claim()).isNull();
     }
 
+    @Test
+    void tokenFailureCannotBlockLaterRequiredValidationOfPartnerOrCompanion() throws Exception {
+        Actor owner = register("owner", "Owner");
+        ObjectNode token = card("Spirit");
+        ObjectNode first = linked(token).put("oracle_text", "Partner");
+        ObjectNode second = card("Second").put("oracle_text", "Partner");
+        ObjectNode companion = card("Companion").put("oracle_text", "Companion — Test restriction.");
+        companion.withArray("keywords").add("Companion");
+        store(first);
+        store(second);
+        store(companion);
+        provider.failAndGoOfflineAt = UUID.fromString(token.path("id").asText());
+        try {
+            JsonNode saved = expect(owner, "POST", "/api/decks", json.writeValueAsString(Map.of("name", "Pair",
+                    "commanders", List.of(Map.of("selectionRef", Map.of("scryfallCardId", first.path("id").asText())),
+                            Map.of("selectionRef", Map.of("scryfallCardId", second.path("id").asText()))),
+                    "companion", Map.of("selectionRef", Map.of("scryfallCardId", companion.path("id").asText())))), 201);
+            assertThat(provider.offline).isTrue();
+            assertThat(saved.path("commanders").size()).isEqualTo(2);
+            assertThat(saved.path("commanders").get(0).path("relatedTokens").isNull()).isTrue();
+            assertThat(saved.path("companion").path("name").asText()).isEqualTo("Companion");
+            assertThat(saved.path("commanders").get(1).path("relatedTokens").isEmpty()).isTrue();
+        } finally {
+            provider.failAndGoOfflineAt = null;
+        }
+    }
+
     private void due(UUID deck) {
         jdbc.update("update deck_commanders set token_due_at = CURRENT_TIMESTAMP - INTERVAL '1 minute' where deck_id = ?", deck);
     }
