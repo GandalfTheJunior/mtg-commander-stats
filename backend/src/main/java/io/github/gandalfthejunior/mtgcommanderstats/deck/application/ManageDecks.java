@@ -164,7 +164,7 @@ public class ManageDecks {
         ResolvedArtwork resolved = scryfall.resolveArtworkOnline(printingId, commander.getOracleId().toString(),
                 commander.getGameplayFaceIndex(), artworkFaceIndex, true);
         commander.changeArtwork(resolved.selectionRef(), resolved.artwork(), resolved.cardFaces());
-        commander.replaceRelatedTokens(resolved.relatedTokens());
+        commander.replaceRelatedTokens(resolved.relatedTokens(), resolved.tokenRetryNotBefore());
         return deck;
     }
 

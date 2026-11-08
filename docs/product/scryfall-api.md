@@ -344,7 +344,8 @@ lookups. A previous search/reference remains structurally usable, but does not
 waive the online availability check. Cached derived/Oracle metadata may be
 reused only after the fresh printing request succeeds.
 
-Both methods return `ResolvedCommander(card, gameplay, relatedTokens)`, keeping printing
+Both methods return `ResolvedCommander` with card, gameplay, optional token data
+and a token retry-not-before timestamp, keeping printing
 `CardDetails` and the selected `GameplayCard` separate. Subsequent persistence
 uses `gameplay.defaultArtwork` for the initial selected-gameplay snapshot,
 alongside its stable gameplay identity and rules metadata, rather than an
@@ -389,7 +390,8 @@ snapshot remains unknown and is retried by the durable PostgreSQL worker under
 Commander validation failures still return 503. Only the fully resolved list is
 published; no partial list or arbitrary token-count cutoff is presented as
 complete. Sequential token requests reuse the global request gate, five-second
-response timeout, 2 MiB response bound and 429 Retry-After cooldown. Each token
+response timeout, 2 MiB response bound and 429 Retry-After cooldown. Normalized token snapshots also have a 2 MiB aggregate payload bound; exceeding
+it keeps the entire snapshot pending without truncation. Each token
 resolution pass has a 30-second work budget checked before starting another
 request; exceptional unresolved lists remain pending for later recovery.
 Ordinary saved-deck/game reads never contact Scryfall.

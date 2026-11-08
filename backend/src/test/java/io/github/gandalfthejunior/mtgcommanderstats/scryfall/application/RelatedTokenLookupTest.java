@@ -41,6 +41,18 @@ class RelatedTokenLookupTest {
     }
 
     @Test
+    void aggregatePayloadGuardKeepsExceptionalListsIncompleteInsteadOfPublishingATruncatedSubset() {
+        ObjectNode commander = json.createObjectNode();
+        for (int index = 0; index < 3; index++) {
+            UUID id = UUID.randomUUID();
+            when(client.card(id)).thenReturn(json.valueToTree(Map.of("id", id, "object", "card", "layout", "token",
+                    "name", "x".repeat(600000))));
+            commander.withArray("all_parts").addObject().put("component", "token").put("id", id.toString());
+        }
+        assertThatThrownBy(() -> lookup.resolve(commander)).isInstanceOf(MalformedScryfallResponseException.class);
+    }
+
+    @Test
     void noRelationsAreEmptyButMalformedOrUnavailableDetailsNeverPublishPartialSuccess() {
         assertThat(lookup.resolve(json.createObjectNode())).isEmpty();
         UUID first = UUID.randomUUID();

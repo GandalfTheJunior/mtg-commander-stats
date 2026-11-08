@@ -7,15 +7,25 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CommanderTokenRetries;
 import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CommanderTokenRetries.Job;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.application.CommanderTokenRetries;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.Deck;
+import io.github.gandalfthejunior.mtgcommanderstats.deck.domain.DeckCommander;
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.application.RelatedTokenLookup;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.application.ResolvedCommander;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.application.ScryfallLookup;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.CommanderSelectionRef;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.ScryfallNormalizer;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClient;
+import io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClientException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @org.springframework.test.context.TestPropertySource(properties = "app.tokens.scheduling.enabled=false")
 class CommanderTokensTest extends GameTestSupport {
@@ -139,10 +149,10 @@ class CommanderTokensTest extends GameTestSupport {
         UUID deck = id(expect(owner, "POST", "/api/decks", configuration(commander), 201));
         due(deck);
         Job job = retries.claim();
-        io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClient throttled =
-                org.mockito.Mockito.mock(io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClient.class);
+        ScryfallClient throttled =
+                mock(ScryfallClient.class);
         Instant cooldown = Instant.now().plusSeconds(7200);
-        org.mockito.Mockito.when(throttled.cooldownUntil()).thenReturn(cooldown);
+        when(throttled.cooldownUntil()).thenReturn(cooldown);
         CommanderTokenRetries worker = new CommanderTokenRetries(jdbc, transactions, tokens, throttled);
         worker.fail(job);
         assertThat(jdbc.queryForObject("select token_due_at from deck_commanders where deck_id = ?", Timestamp.class, deck).toInstant())
@@ -155,6 +165,32 @@ class CommanderTokensTest extends GameTestSupport {
         assertThat(due.toInstant()).isBetween(Instant.now().plusSeconds(86000), Instant.now().plusSeconds(108001));
         assertThat(jdbc.queryForObject("select token_last_failure from deck_commanders where deck_id = ?", String.class, deck))
                 .isEqualTo("TOKEN_METADATA_UNAVAILABLE");
+    }
+
+    @Test
+    void initialOptionalFailurePersistsProviderCooldownAcrossWorkerRestart() throws Exception {
+        Actor owner = register("owner", "Owner");
+        ObjectNode token = card("Spirit");
+        ObjectNode commander = linked(token);
+        UUID printing = UUID.fromString(commander.path("id").asText());
+        ScryfallClient client =
+                mock(ScryfallClient.class);
+        when(client.card(printing)).thenReturn(commander);
+        when(client.card(UUID.fromString(token.path("id").asText())))
+                .thenThrow(new ScryfallClientException(
+                        ScryfallClientException.Kind.UNAVAILABLE));
+        Instant cooldown = Instant.now().plusSeconds(7200);
+        when(client.cooldownUntil()).thenReturn(cooldown);
+        ResolvedCommander resolved =
+                new ScryfallLookup(client,
+                        new ScryfallNormalizer())
+                        .resolveCommanderOnline(new CommanderSelectionRef(printing, null));
+        Deck saved = decks.saveAndFlush(
+                new Deck(owner.id(), "Cooldown",
+                        List.of(new DeckCommander(1, resolved, null))));
+        assertThat(jdbc.queryForObject("select token_due_at from deck_commanders where deck_id = ?", Timestamp.class, saved.getId()).toInstant())
+                .isAfterOrEqualTo(cooldown.minusMillis(1));
+        assertThat(new CommanderTokenRetries(jdbc, transactions, tokens, provider).claim()).isNull();
     }
 
     private void due(UUID deck) {

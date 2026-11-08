@@ -14,9 +14,12 @@ import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.MalformedScr
 import io.github.gandalfthejunior.mtgcommanderstats.scryfall.infrastructure.ScryfallClient;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 @Service
 public class RelatedTokenLookup {
+    private static final JsonMapper JSON = JsonMapper.builder().build();
+    private static final int MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024;
     private final ScryfallClient client;
 
     public RelatedTokenLookup(ScryfallClient client) {
@@ -48,6 +51,7 @@ public class RelatedTokenLookup {
             }
         }
         List<RelatedToken> result = new ArrayList<>();
+        long snapshotBytes = 2;
         for (UUID id : ids) {
             if (System.nanoTime() > deadline) {
                 throw new MalformedScryfallResponseException();
@@ -60,8 +64,13 @@ public class RelatedTokenLookup {
                 throw new MalformedScryfallResponseException();
             }
             List<CardFace> faces = ScryfallNormalizer.cardFaces(raw);
-            result.add(new RelatedToken(id, raw.path("name").asText(), raw.path("type_line").asText(null),
-                    faces.getFirst().imageUrl(), raw.path("layout").asText(), faces));
+            RelatedToken token = new RelatedToken(id, raw.path("name").asText(), raw.path("type_line").asText(null),
+                    faces.getFirst().imageUrl(), raw.path("layout").asText(), faces);
+            snapshotBytes += JSON.writeValueAsBytes(token).length + 1;
+            if (snapshotBytes > MAX_SNAPSHOT_BYTES) {
+                throw new MalformedScryfallResponseException();
+            }
+            result.add(token);
         }
         return List.copyOf(result);
     }

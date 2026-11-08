@@ -176,7 +176,9 @@ locks; completion rechecks slot, printing, generation and claim under the deck
 write lock. Replaced/deleted slots and already-complete snapshots reject delayed
 results. Expired leases recover after worker/process failure. Retry failures use
 exponential minute delays capped at a 24-hour base plus up to 25% jitter, never
-before the provider cooldown. Failures remain eligible indefinitely. Operators
+before the provider cooldown. Initial enrichment failures also persist an already
+known provider cooldown in their due time, preserving it across restarts.
+Failures remain eligible indefinitely. Operators
 can inspect `token_due_at`, `token_attempts`, `token_last_failure` and WARN logs
 containing only attempt count and next due time. No token calls run on reads.
 

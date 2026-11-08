@@ -97,10 +97,14 @@ public class DeckCommander {
     @Column(name = "token_last_failure", columnDefinition = "text")
     private String tokenLastFailure;
 
-    public void replaceRelatedTokens(List<RelatedToken> tokens) {
+    public void replaceRelatedTokens(List<RelatedToken> tokens, Instant notBefore) {
         relatedTokens = tokens == null ? null : new RelatedTokens(tokens);
         tokenGeneration = UUID.randomUUID();
         tokenDueAt = tokens == null ? Instant.now().plusSeconds(60) : null;
+        if (tokenDueAt != null && notBefore != null && notBefore.isAfter(tokenDueAt)) {
+            Instant latest = Instant.parse("9999-01-01T00:00:00Z");
+            tokenDueAt = notBefore.isAfter(latest) ? latest : notBefore;
+        }
         tokenAttempts = 0;
         tokenClaim = null;
         tokenLastFailure = tokens == null ? "TOKEN_METADATA_UNAVAILABLE" : null;
@@ -114,7 +118,7 @@ public class DeckCommander {
     }
 
     public DeckCommander(int position, ResolvedCommander resolved, String chosenColor) {
-        replaceRelatedTokens(resolved.relatedTokens());
+        replaceRelatedTokens(resolved.relatedTokens(), resolved.tokenRetryNotBefore());
         GameplayCard gameplay = resolved.gameplay();
         if (position < 1 || position > 2
                 || (gameplay.requiresChosenColor() ? chosenColor == null || !List.of("W", "U", "B", "R", "G").contains(chosenColor)

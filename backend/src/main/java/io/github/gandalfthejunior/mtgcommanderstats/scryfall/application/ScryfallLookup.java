@@ -270,7 +270,7 @@ public class ScryfallLookup {
         if (format == DeckFormat.PAUPER_COMMANDER && !pauperEligible(gameplay.oracleId())) {
             throw new InvalidScryfallSelectionException();
         }
-        return new ResolvedCommander(card, gameplay, optionalTokens(raw));
+        return new ResolvedCommander(card, gameplay, optionalTokens(raw), client.cooldownUntil());
     }
 
     private List<RelatedToken> optionalTokens(JsonNode raw) {
@@ -365,7 +365,7 @@ public class ScryfallLookup {
             throw new InvalidScryfallSelectionException();
         }
         return new ResolvedArtwork(new CommanderSelectionRef(printingId, gameplay.gameplayFaceIndex()), selected,
-                fetched.details().cardFaces(), commanderTokens ? optionalTokens(fetched.raw()) : null);
+                fetched.details().cardFaces(), commanderTokens ? optionalTokens(fetched.raw()) : null, client.cooldownUntil());
     }
 
     public List<Artwork> artworks(UUID id, Integer gameplayFaceIndex) {
