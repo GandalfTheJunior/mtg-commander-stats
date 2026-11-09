@@ -17,7 +17,9 @@ username or email address) is deferred until after the MVP.
 
 ## Games
 
-- Free-for-all Commander only, with 2–6 registered players.
+- Free-for-all Commander only, with 2–6 distinct players. Participants may be
+  registered accounts or credential-less quick profiles belonging to the group;
+  only authenticated account members may create or manage games.
 - New participant/deck assignments require active membership and an owned,
   unarchived deck. Edits may retain unchanged historical assignments after a
   member leaves or a deck is archived.
@@ -25,7 +27,10 @@ username or email address) is deferred until after the MVP.
 - The result is either WIN with exactly one winner or DRAW with no winner.
 - The original MVP deferred placements; the approved #116 backend extension now
   records explicit start seats, competition ranks, alternate victories and DRAW
-  survival under the [Games API](games-api.md). Editor rollout remains #117.
+  survival under the [Games API](games-api.md). The #117 browser editor records
+  complete outcomes; winner-only and unknown-placement frontend support remain
+  separate work in #196, #195 and related history/overview issues (see the
+  [Games API handoff](games-api.md#browser-integration-handoff-196-195)).
 - An active group member creates the game and need not participate. Its creator
   may modify or delete it while they remain active. An active group OWNER or
   ADMIN may modify or delete games in that group.
@@ -172,7 +177,7 @@ rankings or changes to API counts. Successful game changes and explicit refresh
 reload server statistics. Loading, local error/retry, subview-specific empty states
 and group/session access recovery keep retired rows hidden.
 One shared Spielerzahl filter (Alle, 2–6) reloads all four API datasets. Below the
-selected table, start-seat and Mana-color bar charts remain visible for both
+selected dataset, start-seat and Mana-color bar charts remain visible for both
 subviews, side by side on wide screens and stacked on phones. Start seats stay
 separated by table size; All hides unobserved sizes. Empty observations display
 “Keine Daten vorhanden”, whereas measured no-win rates display 0%. Color bars
