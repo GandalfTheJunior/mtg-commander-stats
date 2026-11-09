@@ -55,27 +55,24 @@ Read the [development workflow](../../development/workflow.md), relevant
 
 ## CI-pending handoff and continuation
 
-Before ending a run with outstanding required checks, leave a self-contained,
-remote handoff in the PR's existing Reviewer Context and final agent response.
-Include PR URL, branch, **exact current HEAD SHA**, completed scope/acceptance
-criteria, exact locally executed checks and actual outcomes, unrun checks and
-limitations, required CI jobs with last observed status and time if available,
-and concrete PO/Reviewer next steps. Explain how a fresh Implementer can resume
-on the same branch/PR after a failure. One CI status snapshot is useful when
-practical; repeated polling or active waiting is not required. If status is
-unreported or unavailable, say so rather than guessing.
-
-**Implementation submitted — CI pending** is neither **CI verified** nor
-**review/merge ready**. The PO/Reviewer verifies current-HEAD required CI
-results later, along with independent review and existing PO authority.
-Code review can begin while CI runs, but the final gates still apply. If a
-required check has already failed, investigate or explicitly report **CI
-failing** with evidence; never relabel known failures as pending. Green CI
-does not require a new Codex run merely for acknowledgement. A later failure
-requires a separately PO-authorized, targeted Implementer continuation.
-Do not promise background monitoring, automatic notifications/restarts,
-or guaranteed usage savings. See the authoritative
+After PR submission and each push, follow the authoritative
 [workflow](../../development/workflow.md#verification-and-handoff).
+If required checks remain outstanding, leave a
+**implementation submitted — CI pending** handoff in the PR's existing
+Reviewer Context and final response. Include **every field required by the
+workflow**, including PR URL, branch, exact current HEAD SHA,
+scope/acceptance-criteria status, performed and unrun checks and outcomes,
+limitations, observed CI states/times, concrete PO/Reviewer next steps, and
+how a fresh Implementer resumes on the same branch/PR. Report unreported
+or unavailable CI status honestly instead of guessing.
+
+Known failures are **CI failing**, not pending. **CI verified** requires
+successful required checks on the exact current HEAD; independent review
+and PO authority also gate **review/merge ready**. Waiting for CI or
+repeatedly polling is not required; one current-HEAD status snapshot is
+useful when practical. Do not promise background monitoring, automatic
+resumption or guaranteed usage savings. Later corrective work requires
+separate PO authorization.
 
 ## UI screenshot evidence
 
