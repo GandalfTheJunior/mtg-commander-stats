@@ -200,7 +200,7 @@ Pass if every case matches, no agent approves or merges, and the root
 ## Screenshot delivery and recovery
 
 Run these cases in a fresh conversation using the current client and the
-[Implementer screenshot contract](roles/implementer.md#ui-screenshot-evidence).
+[full screenshot and delivery contract](ui-screenshot-evidence.md).
 Use non-sensitive desktop/mobile captures of a running development UI after its
 final edit, stored outside Git. These cases test delivery behavior, not UI approval.
 
@@ -216,6 +216,24 @@ Repository checks may verify file existence/readability and link syntax, but
 cannot prove that a separate client renders an image or that the PO received it.
 Exercise the delivery cases through the actual client; inspect any authorized
 PR-body correction through GitHub rather than only the submitted request.
+
+## Conditional screenshot-policy loading
+
+Run these cases in fresh authorized Implementer sessions. Use a disposable
+test repository where changes are allowed; inspect the loaded instruction files
+where client logs expose them and verify observable handoff behavior. If reading
+cannot be observed, mark that part unverified rather than inferring it.
+
+| Case and input | Observable outcome |
+| --- | --- |
+| Backend-only or documentation-only implementation with no browser-visible change. | The role contract is loaded; the specialized screenshot contract is not required, and no UI evidence is invented or requested. |
+| Browser-visible change, including a text-only update or loading/error/empty state. | The full [screenshot contract](ui-screenshot-evidence.md) is loaded before UI work, and the required capture, delivery and honest receipt reporting follow it. |
+| A task begins as non-visual but scope investigation reveals a necessary UI change. | Before UI work, the agent loads the complete screenshot contract, reviews any previous UI impact and follows it through handoff; it does not omit evidence merely because the task began as backend-only. |
+
+Run the existing [screenshot delivery and recovery](#screenshot-delivery-and-recovery)
+scenarios as well. Preserve their distinctions between capture, agent inspection,
+client rendering, PO receipt and approval. These manual cases introduce no new
+approval gate; all underlying screenshot obligations remain binding.
 
 ## Agent Poker refinement
 
