@@ -42,10 +42,16 @@ mechanism, without adding it to mandatory agent bootstrap. When rebuilding,
 verify that the provider's active script matches the versioned source; updating
 Git alone does **not** update the external environment.
 
-The Codex setup script exports these **five values** for its setup process and
-writes them into `/workspace/.cloud-setup/env.sh` for optional reuse. Whether
-they must also be entered in the provider UI depends on how the agent shell is
-initialized; confirm their effective values in a fresh session:
+The working Codex environment used these **five provider environment
+variables**. Set them in the Codex environment UI with the values below (or
+use another explicitly verified mechanism that exposes them to **later agent
+shells**, not only the setup process). The setup script exports them during
+provisioning and writes them to `/workspace/.cloud-setup/env.sh` for optional
+reuse, but those setup-process exports alone do **not** persist into new tasks.
+In particular, `MAVEN_ARGS=-s /workspace/.cloud-setup/maven-settings.xml` must
+reach agent shells: otherwise `./mvnw` will not select the generated Maven
+proxy settings and local repository. Verify the effective values in a fresh
+session:
 
 | Variable | Recorded purpose / known path |
 | --- | --- |
@@ -63,7 +69,9 @@ Java truststore via `MAVEN_OPTS` and npm's CA file in user-level npm settings.
 The script does **not** populate `~/.m2/settings.xml`. Keep proxy addresses,
 credentials and truststore secrets out of Git; inspect effective settings in
 the actual cloud task. The script also runs a backend package build and
-frontend `npm ci` / build during provisioning, but not integration tests. The older Codex workspace had about **8 GB** of disk space
+frontend `npm ci` / build during provisioning, but not integration tests.
+
+The older Codex workspace had about **8 GB** of disk space
 and Docker used the `vfs` storage driver. Those were observations, not
 requirements for all Codex environments. Docker worked without a
 repository-specific SessionStart hook in that workspace.
@@ -143,6 +151,8 @@ node --version
 npm --version
 command -v java node npm
 (cd backend && ./mvnw -version)
+# Codex Cloud: verify the provider setting reaches this agent shell.
+printf 'MAVEN_ARGS=%s\n' "${MAVEN_ARGS:-<unset>}"
 docker info
 # Optional: docker run --rm hello-world
 df -h
@@ -189,7 +199,7 @@ and volume growth without deleting unrelated resources.
 | --- | --- |
 | `docker info` reports missing socket | In Claude Cloud confirm the checked-out revision contains the SessionStart hook; inspect `/tmp/claude-dockerd.log`. Do not assume Docker needs reinstalling. In Codex Cloud verify Docker availability in that specific VM. |
 | Docker Hub `429 Too Many Requests` | Check the pull response, shared-IP rate limit and cached images. Possible **unimplemented** mitigations include authenticated pulls, an authorized registry mirror, or preparing `postgres:18` and the **Testcontainers-version-matched Ryuk image** during the provider setup phase, while `dockerd` is temporarily running, so their downloaded layers enter the setup filesystem snapshot. Validate snapshot persistence, cache rebuild behavior, pull policy, and disk costs before adopting that option (tracked in [#265](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/265)); do **not** assume snapshots guarantee later availability. Keep credentials in provider secrets, never Git. |
-| Maven HTTPS/download errors | Check provider network policy, inherited `HTTPS_PROXY`, Maven's effective `~/.m2/settings.xml`, Java truststore and any `JAVA_TOOL_OPTIONS`/`MAVEN_OPTS` settings; redact sensitive values in reports. |
+| Maven HTTPS/download errors | Check provider network policy and inherited `HTTPS_PROXY`; verify the effective Maven settings (`MAVEN_ARGS=-s /workspace/.cloud-setup/maven-settings.xml` in Codex Cloud, `~/.m2/settings.xml` where applicable otherwise), Java truststore, and `JAVA_TOOL_OPTIONS`/`MAVEN_OPTS`. Redact sensitive values in reports. |
 | Wrong Java/Node version | Compare `command -v java node npm`, `java -version`, `node --version`, `JAVA_HOME`, and `PATH`. Older runtimes may remain later on `PATH`. |
 | Cache or filesystem errors | Check `df -h`, cache ownership and Maven/npm paths. Do not use broad Docker cleanup as an unexplained fix. |
 
