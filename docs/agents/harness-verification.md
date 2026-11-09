@@ -235,13 +235,31 @@ scenarios as well. Preserve their distinctions between capture, agent inspection
 client rendering, PO receipt and approval. These manual cases introduce no new
 approval gate; all underlying screenshot obligations remain binding.
 
+## Conditional Agent Poker loading
+
+Run these cases in fresh conversations in at least two agent clients, using a
+disposable test repository for any authorized GitHub writes. Where available,
+check the client's actual file-loading trace as well as observable behavior;
+if the trace is unavailable, mark instruction loading unverified, not passed.
+
+| Case and input | Observable outcome |
+| --- | --- |
+| Technical consultation, non-sizing implementation, or ordinary review with no reference-candidate assessment. | The root, registry and selected role are followed; the full Agent Poker guide is not required merely because the registry mentions sizing. No unsolicited sizing or issue mutation. |
+| Issue Refiner: sufficiently specified issue requiring a size, including a `DRAFT` issue. | Before estimating, the agent loads the full [Agent Poker guide](agent-poker.md#agent-poker-planning-aid), uses the dimensions and reference issues, and respects the Issue Refiner contract's issue-write authority and DRAFT boundary. |
+| Issue Refiner: issue too uncertain to size. | The agent follows the role contract without forcing a size; when sizing is attempted or reference rules are needed, it loads the guide before applying them. |
+| Reviewer: review a sized issue whose completed work is clearly larger or smaller than its assigned size; repeat for a possibly underrepresented size/area. Do not explicitly ask for Agent Poker. | The Reviewer identifies the possible trigger from the issue and work before needing the guide, then loads the [reference maintenance rules](agent-poker.md#maintaining-reference-issues) before deciding whether to flag an optional candidate. No label change or merge gate; the PO alone decides reference updates. |
+
+Also run the existing [Agent Poker refinement](#agent-poker-refinement)
+scenarios. These cases test context loading, not a new estimation or review
+approval gate. Do not infer model token savings from static file sizes.
+
 ## Agent Poker refinement
 
 Run each case in a fresh conversation loading the root and Issue Refiner
 contract. Use disposable issues in a test repository for authorized writes;
 record before/after title, labels, assignees, and body via GitHub. Evaluate
 against the [role contract](roles/issue-refiner.md#agent-poker) and the
-[central definitions and reference issues](README.md#agent-poker-planning-aid).
+[central definitions and reference issues](agent-poker.md#agent-poker-planning-aid).
 Run the cases with at least two different agent clients; the same issue should
 receive the same size, because the estimate must not depend on the agent or model.
 

@@ -48,7 +48,7 @@ follow the [frontend refinement guide](../frontend-refinement.md).
 
 ### Estimate relative complexity
 
-Apply the centralized [size definitions and reference issues](../README.md#agent-poker-planning-aid).
+Apply the centralized [size definitions and reference issues](../agent-poker.md#agent-poker-planning-aid).
 Compare the refined scope with the reference issues across scope breadth,
 uncertainty, risk and verification effort; the highest dimension determines the
 size. Choose exactly one size when estimable, conservatively when material risk

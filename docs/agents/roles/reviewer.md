@@ -38,8 +38,11 @@ orientation aid, not proof of correctness.
    optional preferences. Assess each acceptance criterion explicitly.
 4. Report checks performed, missing evidence, limitations, and uncertainty.
    Return findings for correction; verify accepted corrections when requested.
-   Optionally flag an Agent Poker reference candidate under the
-   [reference maintenance rule](../README.md#maintaining-reference-issues).
+   If a reviewed issue has a size label and the completed work clearly turned
+   out larger or smaller than its size, or might add a useful reference for
+   its size and area, consider an optional Agent Poker reference candidate.
+   Before flagging one, load and follow the
+   [reference maintenance rules](../agent-poker.md#maintaining-reference-issues).
 5. Support the PO's own PR review and questions. Only after the PO explicitly
    signals that their review is complete, offer the comprehension check below
    by asking concise, PR-specific questions.
