@@ -6,15 +6,18 @@ import {spawnSync} from 'node:child_process';
 import {mkdtempSync, mkdirSync, copyFileSync, writeFileSync, readFileSync, chmodSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {sourceCounts} from './seed-demo.mjs';
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'mtg seed cli '));
-  for (const dir of ['.devcontainer', 'tools/demo', 'backend', 'bin', 'home', '.demo']) mkdirSync(join(root, dir), {recursive: true});
+  for (const dir of ['.devcontainer', 'tools/demo', 'backend/src/test/resources/scryfall', 'bin', 'home', '.demo']) mkdirSync(join(root, dir), {recursive: true});
   copyFileSync(new URL('./seed-demo.mjs', import.meta.url), join(root, '.devcontainer/seed-demo.mjs'));
   copyFileSync(new URL('../tools/demo/diagnostics.mjs', import.meta.url), join(root, 'tools/demo/diagnostics.mjs'));
+  copyFileSync(new URL('../tools/demo/fixture.mjs', import.meta.url), join(root, 'tools/demo/fixture.mjs'));
+  copyFileSync(new URL('../backend/src/test/resources/scryfall/demo-cards.json', import.meta.url), join(root, 'backend/src/test/resources/scryfall/demo-cards.json'));
   const config = join(root, 'fixture.json');
   const marker = join(root, 'home/.local/state/mtg-commander-stats/demo-seed-once.json');
-  const state = {buildFail: true, seedFailure: '', restoreFail: false, sourceDirty: false, targetCount: 0, imports: 0};
+  const state = {buildFail: true, seedFailure: '', restoreFail: false, sourceDirty: false, sourceCounts: {...sourceCounts}, targetCount: 0, imports: 0};
   const save = () => writeFileSync(config, JSON.stringify(state));
   save();
   const cli = path => {
@@ -54,7 +57,7 @@ function fixture() {
       const query = a.at(-1);
       if (query.includes('pg_tables')) output = 'decks\\ngames\\nplay_groups\\nusers';
       else if (query.includes('string_agg')) output = '1:verified,8:verified';
-      else if (a[1] === source) output = query.includes('"users"')?'7':query.includes('"decks"')?'21':query.includes('"games"')?'32':'2';
+      else if (a[1] === source) output = String(state.sourceCounts[query.match(/public\."([a-z_]+)"/)[1]]);
       else output = String(state.targetCount);
     } else if (a.includes('psql')) {
       if (JSON.parse(fs.readFileSync(${JSON.stringify(marker)})).status !== 'started') process.exit(90);
@@ -71,6 +74,23 @@ function fixture() {
     disk: () => JSON.parse(readFileSync(config)), root};
 }
 
+test('source counts follow the canonical fixture and reject missing or extra source rows before import', () => {
+  assert.deepEqual(sourceCounts, {users: 8, decks: 22, play_groups: 2, games: 32});
+  for (const [table, count] of Object.entries(sourceCounts)) {
+    for (const difference of [-1, 1]) {
+      const f = fixture();
+      f.state.buildFail = false;
+      f.state.sourceCounts[table] = count + difference;
+      f.save();
+      const result = f.run([]);
+      assert.equal(result.status, 1, `${table} ${difference}: ${result.stderr}`);
+      assert.match(result.stderr, /Demo source content differs from verified fixture/);
+      assert.equal(f.marker().status, 'preparing');
+      assert.equal(f.disk().imports, 0);
+    }
+  }
+});
+
 test('build and source-start failures remain preparing, safe retry completes once; restart preserves data', () => {
   const f = fixture();
   assert.equal(f.run([]).status, 1);
@@ -83,6 +103,7 @@ test('build and source-start failures remain preparing, safe retry completes onc
   f.state.seedFailure = ''; f.save();
   const success = f.run([]);
   assert.equal(success.status, 0, success.stderr);
+  assert.match(success.stdout, /imported 7 accounts, 1 quick profile, 22 decks, 2 groups, 32 games once/);
   assert.equal(f.marker().status, 'complete');
   assert.equal(f.disk().imports, 1);
   assert.equal(f.run([]).status, 0);
