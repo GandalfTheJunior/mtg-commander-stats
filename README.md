@@ -338,6 +338,7 @@ Tests terminate without watch mode. GitHub Actions runs separate `backend` and
 - [Java coding conventions](docs/development/java-conventions.md)
 - [iPhone preview via GitHub Codespaces](docs/development/codespaces.md)
 - [Testing and verification](docs/development/testing.md)
+- [Codex Cloud and Claude Code Cloud environments](docs/development/agent-cloud-environments.md)
 - [Reviewing principles](docs/development/reviewing.md)
 - [Agent bootstrap](AGENTS.md) and [role registry](docs/agents/README.md)
 - [Agent harness verification scenarios](docs/agents/harness-verification.md)
