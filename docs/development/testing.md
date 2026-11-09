@@ -32,6 +32,9 @@ migration history. Cached contexts keep their own database; separate contexts
 cannot observe or clean up one another's test records. Tests that intentionally
 start disposable PostgreSQL containers themselves, such as
 `FlywayResourceAvailabilityTest`, remain independent.
+Each context's Hikari pool allows at most four connections and keeps no minimum
+idle connections. The shared server allows 150 connections, leaving capacity for
+all 32 cached contexts plus database creation and independently managed tests.
 
 The canonical backend verification command remains `cd backend && ./mvnw
 verify` without a Spring context-cache override, including in CI. Avoid

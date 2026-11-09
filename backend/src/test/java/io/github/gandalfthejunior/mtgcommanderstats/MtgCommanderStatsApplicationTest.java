@@ -53,7 +53,10 @@ class MtgCommanderStatsApplicationTest {
     static class DatabaseConfiguration {
         // One PostgreSQL server per test JVM, rather than a container per cached Spring context.
         // Distinct contexts receive distinct databases so their test data remains isolated.
-        private static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:18");
+        // Spring caches up to 32 contexts. Four connections per context leave 22 of
+        // PostgreSQL's 150 slots for database creation and other test connections.
+        private static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:18")
+                .withCommand("postgres", "-c", "max_connections=150");
 
         @Bean(destroyMethod = "close")
         HikariDataSource postgresDataSource() throws Exception {
@@ -76,6 +79,8 @@ class MtgCommanderStatsApplicationTest {
                 dataSource.setUsername(POSTGRES.getUsername());
                 dataSource.setPassword(POSTGRES.getPassword());
                 dataSource.setDriverClassName("org.postgresql.Driver");
+                dataSource.setMaximumPoolSize(4);
+                dataSource.setMinimumIdle(0);
                 return dataSource;
             }
         }
