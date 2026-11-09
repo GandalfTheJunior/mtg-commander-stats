@@ -74,6 +74,29 @@ artifacts. When fully rewriting a historical issue, PR description or document,
 write the replacement in English while preserving required bootstrap markers
 and factual meaning.
 
+## Temporary Codex Cloud backend verification
+
+For a full backend test run in a resource-constrained Codex Cloud workspace
+using Docker's `vfs` storage driver, run:
+
+```bash
+cd backend
+./mvnw -B -Dspring.test.context.cache.maxSize=1 verify
+```
+
+Spring's cached test contexts otherwise retain multiple PostgreSQL Testcontainers
+and may exhaust the approximately 8 GB workspace. A monitored Cloud run with
+this setting passed all 844 tests, using at most 2 GB of additional space; it
+can increase context restarts and runtime. Monitor available disk space during
+long integration-test runs. This is a **Cloud-only workaround**, **not a
+CI-equivalent verification**: the canonical local/CI command remains
+`cd backend && ./mvnw verify` as defined in
+[testing guidance](docs/development/testing.md#required-checks). Disclose the
+override in PR verification evidence. Reassess/remove this guidance once
+[issue #246](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/246)
+delivers and verifies the shared PostgreSQL-container solution in constrained
+workspaces.
+
 ## Startup and routing
 
 1. Determine the PO's requested outcome. Select the narrowest fitting operating
