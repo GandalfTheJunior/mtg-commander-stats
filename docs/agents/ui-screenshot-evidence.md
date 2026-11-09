@@ -56,4 +56,3 @@ state exactly what is blocked in the final response and PR, without inventing
 images or describing the screenshot requirement as satisfied. The implementation
 is **not fully visually verified** until the PO receives the required evidence.
 Backend-only or otherwise non-visual changes do not trigger this requirement.
-
