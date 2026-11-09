@@ -23,6 +23,25 @@ The current backend context test exercises the actual datasource, JPA, and Flywa
 infrastructure. Consult relevant existing tests and configuration when extending
 coverage rather than assuming a feature or test infrastructure already exists.
 
+## Shared PostgreSQL integration-test infrastructure
+
+Spring integration-test contexts use a single PostgreSQL 18 Testcontainer per
+test JVM. Each freshly constructed Spring application context gets a uniquely
+named database inside that container, with its own datasource and Flyway
+migration history. Cached contexts keep their own database; separate contexts
+cannot observe or clean up one another's test records. Tests that intentionally
+start disposable PostgreSQL containers themselves, such as
+`FlywayResourceAvailabilityTest`, remain independent.
+Each context's Hikari pool allows at most four connections and keeps no minimum
+idle connections. The shared server allows 150 connections, leaving capacity for
+all 32 cached contexts plus database creation and independently managed tests.
+
+The canonical backend verification command remains `cd backend && ./mvnw
+verify` without a Spring context-cache override, including in CI. Avoid
+`spring.test.context.cache.maxSize` overrides as a substitute for test
+isolation; if resource constraints force a deviation during investigation,
+disclose it as not CI-equivalent under [Required checks](#required-checks).
+
 ## Test integrity
 
 A failing test is a signal to investigate, not an obstacle to remove. Do not make
@@ -57,36 +76,6 @@ Disclose required checks that could not run and their blockers in the PR. Never
 claim an unexecuted or unsuccessful check passed. Follow the
 [workflow handoff standard](workflow.md#verification-and-handoff); required CI
 checks remain required even when local verification is limited.
-
-### Constrained agent workspaces (temporary)
-
-For full backend integration tests in resource-constrained agent workspaces
-(for example Codex Cloud with approximately 8 GB of disk space and Docker's
-`vfs` storage driver), use the following temporary workaround:
-
-```bash
-cd backend
-./mvnw -B -Dspring.test.context.cache.maxSize=1 verify
-```
-
-With the current test infrastructure, separate cached Spring test contexts can
-keep multiple PostgreSQL Testcontainers running; on Docker `vfs`, their copied
-filesystem layers may exhaust the available disk. In one monitored Codex Cloud
-run, this cache limit passed **844 tests** with about **2 GB** peak additional
-disk usage and **5.97 GB** minimum free space. Evicting contexts can cause
-additional starts and increase test runtime; monitor available disk space during
-long runs. This result is evidence from one run, not a guarantee.
-
-**This command is not CI-equivalent.** Record the exact override and test
-results in the PR. The canonical backend command remains `cd backend && ./mvnw verify`, as specified by the
-[README verification section](../../README.md#verification); normal local
-development and required CI must use that canonical command. This workaround
-must be reassessed and removed once
-[issue #246](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/246)
-has delivered and verified the shared PostgreSQL-container solution in a
-resource-constrained workspace.
-
-
 
 The development-only motion playground also has real Chromium/WebKit landing
 regressions. See [browser setup and evidence](motion-playground.md#repeatable-browser-verification)
