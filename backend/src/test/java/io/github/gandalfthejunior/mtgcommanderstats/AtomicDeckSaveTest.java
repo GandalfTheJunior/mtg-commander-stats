@@ -218,6 +218,62 @@ class AtomicDeckSaveTest extends GameTestSupport {
     }
 
     @Test
+    void reorderingCommandersWithCompanionArtworkPreservesTheirSnapshotsAndTokens() throws Exception {
+        Actor owner = register("owner", "Owner");
+        ObjectNode first = card("First", "Partner");
+        first.putArray("keywords").add("Partner");
+        ObjectNode second = card("Second", "Partner");
+        second.putArray("keywords").add("Partner");
+        ObjectNode companion = card("Companion", "Companion — Test condition.");
+        companion.putArray("keywords").add("Companion");
+        UUID firstId = store(first);
+        UUID secondId = store(second);
+        UUID companionId = store(companion);
+        UUID firstArtworkId = store(first.deepCopy().put("id", UUID.randomUUID().toString()));
+        UUID companionArtworkId = store(companion.deepCopy().put("id", UUID.randomUUID().toString()));
+        CommanderInput firstInput = new CommanderInput(new CommanderSelectionRef(firstId, null), null,
+                new ArtworkInput(firstArtworkId, null));
+        CommanderInput secondInput = new CommanderInput(new CommanderSelectionRef(secondId, null), null);
+        String create = json.writeValueAsString(Map.of("name", "Pair", "commanders", List.of(firstInput, secondInput),
+                "companion", new CompanionInput(new CommanderSelectionRef(companionId, null))));
+        JsonNode saved = expect(owner, "POST", "/api/decks", create, 201);
+        String tokenSql = "SELECT oracle_id, related_tokens, token_generation, token_due_at, token_attempts,"
+                + " token_claim, token_last_failure FROM deck_commanders WHERE deck_id = ? ORDER BY oracle_id";
+        List<Map<String, Object>> tokenState = jdbc.queryForList(tokenSql, id(saved));
+
+        CompanionInput changedCompanion = new CompanionInput(new CommanderSelectionRef(companionId, null),
+                new ArtworkInput(companionArtworkId, null));
+        String path = "/api/decks/" + id(saved);
+        String swap = json.writeValueAsString(Map.of("name", "Swapped", "commanders", List.of(secondInput, firstInput),
+                "companion", changedCompanion));
+        // The saved first-Commander artwork printing is absent from the mandatory gameplay lookups.
+        provider.failAndGoOfflineAt = firstArtworkId;
+        JsonNode reordered = expect(owner, "PUT", path, swap, 200);
+        provider.failAndGoOfflineAt = null;
+        assertThat(provider.offline).isFalse();
+        assertThat(reordered.path("commanders").get(0).path("oracleId").asText())
+                .isEqualTo(second.path("oracle_id").asText());
+        assertThat(reordered.path("commanders").get(1).path("oracleId").asText())
+                .isEqualTo(first.path("oracle_id").asText());
+        for (String field : List.of("selectionRef", "scryfallCardId", "artworkFaceIndex", "artCropUrl", "artist",
+                "scryfallUri", "cardFaces", "relatedTokens")) {
+            assertThat(reordered.path("commanders").get(1).path(field))
+                    .as(field).isEqualTo(saved.path("commanders").get(0).path(field));
+        }
+        assertThat(reordered.path("companion").path("scryfallCardId").asText())
+                .isEqualTo(companionArtworkId.toString());
+        assertThat(jdbc.queryForList(tokenSql, id(saved))).isEqualTo(tokenState);
+
+        String swapBack = json.writeValueAsString(Map.of("name", "Original order", "commanders", List.of(
+                new CommanderInput(new CommanderSelectionRef(firstArtworkId, null), null), secondInput),
+                "companion", changedCompanion));
+        JsonNode originalOrder = expect(owner, "PUT", path, swapBack, 200);
+        assertThat(originalOrder.path("commanders").get(0).path("scryfallCardId").asText())
+                .isEqualTo(firstArtworkId.toString());
+        assertThat(jdbc.queryForList(tokenSql, id(saved))).isEqualTo(tokenState);
+    }
+
+    @Test
     void usedArchivedDeckAllowsArtworkAndSecondRequiredFailureRollsBack() throws Exception {
         Actor owner = register("owner", "Owner");
         ObjectNode first = card("First", "Partner");

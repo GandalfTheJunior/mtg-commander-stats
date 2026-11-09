@@ -136,7 +136,7 @@ public class ManageDecks {
             applyCompanionArtwork(deck.getCompanion(), companion.artwork(), false, tokenDeadline, requestCards);
         }
         if (deferTokens) {
-            enrichChangedCommanders(deck.getCommanders(), List.of(), requestCards, tokenDeadline);
+            enrichChangedCommanders(deck.getCommanders(), Map.of(), requestCards, tokenDeadline);
         }
         return decks.save(deck);
     }
@@ -212,7 +212,8 @@ public class ManageDecks {
         Set<Integer> artworkPositions = artworkInputs == null ? Set.of() : java.util.stream.IntStream.range(0, artworkInputs.size())
                 .filter(index -> artworkInputs.get(index) != null && artworkInputs.get(index).artwork() != null)
                 .map(index -> index + 1).boxed().collect(Collectors.toSet());
-        List<SavedCommander> savedCommanders = deck.getCommanders().stream().map(SavedCommander::from).toList();
+        Map<UUID, SavedCommander> savedCommanders = deck.getCommanders().stream().map(SavedCommander::from)
+                .collect(Collectors.toMap(SavedCommander::oracleId, saved -> saved));
         DeckCompanion savedCompanion = deck.getCompanion();
         deck.replaceConfiguration(prospectiveCommanders, prospectiveCompanion, target, artworkPositions,
                 companionSupplied && companion != null && companion.artwork() != null);
@@ -220,8 +221,7 @@ public class ManageDecks {
             for (int i = 0; i < commanders.size(); i++) {
                 if (commanders.get(i).artwork() != null) {
                     DeckCommander current = deck.getCommanders().get(i);
-                    boolean sameIdentity = i < savedCommanders.size()
-                            && current.getOracleId().equals(savedCommanders.get(i).oracleId());
+                    boolean sameIdentity = savedCommanders.containsKey(current.getOracleId());
                     applyCommanderArtwork(current, commanders.get(i).artwork(), sameIdentity, tokenDeadline, requestCards,
                             deferTokens);
                 }
@@ -250,13 +250,11 @@ public class ManageDecks {
         }
     }
 
-    private void enrichChangedCommanders(List<DeckCommander> current, List<SavedCommander> previous,
+    private void enrichChangedCommanders(List<DeckCommander> current, Map<UUID, SavedCommander> previous,
             Map<UUID, JsonNode> requestCards, long deadline) {
-        for (int i = 0; i < current.size(); i++) {
-            DeckCommander slot = current.get(i);
-            SavedCommander saved = i < previous.size() ? previous.get(i) : null;
-            if (saved == null || !saved.oracleId().equals(slot.getOracleId())
-                    || !saved.printingId().equals(slot.getScryfallCardId())
+        for (DeckCommander slot : current) {
+            SavedCommander saved = previous.get(slot.getOracleId());
+            if (saved == null || !saved.printingId().equals(slot.getScryfallCardId())
                     || !Objects.equals(saved.artworkFaceIndex(), slot.getArtworkFaceIndex())) {
                 ScryfallLookup.TokenEnrichment tokens = scryfall.enrichKnownPrinting(slot.getScryfallCardId(),
                         requestCards, deadline);

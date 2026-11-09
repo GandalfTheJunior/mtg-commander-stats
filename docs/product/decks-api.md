@@ -101,8 +101,9 @@ Both personal and quick-profile deck POST accept an optional UUID
 `Idempotency-Key` header. The first successful keyed POST returns `201`. A
 repeat by the same deck owner returns `200` with that deck's current saved state,
 even if the submitted draft has changed; further changes use PUT. Concurrent
-repeats create one deck. Keys are isolated by owner, malformed keys return `400`,
-and omission retains ordinary `201` creation. V25 adds a nullable owner-scoped
+repeats create one deck. Keys are isolated by owner. A malformed
+`Idempotency-Key` returns `400` with the standard deck-input error detail;
+omission retains ordinary `201` creation. V25 adds a nullable owner-scoped
 unique key on `decks`; claiming quick-profile decks clears their old keys to
 avoid collisions with the destination account.
 
