@@ -194,6 +194,10 @@ export function restorationSql(plainDump, names) {
   'Invalid data-only restore input or application table list.');
   const qualified = names.map(name => 'public."' + name + '"');
   const existing = qualified.map(name => 'EXISTS (SELECT 1 FROM ' + name + ')').join(' OR ');
+  const emptySearchPath = "SELECT pg_catalog.set_config('search_path', '', false);";
+  requireSafe(plainDump.split(emptySearchPath).length === 2,
+    'Unexpected PostgreSQL restore search path setup.');
+  const dataSql = plainDump.replace(emptySearchPath, emptySearchPath + '\nSET search_path TO public;');
   return [
     'BEGIN;',
     "SET LOCAL lock_timeout = '5s';",
@@ -201,7 +205,8 @@ export function restorationSql(plainDump, names) {
     'DO $codespace_data_guard$ BEGIN',
     "IF " + existing + " THEN RAISE EXCEPTION 'Refusing to restore into nonempty application database'; END IF;",
     'END $codespace_data_guard$;',
-    plainDump,
+    'SET CONSTRAINTS public.play_groups_owner_id_fkey, public.users_home_group_id_fkey DEFERRED;',
+    dataSql,
     'SET search_path TO public;',
     'SET CONSTRAINTS ALL IMMEDIATE;',
     'COMMIT;',

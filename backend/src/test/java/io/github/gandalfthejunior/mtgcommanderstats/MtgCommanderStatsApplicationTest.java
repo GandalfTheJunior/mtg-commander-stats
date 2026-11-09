@@ -55,7 +55,7 @@ class MtgCommanderStatsApplicationTest {
         // Distinct contexts receive distinct databases so their test data remains isolated.
         // Spring caches up to 32 contexts. Four connections per context leave 22 of
         // PostgreSQL's 150 slots for database creation and other test connections.
-        private static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:18")
+        static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:18")
                 .withCommand("postgres", "-c", "max_connections=150");
 
         @Bean(destroyMethod = "close")
