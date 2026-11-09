@@ -55,27 +55,7 @@ Read the [development workflow](../../development/workflow.md), relevant
 
 ## CI-pending handoff and continuation
 
-Before ending a run with outstanding required checks, leave a self-contained,
-remote handoff in the PR's existing Reviewer Context and final agent response.
-Include PR URL, branch, **exact current HEAD SHA**, completed scope/acceptance
-criteria, exact locally executed checks and actual outcomes, unrun checks and
-limitations, required CI jobs with last observed status and time if available,
-and concrete PO/Reviewer next steps. Explain how a fresh Implementer can resume
-on the same branch/PR after a failure. One CI status snapshot is useful when
-practical; repeated polling or active waiting is not required. If status is
-unreported or unavailable, say so rather than guessing.
-
-**Implementation submitted — CI pending** is neither **CI verified** nor
-**review/merge ready**. The PO/Reviewer verifies current-HEAD required CI
-results later, along with independent review and existing PO authority.
-Code review can begin while CI runs, but the final gates still apply. If a
-required check has already failed, investigate or explicitly report **CI
-failing** with evidence; never relabel known failures as pending. Green CI
-does not require a new Codex run merely for acknowledgement. A later failure
-requires a separately PO-authorized, targeted Implementer continuation.
-Do not promise background monitoring, automatic notifications/restarts,
-or guaranteed usage savings. See the authoritative
-[workflow](../../development/workflow.md#verification-and-handoff).
+Follow the authoritative [verification and handoff workflow](../../development/workflow.md#verification-and-handoff) after PR submission and every push. For outstanding current-HEAD checks, provide a self-contained **implementation submitted — CI pending** handoff in both the PR Reviewer Context and final response, with observed statuses, exact revision, performed checks, limitations, and recovery steps. Known failing checks are **CI failing**, not pending. Do not claim CI verified or review/merge ready until required checks succeed on the exact current HEAD and applicable independent review requirements are met; the PO retains final merge authority. Do not repeatedly poll CI or promise background monitoring, automatic resumption or guaranteed usage savings. A later corrective continuation, after the active run ends, requires separate PO authorization.
 
 ## UI screenshot evidence
 
