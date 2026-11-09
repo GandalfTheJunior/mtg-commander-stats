@@ -55,7 +55,24 @@ Read the [development workflow](../../development/workflow.md), relevant
 
 ## CI-pending handoff and continuation
 
-Follow the authoritative [verification and handoff workflow](../../development/workflow.md#verification-and-handoff) after PR submission and every push. For outstanding current-HEAD checks, provide a self-contained **implementation submitted — CI pending** handoff in both the PR Reviewer Context and final response, with observed statuses, exact revision, performed checks, limitations, and recovery steps. Known failing checks are **CI failing**, not pending. Do not claim CI verified or review/merge ready until required checks succeed on the exact current HEAD and applicable independent review requirements are met; the PO retains final merge authority. Do not repeatedly poll CI or promise background monitoring, automatic resumption or guaranteed usage savings. A later corrective continuation, after the active run ends, requires separate PO authorization.
+After PR submission and each push, follow the authoritative
+[workflow](../../development/workflow.md#verification-and-handoff).
+If required checks remain outstanding, leave a
+**implementation submitted — CI pending** handoff in the PR's existing
+Reviewer Context and final response. Include **every field required by the
+workflow**, including PR URL, branch, exact current HEAD SHA,
+scope/acceptance-criteria status, performed and unrun checks and outcomes,
+limitations, observed CI states/times, concrete PO/Reviewer next steps, and
+how a fresh Implementer resumes on the same branch/PR. Report unreported
+or unavailable CI status honestly instead of guessing.
+
+Known failures are **CI failing**, not pending. **CI verified** requires
+successful required checks on the exact current HEAD; independent review
+and PO authority also gate **review/merge ready**. Waiting for CI or
+repeatedly polling is not required; one current-HEAD status snapshot is
+useful when practical. Do not promise background monitoring, automatic
+resumption or guaranteed usage savings. Later corrective work requires
+separate PO authorization.
 
 ## UI screenshot evidence
 
