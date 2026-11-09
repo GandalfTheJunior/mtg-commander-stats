@@ -175,8 +175,8 @@ and volume growth without deleting unrelated resources.
 
 ## Observed results and limits (9 November 2026)
 
-These observations are from cloud-task reports supplied by the Product Owner;
-they were not independently rerun by this documentation-only change.
+These observations come from cloud-task reports supplied by the Product Owner;
+they were not independently rerun when recorded.
 
 - **Earlier Codex Cloud run (before #246):** a monitored full run using the
   explicit `-Dspring.test.context.cache.maxSize=1` workaround passed **844
@@ -189,7 +189,7 @@ they were not independently rerun by this documentation-only change.
   at least **28.41 GB**. The first image pull encountered Docker Hub
   **HTTP 429**, so `postgres:18` and the Ryuk image were manually pulled
   before this successful run. It did not prove an unattended cold start.
-- **Fresh Codex Cloud task:** the latest remote `main` commit
+- **Fresh Codex Cloud task:** the then-current remote `main` commit
   [`42bc851ea2846d49238473448094a0d2499c8e9f`](https://github.com/GandalfTheJunior/mtg-commander-stats/commit/42bc851ea2846d49238473448094a0d2499c8e9f)
   was verified in a clean temporary checkout (the task's original checkout
   remained on an earlier commit). Java **25.0.4.1**, Node **24.22.2** and
@@ -201,7 +201,9 @@ they were not independently rerun by this documentation-only change.
   override. `npm ci && npm run build` also passed. Root filesystem free
   space was **7.5 GB** initially and at least **6.4 GB** at the observed
   checkpoints; no setup intervention, manual image pull or cleanup was needed.
-- **Fresh Claude Code Cloud task:** Java **25.0.5.0.3**, Node **24.22.2**,
+- **Fresh Claude Code Cloud task:** the then-current `main` commit
+  [`42bc851ea2846d49238473448094a0d2499c8e9f`](https://github.com/GandalfTheJunior/mtg-commander-stats/commit/42bc851ea2846d49238473448094a0d2499c8e9f)
+  was checked with a clean checkout. Java **25.0.5.0.3**, Node **24.22.2**,
   Maven wrapper **3.9.11**, `JAVA_HOME` and `CLAUDE_ENV_FILE` matched the
   Claude-specific setup; Codex-only Maven/cache variables were correctly
   unset. The repository's SessionStart hook started Docker automatically
@@ -210,8 +212,8 @@ they were not independently rerun by this documentation-only change.
   pulled `testcontainers/ryuk:0.14.0` and `postgres:18` without manual
   intervention or HTTP 429, then passed **856 tests, zero
   failures/errors/skips**, in about **4 min 47 s**. Frontend `npm ci` and
-  `npm run build` passed. Free root disk space was about **30 GB** before
-  the run and about **28.4 GiB** at the sampled minimum. No containers
+  `npm run build` passed. Free root disk space was about **29.4 GiB** before
+  the run and **28.4 GiB** at the sampled minimum. No containers
   remained after the test run.
 - **Limits:** these are successful fresh **task/session** checks, not proof
   that the provider setup scripts were reinstalled from scratch or that every
