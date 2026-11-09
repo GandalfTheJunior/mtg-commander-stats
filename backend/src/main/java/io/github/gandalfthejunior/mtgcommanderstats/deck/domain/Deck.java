@@ -2,6 +2,7 @@ package io.github.gandalfthejunior.mtgcommanderstats.deck.domain;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import io.github.gandalfthejunior.mtgcommanderstats.deck.persistence.ColorIdentityConverter;
@@ -30,6 +31,9 @@ public class Deck {
 
     @Column(name = "owner_id", nullable = false)
     private UUID ownerId;
+
+    @Column(name = "idempotency_key")
+    private UUID idempotencyKey;
 
     @Column(nullable = false, columnDefinition = "text")
     private String name;
@@ -117,6 +121,11 @@ public class Deck {
     }
 
     public void replaceConfiguration(List<DeckCommander> replacement, DeckCompanion companion, DeckFormat target) {
+        replaceConfiguration(replacement, companion, target, Set.of(), false);
+    }
+
+    public void replaceConfiguration(List<DeckCommander> replacement, DeckCompanion companion, DeckFormat target,
+            Set<Integer> artworkPositions, boolean companionArtworkSupplied) {
         requireFormatChangeAllowed(target);
         if (target == DeckFormat.PAUPER_COMMANDER && companion != null) {
             throw new InvalidDeckFormatException();
@@ -142,7 +151,8 @@ public class Deck {
         }
         for (DeckCommander candidate : replacement) {
             for (DeckCommander saved : commanders) {
-                if (saved.getOracleId().equals(candidate.getOracleId()) && !saved.selectionRef().equals(candidate.selectionRef())) {
+                if (saved.getOracleId().equals(candidate.getOracleId()) && !saved.selectionRef().equals(candidate.selectionRef())
+                        && !artworkPositions.contains(candidate.getPosition())) {
                     throw new InvalidCommanderException();
                 }
                 if (saved.getOracleId().equals(candidate.getOracleId())) {
@@ -157,7 +167,7 @@ public class Deck {
             throw new DeckLifecycleConflictException();
         }
         if (sameCompanion && companion != null) {
-            if (!savedCompanion.selectionRef().equals(companion.selectionRef())) {
+            if (!savedCompanion.selectionRef().equals(companion.selectionRef()) && !companionArtworkSupplied) {
                 throw new InvalidCompanionSelectionException("Companion printing changes require the Companion artwork endpoint.");
             }
             companion = savedCompanion;
@@ -212,6 +222,14 @@ public class Deck {
 
     public UUID getOwnerId() {
         return ownerId;
+    }
+
+    public UUID getIdempotencyKey() {
+        return idempotencyKey;
+    }
+
+    public void setIdempotencyKey(UUID key) {
+        idempotencyKey = key;
     }
 
     public String getName() {

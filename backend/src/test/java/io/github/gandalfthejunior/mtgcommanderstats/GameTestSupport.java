@@ -85,6 +85,7 @@ abstract class GameTestSupport {
         decks.deleteAll();
         groups.deleteAll();
         users.deleteAll();
+        CommanderTestProvider.clear();
     }
 
     protected Fixture fixture() throws Exception {
@@ -203,8 +204,15 @@ abstract class GameTestSupport {
     }
 
     protected HttpResponse<String> send(Actor actor, String method, String path, String body) throws Exception {
+        return send(actor, method, path, body, null);
+    }
+
+    protected HttpResponse<String> send(Actor actor, String method, String path, String body, String idempotencyKey) throws Exception {
         HttpRequest.Builder request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
                 .timeout(Duration.ofSeconds(30)).header(HttpHeaders.CONTENT_TYPE, "application/json");
+        if (idempotencyKey != null) {
+            request.header("Idempotency-Key", idempotencyKey);
+        }
         if (actor != null) {
             request.header(HttpHeaders.COOKIE, actor.cookie());
             if (actor.token() != null) {

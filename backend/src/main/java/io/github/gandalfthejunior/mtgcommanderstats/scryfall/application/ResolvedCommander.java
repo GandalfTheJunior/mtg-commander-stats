@@ -9,12 +9,12 @@ import io.github.gandalfthejunior.mtgcommanderstats.scryfall.domain.RelatedToken
 
 /** Printing and selected gameplay metadata remain separate for subsequent deck snapshots. */
 public record ResolvedCommander(CardDetails card, GameplayCard gameplay,
-        List<RelatedToken> relatedTokens, Instant tokenRetryNotBefore) {
+        List<RelatedToken> relatedTokens, Instant tokenRetryNotBefore, int usableArtworkFaces) {
     public ResolvedCommander {
         relatedTokens = relatedTokens == null ? null : List.copyOf(relatedTokens);
     }
 
     public ResolvedCommander(CardDetails card, GameplayCard gameplay) {
-        this(card, gameplay, null, null);
+        this(card, gameplay, null, null, -1);
     }
 }

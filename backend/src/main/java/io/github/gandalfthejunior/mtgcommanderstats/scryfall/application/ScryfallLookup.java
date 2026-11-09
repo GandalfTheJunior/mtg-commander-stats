@@ -147,14 +147,19 @@ public class ScryfallLookup {
 
     /** Changed Companion selections always use fresh authoritative rules, regardless of search caches. */
     public ResolvedCompanion resolveCompanionOnline(CommanderSelectionRef reference) {
+        return resolveCompanionOnline(reference, null);
+    }
+
+    public ResolvedCompanion resolveCompanionOnline(CommanderSelectionRef reference, Map<UUID, JsonNode> requestCards) {
         validateReference(reference);
-        CardDetails card = fetchCard(reference.scryfallCardId()).details();
+        FetchedCard fetched = fetchCard(reference.scryfallCardId(), requestCards);
+        CardDetails card = fetched.details();
         GameplayCard gameplay = normalizer.resolveIdentity(card, reference);
         String rejection = CompanionRules.rejection(gameplay);
         if (rejection != null) {
             throw new InvalidCompanionSelectionException(rejection);
         }
-        return new ResolvedCompanion(card, gameplay);
+        return new ResolvedCompanion(card, gameplay, fetched.artworks().size());
     }
 
     public CardDetails cardDetails(UUID id) {
@@ -274,21 +279,39 @@ public class ScryfallLookup {
 
     public List<ResolvedCommander> resolveCommandersOnline(List<CommanderSelectionRef> references, DeckFormat format,
             Set<CommanderSelectionRef> preservedSnapshots) {
+        return resolveCommandersOnline(references, format, preservedSnapshots,
+                System.nanoTime() + INLINE_TOKEN_BUDGET.toNanos());
+    }
+
+    public List<ResolvedCommander> resolveCommandersOnline(List<CommanderSelectionRef> references, DeckFormat format,
+            Set<CommanderSelectionRef> preservedSnapshots, long deadline) {
+        return resolveCommandersOnline(references, format, preservedSnapshots, deadline, null);
+    }
+
+    public List<ResolvedCommander> resolveCommandersOnline(List<CommanderSelectionRef> references, DeckFormat format,
+            Set<CommanderSelectionRef> preservedSnapshots, long deadline, Map<UUID, JsonNode> requestCards) {
         List<ValidatedCommander> validated = references.stream()
-                .map(reference -> validateCommanderOnline(reference, format)).toList();
-        long deadline = System.nanoTime() + INLINE_TOKEN_BUDGET.toNanos();
+                .map(reference -> validateCommanderOnline(reference, format, requestCards)).toList();
         return validated.stream().map(card -> preservedSnapshots.contains(
                 new CommanderSelectionRef(card.card().scryfallCardId(), card.gameplay().gameplayFaceIndex()))
-                        ? new ResolvedCommander(card.card(), card.gameplay()) : enrichCommander(card, deadline)).toList();
+                        ? new ResolvedCommander(card.card(), card.gameplay(), null, null, card.usableArtworkFaces())
+                        : enrichCommander(card, deadline)).toList();
     }
 
     private ResolvedCommander enrichCommander(ValidatedCommander validated, long deadline) {
-        return new ResolvedCommander(validated.card(), validated.gameplay(), optionalTokens(validated.raw(), deadline), client.cooldownUntil());
+        return new ResolvedCommander(validated.card(), validated.gameplay(), optionalTokens(validated.raw(), deadline),
+                client.cooldownUntil(), validated.usableArtworkFaces());
     }
 
     private ValidatedCommander validateCommanderOnline(CommanderSelectionRef reference, DeckFormat format) {
+        return validateCommanderOnline(reference, format, null);
+    }
+
+    private ValidatedCommander validateCommanderOnline(CommanderSelectionRef reference, DeckFormat format,
+            Map<UUID, JsonNode> requestCards) {
         validateReference(reference);
-        JsonNode raw = client.card(reference.scryfallCardId());
+        JsonNode raw = requestCards != null && requestCards.containsKey(reference.scryfallCardId())
+                ? requestCards.get(reference.scryfallCardId()) : client.card(reference.scryfallCardId());
         CardDetails card = normalizer.normalize(raw, reversibleMetadata(List.of(raw)), format);
         if (!reference.scryfallCardId().equals(card.scryfallCardId())) {
             throw new MalformedScryfallResponseException();
@@ -297,7 +320,10 @@ public class ScryfallLookup {
         if (format == DeckFormat.PAUPER_COMMANDER && !pauperEligible(gameplay.oracleId())) {
             throw new InvalidScryfallSelectionException();
         }
-        return new ValidatedCommander(card, gameplay, raw);
+        if (requestCards != null) {
+            requestCards.put(reference.scryfallCardId(), raw);
+        }
+        return new ValidatedCommander(card, gameplay, raw, normalizer.artworks(raw).size());
     }
 
     private List<RelatedToken> optionalTokens(JsonNode raw, long deadline) {
@@ -306,6 +332,17 @@ public class ScryfallLookup {
         } catch (ScryfallClientException | MalformedScryfallResponseException exception) {
             return null;
         }
+    }
+
+    public record TokenEnrichment(List<RelatedToken> tokens, java.time.Instant retryNotBefore) { }
+
+    /** Run optional token enrichment only after all required printing and artwork checks succeed. */
+    public TokenEnrichment enrichKnownPrinting(UUID printingId, Map<UUID, JsonNode> requestCards, long deadline) {
+        JsonNode raw = requestCards.get(printingId);
+        if (raw == null) {
+            throw new IllegalStateException("The required printing must be resolved before token enrichment.");
+        }
+        return new TokenEnrichment(optionalTokens(raw, deadline), client.cooldownUntil());
     }
 
     private static String formatFilter(DeckFormat format) {
@@ -377,8 +414,20 @@ public class ScryfallLookup {
 
     public ResolvedArtwork resolveArtworkOnline(UUID printingId, String oracleId, Integer previousGameplayFace,
             Integer artworkFaceIndex, boolean commanderTokens) {
+        return resolveArtworkOnline(printingId, oracleId, previousGameplayFace, artworkFaceIndex, commanderTokens,
+                System.nanoTime() + INLINE_TOKEN_BUDGET.toNanos());
+    }
+
+    public ResolvedArtwork resolveArtworkOnline(UUID printingId, String oracleId, Integer previousGameplayFace,
+            Integer artworkFaceIndex, boolean commanderTokens, long deadline) {
+        return resolveArtworkOnline(printingId, oracleId, previousGameplayFace, artworkFaceIndex, commanderTokens,
+                deadline, null);
+    }
+
+    public ResolvedArtwork resolveArtworkOnline(UUID printingId, String oracleId, Integer previousGameplayFace,
+            Integer artworkFaceIndex, boolean commanderTokens, long deadline, Map<UUID, JsonNode> requestCards) {
         requireId(printingId);
-        FetchedCard fetched = fetchCard(printingId);
+        FetchedCard fetched = fetchCard(printingId, requestCards);
         List<GameplayCard> matches = fetched.details().gameplayCards().stream()
                 .filter(gameplay -> oracleId.equals(gameplay.oracleId())).toList();
         GameplayCard gameplay = matches.stream()
@@ -388,13 +437,13 @@ public class ScryfallLookup {
         Artwork selected = artworkFaceIndex == null
                 ? (images.size() == 1 ? images.getFirst() : null)
                 : images.stream().filter(image -> artworkFaceIndex.equals(image.artworkFaceIndex())).findFirst().orElse(null);
-        if (selected == null) {
+        if (selected == null || selected.artCropUrl() == null) {
             throw new InvalidScryfallSelectionException();
         }
         return new ResolvedArtwork(new CommanderSelectionRef(printingId, gameplay.gameplayFaceIndex()), selected,
                 fetched.details().cardFaces(), commanderTokens
-                        ? optionalTokens(fetched.raw(), System.nanoTime() + INLINE_TOKEN_BUDGET.toNanos()) : null,
-                client.cooldownUntil());
+                        ? optionalTokens(fetched.raw(), deadline) : null,
+                client.cooldownUntil(), images.size());
     }
 
     public List<Artwork> artworks(UUID id, Integer gameplayFaceIndex) {
@@ -447,10 +496,17 @@ public class ScryfallLookup {
     }
 
     private FetchedCard fetchCard(UUID id) {
-        JsonNode raw = client.card(id);
+        return fetchCard(id, null);
+    }
+
+    private FetchedCard fetchCard(UUID id, Map<UUID, JsonNode> requestCards) {
+        JsonNode raw = requestCards != null && requestCards.containsKey(id) ? requestCards.get(id) : client.card(id);
         CardDetails result = normalizer.normalize(raw, reversibleMetadata(List.of(raw)));
         if (!id.equals(result.scryfallCardId())) {
             throw new MalformedScryfallResponseException();
+        }
+        if (requestCards != null) {
+            requestCards.put(id, raw);
         }
         return new FetchedCard(raw, result, normalizer.artworks(raw));
     }
@@ -628,7 +684,7 @@ public class ScryfallLookup {
         return literal.toString();
     }
 
-    private record ValidatedCommander(CardDetails card, GameplayCard gameplay, JsonNode raw) { }
+    private record ValidatedCommander(CardDetails card, GameplayCard gameplay, JsonNode raw, int usableArtworkFaces) { }
 
     private record FetchedCard(JsonNode raw, CardDetails details, List<Artwork> artworks) {
     }

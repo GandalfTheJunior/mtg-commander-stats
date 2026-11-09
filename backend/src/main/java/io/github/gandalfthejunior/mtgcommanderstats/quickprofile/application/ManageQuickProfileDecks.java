@@ -36,6 +36,12 @@ public class ManageQuickProfileDecks {
         return decks.create(authorize(actorId, groupId, profileId), name, commanders, manaBoxUrl, companion, format);
     }
 
+    public ManageDecks.CreateResult createIdempotent(UUID actorId, UUID groupId, UUID profileId, UUID key,
+            String name, List<CommanderInput> commanders, String manaBoxUrl, CompanionInput companion, DeckFormat format) {
+        return decks.createIdempotent(authorize(actorId, groupId, profileId), key, name, commanders, manaBoxUrl,
+                companion, format);
+    }
+
     public Deck update(UUID actorId, UUID groupId, UUID profileId, UUID deckId, String name,
             List<CommanderInput> commanders, boolean manaBoxUrlSupplied, String manaBoxUrl,
             boolean companionSupplied, CompanionInput companion, DeckFormat format) {
