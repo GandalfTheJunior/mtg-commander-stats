@@ -175,23 +175,51 @@ and volume growth without deleting unrelated resources.
 
 ## Observed results and limits (9 November 2026)
 
-- **Codex Cloud, before #246:** a monitored full run using the explicit
-  `-Dspring.test.context.cache.maxSize=1` workaround passed **844 tests**.
-  Additional disk use peaked near **2.00 GB**, with **5.97 GB** free at
-  the low point. That run was **not CI-equivalent**; it does not establish
-  a canonical full-suite result after #246 in Codex Cloud.
-- **Claude Code Cloud, after #246 and PR #256:** a fresh cloud session
-  automatically started Docker and ran `./mvnw -B verify` without extra
-  properties: **856 tests, zero failures/errors/skips**, Maven time about
-  **5 min 13 s**. Free disk remained at least **28.41 GB**.
-  The observer recorded up to two concurrent PostgreSQL containers; their
-  individual identities were not verified. Containers and volumes were
-  removed after the run.
-- **Important image-pull caveat:** the Claude test first encountered Docker
-  Hub **HTTP 429**, then `postgres:18` and the Ryuk image were **manually
-  pulled before** the successful `verify` run. That result proves the suite
-  works with images present, **not** that every unattended cold start can
-  download the images when the shared egress IP is rate-limited.
+These observations are from cloud-task reports supplied by the Product Owner;
+they were not independently rerun by this documentation-only change.
+
+- **Earlier Codex Cloud run (before #246):** a monitored full run using the
+  explicit `-Dspring.test.context.cache.maxSize=1` workaround passed **844
+  tests**. Additional disk use peaked near **2.00 GB**, with **5.97 GB** free
+  at the low point. This was **not CI-equivalent** and is superseded as current
+  environment evidence by the canonical run below.
+- **Earlier Claude Code Cloud run (after #246 and PR #256):** a fresh session
+  automatically started Docker and passed `./mvnw -B verify` with **856 tests,
+  zero failures/errors/skips**, in about **5 min 13 s**. Free disk remained
+  at least **28.41 GB**. The first image pull encountered Docker Hub
+  **HTTP 429**, so `postgres:18` and the Ryuk image were manually pulled
+  before this successful run. It did not prove an unattended cold start.
+- **Fresh Codex Cloud task:** the latest remote `main` commit
+  [`42bc851ea2846d49238473448094a0d2499c8e9f`](https://github.com/GandalfTheJunior/mtg-commander-stats/commit/42bc851ea2846d49238473448094a0d2499c8e9f)
+  was verified in a clean temporary checkout (the task's original checkout
+  remained on an earlier commit). Java **25.0.4.1**, Node **24.22.2** and
+  Maven wrapper **3.9.11** were active; the documented Codex environment
+  paths and `MAVEN_ARGS=-s /workspace/.cloud-setup/maven-settings.xml`
+  reached the task shell. Docker worked without manual startup using the
+  **`vfs`** driver. The unchanged canonical `cd backend && ./mvnw verify`
+  passed **856 tests, zero failures/errors/skips**, without a context-cache
+  override. `npm ci && npm run build` also passed. Root filesystem free
+  space was **7.5 GB** initially and at least **6.4 GB** at the observed
+  checkpoints; no setup intervention, manual image pull or cleanup was needed.
+- **Fresh Claude Code Cloud task:** Java **25.0.5.0.3**, Node **24.22.2**,
+  Maven wrapper **3.9.11**, `JAVA_HOME` and `CLAUDE_ENV_FILE` matched the
+  Claude-specific setup; Codex-only Maven/cache variables were correctly
+  unset. The repository's SessionStart hook started Docker automatically
+  (**29.9.2**, **`overlayfs`**). At the first `docker info`, there were
+  **zero cached images**. The unchanged `cd backend && ./mvnw verify`
+  pulled `testcontainers/ryuk:0.14.0` and `postgres:18` without manual
+  intervention or HTTP 429, then passed **856 tests, zero
+  failures/errors/skips**, in about **4 min 47 s**. Frontend `npm ci` and
+  `npm run build` passed. Free root disk space was about **30 GB** before
+  the run and about **28.4 GiB** at the sampled minimum. No containers
+  remained after the test run.
+- **Limits:** these are successful fresh **task/session** checks, not proof
+  that the provider setup scripts were reinstalled from scratch or that every
+  future Docker Hub pull will succeed. The earlier 429 is a real intermittent
+  risk; pre-pulling images into a cached provider setup remains **unimplemented**
+  and is tracked separately in [#265](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/265).
+  Recheck active provider-side scripts and variables against their Git copies
+  before any environment rebuild.
 
 ## Troubleshooting
 
