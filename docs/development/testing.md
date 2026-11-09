@@ -23,6 +23,22 @@ The current backend context test exercises the actual datasource, JPA, and Flywa
 infrastructure. Consult relevant existing tests and configuration when extending
 coverage rather than assuming a feature or test infrastructure already exists.
 
+## Shared PostgreSQL integration-test infrastructure
+
+Spring integration-test contexts use a single PostgreSQL 18 Testcontainer per
+test JVM. Each freshly constructed Spring application context gets a uniquely
+named database inside that container, with its own datasource and Flyway
+migration history. Cached contexts keep their own database; separate contexts
+cannot observe or clean up one another's test records. Tests that intentionally
+start disposable PostgreSQL containers themselves, such as
+`FlywayResourceAvailabilityTest`, remain independent.
+
+The canonical backend verification command remains `cd backend && ./mvnw
+verify` without a Spring context-cache override, including in CI. Avoid
+`spring.test.context.cache.maxSize` overrides as a substitute for test
+isolation; if resource constraints force a deviation during investigation,
+disclose it as not CI-equivalent under [Required checks](#required-checks).
+
 ## Test integrity
 
 A failing test is a signal to investigate, not an obstacle to remove. Do not make
