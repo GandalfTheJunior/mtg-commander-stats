@@ -1,7 +1,9 @@
 # Agent cloud environments: Codex Cloud and Claude Code Cloud
 
 This is an **operational runbook**, not an additional agent bootstrap contract.
-Both providers keep environment provisioning and some settings **outside Git**.
+The reviewed setup script sources are versioned in [scripts/cloud](../../scripts/cloud/),
+while provider environment selections, variable values and deployed script copies
+remain **outside Git**.
 Use this guide when creating, rebuilding, or debugging a cloud workspace; do
 not load it for unrelated agent tasks. `CLAUDE.md` already includes the
 common `AGENTS.md` guidance; no separate agent policy is needed. Provider
@@ -29,33 +31,39 @@ the prepared environment for a **new** task. See the
 [Codex Cloud guide](https://help.openai.com/en/articles/20001545-using-codex-cloud)
 for the current UI. Codex environment settings are not read from `AGENTS.md`.
 
-**Previously verified setup:** The working installation script was reported at
-`/workspace/.cloud-setup/install-consolidated.sh` and provisioned its tools
-and caches under `/workspace/.cloud-setup/` (including `jdk/`, `node/`, `m2/`
-and `env.sh`). The script was configured in the Codex cloud environment, **not**
-tracked in this repository. The exact current provider-side script and settings
-cannot be recovered from Git alone. Before recreating the environment, export
-the actual script and redact/secure any sensitive configuration. Do not assume
-that an older local copy is the deployed version.
+**Versioned source:** [`scripts/cloud/codex-setup.sh`](../../scripts/cloud/codex-setup.sh)
+reproduces the setup script supplied by the Product Owner from the working
+Codex Cloud environment for #263. It previously ran as
+`/workspace/.cloud-setup/install-consolidated.sh` and provisions tools and
+caches beneath `/workspace/.cloud-setup/` (`jdk/`, `node/`, `m2/`,
+`maven/`, `npm-cache/`, and `env.sh`). Copy the versioned script into the
+provider's setup-script editor or run it using the provider-supported setup
+mechanism, without adding it to mandatory agent bootstrap. When rebuilding,
+verify that the provider's active script matches the versioned source; updating
+Git alone does **not** update the external environment.
 
-The working environment previously used these **five provider environment
-variable names**. Confirm the **current literal values in Codex's UI** before
-restoring them; only the script-derived paths below are independently recorded:
+The Codex setup script exports these **five values** for its setup process and
+writes them into `/workspace/.cloud-setup/env.sh` for optional reuse. Whether
+they must also be entered in the provider UI depends on how the agent shell is
+initialized; confirm their effective values in a fresh session:
 
 | Variable | Recorded purpose / known path |
 | --- | --- |
-| `JAVA_HOME` | JDK 25; previously `/workspace/.cloud-setup/jdk` |
-| `MAVEN_USER_HOME` | Maven wrapper user home; previously `/workspace/.cloud-setup/maven` |
-| `MAVEN_ARGS` | Maven command defaults; exact deployed value **not captured here** |
-| `MAVEN_OPTS` | Maven JVM options; previously configured local repository and Java truststore |
-| `NPM_CONFIG_CACHE` | Writable npm cache; script used `/workspace/.cloud-setup/npm-cache` |
+| `JAVA_HOME` | `/workspace/.cloud-setup/jdk` |
+| `MAVEN_USER_HOME` | `/workspace/.cloud-setup/maven` |
+| `MAVEN_ARGS` | `-s /workspace/.cloud-setup/maven-settings.xml` |
+| `MAVEN_OPTS` | `-Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts` |
+| `NPM_CONFIG_CACHE` | `/workspace/.cloud-setup/npm-cache` |
 
-The historical setup populated `~/.m2/settings.xml` from the cloud's HTTPS
-proxy when needed, placed Maven artifacts in a writable local repository,
-and configured system CA/truststore handling where applicable. Proxy host,
-credentials, `MAVEN_ARGS`, and the current final `MAVEN_OPTS` value must be
-checked **in the active environment**; do not publish proxy credentials or
-truststore secrets. The older Codex workspace had about **8 GB** of disk space
+The versioned script generates `/workspace/.cloud-setup/maven-settings.xml`
+(mode 600), using the runtime's `HTTP_PROXY` and `HTTPS_PROXY` values where
+present, and points Maven at the writable `/workspace/.cloud-setup/m2` local
+repository. It accepts only unauthenticated HTTP CONNECT proxies. It sets the
+Java truststore via `MAVEN_OPTS` and npm's CA file in user-level npm settings.
+The script does **not** populate `~/.m2/settings.xml`. Keep proxy addresses,
+credentials and truststore secrets out of Git; inspect effective settings in
+the actual cloud task. The script also runs a backend package build and
+frontend `npm ci` / build during provisioning, but not integration tests. The older Codex workspace had about **8 GB** of disk space
 and Docker used the `vfs` storage driver. Those were observations, not
 requirements for all Codex environments. Docker worked without a
 repository-specific SessionStart hook in that workspace.
@@ -70,15 +78,19 @@ The observed Trusted allowlist included `download.oracle.com` and
 `nodejs.org` for the JDK and Node downloads. Confirm these hosts and Maven/npm
 registries remain permitted in the current provider configuration.
 
-The successful provider-side **setup script** was entered in Claude's cloud
-environment editor; it is **not committed to this repository**. The reviewed
-working script installed Oracle JDK 25 and Node.js 24 beneath
-`/opt/mtg-claude-cloud/`, using their published checksums, and created
-`/opt/mtg-claude-cloud/env.sh` plus
-`/etc/profile.d/mtg-claude-cloud.sh`. It used the latest release within
-each major version, so patch versions can change on environment rebuild.
-Export the current script from the provider settings before rebuilding;
-the actual provider-side script is the source of truth.
+**Versioned source:** [`scripts/cloud/claude-setup.sh`](../../scripts/cloud/claude-setup.sh)
+reproduces the setup script supplied by the Product Owner from the working
+Claude Code Cloud environment for #263. Copy its contents into the cloud
+**Setup script** editor (do not confuse this with the in-repository Docker
+SessionStart hook), set the [environment variables below](#claude-code-cloud),
+and save the provider environment. The script installs checksum-verified Oracle
+JDK 25 and Node.js 24 beneath `/opt/mtg-claude-cloud/`, creates
+`/opt/mtg-claude-cloud/env.sh` and
+`/etc/profile.d/mtg-claude-cloud.sh`, and intentionally **does not** install
+application dependencies or pre-pull Docker images during provisioning. Both
+scripts resolve the latest patch releases within their major versions, so
+versions can change when the provider rebuilds an environment. Updating Git
+alone does **not** update the provider's saved setup script.
 
 The recorded **Claude environment variables** were:
 
@@ -96,15 +108,13 @@ SessionStart hooks which append with `>> "$CLAUDE_ENV_FILE"` will modify the
 first redesign the ownership of that environment file; the existing Docker
 hook does **not** append to it.
 
-Two setup-script revisions existed: the earlier one created
-`/opt/mtg-claude-cloud/npm-cache` and exported `NPM_CONFIG_CACHE` pointing
-there, while the later reviewed script removed that override and used npm's
-default per-user cache. The successful Cloud smoke test observed `/root/.npm`.
-The reason for the change was to avoid an unnecessary shared `/opt` cache that
-could be unwritable if commands later run under a different user; ownership by
-root is **not itself a problem** when the agent also runs as root. Confirm the
-**actually deployed** setup script and `npm config get cache` before a rebuild;
-the working observation does not prove which revision is currently deployed.
+An earlier Claude script revision created `/opt/mtg-claude-cloud/npm-cache`
+and exported `NPM_CONFIG_CACHE`. The **versioned and PO-supplied deployed
+script** omits that override, leaving npm's default per-user cache (observed
+as `/root/.npm`). This avoids an unnecessary shared `/opt` cache that could
+be unwritable under another user. Root ownership alone is not a problem when
+commands also run as root. Do not restore the old npm-cache override when
+copying this script into the provider environment.
 
 An observed `JAVA_TOOL_OPTIONS` proxy/truststore setting came from the
 runtime environment, **not** from the reviewed setup script. Inspect the
@@ -185,12 +195,13 @@ and volume growth without deleting unrelated resources.
 
 ## Maintenance and recovery
 
-1. Before modifying a working provider environment, **export and securely
-   archive its actual setup script, environment-variable values (excluding
-   secrets), network policy and any Maven proxy/truststore settings**. Provider
-   UI configurations and scripts are not currently reconstructible from Git.
-   Track verified, sanitized script copies in follow-up [#263](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/263) rather than assuming
-   an older local copy matches the currently deployed version.
+1. Before modifying a working provider environment, compare its active setup
+   script with the versioned [Codex](../../scripts/cloud/codex-setup.sh) or
+   [Claude](../../scripts/cloud/claude-setup.sh) source. Securely record the
+   provider-side variable values (excluding secrets), network policy and
+   proxy/truststore settings; those settings remain outside Git. If either
+   script differs from the deployed copy, reconcile it through review before
+   changing the live environment.
 2. After Java/Node patch changes or provider base-image/network/cache resets,
    repeat the version, tool-location, dependency-download and Docker checks.
    Latest-major URLs may resolve to new patch releases.
