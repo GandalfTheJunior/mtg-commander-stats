@@ -290,6 +290,14 @@ Node 24 is also required for the complete offline demo API integration test.
 Docker must be available; tests do not skip when Docker is missing. Compose
 need not be running, and no local database password is needed for the test.
 
+In Claude Code cloud sessions, Docker is installed but its daemon is not
+started automatically. The `SessionStart` hook in `.claude/settings.json` runs
+[`.claude/hooks/start-docker-daemon.sh`](.claude/hooks/start-docker-daemon.sh),
+which starts `dockerd` with its default configuration when
+`CLAUDE_CODE_REMOTE=true` and waits until `docker info` succeeds. Daemon output
+goes to `/tmp/claude-dockerd.log`. The hook does nothing in other environments
+and does not start a second daemon when one is already running.
+
 From `frontend/`:
 
 ```bash
