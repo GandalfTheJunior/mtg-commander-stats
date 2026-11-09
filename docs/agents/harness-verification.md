@@ -200,7 +200,7 @@ Pass if every case matches, no agent approves or merges, and the root
 ## Screenshot delivery and recovery
 
 Run these cases in a fresh conversation using the current client and the
-[Implementer screenshot contract](roles/implementer.md#ui-screenshot-evidence).
+[full screenshot and delivery contract](ui-screenshot-evidence.md).
 Use non-sensitive desktop/mobile captures of a running development UI after its
 final edit, stored outside Git. These cases test delivery behavior, not UI approval.
 
