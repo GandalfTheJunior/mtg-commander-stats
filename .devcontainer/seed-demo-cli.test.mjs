@@ -52,7 +52,7 @@ function fixture() {
           'com.docker.compose.project.working_dir':root+(demo?'/tools/demo':''),'com.docker.compose.project.config_files':root+(demo?'/tools/demo/compose.yaml':'/compose.yaml')},
         Mounts:[{Type:'volume',Name:demo?'mtg-commander-demo-data':'test-data',Destination:'/var/lib/postgresql',RW:true}]});
     } else if (a.includes('pg_dump')) output = 'archive';
-    else if (a.includes('pg_restore')) output = 'SELECT 1;';
+    else if (a.includes('pg_restore')) output = "SELECT pg_catalog.set_config('search_path', '', false);\\nSELECT 1;";
     else if (a.includes('-Atc')) {
       const query = a.at(-1);
       if (query.includes('pg_tables')) output = 'decks\\ngames\\nplay_groups\\nusers';

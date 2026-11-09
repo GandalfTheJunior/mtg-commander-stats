@@ -93,14 +93,19 @@ test('preparation retry requires owned v2 phase, no source attempt and every tar
   assert.equal(decideRecovery('preparing', empty, 'complete'), 'recover');
 });
 test('restore SQL locks tables and restores public search path before constraints', () => {
-  const script = restorationSql('SELECT 1;', ['users', 'decks', 'play_groups']);
+  const script = restorationSql("SELECT pg_catalog.set_config('search_path', '', false);\nSELECT 1;",
+    ['users', 'decks', 'play_groups']);
   assert.ok(script.startsWith('BEGIN;'));
   assert.ok(script.includes('LOCK TABLE public."users", public."decks", public."play_groups" IN ACCESS EXCLUSIVE MODE;'));
   assert.ok(script.includes('EXISTS (SELECT 1 FROM public."decks")'));
-  assert.ok(script.indexOf('SET search_path TO public;') > script.indexOf('SELECT 1;'));
-  assert.ok(script.indexOf('SET search_path TO public;') < script.indexOf('SET CONSTRAINTS ALL IMMEDIATE;'));
+  assert.ok(script.indexOf('SET CONSTRAINTS public.play_groups_owner_id_fkey, public.users_home_group_id_fkey DEFERRED;')
+    < script.indexOf('SELECT 1;'));
+  assert.ok(script.indexOf('SET search_path TO public;') < script.indexOf('SELECT 1;'));
+  assert.ok(script.lastIndexOf('SET search_path TO public;') > script.indexOf('SELECT 1;'));
+  assert.ok(script.lastIndexOf('SET search_path TO public;') < script.indexOf('SET CONSTRAINTS ALL IMMEDIATE;'));
   assert.ok(script.endsWith('COMMIT;\n'));
   assert.throws(() => restorationSql('', ['users']), SeedError);
+  assert.throws(() => restorationSql('SELECT 1;', ['users']), SeedError);
 });
 
 test('real failed child retains only closed stage/HTTP/exit diagnostics', async () => {
