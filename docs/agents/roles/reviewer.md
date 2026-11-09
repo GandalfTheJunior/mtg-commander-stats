@@ -39,7 +39,7 @@ orientation aid, not proof of correctness.
 4. Report checks performed, missing evidence, limitations, and uncertainty.
    Return findings for correction; verify accepted corrections when requested.
    Optionally flag an Agent Poker reference candidate under the
-   [reference maintenance rule](../README.md#maintaining-reference-issues).
+   [reference maintenance rule](../agent-poker.md#maintaining-reference-issues).
 5. Support the PO's own PR review and questions. Only after the PO explicitly
    signals that their review is complete, offer the comprehension check below
    by asking concise, PR-specific questions.
