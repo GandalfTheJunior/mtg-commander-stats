@@ -5,6 +5,7 @@ import {existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, openSync
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import {summarizeDiagnostics} from '../tools/demo/diagnostics.mjs';
+import {users, quickProfile, groups, games} from '../tools/demo/fixture.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const postgres = 'mtg_commander_stats';
@@ -13,6 +14,13 @@ const demoProject = 'mtg-commander-demo';
 const demoVolume = 'mtg-commander-demo-data';
 const maxBuffer = 32 * 1024 * 1024;
 const marker = join(process.env.HOME ?? '', '.local/state/mtg-commander-stats/demo-seed-once.json');
+
+export const sourceCounts = Object.freeze({
+  users: users.length + Number(Boolean(quickProfile)),
+  decks: users.reduce((count, user) => count + user.decks.length, 0) + Number(Boolean(quickProfile?.deck)),
+  play_groups: groups.length,
+  games: games.length,
+});
 
 export class SeedError extends Error {}
 
@@ -272,9 +280,8 @@ export function main(args = []) {
     }
     requireSafe(sourceSeedStatus() === 'complete', 'Demo fixture seed is not verified complete.');
     const sourceId = demoId();
-    for (const [table, expected] of [['users', '7'], ['decks', '21'],
-      ['play_groups', '2'], ['games', '32']]) {
-      requireSafe(sql(sourceId, demo, 'SELECT count(*) FROM public."' + table + '"') === expected,
+    for (const [table, expected] of Object.entries(sourceCounts)) {
+      requireSafe(sql(sourceId, demo, 'SELECT count(*) FROM public."' + table + '"') === String(expected),
         'Demo source content differs from verified fixture.');
     }
     requireSafe(fingerprint(sourceId, demo) === fingerprint(targetId, postgres),
@@ -288,7 +295,10 @@ export function main(args = []) {
     record('started', owner);
     importData(sourceId, targetId, checkedTables.map(row => row.name));
     record('complete', owner);
-    console.log('demo: imported 7 accounts, 21 decks, 2 groups, 32 games once. Credentials in private .demo/credentials.json.');
+    console.log('demo: imported ' + users.length + ' accounts, ' +
+      (sourceCounts.users - users.length) + ' quick profile, ' +
+      sourceCounts.decks + ' decks, ' + sourceCounts.play_groups + ' groups, ' +
+      sourceCounts.games + ' games once. Credentials in private .demo/credentials.json.');
   } finally {
     if (sourceStarted) {
       try { nodeDemo('stop'); }

@@ -27,7 +27,7 @@ The preview database is independent and initially empty on creation; an explicit
    and links to the app on port **5173** when ready. The app address is
    `https://<codespace-name>-5173.app.github.dev/`.
 5. When both services report **Bereit**, tap **Anwendung jetzt öffnen**.
-   The first fresh Codespace populates the existing isolated demo fixture once: 7 fictional accounts, 21 decks, 2 groups and 32 games. Sign in as `ada@commander.example` using `accountPassword` from the Codespace-local, ignored `.demo/credentials.json` file. Never share the password or that file.
+   The first fresh Codespace populates the existing isolated demo fixture once: 7 fictional accounts, 1 separate quick profile, 22 decks (including the quick profile's unused deck), 2 groups and 32 games. Sign in as `ada@commander.example` using `accountPassword` from the Codespace-local, ignored `.demo/credentials.json` file. Never share the password or that file.
 6. When finished, visit <https://github.com/codespaces>, select the three-dot
    menu for the Codespace and choose **Stop codespace**. Closing Safari does
    **not** stop compute billing. Stopped Codespaces can still consume storage.
@@ -47,6 +47,7 @@ branches can use the configuration on `main` when their branch contains it.
 
 - A fresh Codespace sets `MTG_CODESPACE_DEMO_DATA=1` via its devcontainer configuration. After PostgreSQL and the ordinary backend (including Flyway migrations) become healthy, `.devcontainer/seed-demo.mjs` checks every existing public application table for rows. **Only an entirely empty application database** is eligible. If any table contains data, it skips without changing it. Restarts never reset or re-seed accounts, groups, decks or games.
 - Initialization reuses the existing isolated offline demo tool and its pinning/verification logic. It starts its own localhost PostgreSQL on port 5433 and seeds that **separate** demo volume. After verification it imports application-table **data only**, transactionally, into the fresh Codespaces PostgreSQL volume. Source and target Flyway migration checksums must match; no Flyway history or schema DDL is copied. The isolated demo DB is stopped but its volume is retained.
+- Before import, the source check requires exactly 8 `users` rows (7 accounts and 1 quick profile), 22 `decks` rows, 2 `play_groups` rows and 32 `games` rows, as derived from the canonical fixture. Missing or extra source rows fail initialization before the target is written. The optional tester account is provisioned only after a successful import and is not part of these source counts.
 - Demo accounts use the same generated `accountPassword` in the private, ignored `.demo/credentials.json` file. No demo password is checked in; do not share the file or enable public port forwarding. This initialization is for private development, never for production or any arbitrary database.
 - The state file `~/.local/state/mtg-commander-stats/demo-seed-once.json` now separates **preparing** from **started**. A new version-2 `preparing` marker records the Codespace, repository, Compose project and target volume before build/start preparation. A later invocation may continue only if this ownership still matches, every target application table is empty, no source seed marker exists, and the source tool independently proves every source application table empty under its existing operation lock and Docker/credential checks. An absent source marker alone is never proof of safety. A source startup may have applied Flyway schema migrations; those are retained. Build/start failure is not retried in a loop.
 - Immediately before the actual transactional import, the target marker is durably changed to `started`. Failed/ambiguous imports continue to **refuse automatic retry**. Old `started` markers also remain blocked, including the incident with a missing `.demo/seed-status.json`; no ownership or safe phase is inferred retroactively. Partial/unknown source markers, stale source operation locks, unreadable state or interrupted `.tmp` marker transitions fail closed and are preserved.
@@ -251,7 +252,8 @@ password is acceptable. Automatic autofill across different
 The extra account starts without decks or group membership. Group history and
 statistics require legitimately joining with an owner's join code. Ada still
 provides the complete seeded history. The seven original accounts, their generated
-passwords, 21 decks, two groups, 32 games and canonical fixture remain unchanged.
+passwords, 21 account-owned decks, one quick profile with one unused deck, two groups,
+32 games and canonical fixture remain unchanged.
 
 ### Trust and secret lifecycle
 
@@ -330,7 +332,7 @@ After this correction, test a **new private Codespace** on the updated PR branch
 
 1. Keep ports 5173/5174 Private and 8080/5432 unforwarded. Use only the existing
    personal test secret, granted to this repository; no broad extra token.
-2. Look for the completed 7-account/21-deck/2-group/32-game import message, then
+2. Look for the completed 7-account/1-quick-profile/22-deck/2-group/32-game import message, then
    `test-login: created and verified test login` and final preview readiness.
 3. Sign in as the separate tester on iPhone. It starts without decks or groups;
    Ada's existing generated credentials still provide the seeded history.
