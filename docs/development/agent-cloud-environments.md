@@ -3,9 +3,10 @@
 This is an **operational runbook**, not an additional agent bootstrap contract.
 Both providers keep environment provisioning and some settings **outside Git**.
 Use this guide when creating, rebuilding, or debugging a cloud workspace; do
-not load it for unrelated agent tasks. Provider interfaces and base images may
-change. Verify the active environment rather than treating old observations as
-guarantees.
+not load it for unrelated agent tasks. `CLAUDE.md` already includes the
+common `AGENTS.md` guidance; no separate agent policy is needed. Provider
+interfaces and base images may change. Verify the active environment rather
+than treating old observations as guarantees.
 
 ## Shared project requirements
 
@@ -65,7 +66,9 @@ Create/select a [Claude Code cloud environment](https://code.claude.com/docs/en/
 and attach this repository to a cloud session. Set the environment's network
 access to allow the actual JDK/Node downloads and Maven/npm dependencies; the
 previously working environment used the provider's **Trusted** access level.
-Confirm permitted hosts in the current provider configuration.
+The observed Trusted allowlist included `download.oracle.com` and
+`nodejs.org` for the JDK and Node downloads. Confirm these hosts and Maven/npm
+registries remain permitted in the current provider configuration.
 
 The successful provider-side **setup script** was entered in Claude's cloud
 environment editor; it is **not committed to this repository**. The reviewed
@@ -85,9 +88,24 @@ The recorded **Claude environment variables** were:
 | `CLAUDE_ENV_FILE` | `/opt/mtg-claude-cloud/env.sh` |
 
 `env.sh` prepends the installed JDK and Node binary directories to `PATH`.
-The profile script also makes them available in regular agent shells.
-npm used a writable per-user cache (observed as `/root/.npm`); do **not**
-reintroduce the obsolete root-owned npm cache under `/opt`.
+`CLAUDE_ENV_FILE` is the mechanism intended to expose these values to Claude's
+Bash commands; `/etc/profile.d/mtg-claude-cloud.sh` additionally exposes them
+in **login shells**, not necessarily in every non-login agent shell. Beware that
+SessionStart hooks which append with `>> "$CLAUDE_ENV_FILE"` will modify the
+**same** `env.sh` file used by the setup. Keep such hook writes separate, or
+first redesign the ownership of that environment file; the existing Docker
+hook does **not** append to it.
+
+Two setup-script revisions existed: the earlier one created
+`/opt/mtg-claude-cloud/npm-cache` and exported `NPM_CONFIG_CACHE` pointing
+there, while the later reviewed script removed that override and used npm's
+default per-user cache. The successful Cloud smoke test observed `/root/.npm`.
+The reason for the change was to avoid an unnecessary shared `/opt` cache that
+could be unwritable if commands later run under a different user; ownership by
+root is **not itself a problem** when the agent also runs as root. Confirm the
+**actually deployed** setup script and `npm config get cache` before a rebuild;
+the working observation does not prove which revision is currently deployed.
+
 An observed `JAVA_TOOL_OPTIONS` proxy/truststore setting came from the
 runtime environment, **not** from the reviewed setup script. Inspect the
 actual environment before assuming a specific proxy configuration.
@@ -100,7 +118,6 @@ waits for `docker info`, and writes logs to `/tmp/claude-dockerd.log`.
 The hook is intentionally a no-op on local machines. Setup-script filesystem
 caching must not be mistaken for persistence of running daemon processes.
 See [PR #256](https://github.com/GandalfTheJunior/mtg-commander-stats/pull/256).
-`CLAUDE.md` already includes the common `AGENTS.md` guidance.
 
 ## Verify a fresh session
 
@@ -161,7 +178,7 @@ and volume growth without deleting unrelated resources.
 | Symptom | What to check |
 | --- | --- |
 | `docker info` reports missing socket | In Claude Cloud confirm the checked-out revision contains the SessionStart hook; inspect `/tmp/claude-dockerd.log`. Do not assume Docker needs reinstalling. In Codex Cloud verify Docker availability in that specific VM. |
-| Docker Hub `429 Too Many Requests` | Check the pull response, shared-IP rate limit and cached images. Authenticated Docker Hub pulls or an authorized registry mirror are **possible future mitigations**, not configured fixes; keep credentials in provider secrets, never Git. |
+| Docker Hub `429 Too Many Requests` | Check the pull response, shared-IP rate limit and cached images. Possible **unimplemented** mitigations include authenticated pulls, an authorized registry mirror, or preparing `postgres:18` and the **Testcontainers-version-matched Ryuk image** during the provider setup phase, while `dockerd` is temporarily running, so their downloaded layers enter the setup filesystem snapshot. Validate snapshot persistence, cache rebuild behavior, pull policy, and disk costs before adopting that option; do **not** assume snapshots guarantee later availability. Keep credentials in provider secrets, never Git. |
 | Maven HTTPS/download errors | Check provider network policy, inherited `HTTPS_PROXY`, Maven's effective `~/.m2/settings.xml`, Java truststore and any `JAVA_TOOL_OPTIONS`/`MAVEN_OPTS` settings; redact sensitive values in reports. |
 | Wrong Java/Node version | Compare `command -v java node npm`, `java -version`, `node --version`, `JAVA_HOME`, and `PATH`. Older runtimes may remain later on `PATH`. |
 | Cache or filesystem errors | Check `df -h`, cache ownership and Maven/npm paths. Do not use broad Docker cleanup as an unexplained fix. |
@@ -172,6 +189,8 @@ and volume growth without deleting unrelated resources.
    archive its actual setup script, environment-variable values (excluding
    secrets), network policy and any Maven proxy/truststore settings**. Provider
    UI configurations and scripts are not currently reconstructible from Git.
+   Track verified, sanitized script copies in follow-up [#263](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/263) rather than assuming
+   an older local copy matches the currently deployed version.
 2. After Java/Node patch changes or provider base-image/network/cache resets,
    repeat the version, tool-location, dependency-download and Docker checks.
    Latest-major URLs may resolve to new patch releases.
