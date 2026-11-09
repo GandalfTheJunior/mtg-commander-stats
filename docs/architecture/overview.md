@@ -346,10 +346,14 @@ The shell uses React Router Declarative Mode; no real-time infrastructure is add
 ## Browser game recording and deck lifecycle
 
 `GameManager` is mounted inside confirmed group details for the current session
-identity. It loads validated history DTOs in backend order. `GameEditor` constructs
-only participants, result and winner; server identity fields and roles are never
-submitted. The winner label and historical participant/deck displays come from
-history responses, including archived decks and former members. Existing pairs
+identity. It loads validated history DTOs in backend order. The current `GameEditor`
+submits participant/deck assignments with contiguous `startPosition` values,
+mode-specific `placement`, `winner` or `stillInGame` fields, `result`, and
+`alternateWinCon`. Server-owned game identity, group, creator, recording time,
+and membership roles are not writable payload fields. Winner-only and
+unknown-placement browser handling remain [follow-up work](../product/games-api.md#browser-integration-handoff-196-195).
+The winner label and historical participant/deck displays come from history
+responses, including archived decks and former members. Existing pairs
 are offered explicitly as recorded assignments. New choices come from the group's
 active-member list and read-only member deck-selection API, with independent
 loading/empty/error feedback. Backend validation and authorization remain final.
@@ -391,16 +395,19 @@ duplicating the view or the game editor. It calls
 `getGroupStatistics` in `api.ts`, which validates status, public row fields, UUIDs,
 unique IDs, positive safe-integer game counts, wins within games, and finite
 percentages within 0–100. Only documented fields are retained. The component
-renders two semantic HTML tables initially in backend order; it formats the
-returned percentages without computing statistics from history or membership.
-Each table has its own optional column/direction, held in `GameManager` above
-its remounted ready content. Statistics refreshes and acknowledged game writes
-therefore sort fresh arrays using the chosen settings. The existing keyed
-selected-group/session lifecycle discards previous choices when the view retires.
-Sorting copies arrays, compares raw numeric fields or English case-insensitive
-text (`Intl.Collator` with accent sensitivity), and keeps backend order for ties
-in both directions. Native heading buttons expose `aria-sort` on the active
-column header and a visible arrow. No sort preference is stored or sent to the API.
+shows the selected Spieler or Decks dataset as a single semantic HTML table on
+wide viewports or a semantic card list on phones, initially in backend order.
+It formats returned percentages without computing statistics from history or
+membership. Each dataset has its own optional sort column/direction, held in
+`GameManager` alongside the selected subview above its remounted ready content.
+Statistics refreshes and acknowledged game writes therefore sort fresh arrays
+using the chosen settings. The existing keyed selected-group/session lifecycle
+discards previous choices when the view retires. Sorting copies arrays, compares
+raw numeric fields or English case-insensitive text (`Intl.Collator` with accent
+sensitivity), and keeps backend order for ties in both directions. On desktop,
+table heading buttons expose `aria-sort` and a visible arrow; on phones, a
+labeled sort selector and direction button provide the same ordering. No sort
+preference is stored or sent to the API.
 
 Game refresh/recovery unmounts statistics, aborting its request. Non-authorization
 history read failures stay local to Spiele and do not retire healthy statistics;
@@ -409,8 +416,8 @@ refresh, successful access verification permits statistics to reload immediately
 without waiting for replacement history. Successful game
 writes refresh that same area; detail refresh/reopen, selected-group/session
 changes and own-deck changes also remount it. Explicit statistics refresh clears
-old tables and uses abort/generation guards to reject retired successes and
-errors. Network, server and malformed-response failures show a local retry.
+previous displayed results and uses abort/generation guards to reject retired
+successes and errors. Network, server and malformed-response failures show a local retry.
 Statistics 401/403/404 responses delegate to the existing game/group recovery:
 401 expires the current session; 403/404 hides protected details while a safe
 group GET determines access. Confirmed membership permits explicit Refresh games
