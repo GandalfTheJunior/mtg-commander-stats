@@ -97,14 +97,15 @@ integrity. Deferred constraint triggers also require every persisted group to
 have its designated owner as that active OWNER. Application transactions create
 the group and OWNER membership atomically and prohibit OWNER departure,
 preserving exactly one active OWNER through all supported operations.
-Ownership transfer stores a stable request and recipient acknowledgement in
-`ownership_transfers` (V12). The group lock serializes initiation, response and
+Ownership transfer stores a stable request and original-requester outcome
+acknowledgement in `ownership_transfers` (V12). The group lock serializes initiation, response and
 withdrawal with membership/game operations. Acceptance flushes the prior OWNER's
 demotion before promotion to respect the immediate unique index, then commits
 the designated owner, roles and accepted outcome atomically under the existing
 deferred triggers. A partial unique index permits only one pending transfer per
-group. Recipient-only unacknowledged accepted/declined outcomes survive session
-changes; GET never acknowledges them. See the [group API](../product/groups-api.md#ownership-transfer)
+group. Unacknowledged accepted/declined outcomes are available only to the original
+requester while active in the group. They survive session changes; GET never
+acknowledges them. See the [group API](../product/groups-api.md#ownership-transfer)
 for state, errors and future UI handoff.
 
 Invitations use 128-bit `SecureRandom` tokens encoded as 22 URL-safe Base64
@@ -170,8 +171,8 @@ production dependencies. Empty history skips display lookups; nonempty history
 uses seven queries regardless of game count (including the batched optional Companion snapshots). See [Statistics API](../product/statistics-api.md).
 
 Game operations (including statistics reads and deck selection) lock the group row before
-checking current membership. Join, leave, role changes, member removal and code
-rotation use that same lock.
+checking current membership. Join, leave, role changes, member removal, and
+single-use invitation creation and redemption use that same lock.
 This deliberately serializes operations within a group, so committed departure
 cannot be bypassed by an in-flight authorization check. Deck operations acquire
 pessimistic write locks before checking lifecycle state; games acquire newly

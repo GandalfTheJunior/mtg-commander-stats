@@ -1,8 +1,10 @@
 # Single-use invitation cutover (#187 / #200)
 
-This backend PR is reviewable independently but **must not merge or deploy alone**.
-There is no feature flag or dual acceptance period. The current frontend still
-calls removed reusable-code endpoints; #200 is a hard release dependency.
+The single-use invitation backend (#187) was merged in PR #207, but **must not
+be deployed on its own**. The frontend integration in #200 remains a hard
+dependency for the coordinated release; merging the backend did not complete
+that release. There is no feature flag or dual acceptance period. The current
+frontend still calls removed reusable-code endpoints and cannot use V13.
 
 ## Required deployment sequence
 
@@ -45,6 +47,7 @@ routes, one-time redemption, preview privacy, expiry, rollback and concurrent
 admission on PostgreSQL. `GroupManagementTest` checks late expiry after initial
 validation, membership integrity, collision retries and actual group-lock waits.
 These backend tests do not establish that #200 is ready: execute the coordinated
-browser and operational checks above on the final combined release before merge
-or deployment. There is no background cleanup; expired/consumed verifier records
-remain inert, and cleanup must never restore their validity.
+browser and operational checks above on the final combined release before
+merging the coordinated #200 frontend work or deploying the backend/frontend
+pair. There is no background cleanup; expired/consumed verifier records remain
+inert, and cleanup must never restore their validity.
