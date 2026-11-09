@@ -53,6 +53,11 @@ Such deviations can change test behavior, such as resetting shared application
 state between test classes, so only the unchanged canonical command or the
 required CI job verifies the check.
 
+Disclose required checks that could not run and their blockers in the PR. Never
+claim an unexecuted or unsuccessful check passed. Follow the
+[workflow handoff standard](workflow.md#verification-and-handoff); required CI
+checks remain required even when local verification is limited.
+
 ### Constrained agent workspaces (temporary)
 
 For full backend integration tests in resource-constrained agent workspaces
@@ -73,8 +78,7 @@ additional starts and increase test runtime; monitor available disk space during
 long runs. This result is evidence from one run, not a guarantee.
 
 **This command is not CI-equivalent.** Record the exact override and test
-results in the PR. The canonical backend command remains `cd backend &&
-./mvnw verify`, as specified by the
+results in the PR. The canonical backend command remains `cd backend && ./mvnw verify`, as specified by the
 [README verification section](../../README.md#verification); normal local
 development and required CI must use that canonical command. This workaround
 must be reassessed and removed once
@@ -82,10 +86,6 @@ must be reassessed and removed once
 has delivered and verified the shared PostgreSQL-container solution in a
 resource-constrained workspace.
 
-Disclose required checks that could not run and their blockers in the PR. Never
-claim an unexecuted or unsuccessful check passed. Follow the
-[workflow handoff standard](workflow.md#verification-and-handoff); required CI
-checks remain required even when local verification is limited.
 
 
 The development-only motion playground also has real Chromium/WebKit landing
