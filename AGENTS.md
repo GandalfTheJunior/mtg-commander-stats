@@ -90,6 +90,8 @@ and factual meaning.
    [review guidance](docs/development/reviewing.md), and affected code/tests.
    Follow references and expand context when discovered evidence requires it;
    do not load all documentation by default.
+   For resource-constrained backend test runs, see the
+   [temporary testing guidance](docs/development/testing.md#constrained-agent-workspaces-temporary).
 5. Before substantive work, briefly state the selected role and intended scope.
 6. Perform the task within that role's authority and actual client capabilities.
 
