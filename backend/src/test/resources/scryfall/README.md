@@ -14,8 +14,17 @@ The two Ur-Dragon entries share Oracle identity and have distinct illustration I
 The snapshot retains verbatim names, printing/Oracle identifiers, layout,
 language, type, Oracle text (including face-specific text), keywords, color
 identity, Commander legality, set/collector/release metadata, artist,
-illustration/source references and `small`/`art_crop` image URLs. Other legalities,
+illustration/source references and `small`/`art_crop`/`normal` image URLs. Other legalities,
 image sizes and unrelated fields are omitted. No artwork is downloaded.
+
+On 2026-11-10, all 24 pinned `/cards/{id}` responses were verified again for
+#273. Only their verbatim `image_uris.normal` URLs were added, at the top level
+for single-face cards and on each original face for Esika, Avacyn and reversible
+Zndrsplt. `normalImagesVerifiedAt` records this targeted refresh; `capturedAt`
+continues to describe the original metadata capture. Printing/Oracle identities,
+face order/names/rules, Commander legality, pairing and color metadata were
+checked against the source and retained. Never derive a normal URL from a
+thumbnail/crop URL or substitute the artwork side for the physical face order.
 
 To refresh intentionally, use an identified client with `Accept: application/json`
 to GET `https://api.scryfall.com/cards/{id}` for each pinned ID, at least 150 ms

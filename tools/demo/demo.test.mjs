@@ -6,7 +6,37 @@ import {spawn, spawnSync} from 'node:child_process';
 import {dirname, resolve} from 'node:path';
 import {users, groups, games, archivedDeck, results, cards, deckRequest, readOutcome, percentage} from './fixture.mjs';
 import {root, validateCommand, environment, backendEnvironment, backendArguments, generateCredentials, validateCredentials, checkContainer, checkExistingSource, checkVolume, checkDockerHost} from './demo.mjs';
-import {Session} from './api.mjs';
+import {Session, verifyCardFaces} from './api.mjs';
+
+test('fresh full-card snapshots preserve every pinned single and multi-face image and reject missing or swapped images', () => {
+  for (const deck of users.flatMap(user => user.decks)) {
+    const snapshots = deck.commanders.map(commander => {
+      const card = cards[commander.card];
+      return {cardFaces: (card.card_faces ?? [card]).map((face, index) => ({
+        faceIndex: card.card_faces ? index : null, name: face.name,
+        typeLine: face.type_line ?? null, oracleText: face.oracle_text ?? null,
+        imageUrl: face.image_uris?.normal ?? card.image_uris?.normal ?? null,
+      }))};
+    });
+    verifyCardFaces(snapshots, deck);
+    const missing = structuredClone(snapshots);
+    missing[0].cardFaces[0].imageUrl = null;
+    assert.throws(() => verifyCardFaces(missing, deck));
+    for (const [index, snapshot] of snapshots.entries()) {
+      if (snapshot.cardFaces.length < 2) continue;
+      const swapped = structuredClone(snapshots);
+      const [firstFace, secondFace] = swapped[index].cardFaces;
+      assert.notEqual(firstFace.imageUrl, secondFace.imageUrl);
+      [firstFace.imageUrl, secondFace.imageUrl] = [secondFace.imageUrl, firstFace.imageUrl];
+      assert.throws(() => verifyCardFaces(swapped, deck));
+    }
+  }
+  // Pin single-face and back-face URLs independently of the fixture mapper.
+  assert.equal(cards['Toothy, Imaginary Friend'].image_uris.normal,
+    'https://cards.scryfall.io/normal/front/e/b/ebdf2f50-f69a-47c4-a75f-ff55781bb0c8.jpg?1783934877');
+  assert.equal(cards['Esika, God of the Tree'].card_faces[1].image_uris.normal,
+    'https://cards.scryfall.io/normal/back/f/6/f6cd7465-9dd0-473c-ac5e-dd9e2f22f5f6.jpg?1783928221');
+});
 
 test('fixture eligibility, ownership, outcomes, lifecycle and checkable manifest', () => {
   assert.equal(users.length, 7);

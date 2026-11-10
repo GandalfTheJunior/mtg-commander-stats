@@ -45,6 +45,8 @@ export async function seed(base, password, onStage = () => {}) {
     accounts[user.key] = {id: registered.id, session};
     for (const deck of user.decks) {
       const saved = await session.call('POST', '/decks', deckRequest(deck), 201);
+      // Check creation before any explicit back-side artwork selection can refresh faces.
+      verifyCardFaces(saved.commanders, deck);
       decks[deck.key] = saved.id;
       for (const [index, commander] of deck.commanders.entries()) {
         if (commander.artworkFaceIndex !== undefined) await session.call('PUT', `/decks/${saved.id}/commanders/${index + 1}/artwork`, {scryfallCardId: commander.selectionRef.scryfallCardId, artworkFaceIndex: commander.artworkFaceIndex});
@@ -86,7 +88,28 @@ export async function seed(base, password, onStage = () => {}) {
   await verify(base, password, {accounts, decks, tables, recordedGames});
 }
 
+export function verifyCardFaces(actual, fixture) {
+  assert.equal(actual.length, fixture.commanders.length);
+  for (const [index, commander] of fixture.commanders.entries()) {
+    const card = cards[commander.card];
+    const faces = card.card_faces ?? [card];
+    assert.deepEqual(actual[index].cardFaces, faces.map((face, faceIndex) => ({
+      faceIndex: card.card_faces ? faceIndex : null,
+      name: face.name,
+      typeLine: face.type_line ?? null,
+      oracleText: face.oracle_text ?? null,
+      imageUrl: face.image_uris?.normal ?? card.image_uris?.normal ?? null,
+    })), `Full-card snapshot for ${commander.card}`);
+    // Every curated demo face has a verified complete-card image. Missing fixture
+    // metadata must fail here rather than silently making null the expectation.
+    for (const face of actual[index].cardFaces) {
+      assert.match(face.imageUrl, /^https:\/\/cards\.scryfall\.io\/normal\//);
+    }
+  }
+}
+
 function verifyCommanders(actual, fixture) {
+  verifyCardFaces(actual, fixture);
   assert.equal(actual.length, fixture.commanders.length);
   for (const [index, commander] of fixture.commanders.entries()) {
     const saved = actual[index], card = cards[commander.card];
@@ -160,6 +183,9 @@ async function verify(base, password, {accounts, decks, tables, recordedGames}) 
     for (const member of group.members) {
       const eligible = await session.call('GET', `/groups/${id}/members/${accounts[member].id}/decks`);
       assert.ok(eligible.every(deck => deck.format === 'COMMANDER'));
+      for (const deck of eligible) {
+        verifyCommanders(deck.commanders, users.find(u => u.key === member).decks.find(d => decks[d.key] === deck.id));
+      }
       assert.deepEqual(eligible.map(d => d.id).sort(), users.find(u => u.key === member).decks.filter(d => d.key !== archivedDeck).map(d => decks[d.key]).sort());
     }
     const manifest = JSON.parse(readFileSync(new URL('./expected-results.json', import.meta.url)));
@@ -191,6 +217,8 @@ async function verify(base, password, {accounts, decks, tables, recordedGames}) 
     }
     const history = await session.call('GET', `/groups/${id}/games`);
     for (const game of history) {
+      // Exercise the authorized detail DTO as well as the history list.
+      assert.deepEqual(await session.call('GET', `/groups/${id}/games/${game.id}`), game);
       assertGame(game, recordedGames[game.id], accounts);
       assert.equal(game.groupId, id);
       assert.ok(game.recordedAt);

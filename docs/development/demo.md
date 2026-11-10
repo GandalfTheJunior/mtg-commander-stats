@@ -314,7 +314,12 @@ and name-only edits read persisted data without Scryfall. Image URLs may fail in
 offline browser; the existing fallback keeps text usable.
 
 [demo-cards.json](../../backend/src/test/resources/scryfall/demo-cards.json) pins
-real Scryfall responses captured on 2026-10-22. The
+real Scryfall responses captured on 2026-10-22, with complete-card `normal`
+image references verified on 2026-11-10. Fresh seeds persist these alongside
+the cropped artwork, including both sides of multi-face printings. A fixture
+update does not rewrite existing saved null-image snapshots. Only an explicitly
+authorized, disposable demo may use the optional reset/reseed procedure below;
+never reset a shared or retained database for this fix. The
 [fixture notes](../../backend/src/test/resources/scryfall/README.md#offline-demo-fixtures)
 record reduction and refresh instructions. Synthetic unknown cards, malformed
 metadata, unrelated color-choice text and illegal pairs exist only in automated
@@ -340,6 +345,11 @@ Seed a fresh demo, start the ordinary backend and Vite, then check:
 1. As Ada, Dashboard and Decks show a single illustration, colorless Karn and
    the unused two-Commander Pir/Toothy expedition deck. Open/cancel the
    editor, inspect used vs unused status, and verify separate attribution links.
+   Before changing artwork, open **Karte anzeigen: Toothy, Imaginary Friend**
+   in **Pir and Toothy's Expedition** on `/decks`: verify the full card, type
+   and rules. Open a participating Commander from an authorized Friday game
+   detail and verify the same. Check Esika, Avacyn and reversible Zndrsplt
+   with their face selectors; each full-card side must match its saved text.
 2. As Bruno, Dara and Emil, inspect both saved Commander names and canonical
    effective colors on the played chosen-color pairs. Their gameplay/color
    choices are locked; name-only edits still work. Dara's archived Breya remains
