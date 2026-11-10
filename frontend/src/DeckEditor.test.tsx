@@ -366,6 +366,7 @@ test.each(['/dashboard', '/decks'] as const)('LAN HTTP creates and edits from %s
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
   await screen.findByText('LAN deck wurde erstellt.')
   expect(window.location.pathname).toBe(origin)
+  await screen.findByRole('heading', { name: origin === '/dashboard' ? 'Dashboard' : 'Meine Decks' }, { timeout: 5000 })
   if (origin === '/dashboard') fireEvent.click(await screen.findByRole('button', { name: deck.name }))
   else await editDeck()
   expect(await screen.findByRole('textbox', { name: /Deckname/ })).toHaveValue(deck.name)

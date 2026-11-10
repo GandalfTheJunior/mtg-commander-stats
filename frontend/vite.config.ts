@@ -33,9 +33,11 @@ export default defineConfig({
     },
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
-    // Vitest reserves one CPU by default, leaving two-CPU runners serial.
-    // Keep file isolation and the default forks pool; use the available CPUs.
-    maxWorkers: '100%',
+    // Full router flows exceeded the default five seconds on a two-CPU runner.
+    testTimeout: availableParallelism() <= 2 ? 15000 : 5000,
+    // Two-CPU runners time out when route and editor integration suites compete.
+    // Keep file isolation and the default forks pool, but serialize on those runners.
+    maxWorkers: availableParallelism() <= 2 ? 1 : '100%',
     projects: availableParallelism() <= 2 ? [
       {
         extends: true,

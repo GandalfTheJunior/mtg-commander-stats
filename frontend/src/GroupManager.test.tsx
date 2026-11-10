@@ -64,3 +64,21 @@ test('transient list failure offers an explicit retry without treating it as emp
   fireEvent.click(screen.getByRole('button', { name: 'Playgroups aktualisieren' }))
   expect(await screen.findByRole('button', { name: 'Friday Commander' })).toBeInTheDocument()
 })
+
+test('creating a Playgroup keeps the collection usable and sends only the chosen name', async () => {
+  const created = { id: otherId, name: 'New group', role: 'OWNER' }
+  const fetchMock = vi.fn((path: string, init?: RequestInit) => {
+    if (path === '/api/groups' && !init?.method) return Promise.resolve(response([group]))
+    if (path === '/api/csrf') return Promise.resolve(response({ headerName: 'X-CSRF-TOKEN', token: 'test-token' }))
+    if (path === '/api/groups' && init?.method === 'POST') return Promise.resolve(response(created, 201))
+    throw new Error(`Unexpected ${init?.method ?? 'GET'} ${path}`)
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  show()
+  fireEvent.change(await screen.findByRole('textbox', { name: 'Gruppenname' }), { target: { value: created.name } })
+  fireEvent.click(screen.getByRole('button', { name: 'Gruppe erstellen' }))
+  expect(await screen.findByRole('button', { name: created.name })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: group.name })).toBeInTheDocument()
+  const write = fetchMock.mock.calls.find(([path, init]) => path === '/api/groups' && init?.method === 'POST')
+  expect(JSON.parse(write![1]!.body as string)).toEqual({ name: created.name })
+})

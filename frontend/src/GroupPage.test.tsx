@@ -99,3 +99,23 @@ test('network failure does not claim membership loss and an explicit retry can r
   expect(await screen.findByRole('heading', { name: group.name })).toBeInTheDocument()
   expect(notice).not.toHaveBeenCalled()
 })
+
+test('an ordinary member can confirm departure and return to the collection', async () => {
+  const memberGroup = { ...group, role: 'MEMBER', members: group.members.map(member =>
+    member.userId === viewer.id ? { ...member, role: 'MEMBER' } : member) }
+  const fetchMock = vi.fn((path: string, init?: RequestInit) => {
+    if (path === `/api/groups/${group.id}`) return Promise.resolve(response(memberGroup))
+    if (path === '/api/csrf') return Promise.resolve(response({ headerName: 'X-CSRF-TOKEN', token: 'test-token' }))
+    if (path === `/api/groups/${group.id}/membership` && init?.method === 'DELETE') return Promise.resolve(new Response(null, { status: 204 }))
+    throw new Error(`Unexpected ${init?.method ?? 'GET'} ${path}`)
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  const notice = vi.fn()
+  show(groupUrl(group.id, 'members'), vi.fn(), notice)
+  fireEvent.click(await screen.findByRole('button', { name: 'Gruppe verlassen' }))
+  expect(screen.getByRole('dialog', { name: 'Gruppe verlassen?' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Verlassen bestätigen' }))
+  expect(await screen.findByText('Playgroups collection')).toBeInTheDocument()
+  expect(notice).toHaveBeenCalledWith({ kind: 'success', message: 'Du hast die Gruppe verlassen. Historische Spiele und Statistiken bleiben erhalten.' })
+  expect(fetchMock.mock.calls.filter(([path, init]) => path === `/api/groups/${group.id}/membership` && init?.method === 'DELETE')).toHaveLength(1)
+})
