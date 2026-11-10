@@ -271,7 +271,6 @@ export default function App() {
           {isProtectedPath(location.pathname) ? <Routes>
             <Route path="/dashboard" element={
               <Dashboard key={`dashboard-${sessionVersion}`} onUnauthorized={sessionExpired} onOpen={(intent) => {
-                if (intent.kind !== 'group') { openEditor('/dashboard', intent.kind === 'deck' ? intent.id : undefined); return }
                 setSessionNotice(null)
                 void navigate(`/playgroups/${encodeURIComponent(intent.id)}`)
               }} />

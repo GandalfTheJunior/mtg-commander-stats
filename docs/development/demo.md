@@ -133,15 +133,15 @@ the following checks on the PR revision and records actual observations in the P
 | Desktop browser/version at `http://localhost:5173` | Record the comparison run |
 | Each step below, observed URL/result and any console exception | Not executed on physical iPhone |
 
-1. At **Dashboard** and again at **Decks**, tap **Deck erstellen**. Confirm
+1. At **Decks**, tap **Deck erstellen**. Confirm
    `/decks/new`, enter a name and commander, save, and confirm return to the
-   originating overview with the saved deck. Open an existing deck from each
-   overview (Dashboard card; Decks **Bearbeiten**), edit/save, and check the URL
+   Decks overview with the saved deck. Open an existing deck with
+   **Bearbeiten**, edit/save, and check the URL
    `/decks/<id>/edit` and correct return. Repeat with cancel.
 2. Change a deck draft, try Back/global navigation, choose **Im Editor bleiben**
    and verify intact input; repeat with **Verwerfen und verlassen**. Back/Forward
    and reload must load fresh authorized data without restoring discarded input
-   or a stale Dashboard origin. Logout/login (same account and another account)
+   or a stale editor origin. Logout/login (same account and another account)
    must retire drafts and private data.
 3. As Ada, open **Demo Friday Table → Gruppenaktionen → Einladungscode verwalten**.
    Confirm `/playgroups/<id>/invitation-code`, with no code until
@@ -342,7 +342,7 @@ tests; they are never seeded as demo decks.
 
 Seed a fresh demo, start the ordinary backend and Vite, then check:
 
-1. As Ada, Dashboard and Decks show a single illustration, colorless Karn and
+1. As Ada, Decks shows a single illustration, colorless Karn and
    the unused two-Commander Pir/Toothy expedition deck. Open/cancel the
    editor, inspect used vs unused status, and verify separate attribution links.
    Before changing artwork, open **Karte anzeigen: Toothy, Imaginary Friend**

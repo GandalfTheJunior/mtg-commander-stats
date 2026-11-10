@@ -11,8 +11,8 @@ not force scroll reset. The fixed collection Back link targets `/playgroups`.
 
 | Path | Current behavior |
 | --- | --- |
-| `/dashboard` | Signed-in Dashboard |
-| `/playgroups` | Collection and existing create form |
+| `/dashboard` | Up to three Playgroups, direct group match entry, collection and creation shortcuts; no deck reads |
+| `/playgroups` | Complete collection and creation dialog; `?create=1` opens the dialog and is consumed with replace |
 | `/playgroups/:groupId` | Freshly authorized Overview |
 | `/playgroups/:groupId/games` | Games history |
 | `/playgroups/:groupId/statistics` | Reused statistics view |
@@ -167,31 +167,26 @@ styles so legacy pale backgrounds do not override the themed fields.
 
 ## Dashboard and group entry
 
-`Dashboard.tsx` loads the existing typed `listGroups` and `listDecks` APIs only
-inside the confirmed session. Each section owns loading, empty/error and
-refresh/retry state; one failed section leaves the other usable. Requests abort
-on route retirement and ignore late results, including 401s. A current 401 uses
-App's epoch-fenced session expiration callback; other errors remain local. Every
-Dashboard mount refetches both lists, so acknowledged manager writes appear on
-the next visit without a cache or optimistic Dashboard updates.
+`Dashboard.tsx` reads only `listGroups` within the confirmed session. Loading,
+empty and failure are distinct; failures offer retry. Requests abort on route
+retirement and ignore late results, including 401s. Current 401s use App's
+session-expiration callback. Every mount fetches the groups afresh.
 
-Playgroups retain API order: the first three appear initially, with inline
-expand/collapse only above three. Role labels are Gruppenersteller/Mitglied.
-No detail/member/code request decorates these cards. All owned decks, including
-archived ones, appear below in a single stack on the page scroll. A fixed German
-`Intl.Collator` with base sensitivity sorts names case/accent-insensitively;
-lexical ID order breaks ties. Cards expose commander, canonical WUBRG with color
-names (or Farblos), and archived/used/unused text. Collation-equivalent deck names
-also show their IDs so duplicate names remain distinguishable. Theme tokens
-supply surfaces, interaction states, text and keyboard focus; no new global CSS
-or dependencies are needed.
+The first three API entries retain backend order. A small right-aligned collection
+link appears only for four or more groups. Cards show group name, Overview and a
+separate sibling link to `/playgroups/:groupId/games/new`. The contextual + below
+cards or the approved empty message opens `/playgroups?create=1`; GroupManager
+opens its existing creation dialog and consumes the flag with history replacement.
+Dashboard has no deck reads, role metadata, invitation controls or Playground link.
+Personal decks and artwork remain in Meine Decks. The shared theme supplies
+surfaces, interaction states and focus; no new dependencies are needed.
 
 Dashboard and Playgroups group buttons navigate directly to
 `/playgroups/:groupId`. The former single-use Dashboard group-entry handshake is
 removed; neither a stale summary role nor history state can authorize a group.
 Every group route mount first calls `GET /api/groups/{groupId}`. The list URL never
-contains an opened group's details. Creation retains its existing list form and
-acknowledged summary updates; opening or reopening a group always loads fresh
+contains an opened group's details. Creation uses the existing collection dialog and
+opens the acknowledged group Overview; opening or reopening a group always loads fresh
 details, with no membership/code cache. Explicit **Zurück zu
 Playgroups** always targets `/playgroups`, including on direct visits.
 
@@ -218,13 +213,11 @@ deck list after authentication, matches an exact UUID, and only then mounts the
 shared form. A missing, foreign, malformed or deleted target exposes generic
 unavailability with a link to `/decks`; no write is possible. No details GET endpoint is introduced.
 
-Supported Dashboard/Decks entry actions retain only the calling overview plus a
-random token, target path and session epoch in App memory. History contains the
-token, not a trusted `from` URL. Only a matching pending entry may choose
-`/dashboard`; otherwise return is `/decks`. Leaving, reload, logout, expiry,
-identity recovery and same-UUID login discard origin and draft. Origin is neither
-a preference nor persistent storage. Stable edit URLs still re-fetch their
-own target on Back/Forward or reload.
+Decks entry actions retain a random token, target path and session epoch in App
+memory. History contains the token, not a trusted `from` URL. Deck editors return
+to `/decks`. Leaving, reload, logout, expiry, identity recovery and same-UUID login
+discard origin and draft. Stable edit URLs re-fetch their own target on
+Back/Forward or reload.
 
 Acknowledged save/delete/archive replaces the editor's history entry with the
 validated calling overview and announces the result in its shell. That overview
@@ -342,7 +335,7 @@ it does not establish live-backend, physical-device or screen-reader acceptance.
 
 ### Saved deck artwork
 
-Dashboard and Meine Decks share `SavedDeckCard`. Each card renders the saved
+Meine Decks uses `SavedDeckCard`; Dashboard has no deck cards (#191). Each card renders the saved
 `artCropUrl` snapshots in a separate area beside the text. Two Commanders use
 approximately 80% of the single-image size, with slot 1 upper-left/in front and
 20% horizontal overlap. A container query stacks the entire image/credit area
@@ -396,7 +389,7 @@ No global reset is introduced. Native managers keep their light panels inside
 `.legacy-view`, which restores their dark text and permits narrow grid columns.
 Their remaining redesigns and unsaved-change prompts are separate issues (#76–#78).
 
-### Dashboard browser evidence
+### Historical Dashboard browser evidence (before #191)
 
 Chrome checks at 320, 390 and 1280px used intercepted API test responses with
 five groups, 24 decks, long/unbroken labels, all five colors and archived decks.

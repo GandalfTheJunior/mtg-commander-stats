@@ -66,7 +66,7 @@ def verify_geometry(page, card, narrow):
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch(executable_path=os.environ.get('CHROMIUM_PATH', '/usr/bin/chromium'),
                                          headless=True, args=['--no-sandbox'])
-    for route_name in ['dashboard', 'decks']:
+    for route_name in ['decks']:
         for width in [1280, 600, 375, 320]:
             page = browser.new_page(viewport=dict(width=width, height=1000))
             requests = []

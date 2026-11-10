@@ -457,7 +457,7 @@ All gameplay snapshots, chosen colors, effective/deck WUBRG, slot order, lifecyc
 flags and historical references remain unchanged. Failed validation/upstream
 resolution changes nothing; reads remain offline.
 
-On saved Dashboard/Decks cards, each image (including its fallback) is an
+On saved personal Decks cards, each image (including its fallback) is an
 independent, keyboard-accessible gallery trigger. A pencil marker, focus outline
 and label identify the action; the other card region opens the editor. The two
 overlapping images retain independently reachable touch regions. No interactive

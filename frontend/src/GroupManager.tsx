@@ -3,7 +3,7 @@ import {
   ApiError, createGroup, listGroups,
   type GroupSummary,
 } from './api'
-import { Link, useNavigate } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { Alert, Box, Button, Card, CardActionArea, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Stack, TextField, Typography } from '@mui/material'
 
 type Notice = { kind: 'success' | 'error'; message: string } | null
@@ -47,13 +47,14 @@ const cardAction = {
 // App keys this component by session lifetime. Retire reads and writes on unmount.
 export default function GroupManager({ onUnauthorized }: { onUnauthorized: () => void }) {
   const navigate = useNavigate()
+  const [params, setParams] = useSearchParams()
   const [groups, setGroups] = useState<GroupSummary[]>([])
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading')
   const [revision, setRevision] = useState(0)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<Notice>(null)
   const [groupName, setGroupName] = useState('')
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(() => params.get('create') === '1')
   const [nameError, setNameError] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const request = useRef<AbortController | null>(null)
@@ -61,6 +62,15 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
   const pending = useRef(false)
   const nameInput = useRef<HTMLInputElement>(null)
   const suffixes = groupSuffixes(groups)
+
+  // Consume the contextual creation entry so reload does not reopen the dialog.
+  useEffect(() => {
+    if (params.get('create') === '1') {
+      const next = new URLSearchParams(params)
+      next.delete('create')
+      setParams(next, { replace: true })
+    }
+  }, [params, setParams])
 
   useEffect(() => {
     active.current = true

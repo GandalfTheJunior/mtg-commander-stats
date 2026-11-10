@@ -91,7 +91,7 @@ with sync_playwright() as playwright:
 
         page.goto(f'{BASE}/dashboard')
         expect(page.get_by_role('heading', name='Dashboard', exact=True)).to_be_visible()
-        expect(page.get_by_role('heading', name='Demo deck 2', exact=True)).to_be_visible()
+        expect(page.get_by_role('heading', name='Demo deck 2', exact=True)).to_have_count(0)
         expect(page.get_by_role('link', name='Deck in ManaBox ansehen', exact=False)).to_have_count(0)
 
         page.goto(f'{BASE}/decks/{uid(102)}/edit')

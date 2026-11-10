@@ -21,22 +21,29 @@ This is a navigation and presentation redesign **over existing business features
 
 ## Dashboard
 
-### Playgroups first
+### Playgroups entry and match recording (#191)
 
-- Show up to **three directly tappable** group cards, using each group's name and the signed-in user's **OWNER/MEMBER** role, displayed as **Gruppenersteller/Mitglied** in German UI copy.
-- For more than three groups, **Alle Playgroups anzeigen** expands the remaining cards inline; offer collapse again. The separate Playgroups destination always contains the whole collection.
-- Preserve the existing list/API order as a predictable starting point; do not introduce favorites, recent activity scoring or group rankings just to select the first three.
-- The group summary API does not supply a member count. Do not display a guessed count or fetch per-group details solely to decorate the dashboard.
-- With zero groups, explain how to create one or join using a current invitation code, and link to the existing Playgroups flows.
-
-### All personal decks below
-
-- Show **every** personal deck, including archived ones, as a vertically stacked list below the group cards. The **page** scrolls; never introduce an inner scroll container for this list.
-- Sort alphabetically by **deck name on the client** (with a stable ID tie-break for equal names), since the deck API has no creation timestamp or chronological ordering guarantee. This is the agreed dashboard order, not a new API feature.
-- Each deck card shows deck name, commander, WUBRG color identity (or **Farblos**), and the relevant current status (unused, previously used, archived). Preserve clarity with long names.
-- Tapping a deck card opens its **existing edit/manage flow directly**, not an intermediate read-only deck-details screen.
-- Show a clearly discoverable **Deck erstellen** action at the start of this section, including when the list is empty.
-- A separately reachable **Decks** destination may reuse the card presentation. Do not add favorites, new filters, rankings or a new deck catalog.
+- Show **Meine Playgroups** directly below the Dashboard heading at ordinary
+  spacing. There is no visible reserved design area or decorative content.
+- Render the first three groups in the existing API order (alphabetical name,
+  deterministic ID tie-break). Each compact card shows only the group name,
+  its Overview action and a separate **Spiel erfassen** action. The latter opens
+  the existing group-scoped editor directly, without a group picker or personal
+  deck requirement. Interactive targets are siblings.
+- Show the small right-aligned **Alle Playgroups anzeigen** shortcut on the
+  section heading row only for four or more groups. It opens `/playgroups`, the
+  same complete collection as global navigation, without expanding Dashboard.
+- A compact, left-aligned accessible **+** below the cards opens the existing
+  Playgroup creation dialog via `/playgroups?create=1`. The collection consumes
+  this entry flag with history replacement; reload does not reopen the dialog.
+- Only a successful empty list shows **Du bist noch keiner Playgroup beigetreten.
+  Erstelle eine eigene Playgroup oder öffne einen Einladungslink.** with the +
+  immediately below. Loading and failure have distinct feedback and retry.
+- Dashboard has no personal decks, deck requests, join button, invitation-code
+  input, group roles or artwork. Personal deck browsing and creation remain in
+  the global Decks destination. Link-only invitation acceptance belongs to #200.
+- Future atmosphere or statistics above Meine Playgroups require a separate
+  approved design issue; no placeholder or extra spacer reserves that space.
 
 ## Opened playgroup
 
@@ -125,8 +132,8 @@ own the contract and sequencing.
 For each independently authorized implementation slice, exercise relevant cases and keep existing checks green:
 
 - 320 px and wider phone layouts, keyboard-only and screen-reader navigation, visible focus, legible WUBRG colors, responsive desktop, long/duplicate names, many decks and games, and no unwanted horizontal/nested dashboard scrolling.
-- Zero/one/three/more-than-three groups; group cards navigate directly; the create/join flows remain accessible.
-- Dashboard shows **all** decks, archived included, in stable alphabetical order; deck card opens edit directly; creation action is accessible with zero decks.
+- Zero/one/three/more-than-three groups; Overview and match actions select the correct group; the collection shortcut is visible only above three; contextual creation and link-only invitations remain accessible.
+- Dashboard shows only up to three Playgroups. The Decks destination owns personal browsing and creation, including archived decks and its zero-deck state.
 - Deck creation and editing: WUBRG and colorless, saved/unsaved forms, never-used vs ever-used locks, rename on archived deck, valid deletion/archival confirmations and correct handling of conflicts.
 - Game capture: untouched initial four slots, 2/3/4/6 participants, partial slot invalid, duplicate member ineligible, missing/deck-loading states, win with participating winner, draw without winner, unsaved changes, and no duplicate write.
 - Game history/details: server newest-first, recorded-vs-played timestamp labeling, historical former members/archived decks, owner/creator vs read-only member authorization, and confirmed destructive operations.
@@ -140,7 +147,7 @@ Relevant test levels and exact commands follow [testing guidance](../development
 
 1. **Material UI foundation and semantic theme**: dependencies, token definitions, typography, shared interaction states.
 2. **Responsive app shell/navigation**: session-aware state, bottom nav, account control, back/history behavior.
-3. **Dashboard**: group cards, inline expansion, all alphabetized decks and direct deep links.
+3. **Dashboard (#191)**: up to three group cards, distinct Overview/match entry, conditional collection shortcut and contextual creation.
 4. **Deck create/edit**: full-screen editor, ManaColorPicker, lifecycle menus/confirmation.
 5. **Playgroup navigation and members**: Spiele/Statistiken/Mitglieder and single-use invitation sharing.
 6. **Game history and details**: history cards, dedicated details and authorized overflow actions.

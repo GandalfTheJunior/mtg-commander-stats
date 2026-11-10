@@ -81,13 +81,10 @@ test('unused delete conflict refreshes permanent usage, preserving local name an
   expect(JSON.parse(api.writes()[1][1]!.body as string)).toEqual({ name: 'My draft' })
 })
 
-test.each(['/dashboard', '/decks'] as const)('dirty archival explicitly discards changes and returns to fresh %s only after acknowledgement', async origin => {
+test.each(['/decks'] as const)('dirty archival explicitly discards changes and returns to fresh %s only after acknowledgement', async origin => {
   const used = { ...deck, everUsed: true }
   const api = deckApi([used]); showDeckApp(origin)
-  if (origin === '/dashboard') {
-    fireEvent.click(await screen.findByRole('button', { name: deck.name }))
-    await screen.findByRole('textbox', { name: /Deckname/ })
-  } else await editDeck()
+  await editDeck()
   await changeDeck('Ungespeicherte Umbenennung')
   const listCount = () => api.fetchMock.mock.calls.filter(([path, init]) => path === '/api/decks' && !init?.method).length
   const loadedLists = listCount()
@@ -117,14 +114,10 @@ test.each(['/dashboard', '/decks'] as const)('dirty archival explicitly discards
 
   api.state.decks = [{ ...used, archived: true }]
   await act(async () => pending.resolve(response(api.state.decks[0])))
-  await screen.findByRole('heading', { name: origin === '/dashboard' ? 'Dashboard' : 'Meine Decks' })
+  await screen.findByRole('heading', { name: 'Meine Decks' })
   await screen.findByText(`${deck.name} wurde archiviert.`)
-  if (origin === '/dashboard') {
-    expect(await screen.findByRole('button', { name: deck.name })).toHaveAccessibleDescription(expect.stringContaining('Archiviert'))
-  } else {
-    expect(await screen.findByRole('button', { name: `${deck.name} bearbeiten` })).toBeInTheDocument()
-    expect(screen.getByText(/Archiviert – für neue Spiele/)).toBeInTheDocument()
-  }
+  expect(await screen.findByRole('button', { name: `${deck.name} bearbeiten` })).toBeInTheDocument()
+  expect(screen.getByText(/Archiviert – für neue Spiele/)).toBeInTheDocument()
   expect(window.location.pathname).toBe(origin)
   expect(screen.queryByText('Ungespeicherte Umbenennung')).not.toBeInTheDocument()
   expect(listCount()).toBe(loadedLists + 1)
