@@ -4,7 +4,8 @@ export const sameId = (a: string, b: string) => a.toLowerCase() === b.toLowerCas
 export const gameUrl = (groupId: string, gameId: string) => `/playgroups/${encodeURIComponent(groupId)}/games/${encodeURIComponent(gameId)}`
 export const recordedTime = (game: Game) => new Date(game.recordedAt).toLocaleString('de-DE')
 export const gameUnavailable = 'Dieses Spiel ist nicht verfügbar. Bitte prüfe den aktuellen Spielverlauf.'
-export const mayManageGame = (group: GroupDetails, game: Game, actorId: string) => group.role === 'OWNER' || sameId(game.creatorId, actorId)
+export const mayManageGame = (group: GroupDetails, game: Game, actorId: string) =>
+  group.role === 'OWNER' || sameId(game.creatorId, actorId)
 
 type Person = { userId: string; username: string }
 // Use only response public names; identifiers disambiguate namesakes without emails.

@@ -1,6 +1,7 @@
 # Post-MVP frontend redesign: mobile-first Commander companion
 
 **Status:** Product/UX direction approved by the Product Owner; planning specification only. **No feature implementation is authorized by this document.**
+The later [#172 functional UI initiative](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/172) and its [#190 routing specification](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/190) supersede this document's earlier navigation, group landing, and invitation-code directions. Each child issue owns its screen implementation and final approved behavior.
 **Milestone:** First intended visual and navigation redesign after the existing MVP is independently verified complete.
 **References:** [MVP scope](mvp-scope.md), [deck API](decks-api.md), [play groups API](groups-api.md), [games API](games-api.md), [group statistics API](statistics-api.md), [ADR 0003](../architecture/adr/0003-defer-ui-framework-until-after-mvp.md), and [redesign tracker #59](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/59).
 

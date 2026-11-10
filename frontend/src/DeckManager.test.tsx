@@ -1,3 +1,4 @@
+import { clickAccountLogout } from './test/accountActions'
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { deck, deckApi, editDeck, newDeck, showDeckApp, signInDeck } from './test/deckFixtures'
@@ -45,7 +46,7 @@ test('logout retires owner links and late list responses cannot restore links in
   api.next('/api/decks', () => pending.promise)
   fireEvent.click(screen.getByRole('button', { name: 'Decks aktualisieren' }))
   expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  clickAccountLogout()
   await screen.findByText('Logged out.')
   api.state.decks = [deck]
   await signInDeck()

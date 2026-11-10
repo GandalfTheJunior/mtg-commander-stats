@@ -47,7 +47,7 @@ with sync_playwright() as p:
 
         page.route('**/api/**', api)
         page.goto(f'{BASE}/playgroups/{uid(10)}')
-        page.get_by_role('tab', name='Statistiken', exact=True).click()
+        page.get_by_role('tab', name='Statistics', exact=True).click()
         seats = page.get_by_role('region', name='Siegrate nach Startplatz', exact=True)
         colors = page.get_by_role('region', name='Siegrate nach Manafarbe', exact=True)
         expect(seats.get_by_role('region', name='2 Spieler', exact=True)).to_be_visible()

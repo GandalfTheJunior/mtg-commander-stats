@@ -7,11 +7,11 @@ import { ApiError, deleteGame, getGame, getGroup, type CurrentUser, type Game, t
 import type { Notice } from './App'
 import { colorNames } from './deckColors'
 import { groupUnavailable, groupUrl } from './groupNavigation'
-import { gameSummary, gameUnavailable, mayManageGame, publicName, recordedTime, sameId } from './gamePresentation'
+import { gameSummary, mayManageGame, publicName, recordedTime, sameId } from './gamePresentation'
 
 const validId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const uncertainDelete = 'Die Löschung wurde nicht bestätigt; der Ausgang kann ungewiss sein (Berechtigung, CSRF oder Übertragungsfehler). Prüfe den frisch geladenen Serverstand vor einem weiteren Versuch. Es wird nichts automatisch erneut gelöscht.'
-type State = { status: 'checking' | 'error' } | { status: 'ready'; group: GroupDetails; game: Game }
+type State = { status: 'checking' | 'error' | 'missing' } | { status: 'ready'; group: GroupDetails; game: Game }
 
 export default function GameDetailsPage({ currentUser, onUnauthorized, onNotice, onEdit }: {
   currentUser: CurrentUser
@@ -42,8 +42,7 @@ export default function GameDetailsPage({ currentUser, onUnauthorized, onNotice,
       void callbacks.current.navigate('/playgroups', { replace: true, state: null })
     }
     const unavailableGame = () => {
-      callbacks.current.onNotice({ kind: 'error', message: gameUnavailable })
-      void callbacks.current.navigate(groupUrl(groupId), { replace: true, state: null })
+      if (current()) setState({ status: 'missing' })
     }
     const groupError = (error: unknown) => {
       if (!current()) return
@@ -80,8 +79,7 @@ export default function GameDetailsPage({ currentUser, onUnauthorized, onNotice,
       callbacks.current.onNotice({ kind: 'error', message: groupUnavailable })
       void callbacks.current.navigate('/playgroups', { replace: true, state: null })
     } else if (!validId.test(gameId)) {
-      callbacks.current.onNotice({ kind: 'error', message: gameUnavailable })
-      void callbacks.current.navigate(groupUrl(groupId), { replace: true, state: null })
+      void Promise.resolve().then(() => { if (!controller.signal.aborted) setState({ status: 'missing' }) })
     } else void Promise.resolve().then(() => { if (!controller.signal.aborted) void load(controller.signal) })
     // The signal fences successes AND errors from transports ignoring abort,
     // including a retired 401 and CSRF preparation before a DELETE is sent.
@@ -112,7 +110,7 @@ export default function GameDetailsPage({ currentUser, onUnauthorized, onNotice,
       await deleteGame(groupId, gameId, signal)
       if (signal.aborted) return
       callbacks.current.onNotice({ kind: 'success', message: 'Spiel gelöscht. Die bisherige Decknutzung bleibt erhalten.' })
-      void callbacks.current.navigate(groupUrl(groupId), { replace: true, state: null })
+      void callbacks.current.navigate(groupUrl(groupId, 'games'), { replace: true, state: null })
     } catch (error) {
       if (signal.aborted) return
       if (error instanceof ApiError && error.status === 401) callbacks.current.onUnauthorized()
@@ -135,8 +133,9 @@ export default function GameDetailsPage({ currentUser, onUnauthorized, onNotice,
   const participants = ready ? [...ready.game.participants].sort((a, b) =>
     (ready.game.result === 'WIN' ? a.placement! - b.placement! : 0) || a.startPosition - b.startPosition) : []
   return <Stack component="section" aria-label="Spieldetails" sx={{ gap: 2, minWidth: 0, overflowWrap: 'anywhere' }}>
-    <Button component={Link} to={groupUrl(groupId)} color="secondary" sx={{ alignSelf: 'flex-start' }}>Zurück zu Spiele</Button>
+    <Button component={Link} to={groupUrl(groupId, 'games')} color="secondary" sx={{ alignSelf: 'flex-start' }}>Zur Spielehistorie</Button>
     {notice && <Alert severity="warning" role="status">{notice}</Alert>}
+    {state.status === 'missing' && <Typography role="status">Spiel nicht mehr verfügbar</Typography>}
     {state.status === 'checking' && <Typography role="status">{busy ? 'Löschung und Serverstand werden geprüft…' : 'Gruppenberechtigung und Spiel werden geprüft…'}</Typography>}
     {state.status === 'error' && <>
       <Alert severity="error">Gruppenberechtigung oder Spieldaten konnten nicht sicher bestätigt werden. Private Spieldetails bleiben verborgen.</Alert>

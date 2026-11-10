@@ -1,3 +1,4 @@
+import { clickAccountLogout } from './test/accountActions'
 import { savedCommander } from './test/commanderFixtures'
 import { stubLanHttpCrypto } from './test/lanHttp'
 import { StrictMode } from 'react'
@@ -171,12 +172,12 @@ test.each(['csrf', 'write'])('logout retires a pending %s immediately without di
   api.next(source === 'csrf' ? '/api/csrf' : `/api/decks/${deck.id}`, () => pending.promise, source === 'csrf' ? 'GET' : 'PUT')
   fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
   await waitFor(() => expect(api.fetchMock.mock.calls.some(([path]) => path === '/api/csrf')).toBe(true))
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  clickAccountLogout()
   expect(screen.queryByRole('textbox', { name: /Deckname/ })).not.toBeInTheDocument()
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   await screen.findByText('Logged out.'); await signInDeck()
   await act(async () => pending.resolve(response({}, 401)))
-  expect(screen.getByText(/Signed in as/)).toHaveTextContent(owner.username)
+  expect(screen.getByRole('banner')).toHaveTextContent(owner.username)
   expect(screen.queryByText(/session expired/)).not.toBeInTheDocument()
   if (source === 'csrf') expect(api.writes().filter(([path]) => path === `/api/decks/${deck.id}`)).toHaveLength(0)
 })
@@ -185,7 +186,7 @@ test.each([false, true])('archive current vs retired 401 expires only the active
   api.next(`/api/decks/${deck.id}/archive`, () => pending.promise, 'POST')
   await menuAction('Archivieren'); fireEvent.click(screen.getByRole('button', { name: 'Archivieren bestätigen' }))
   await waitFor(() => expect(api.writes()).toHaveLength(1))
-  if (retired) { fireEvent.click(screen.getByRole('button', { name: 'Log out' })); await screen.findByText('Logged out.'); await signInDeck() }
+  if (retired) { clickAccountLogout(); await screen.findByText('Logged out.'); await signInDeck() }
   await act(async () => pending.resolve(response({}, 401)))
   if (retired) expect(screen.queryByText(/session expired/)).not.toBeInTheDocument()
   else await screen.findByText('Your session expired. Sign in again.')
@@ -221,7 +222,7 @@ test('native links leaving the editor prompt, same-page skip links do not, logou
   fireEvent.click(screen.getByRole('link', { name: 'Skip to content' }))
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   fireEvent.click(link); await screen.findByRole('dialog')
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  clickAccountLogout()
   await screen.findByText('Logged out.')
   expect(warning()).toBe(false)
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -365,6 +366,7 @@ test.each(['/dashboard', '/decks'] as const)('LAN HTTP creates and edits from %s
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
   await screen.findByText('LAN deck wurde erstellt.')
   expect(window.location.pathname).toBe(origin)
+  await screen.findByRole('heading', { name: origin === '/dashboard' ? 'Dashboard' : 'Meine Decks' }, { timeout: 5000 })
   if (origin === '/dashboard') fireEvent.click(await screen.findByRole('button', { name: deck.name }))
   else await editDeck()
   expect(await screen.findByRole('textbox', { name: /Deckname/ })).toHaveValue(deck.name)

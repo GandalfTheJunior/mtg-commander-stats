@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
-  ApiError, createGroup, joinGroup, listGroups,
+  ApiError, createGroup, listGroups,
   type GroupSummary,
 } from './api'
 import { useNavigate } from 'react-router'
@@ -51,10 +51,9 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
   const [groups, setGroups] = useState<GroupSummary[]>([])
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading')
   const [revision, setRevision] = useState(0)
-  const [operation, setOperation] = useState<'create' | 'join' | null>(null)
+  const [operation, setOperation] = useState<'create' | null>(null)
   const [notice, setNotice] = useState<Notice>(null)
   const [groupName, setGroupName] = useState('')
-  const [invitationCode, setInvitationCode] = useState('')
   const request = useRef<AbortController | null>(null)
   const active = useRef(false)
   const pending = useRef(false)
@@ -68,19 +67,12 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
     return () => { active.current = false; request.current?.abort() }
   }, [])
 
-  const handleError = useCallback((error: unknown, mutation?: 'create' | 'join') => {
+  const handleError = useCallback((error: unknown, mutation?: 'create') => {
     if (error instanceof ApiError && error.status === 401) {
       setGroups([])
       onUnauthorized()
     } else {
-      // A join error may contain a server-reflected secret. Keep its copy local.
-      const message = mutation === 'join'
-        ? error instanceof ApiError && error.status === 400
-          ? 'Beitritt nicht bestätigt. Prüfe, ob der Einladungscode aktuell und gültig ist.'
-          : error instanceof ApiError && error.status === 403
-            ? 'Beitritt abgelehnt (Berechtigung oder CSRF).'
-            : 'Der Beitritt wurde nicht bestätigt; der Ausgang kann ungewiss sein.'
-        : messageFrom(error)
+      const message = messageFrom(error)
       setNotice({ kind: 'error', message: mutation
         ? `${message} Prüfe die Playgroups über „Playgroups aktualisieren“, bevor du die Aktion erneut ausführst.`
         : message })
@@ -113,25 +105,22 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
     setRevision((value) => value + 1)
   }
 
-  async function submit(event: FormEvent<HTMLFormElement>, operation: 'create' | 'join') {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (busy || pending.current || listPending.current || status !== 'loaded') return
     const form = event.currentTarget
     const data = new FormData(form)
     pending.current = true
-    setOperation(operation)
+    setOperation('create')
     setNotice(null)
     try {
-      const group = operation === 'create'
-        ? await createGroup(String(data.get('name')), request.current!.signal)
-        : await joinGroup(String(data.get('code')), request.current!.signal)
+      const group = await createGroup(String(data.get('name')), request.current!.signal)
       if (!active.current) return
       setGroups((previous) => [...previous.filter((item) => item.id !== group.id), group])
-      setNotice({ kind: 'success', message: operation === 'create' ? `${group.name} wurde erstellt.` : `${group.name}: Beitritt bestätigt.` })
-      if (operation === 'create') setGroupName('')
-      else setInvitationCode('')
+      setNotice({ kind: 'success', message: `${group.name} wurde erstellt.` })
+      setGroupName('')
     } catch (error) {
-      if (active.current) handleError(error, operation)
+      if (active.current) handleError(error, 'create')
     } finally {
       if (active.current) {
         pending.current = false
@@ -150,7 +139,7 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
       </Stack>
       {status === 'loading' ? <Typography role="status">Playgroups werden geladen…</Typography> : status === 'error' ? (
         <Typography>Playgroups konnten nicht geladen werden. Nutze „Playgroups aktualisieren“, um es erneut zu versuchen.</Typography>
-      ) : groups.length === 0 ? <Typography>Noch keine Playgroups. Erstelle eine Gruppe oder tritt mit einem aktuellen Einladungscode bei.</Typography> : (
+      ) : groups.length === 0 ? <Typography>Du bist noch keiner Playgroup beigetreten. Erstelle eine eigene Playgroup oder öffne einen Einladungslink.</Typography> : (
         <Stack component="ul" aria-label="Deine Playgroups" sx={{ listStyle: 'none', p: 0, m: 0, gap: 2, minWidth: 0 }}>
           {groups.map((group) => (
             <Card component="li" key={group.id} sx={{ minWidth: 0 }}>
@@ -162,36 +151,25 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
                     sx={{ color: busy ? 'text.disabled' : 'text.secondary' }}>ID: {suffixes.get(group.id)}</Typography></>}
                 </Typography>
                 <Typography id={`playgroup-role-${group.id}`} sx={{ color: busy ? 'text.disabled' : 'text.secondary' }}>
-                  {group.role === 'OWNER' ? 'Gruppenersteller' : 'Mitglied'}
+                  {group.role === 'OWNER' ? 'Gruppenersteller' : group.role === 'ADMIN' ? 'Admin' : 'Mitglied'}
                 </Typography>
               </CardActionArea>
             </Card>
           ))}
         </Stack>
       )}
-      {busy && <Typography role="status">{operation === 'create' ? 'Gruppe wird erstellt…' : 'Beitritt wird bestätigt…'}</Typography>}
+      {busy && <Typography role="status">Gruppe wird erstellt…</Typography>}
       <Feedback notice={notice} />
       {status === 'loaded' && (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(2, minmax(0, 1fr))' }, gap: 3 }}>
           <Card component="section" aria-labelledby="create-group-heading" sx={{ p: { xs: 2, sm: 3 }, minWidth: 0 }}>
             <Typography component="h3" variant="h5" id="create-group-heading">Gruppe erstellen</Typography>
-            <Stack component="form" aria-labelledby="create-group-heading" onSubmit={(event) => submit(event, 'create')}
+            <Stack component="form" aria-labelledby="create-group-heading" onSubmit={submit}
               sx={{ mt: 3, gap: 3, minWidth: 0 }}>
               <TextField id="playgroups-create-name" label="Gruppenname" name="name" required disabled={busy} fullWidth
                 value={groupName} onChange={(event) => setGroupName(event.target.value)}
                 helperText="Wähle einen Namen für deine Gruppe." slotProps={{ inputLabel: { required: false } }} />
               <Button disabled={busy} type="submit" variant="contained" fullWidth>Gruppe erstellen</Button>
-            </Stack>
-          </Card>
-          <Card component="section" aria-labelledby="join-group-heading" sx={{ p: { xs: 2, sm: 3 }, minWidth: 0 }}>
-            <Typography component="h3" variant="h5" id="join-group-heading">Gruppe beitreten</Typography>
-            <Stack component="form" aria-labelledby="join-group-heading" onSubmit={(event) => submit(event, 'join')}
-              sx={{ mt: 3, gap: 3, minWidth: 0 }}>
-              <TextField id="playgroups-join-code" label="Einladungscode" name="code" required disabled={busy} fullWidth
-                value={invitationCode} onChange={(event) => setInvitationCode(event.target.value)}
-                autoComplete="off" helperText="Verwende einen aktuellen Einladungscode, auch für einen erneuten Beitritt."
-                slotProps={{ inputLabel: { required: false }, htmlInput: { spellCheck: false } }} />
-              <Button disabled={busy} type="submit" variant="contained" fullWidth>Gruppe beitreten</Button>
             </Stack>
           </Card>
         </Box>

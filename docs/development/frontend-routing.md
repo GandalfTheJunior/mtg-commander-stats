@@ -1,94 +1,75 @@
 # Browser routing and authenticated shell
 
-`frontend/src/main.tsx` mounts `AppRouter` (React Router's `BrowserRouter`) inside the existing
-`AppThemeProvider`. `App.tsx` retains ownership of session restoration, login,
-logout and epoch fencing. Routing uses Declarative Mode only: no route loaders,
-new data cache, persisted navigation preferences or backend endpoint changes.
-
-Navigation-origin and game-edit tokens are opaque 128-bit values generated with
-Web Crypto `getRandomValues`, including on local LAN HTTP where `randomUUID` is
-not exposed. They remain in history state plus session/path-scoped memory, never
-URLs or application storage; token equality associates intent and confers no
-permission. Fresh server reads and existing lifetime checks still govern access
-and consumption. The code screen already retains selectable read-only text and
-manual-copy guidance when Clipboard `writeText` is missing/rejected; success is
-announced only after that promise resolves. See the
-[LAN iPhone verification recipe](demo.md#opt-in-iphone-verification-over-local-wlan-http)
-for startup and the required physical-device acceptance record.
+`main.tsx` mounts `AppRouter` inside `AppThemeProvider`. `App` owns session
+restoration, login/logout and epoch fencing. #190 replaces the former query-tab
+and reusable invitation-code navigation. The URL is the selected tab's source of
+truth; deliberate navigation pushes history, while login, access-loss recovery
+and confirmed saves replace the current entry. PUSH starts at the top; POP does
+not force scroll reset. The fixed collection Back link targets `/playgroups`.
 
 ## URLs and session lifecycle
 
-| URL | Confirmed identity | Signed out / unverified |
-| --- | --- | --- |
-| `/` | Replace with `/dashboard` | Existing registration/login/recovery |
-| `/dashboard` | Playgroup cards and all alphabetized personal decks | Safe auth view; login resumes this URL |
-| `/playgroups` | Group list, create and join/rejoin forms | Safe auth view; login resumes this URL |
-| `/playgroups/:groupId` | Freshly authorized group, Spiele tab | Safe auth view; login resumes this URL |
-| `/playgroups/:groupId/games/:gameId` | Dedicated Spieldetails after fresh group and game verification | Safe auth view; login resumes this URL |
-| `/playgroups/:groupId?tab=statistics` | Same group, Statistiken tab | Safe auth view; login resumes query too |
-| `/playgroups/:groupId?tab=members` | Same group, active Mitglieder tab | Safe auth view; login resumes query too |
-| `/playgroups/:groupId/invitation-code` | Dedicated screen after fresh OWNER verification; no eager code GET | Safe auth view; fresh authorization after login |
-| `/decks` | Personal deck overview, no embedded forms | Safe auth view; login resumes this URL |
-| `/decks/new` | Focused create editor | Safe auth view; login resumes this URL with a fresh draft |
-| `/decks/:deckId/edit` | Focused editor after fresh owned-list verification | Safe auth view; login resumes this URL after verification |
-| Other paths | Replace with `/dashboard` | Replace with `/`; login opens Dashboard |
+| Path | Current behavior |
+| --- | --- |
+| `/dashboard` | Signed-in Dashboard |
+| `/playgroups` | Collection and existing create form |
+| `/playgroups/:groupId` | Freshly authorized Overview |
+| `/playgroups/:groupId/games` | Games history |
+| `/playgroups/:groupId/statistics` | Reused statistics view |
+| `/playgroups/:groupId/members` | Active members |
+| `/playgroups/:groupId/games/new` | Focused game creation |
+| `/playgroups/:groupId/games/:gameId` | Freshly authorized game details |
+| `/playgroups/:groupId/games/:gameId/edit` | Focused game edit after fresh permission check |
+| `/playgroups/:groupId/statistics/reports` and `/playgroups/:groupId/statistics/reports/{players,decks,starting-seats,mana-colors}` | Guarded child hosts; #197 integration pending |
+| `/playgroups/:groupId/members/:memberId/decks` and `/playgroups/:groupId/members/:memberId/decks/new` | Guarded child hosts; #198/#199/#196 integration pending |
+| `/decks`, `/decks/new`, `/decks/:deckId/edit` | Personal collection and focused editors |
+| `/invite/:code`, `/claim/:code` | Public placeholders before the auth gate; #200/#247 own preview and transactions |
 
-Group IDs are UUIDs, never invitation codes. Details-response IDs compare UUID
-letter case insensitively; malformed or genuinely different IDs remain rejected.
-Invalid **group** IDs and group-details GET 400/403/404 replace the destination
-with `/playgroups` and generic group-unavailable feedback. Invalid **game** IDs
-return to the canonical group Spiele URL. Game-details GET 403/404 first rechecks
-group access; the resulting recovery paths are specified in
-[Game history and Spieldetails](#game-history-and-spieldetails).
-Unsupported/repeated `tab` values normalize with replace to a supported canonical
-URL (unknown values select Spiele). Ordinary tab changes push history entries;
-Back/Forward select the URL's tab without remounting the group's game draft.
-No overview tab, public game-edit route or invitation links are introduced.
-Default redirects and successful login use history replacement. Direct page loads
-and reloads confirm `/api/me` before mounting protected content. Dashboard requests
-the existing group and owned-deck lists independently; see [Dashboard](#dashboard-and-group-entry).
+Protected routes confirm `/api/me` before mounting private content. Login resumes
+only an allowlisted in-app pathname and then authorizes its resource. Group IDs
+and details response IDs are compared case-insensitively as UUIDs; malformed or
+mismatched responses remain hidden and retryable. Former query-tab values are
+discarded, not migrated. The old invitation-code route and manual join form are
+retired. Unknown routes use the safe Dashboard/auth fallback.
 
-The shell and navigation exist only for a confirmed authenticated identity.
-Checking, login rotation/identity confirmation, pending logout and unavailable
-recovery hide all protected content. An explicit logout immediately advances the
-session epoch and replaces the former destination with `/`. Only a 204 announces
-success. Ambiguous logout rechecks identity; a confirmed account opens a fresh
-Dashboard with retry feedback, an absent identity exposes auth without a success
-claim, and unavailable confirmation requires an explicit session check or login.
-An expired protected request (401) exposes safe auth at the current supported URL.
-Group 403/404 recovery remains local to group access; CSRF 403 is not logout.
+Only confirmed identity exposes the signed-in shell. Checking, login rotation,
+pending logout and uncertain recovery hide protected content. Logout advances
+the session epoch immediately; only HTTP 204 announces success. Ambiguous logout
+rechecks identity; an unavailable check requires explicit recovery. A current 401
+expires the session at the intended protected path. Group access loss uses the
+exact notice **Du hast keinen Zugriff mehr auf diese Playgroup.** and replaces
+the path with `/playgroups`. Network/5xx errors offer retry, not membership-loss
+claims. Aborted or obsolete responses, including 401s, cannot affect a new lifetime.
 
-Only one top-level destination is mounted at a time. Leaving a group, changing
-group UUID, opening/closing the invitation screen, or retiring the authenticated
-session unmounts its private state and aborts outstanding requests. Returning
-fetches fresh details. Successful game writes refresh history and any visited
-statistics view; Decks reloads permanent usage on its next visit. Deck drafts
-remain local to their dedicated editor.
+Each main group route reauthorizes and remounts its private view. Tab changes
+retire old requests and in-memory presentation choices. There is no cross-route
+game draft cache. `GameEditorPage` is the only game editor host; its visible exit
+is available while loading, denied or failed. A confirmed permission denial shows
+**Dieses Spiel kann nicht bearbeitet werden.**, without suggesting another check.
+The existing dirty-editor guard protects navigation. Acknowledged game saves
+replace the editor with freshly loaded Games; statistics reads fresh server data
+on its next visit. Failed/ambiguous writes preserve drafts and never auto-retry. No destination
+pathname bypasses the game draft guard: both the visible Back link and browser
+Back require a dirty-draft decision. Only a validated save acknowledgment marks
+the editor completed; its guard is released before the save-return navigation.
+The approved success panel and nested quick-profile flow remain owned by #196.
 
-Within a group, `GroupPage` owns fresh membership/role and URL-driven MUI tabs;
-`GameManager` stays mounted across tab changes. Its Spiele panel is hidden with
-native `hidden`, preserving the game draft and requests without creating a second
-instance. Statistics mounts lazily on its first selection and remains in its hidden
-panel thereafter, retaining sorting and refreshing after acknowledged writes.
-Statistics depends on confirmed group access, not a successful game-history GET:
-pending, network, server or malformed history responses cannot block it. History
-loading/error/retry stays in Spiele. Explicit game refresh still revalidates access
-and retires both request lifetimes; statistics resumes after successful verification
-even if replacement history is pending. Access failures and failed writes hide
-both views for safe revalidation. After confirmed access they offer explicit retries
-for the respective tab; statistics denial never automatically retries in a loop.
-Only the selected panel is exposed to keyboard/accessibility navigation. Explicit
-tab changes and history traversals focus the selected tab; initial authorization
-focuses the group heading. Refreshing members intentionally reauthorizes details
-and retires the game/statistics area. These are navigation foundations for #76–#78;
-the game editor and statistics views retain their API contracts.
+The header shows username with only **Abmelden** in its menu. Global destinations
+are Dashboard, Playgroups, Decks. Group main views alone show Overview, Games,
+Statistics, Members. The mobile bottom bar hides on focused editors; desktop
+retains the horizontal row. Public signed-in placeholders provide a Dashboard exit.
+ADMIN is strictly decoded in group summaries/rosters. Cross-creator game actions
+remain OWNER-only here; #195 owns any ADMIN affordance expansion.
+
+Only personal deck return-context tokens remain: session/path-scoped opaque
+values associate a trusted calling overview without conferring permission or
+accepting external return URLs. All group/game authorization remains server-backed.
 
 ### Responsive group statistics
 
 `GameManager` owns separate player/deck sorts and the selected statistics subview
-(initially Spieler) above the keyed `GroupStatistics` request instance. Refresh and
-acknowledged writes re-sort fresh API arrays without discarding either choice.
-Group/session retirement resets them; the switch adds no URL or storage state.
+(initially Spieler) above the keyed `GroupStatistics` request instance. Refresh re-sorts fresh API arrays without discarding either choice.
+Route/group/session retirement resets them; the switch adds no URL or storage state.
 `GroupStatistics` uses the shared theme's `md` media query (900px): phones mount a
 semantic card list and labelled native Sortieren nach selector/direction button;
 wider viewports mount only the selected semantic table with header buttons and
@@ -115,64 +96,21 @@ to the section reloads server state and never automatically retries a write.
 
 ## Game history and Spieldetails
 
-History cards keep the exact API order and expose current winner plus winning
-deck (or Unentschieden), participant count and **Erfasst am**. The timestamp is
-`recordedAt`, never a played-at date; its original precision remains in the time
-element. One full-card link pushes `/playgroups/:groupId/games/:gameId`. While
-the focused editor/write is active, the interactive history is replaced by the
-form. Canceling returns to the history; only an acknowledged save refreshes it
-with success feedback. The editor retains the 2–6-participant API contract.
+Game history links to full-ID detail paths. Details verify session, group and
+game before exposing fields or actions. Its fixed **Zur Spielehistorie** link
+returns to the current group's Games. A game 404 rechecks group access and retains
+the detail path with **Spiel nicht mehr verfügbar** when membership is intact.
+A group denial returns to the collection; transient failures remain retryable.
 
-`GameDetailsPage` is a separate, session/path-keyed lifetime. App confirms `/api/me`
-before it mounts; it validates both hyphenated UUIDs, gets fresh group membership,
-then calls the typed `getGame` reader using the existing game DTO validator.
-Both returned route IDs must match case-insensitively before private data renders.
-No list object or history state authorizes details. Ordered historical assignments
-show current response names, commander, canonical WUBRG/text or Farblos, archive
-and former-member indications. Colliding public names get stable IDs. Creator
-names come only from that fresh group/game response; otherwise Ersteller shows
-the creator ID. No user endpoint or email is used.
-
-Invalid/inaccessible groups return generically to Playgroups. Invalid game IDs
-return generically to Spiele, which freshly authorizes the group. Game 403/404
-first rechecks membership: lost group access returns to Playgroups, a missing game
-in a confirmed group returns to fresh Spiele, and other denial keeps details
-hidden with an explicit read-only retry. Network/5xx/malformed data similarly
-hide details without claiming membership loss; 401 expires the session.
-
-Only the freshly confirmed OWNER or original creator sees **Spielaktionen** with
-Bearbeiten and Löschen. Bearbeiten navigates to the canonical Spiele URL with an
-opaque token. App holds only its session/path-scoped game-ID intent in memory;
-GroupPage snapshots it on entry and GameManager consumes it against freshly loaded
-history plus current group rights before prefilling the existing GameEditor.
-History/reload/forged tokens cannot replay it; leaving, logout, new sessions or
-another group retire it. Missing targets or changed rights show feedback without
-an editor. Cancel returns to history. Acknowledged saves retain the existing
-history/visited-statistics refresh and immutable payload rules.
-
-Löschen uses a named MUI confirmation identifying result, timestamp and game ID,
-explaining permanent deletion and retained deck usage. Cancel/Escape/backdrop
-send no write and restore focus. One pending guard covers CSRF plus DELETE.
-Details/actions retire as the confirmed write starts; only exact HTTP 204 shows
-success and replaces the detail entry with canonical Spiele. That mount loads
-fresh history; statistics and deck lifecycle reload on their next mount. Every
-unacknowledged outcome safely reads group and game again without repeating DELETE.
-A still-present game restores only fresh data/permissions with uncertainty feedback;
-a gone game returns generically without announcing successful deletion. An
-unavailable check leaves private data hidden for deliberate inspection/retry.
-
-All reads/recovery/write preparation abort on retirement and reject late results,
-including 401s from transports ignoring abort. Native Back/Forward retain browser
-semantics and newly entered details always reauthorize. Explicit **Zurück zu
-Spiele** always targets the canonical group URL, even for a direct/reloaded visit.
-Leaving details retires its data; there is no shared game cache. Sorting remains
-local to the current group manager lifetime and is retained across its tabs and
-acknowledged inline writes, but a new route lifetime starts with API sorting.
+Delete uses a named confirmation, CSRF and duplicate guards. Cancel, Escape and
+backdrop send no write. Only 204 announces deletion and replaces the detail entry
+with Games. Unacknowledged writes re-read group/game without repeating DELETE;
+statistics and deck lifecycle reload on their next visit. Route/session retirement
+aborts reads and writes and ignores late results even if transport ignores abort.
 
 ## Focused Commander game editor
 
-`GameEditor` replaces history inside the existing Spiele panel, without adding
-an editor URL or mounting another manager. New games start with four blank cards;
+`GameEditorPage` mounts the shared `GameEditor` at the focused create/edit URLs. New games start with four blank cards;
 edits use exactly the saved ordered assignments and result. Stable slot keys keep
 card state and focus through insertion/removal. Visible slots are bounded at 2–6,
 while completely blank slots are omitted from the payload. Partial slots block
@@ -190,37 +128,26 @@ remains retainable without fresh eligibility, including former members and
 archived decks; former members never gain another deck choice. A later edit uses
 only the then-current saved pairs. Backend validation remains final.
 
-**Variant A:** Spiele, Statistiken and Mitglieder stay visible and usable while
-editing. Tab pushes and native Back/Forward between the same group's tab URLs
-bypass discard protection and preserve the entire form: selections, expanded
-cards, result/winner and visible validation. Native hidden panels keep inactive
-controls out of keyboard/accessibility navigation. No tab change remounts or
-copies the editor. Leaving the group, opening its code screen, global navigation,
-Cancel, game/member refresh and departure all use `EditorNavigation`/
-`useEditorGuard`. The guard compares actual persisted values (including partial
-input), ignoring untouched blank slot changes and card expansion. Reverting all
-values makes it clean. Stay restores focus; discard closes the editor and aborts
-its requests. Reload/tab close use the browser's native beforeunload wording.
-Logout and session/access retirement continue to retire protected drafts directly.
+Focused game routes show no group tabs. Back, Cancel, global navigation and
+supported browser exits use `EditorNavigation`/`useEditorGuard`. Dirty drafts stay
+intact when the user cancels navigation. The guard compares persisted values and
+partial input; untouched blank slots and expansion alone do not make a draft dirty.
+Logout/session/access retirement discards protected drafts and aborts requests.
 
-One pending guard covers CSRF and POST/PUT. Only exact, validated 201/200 responses
-return success and refresh history plus visited statistics; Decks reloads usage
-on its next mount. HTTP 400 keeps the editable draft with a distinct server
-validation error. HTTP 401 expires the current session. Conflicts, denied/missing
-resources and ambiguous outcomes retire the draft and private presentation, then
-safely recheck group access. Confirmed access offers explicit fresh history and
-statistics inspection before starting another editor. Unacknowledged writes warn
-that they may already have committed, including a pending write discarded by the
-user. A failed check leaves private data hidden. No write retries automatically;
-abort/session lifetimes ignore late acknowledgments and late 401s.
+One pending guard covers CSRF and POST/PUT. Validated 201/200 responses replace
+the editor history entry with Games. HTTP 400 retains editable input; 401 expires
+the session. A write 403 hides the draft and safely rechecks membership. Other
+unacknowledged writes retain the draft and warn about possible server commitment,
+requiring server-state inspection before another attempt. No write auto-retries.
+Statistics refetches on its next route mount, including after confirmed saves or
+deletes; cancelling a form/dialog sends no write and cannot fabricate statistics.
 
-`GameEditor.test.tsx`, `GameManager.test.tsx` and the group/routing/session suites
-cover blank/partial/full cards, 2/3/4/6 assignments, historical exceptions,
-independent selection failures and stale responses, focus, results, exact writes,
-dirty/reverted/pending exits, same-group POPs, access recovery and replacement
-sessions (including same-UUID login).
+Editor, routing, group and session regression suites cover validation, eligibility,
+exact acknowledgments, dirty exits, denial/retry and late request retirement.
 
-### Game editor browser evidence
+### Historical game editor browser evidence
+
+The following predates #190; same-group hidden-tab behavior was retired.
 
 Headless Chrome with intercepted API fixtures checked 320, 390 and 1280px with
 long/unbroken and duplicate names, all five colors and Farblos. No horizontal
@@ -263,89 +190,25 @@ Dashboard and Playgroups group buttons navigate directly to
 `/playgroups/:groupId`. The former single-use Dashboard group-entry handshake is
 removed; neither a stale summary role nor history state can authorize a group.
 Every group route mount first calls `GET /api/groups/{groupId}`. The list URL never
-contains an opened group's details. Create/join retain their existing list forms
-and acknowledged summary updates; opening/reopening/rejoining a group always
-loads fresh details, with no membership/code cache. Explicit **Zurück zu
+contains an opened group's details. Creation retains its existing list form and
+acknowledged summary updates; opening or reopening a group always loads fresh
+details, with no membership/code cache. Explicit **Zurück zu
 Playgroups** always targets `/playgroups`, including on direct visits.
 
-The Playgroups overview uses themed MUI cards for every group in API order and
-two separate inline create/join forms below them, including the loaded empty
-state. Only identical display names gain an ID suffix: all namesakes use the same
-shortest distinguishing UUID prefix, starting at eight hexadecimal characters.
-Full IDs remain the React keys and route targets. Mutations retain the existing
-acknowledged server-summary replace/append behavior and reset only the submitted
-form; an explicit list refresh restores server order. Synchronous refs guard
-mutations and refresh before React renders disabled controls. Errors retain input,
-announce no success and offer explicit refresh guidance; join errors use controlled
-copy to avoid reflecting invitation codes. Both drafts live only in component state
-and survive list refresh/loading/error/retry transitions; only an acknowledged
-success clears the submitted draft. Leaving Playgroups or retiring the session
-discards both drafts. No new cache or request lifetime is added.
+The Playgroups collection retains API order, themed cards and the existing create
+form. Duplicate names have distinguishing UUID suffixes. Pending create/CSRF work
+disables conflicting actions and duplicate writes; failed writes retain the name
+and offer list refresh. Leaving the route aborts work and ignores late outcomes.
+The manual join form and reusable-code management screen are retired by #190.
 
-### Playgroups overview browser evidence
+### Departure lifetime
 
-Chromium 154 against the production build with intercepted synthetic API data
-checked populated, empty, loading and error/retry states at 320, 390 and 1280px.
-Long/unbroken names, identical names with colliding eight-character UUID prefixes,
-Tab/Enter focus, touch/mouse entry and fresh route/Back/Forward/reload requests
-passed without horizontal overflow or nested list scrolling. Repeated Enter sent
-one CSRF-protected write; pending controls, unchanged payloads, selective form reset,
-server-returned roles and failed/malformed/ambiguous-write recovery were checked.
-Screenshots after the final UI edit were visually inspected, including scrolled
-phone forms with the final button above the fixed navigation.
-
-Computed card/input primary text measured 12.89:1, secondary card text 8.48:1;
-pending disabled text measured 4.99:1 at full opacity. Actual Tab focus used the
-shared 3px gold inset outline. These fixture checks do not establish live-backend,
-screen-reader or physical iPhone Safari/software-keyboard/safe-area acceptance;
-those device checks remain unavailable in this environment.
-
-### Invitation code and departure lifetimes
-
-The overflow offers only **Einladungscode verwalten** to a freshly confirmed OWNER
-or **Gruppe verlassen** to a freshly confirmed MEMBER. The OWNER code route mounts
-a separate lifetime, rechecks group details, and never fetches the code on entry
-or reload. Only **Einladungscode anzeigen** sends the non-cacheable code GET.
-Codes live in that screen's component memory only, never URL, history, storage or
-logs. Leaving, changing groups/identity/session (even same-UUID login), recovery,
-or losing OWNER/access aborts and discards the code and pending confirmations.
-Late results are ignored even when a transport disregards abort.
-
-App holds an opaque random token, session epoch, exact code path and originating
-supported tab in memory when the menu opens the code screen. History contains only
-the token. **Zurück zur Gruppe** uses that matching in-memory tab; direct/reloaded,
-retired or forged history contexts fall back to the canonical Spiele URL. No
-arbitrary `returnTo` URL is accepted. Actual browser Back retains normal history.
-
-Regeneration and departure use named MUI confirmation dialogs with cancellation,
-Escape, focus return and duplicate guards. Only a valid acknowledged new-code
-response is displayed after regeneration; starting a confirmed POST clears any
-previous code immediately. Any failed/malformed/aborted/ambiguous result leaves
-it cleared, explains uncertainty, safely rechecks membership and offers a manual
-GET to inspect current code. Regeneration is never automatically retried.
-Clipboard success is announced only after a fulfilled write; unavailable/failed
-clipboard keeps the read-only field selectable with manual-copy guidance.
-
-A code GET 403 can mean an active MEMBER, while POST 403 can also mean CSRF denial.
-Both hide protected state before a safe details GET: fresh OWNER can manually
-request the current code again, fresh MEMBER returns to the authorized group,
-and details GET 403/404 returns to Playgroups. A 401 expires the session. An
-unavailable check keeps private data hidden and offers an explicit retry. No
-previously displayed code is restored by a successful membership recheck.
-
-Confirmed MEMBER departure immediately retires games/statistics while the DELETE
-is pending. Only exact 204 announces departure and replaces the current history
-entry with `/playgroups`. Older entries may still contain obsolete group URLs;
-revisiting them always reauthorizes and cannot reveal retired content. Failed or
-ambiguous DELETE never claims success or automatically repeats: a fresh safe
-details GET determines whether authorized actions may be offered again. Rejoin
-uses the existing current-code flow and subsequently loads fresh MEMBER details.
-The backend remains authoritative for every permission.
-
-Active members come only from the details GET, never history/statistics. German
-roles and **Du** use server role and exact current-user ID. Only colliding usernames
-show an ID suffix, extended until it distinguishes the namesakes; ordinary rows
-show neither full UUIDs nor emails.
+Only a freshly authorized MEMBER can confirm departure. Cancel/Escape send no
+DELETE. Starting the write hides private details. Exact HTTP 204 announces success
+and returns to the collection. Every other outcome rechecks membership without
+repeating DELETE or claiming success; 401 expires the session, lost access retires
+the group, and unavailable verification offers retry. Active member names/roles
+come only from the current details response, never statistics or history.
 
 ## Focused deck editor and return context
 
@@ -520,7 +383,7 @@ feedback and one navigation element. Each destination is a real link with an
 icon, visible label and `aria-current="page"`. At the `sm` breakpoint (600px)
 the same navigation changes from a fixed phone bottom bar to an in-flow top bar.
 Targets are at least 48px; main content reserves bottom-bar height plus safe-area
-padding. Focused deck editors hide the phone bottom bar and use ordinary page
+padding. Focused game, personal deck and quick-profile deck routes hide the phone bottom bar and use ordinary page
 scrolling with reduced bottom padding; the account/logout header remains available. A skip link and focus on the main region support keyboard navigation.
 
 Where VisualViewport is available, an editable focus with a viewport reduction
@@ -588,8 +451,7 @@ See the official [Declarative Mode installation](https://reactrouter.com/start/d
 Vite's current default SPA behavior serves entry HTML for direct non-root routes
 in both `npm run dev` and `npm run preview` (after `npm run build`). Verify by
 opening/reloading `/dashboard`, `/playgroups`, `/decks`, `/decks/new` and
-`/decks/:deckId/edit`, `/playgroups/:groupId` with each supported tab and
-`/playgroups/:groupId/invitation-code` directly. A future
+`/decks/:deckId/edit` and each canonical group/game route in the table above directly. A future
 production host must rewrite non-file SPA paths to `index.html`, while retaining
 real static-file and `/api` handling. Hosting configuration is a separate deployment
 concern; this issue adds no rewrites or backend routes.
@@ -606,28 +468,16 @@ tests navigate between the now separate managers; domain/security assertions
 remain in place. Browser checks should include 320px, a typical phone and desktop,
 long lists/names, Tab focus, bottom padding, refresh and Back/Forward.
 
-`GroupPage.test.tsx` covers direct URLs, auth restoration, canonical tab replacement,
-real BrowserRouter Back/Forward/reload, draft retention, member disambiguation,
-role changes, safe code returns, no eager GET, copy fallback, confirmation and
-exact write acknowledgment, rejoin, denial/CSRF recovery and late/aborted work.
-Older group list tests remain focused on create/join/list behavior; game,
-statistics, Dashboard, routing and logout regression tests use the dedicated
-views and tabs while retaining their security and domain assertions.
+`GroupPage.test.tsx` covers authorization, strict response identities, route
+retirement, retry and confirmed/unconfirmed departure. `GroupManager.test.tsx`
+covers strict role parsing, create/CSRF guards and retired mutations. Routing,
+logout, game and statistics suites cover the corresponding session and API flows.
+Legacy query-tab, manual join, invitation-code and inline editor tests were
+retired because those interfaces no longer exist; retained behavior must remain
+covered through canonical routes.
 
-### Group navigation browser evidence
-
-Headless Chrome with intercepted API fixtures checked 320, 390 and 1280px:
-long/unbroken group/member names, duplicate-name suffixes, real tab keyboard
-navigation, Back/Forward, an intact inline game draft, direct OWNER/MEMBER code
-URLs, no eager code GET, copy failure, code regeneration cancellation/confirmation,
-reload/fallback return, member departure and focus return. No page errors or
-horizontal page overflow were observed. At the time of the #75 checks, statistics still used legacy scrollable tables;
-#78 replaces them with the responsive presentation described above.
-Screenshots of games, statistics, members, code and both dialogs were visually
-inspected. The read-only code field uses cream on the theme paper surface
-(12.89:1); tabs/indicators and explicit focus use the theme gold (9.51:1 on the
-app background, 8.13:1 on paper). These are frontend fixture checks, not a live
-backend, physical phone/software-keyboard or screen-reader acceptance claim.
+Historical browser evidence below describes the stated implementation revision;
+it is not evidence for removed query-tab/code-screen behavior in #190.
 
 ### Statistics browser evidence
 

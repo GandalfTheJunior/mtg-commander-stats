@@ -252,7 +252,7 @@ export async function deleteDeck(id: string, signal?: AbortSignal): Promise<void
     204, 'Could not delete the deck.')
 }
 
-export type GroupRole = 'OWNER' | 'MEMBER'
+export type GroupRole = 'OWNER' | 'ADMIN' | 'MEMBER'
 export type GroupSummary = { id: string; name: string; role: GroupRole }
 export type GroupMember = { userId: string; username: string; role: GroupRole }
 export type GroupDetails = GroupSummary & { members: GroupMember[] }
@@ -262,7 +262,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isRole(value: unknown): value is GroupRole {
-  return value === 'OWNER' || value === 'MEMBER'
+  return value === 'OWNER' || value === 'ADMIN' || value === 'MEMBER'
 }
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
