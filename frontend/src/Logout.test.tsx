@@ -194,9 +194,10 @@ for (const logoutFails of [false, true]) {
         fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
       }
       if (resource === 'group mutation') {
-        await screen.findByRole('button', { name: 'Gruppe erstellen' })
-        fireEvent.change(screen.getByLabelText(/Gruppenname/), { target: { value: group.name } })
-        fireEvent.click(screen.getByRole('button', { name: 'Gruppe erstellen' }))
+        await screen.findByRole('button', { name: 'Playgroup erstellen' })
+        fireEvent.click(screen.getByRole('button', { name: 'Playgroup erstellen' }))
+        fireEvent.change(screen.getByLabelText(/Name der Playgroup/), { target: { value: group.name } })
+        fireEvent.click(screen.getByRole('button', { name: 'Erstellen' }))
       }
       await waitFor(() => expect(oldRequest).toHaveBeenCalledTimes(1))
       server.decks = async () => json([])
@@ -224,8 +225,8 @@ for (const logoutFails of [false, true]) {
       await goTo('Decks')
       expect(await screen.findByRole('button', { name: 'Deck erstellen' })).toBeEnabled()
       await goTo('Playgroups')
-      await screen.findByRole('button', { name: 'Gruppe erstellen' })
-      expect(screen.getByRole('button', { name: 'Gruppe erstellen' })).toBeEnabled()
+      await screen.findByRole('button', { name: 'Playgroup erstellen' })
+      expect(screen.getByRole('button', { name: 'Playgroup erstellen' })).toBeEnabled()
       expect(screen.queryByText(deck.name)).not.toBeInTheDocument()
       expect(screen.queryByText(/Private group/)).not.toBeInTheDocument()
       expect(screen.queryByDisplayValue(code)).not.toBeInTheDocument()

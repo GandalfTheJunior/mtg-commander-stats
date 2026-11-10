@@ -78,9 +78,10 @@ recovery use MUI with auth-local `sx`, including a full-viewport dark background
 flowing forms and safe-area padding; they do not reuse `.session`, `.forms`,
 `.success` or `.error`, whose legacy specificity can override MUI styles. Migrated
 statistics and the Playgroups overview consume the theme directly and no longer
-use the light `.legacy-view` wrapper or their legacy selectors. Playgroups reuses
-Dashboard card interactions, with separate labelled create/join sections and
-wrapping alerts; API and request lifetimes are preserved. New global resets require a separate
+use the light `.legacy-view` wrapper or their legacy selectors. The Playgroups collection uses compact cards with separate Overview and record-game
+actions and a top-right create button opening a one-field MUI dialog (#192).
+Duplicate names receive distinguishing UUID prefixes; roles and manual join
+controls are absent. API and session/request lifetimes are preserved. New global resets require a separate
 review of native forms; do not assume ThemeProvider scopes global CSS.
 
 Run `npm run dev` in `frontend/`, then open `/dev/theme.html`. This separate
