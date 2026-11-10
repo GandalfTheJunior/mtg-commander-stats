@@ -48,7 +48,10 @@ is available while loading, denied or failed. A confirmed permission denial show
 **Dieses Spiel kann nicht bearbeitet werden.**, without suggesting another check.
 The existing dirty-editor guard protects navigation. Acknowledged game saves
 replace the editor with freshly loaded Games; statistics reads fresh server data
-on its next visit. Failed/ambiguous writes preserve drafts and never auto-retry.
+on its next visit. Failed/ambiguous writes preserve drafts and never auto-retry. No destination
+pathname bypasses the game draft guard: both the visible Back link and browser
+Back require a dirty-draft decision. Only a validated save acknowledgment marks
+the editor completed; its guard is released before the save-return navigation.
 The approved success panel and nested quick-profile flow remain owned by #196.
 
 The header shows username with only **Abmelden** in its menu. Global destinations
@@ -187,9 +190,9 @@ Dashboard and Playgroups group buttons navigate directly to
 `/playgroups/:groupId`. The former single-use Dashboard group-entry handshake is
 removed; neither a stale summary role nor history state can authorize a group.
 Every group route mount first calls `GET /api/groups/{groupId}`. The list URL never
-contains an opened group's details. Create/join retain their existing list forms
-and acknowledged summary updates; opening/reopening/rejoining a group always
-loads fresh details, with no membership/code cache. Explicit **Zurück zu
+contains an opened group's details. Creation retains its existing list form and
+acknowledged summary updates; opening or reopening a group always loads fresh
+details, with no membership/code cache. Explicit **Zurück zu
 Playgroups** always targets `/playgroups`, including on direct visits.
 
 The Playgroups collection retains API order, themed cards and the existing create

@@ -5,7 +5,6 @@ import { Alert, Box, Button, Card, Checkbox, FormControlLabel, Stack, TextField,
 import { ApiError, memberDecks, type DeckSelection, type Game, type GameInput, type GroupDetails } from './api'
 import { EditorLeave, useEditorGuard } from './editorGuard'
 import { publicName, sameId } from './gamePresentation'
-import { groupUrl } from './groupNavigation'
 
 type Assignment = { key: number; userId: string; deckId: string; expanded: boolean; outcome: OutcomeDraft }
 type Choice = { status: 'loading' | 'ready' | 'error'; decks: DeckSelection[]; error?: string }
@@ -13,6 +12,7 @@ type Props = {
   group: GroupDetails
   game: Game | null
   busy: boolean
+  completed?: boolean
   writeError?: string
   onSubmit: (input: GameInput) => void
   onCancel: () => void
@@ -46,7 +46,7 @@ const material = (rows: Assignment[], mode: OutcomeMode) => JSON.stringify({
   participants: rows.filter(row => row.userId || row.deckId).map(({ userId, deckId, outcome }) => ({ userId, deckId, outcome })), mode,
 })
 
-export default function GameEditor({ group, game, busy, writeError, onSubmit, onCancel, onAccessError }: Props) {
+export default function GameEditor({ group, game, busy, completed = false, writeError, onSubmit, onCancel, onAccessError }: Props) {
   const [rows, setRows] = useState<Assignment[]>(() => game
     ? game.participants.toSorted((a, b) => a.startPosition - b.startPosition).map((p, key) => ({ key, userId: p.userId, deckId: p.deckId, expanded: false, outcome: savedOutcome(game, p) }))
     : Array.from({ length: 4 }, (_, key) => ({ key, userId: '', deckId: '', expanded: true, outcome: {} })))
@@ -62,10 +62,7 @@ export default function GameEditor({ group, game, busy, writeError, onSubmit, on
   const [choices, setChoices] = useState<Record<string, Choice>>({})
   const [retries, setRetries] = useState<Record<string, number>>({})
   const leave = useContext(EditorLeave)
-  useEditorGuard(material(rows, mode) !== baseline || busy, busy, {
-    onDiscard: onCancel,
-    allows: destination => destination.origin === window.location.origin && destination.pathname === groupUrl(group.id, 'games'),
-  })
+  useEditorGuard(!completed && (material(rows, mode) !== baseline || busy), busy)
   useLayoutEffect(() => { heading.current?.focus() }, [])
   useLayoutEffect(() => {
     if (focusNext.current) {

@@ -1,6 +1,8 @@
+import { AppRouter } from './AppRouter'
+import { AppThemeProvider } from './theme/AppThemeProvider'
 import { selectTab } from './test/groupEntry'
 import { statistics, emptyStatistics } from './test/statisticsFixtures'
-import { act, fireEvent, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App'
 import { renderApp } from './test/renderApp'
@@ -53,6 +55,7 @@ test('confirmed save uses the selected group and returns to refreshed Games hist
   api.state.statistics = emptyStatistics()
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
   expect(await screen.findByText('Spiel erfolgreich gespeichert.')).toBeInTheDocument()
+  expect(screen.queryByRole('dialog', { name: 'Änderungen verwerfen?' })).not.toBeInTheDocument()
   expect(await screen.findByRole('article', { name: `Game ${uid(20)}` })).toBeInTheDocument()
   expect(screen.queryByRole('form', { name: 'Spiel erfassen' })).not.toBeInTheDocument()
   expect(api.fetchMock.mock.calls.some(([path, init]) => path === apiPath && init?.method === 'POST')).toBe(true)
@@ -81,6 +84,10 @@ test('400 validation failure preserves the draft for correction', async () => {
   selectGameWinner(uid(2))
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
   expect(await screen.findByText(/Der Server hat die Angaben abgelehnt/)).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('link', { name: 'Zur Spielehistorie' }))
+  await screen.findByRole('dialog', { name: 'Änderungen verwerfen?' })
+  fireEvent.click(screen.getByRole('button', { name: 'Im Editor bleiben' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(screen.getByRole('form', { name: 'Spiel erfassen' })).toBeInTheDocument()
 })
 
@@ -93,6 +100,10 @@ test('an ambiguous write gives no success and keeps the draft', async () => {
   selectGameWinner(uid(2))
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
   expect(await screen.findByText(/könnte bereits gespeichert worden sein/)).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('link', { name: 'Zur Spielehistorie' }))
+  await screen.findByRole('dialog', { name: 'Änderungen verwerfen?' })
+  fireEvent.click(screen.getByRole('button', { name: 'Im Editor bleiben' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(screen.getByRole('form', { name: 'Spiel erfassen' })).toBeInTheDocument()
   expect(screen.queryByText('Spiel erfolgreich gespeichert.')).not.toBeInTheDocument()
 })
@@ -145,4 +156,39 @@ test('cancelled creation returns to unchanged server statistics without a POST',
   await screen.findByRole('table', { name: 'Spielerstatistiken' })
   expect(api.fetchMock.mock.calls.filter(([path]) => path.endsWith('/statistics'))).toHaveLength(2)
   expect(api.fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+})
+
+test.each(['visible Back', 'browser Back'] as const)('dirty new-game %s requires stay/discard and retains the draft on stay', async exit => {
+  const { api } = setup([])
+  window.history.replaceState(null, '', exit === 'browser Back' ? gamesPath : editorPath)
+  render(<AppThemeProvider><AppRouter><App /></AppRouter></AppThemeProvider>)
+  if (exit === 'browser Back') fireEvent.click(await screen.findByRole('link', { name: 'Spiel erfassen' }))
+  await screen.findByRole('form', { name: 'Spiel erfassen' })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 1' }), { target: { value: uid(2) } })
+  const leave = () => {
+    if (exit === 'browser Back') act(() => window.history.back())
+    else fireEvent.click(screen.getByRole('link', { name: 'Zur Spielehistorie' }))
+  }
+  leave()
+  await screen.findByRole('dialog', { name: 'Änderungen verwerfen?' })
+  await waitFor(() => expect(window.location.pathname).toBe(editorPath))
+  fireEvent.click(screen.getByRole('button', { name: 'Im Editor bleiben' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(screen.getByRole('combobox', { name: 'Spieler 1' })).toHaveValue(uid(2))
+  const unload = new Event('beforeunload', { cancelable: true })
+  window.dispatchEvent(unload)
+  expect(unload.defaultPrevented).toBe(true)
+  leave()
+  await screen.findByRole('dialog', { name: 'Änderungen verwerfen?' })
+  fireEvent.click(screen.getByRole('button', { name: 'Verwerfen und verlassen' }))
+  await screen.findByRole('link', { name: 'Spiel erfassen' })
+  expect(window.location.pathname).toBe(gamesPath)
+  expect(screen.queryByRole('form', { name: 'Spiel erfassen' })).not.toBeInTheDocument()
+  expect(api.fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+  if (exit === 'browser Back') {
+    act(() => window.history.forward())
+    await screen.findByRole('form', { name: 'Spiel erfassen' })
+    expect(window.location.pathname).toBe(editorPath)
+    expect(screen.getByRole('combobox', { name: 'Spieler 1' })).toHaveValue('')
+  }
 })

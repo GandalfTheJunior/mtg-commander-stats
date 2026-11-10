@@ -22,6 +22,7 @@ export default function GameEditorPage({ currentUser, onUnauthorized, onNotice }
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'denied'>('loading')
   const [revision, setRevision] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [completed, setCompleted] = useState(false)
   const [writeError, setWriteError] = useState('')
   const controller = useRef<AbortController | null>(null)
   const callbacks = useRef({ onUnauthorized, onNotice, navigate })
@@ -80,6 +81,14 @@ export default function GameEditorPage({ currentUser, onUnauthorized, onNotice }
     return () => request.abort()
   }, [groupId, gameId, revision, accessLost, failed, currentUser.id])
 
+  // The child's layout effect releases its guard only after an acknowledged save.
+  // Navigate after that commit so ordinary links and POP never bypass dirty drafts.
+  useEffect(() => {
+    if (!completed) return
+    callbacks.current.onNotice({ kind: 'success', message: 'Spiel erfolgreich gespeichert.' })
+    void callbacks.current.navigate(groupUrl(groupId, 'games'), { replace: true, state: null })
+  }, [completed, groupId])
+
   async function write(input: GameInput) {
     const signal = controller.current?.signal
     if (!group || !signal || signal.aborted || busy) return
@@ -88,8 +97,7 @@ export default function GameEditorPage({ currentUser, onUnauthorized, onNotice }
     try {
       await saveGame(groupId, input, gameId, signal)
       if (signal.aborted) return
-      callbacks.current.onNotice({ kind: 'success', message: 'Spiel erfolgreich gespeichert.' })
-      void navigate(groupUrl(groupId, 'games'), { replace: true, state: null })
+      setCompleted(true)
     } catch (error) {
       if (signal.aborted) return
       if (error instanceof ApiError && error.status === 401) callbacks.current.onUnauthorized()
@@ -107,7 +115,7 @@ export default function GameEditorPage({ currentUser, onUnauthorized, onNotice }
     {status === 'loading' && <Typography role="status">Gruppenberechtigung wird geprüft…</Typography>}
     {status === 'error' && <><Alert severity="error">Die Berechtigung oder das Spiel konnte nicht geprüft werden.</Alert>
       <Button onClick={() => { setStatus('loading'); setRevision(value => value + 1) }}>Erneut versuchen</Button></>}
-    {status === 'ready' && group && <GameEditor group={group} game={game} busy={busy} writeError={writeError}
+    {status === 'ready' && group && <GameEditor group={group} game={game} busy={busy} completed={completed} writeError={writeError}
       onSubmit={input => { void write(input) }} onCancel={() => { void navigate(groupUrl(groupId, 'games')) }}
       onAccessError={error => { const signal = controller.current?.signal; if (signal) void failed(error, signal) }} />}
   </Stack>
