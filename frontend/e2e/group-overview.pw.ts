@@ -9,7 +9,7 @@ function savedCommander(name: string) {
 }
 const group = { id: id(1), name: 'Friday Night Commander', role: 'OWNER', members: [{ userId: id(2), username: 'Demo', role: 'OWNER' }] }
 const stats = {
-  players: ['Ada', 'Emil', 'Tamiyo', 'Fourth'].map((username, i) => ({ userId: id(2 + i), username, games: 12 - i, wins: 3, winRatePercent: 25 + i })), decks: [],
+  players: ['Deleted profile', 'Same name', 'Same name', 'Fourth'].map((username, i) => ({ userId: id(2 + i), username, deleted: i === 0, deletedNumber: i === 0 ? 1 : null, games: 12 - i, wins: 3, winRatePercent: 25 + i })), decks: [],
   startPositions: [2, 3, 4, 5, 6].map(playerCount => ({ playerCount, seats: Array.from({ length: playerCount }, (_, i) => ({ startPosition: i + 1, games: 0, wins: 0, winRatePercent: null })) })),
   manaColors: ['W', 'U', 'B', 'R', 'G', 'C'].map(color => ({ color, games: 0, wins: 0, winRatePercent: null })),
 }

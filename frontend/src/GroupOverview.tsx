@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Alert, Box, Button, Card, CardActionArea, Stack, Typography } from '@mui/material'
 import { Link } from 'react-router'
 import { ApiError, getGroupStatistics, recentGames, type GamePreview, type GroupStatistics } from './api'
+import { publicName } from './gamePresentation'
 import CompactGameCard from './CompactGameCard'
 import { groupUrl } from './groupNavigation'
 import { spotlightPlayers } from './statisticsOrder'
@@ -42,7 +43,7 @@ export default function GroupOverview({ groupId, onAccessError }: { groupId: str
     setStatistics({ status: 'loading' })
     setRevision(value => value + 1)
   }
-  const players = statistics.status === 'ready' ? spotlightPlayers(statistics.data.players) : []
+  const players = statistics.status === 'ready' ? spotlightPlayers(statistics.data.players).map(player => ({ ...player, username: player.deleted ? `Gelöschtes Profil ${player.deletedNumber}` : player.username })) : []
   const reportUrl = `${groupUrl(groupId, 'statistics')}/reports/players`
   return <Stack sx={{ gap: 3, minWidth: 0 }}>
     <Button component={Link} to={`${groupUrl(groupId, 'games')}/new`} variant="contained" sx={{ width: '100%' }}>Spiel erfassen</Button>
@@ -56,7 +57,7 @@ export default function GroupOverview({ groupId, onAccessError }: { groupId: str
           {statistics.status === 'error' && <Typography role="alert">Die Spielerstatistik konnte nicht geladen werden.</Typography>}
           {statistics.status === 'ready' && (players.length ? <Stack component="ul" aria-label="Gesamtsiegquoten" sx={{ listStyle: 'none', p: 0, m: 0 }}>
             {players.map(player => <Stack component="li" key={player.userId} direction="row" sx={{ gap: 2, py: 1, justifyContent: 'space-between', borderTop: '1px solid', borderColor: 'divider' }}>
-              <Typography sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>{player.username}</Typography>
+              <Typography sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>{publicName(player, players)}</Typography>
               <Typography variant="numeric" sx={{ flexShrink: 0 }}>{percent.format(player.winRatePercent)} %</Typography>
             </Stack>)}
           </Stack> : <Typography>{archiveEmpty}</Typography>)}

@@ -534,6 +534,8 @@ export async function memberDecks(groupId: string, userId: string, signal?: Abor
 }
 
 export type PlayerStatistics = {
+  deleted?: boolean
+  deletedNumber?: number | null
   userId: string
   username: string
   games: number
@@ -588,7 +590,13 @@ export async function getGroupStatistics(groupId: string, signal?: AbortSignal, 
     if (!isRecord(row) || !isUuid(row.userId) || typeof row.username !== 'string' || !row.username) {
       throw new Error('The server returned invalid player statistics.')
     }
-    return { userId: row.userId, username: row.username, ...statisticsCounts(row) }
+    if (row.deleted !== undefined && typeof row.deleted !== 'boolean' ||
+      row.deleted === true && (typeof row.deletedNumber !== 'number' || !Number.isSafeInteger(row.deletedNumber) || row.deletedNumber < 1) ||
+      row.deleted !== true && row.deletedNumber !== undefined && row.deletedNumber !== null) {
+      throw new Error('The server returned invalid deleted profile metadata.')
+    }
+    return { userId: row.userId, username: row.username,
+      ...(row.deleted !== undefined ? { deleted: row.deleted, deletedNumber: row.deletedNumber as number | null } : {}), ...statisticsCounts(row) }
   })
   const decks = body.decks.map((row: unknown): DeckStatistics => {
     if (!isRecord(row) || !isUuid(row.deckId) || !isUuid(row.ownerUserId) ||

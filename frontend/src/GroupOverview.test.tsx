@@ -148,3 +148,18 @@ test.each([
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(body)))
   await expect(recentGames(group.id)).rejects.toThrow()
 })
+
+test('spotlight localizes deleted profiles and distinguishes namesakes', async () => {
+  const data = statistics()
+  data.players = [
+    { ...data.players[0], username: 'Deleted profile', deleted: true, deletedNumber: 1 },
+    { ...data.players[1], username: 'Same name' },
+    { ...data.players[2], username: 'Same name' },
+  ]
+  setup([], data)
+  show()
+  expect(await screen.findByText('Gelöschtes Profil 1')).toBeInTheDocument()
+  expect(screen.getByText('Same name (…0002)')).toBeInTheDocument()
+  expect(screen.getByText('Same name (…0009)')).toBeInTheDocument()
+  expect(screen.queryByText('Deleted profile')).not.toBeInTheDocument()
+})
