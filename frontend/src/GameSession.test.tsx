@@ -26,7 +26,7 @@ function setup() {
     if (path === '/api/decks') return response([state.deck])
     if (path === '/api/groups') return response([group, other])
     if (path === `/api/groups/${other.id}`) return response(other)
-    if (path === `/api/groups/${other.id}/games`) return response([recorded({ id: uid(21), groupId: other.id })])
+    if (path === `/api/groups/${other.id}/games/history`) return response({ games: [{ ...recorded({ id: uid(21), groupId: other.id }), playedOn: null }], nextCursor: null })
     if (path === `/api/decks/${state.deck.id}/archive`) {
       state.deck.archived = true
       api.state.history = api.state.history.map((game) => ({ ...game, participants: game.participants.map((p) =>
@@ -119,7 +119,7 @@ test('App refreshes permanent own-deck usage after recording and retains it afte
   await open(); await screen.findByRole('article')
   await gameAction('Löschen')
   fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Endgültig löschen' }))
-  await screen.findByText('No recorded games yet.')
+  await screen.findByText('Tamiyo hat noch keine Aufzeichnungen angefertigt. Sobald ihr ein paar Runden gespielt habt, seht ihr hier eure Historie.')
   await goTo('Decks'); await openExistingDeck()
   expect(screen.getByRole('combobox', { name: /Commander/ })).toHaveAttribute('readonly')
   expect(screen.getByRole('button', { name: 'Rot (R)' })).toBeDisabled()
@@ -137,31 +137,31 @@ test('App refreshes history after own-deck archival', async () => {
 
 test.each([200, 401])('late history from a previous selected group (%s) cannot restore it or expire the new view', async (status) => {
   const api = setup(); const late = deferred()
-  api.next(`/api/groups/${group.id}/games`, () => late.promise)
+  api.next(`/api/groups/${group.id}/games/history`, () => late.promise)
   render(<App />); await open()
-  await screen.findByText('Loading game history…')
+  await screen.findByText('Spielehistorie wird geladen…')
   await open(api.other.name)
-  await screen.findByRole('article', { name: `Game ${uid(21)}` })
-  await act(async () => late.resolve(response([recorded()], status)))
-  expect(screen.queryByRole('article', { name: `Game ${uid(20)}` })).not.toBeInTheDocument()
+  await screen.findByRole('article')
+  await act(async () => late.resolve(response({ games: [{ ...recorded(), playedOn: null }], nextCursor: null }, status)))
+  expect(screen.getAllByRole('link', { name: /^Spieldetails:/ }).map(link => link.getAttribute('href'))).toEqual([`/playgroups/${api.other.id}/games/${uid(21)}`])
   expect(screen.getByRole('button', { name: 'Owner' })).toHaveTextContent('Owner')
 })
 
 test.each(['close', 'refresh'])('closing/reopening or refreshing group details retires requests (%s)', async (action) => {
   const api = setup(); const late = deferred()
-  api.next(`/api/groups/${group.id}/games`, () => late.promise)
-  render(<App />); await open(); await screen.findByText('Loading game history…')
+  api.next(`/api/groups/${group.id}/games/history`, () => late.promise)
+  render(<App />); await open(); await screen.findByText('Spielehistorie wird geladen…')
   if (action === 'close') { fireEvent.click(screen.getByRole('link', { name: 'Zurück zu Playgroups' })); await open() }
   else { await selectTab('Mitglieder'); fireEvent.click(await screen.findByRole('button', { name: 'Mitglieder aktualisieren' })); await screen.findByRole('tab', { name: 'Games' }); await selectTab('Spiele') }
-  await screen.findByText('No recorded games yet.')
-  await act(async () => late.resolve(response([recorded()])))
+  await screen.findByText('Tamiyo hat noch keine Aufzeichnungen angefertigt. Sobald ihr ein paar Runden gespielt habt, seht ihr hier eure Historie.')
+  await act(async () => late.resolve(response({ games: [{ ...recorded(), playedOn: null }], nextCursor: null })))
   expect(screen.queryByRole('article')).not.toBeInTheDocument()
 })
 
 test('logout and a new identity retire pending game 401s before they can expire or restore protected state', async () => {
   const api = setup(); const late = deferred()
-  api.next(`/api/groups/${group.id}/games`, () => late.promise)
-  render(<App />); await open(); await screen.findByText('Loading game history…')
+  api.next(`/api/groups/${group.id}/games/history`, () => late.promise)
+  render(<App />); await open(); await screen.findByText('Spielehistorie wird geladen…')
   fireEvent.click(within(screen.getByRole('banner', { hidden: true })).getByRole('button', { hidden: true })); fireEvent.click(screen.getByRole('menuitem', { name: 'Abmelden' }))
   expect(screen.queryByRole('heading', { name: 'Commander games' })).not.toBeInTheDocument()
   await screen.findByText('Logged out.')

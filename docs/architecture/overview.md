@@ -348,7 +348,12 @@ The shell uses React Router Declarative Mode; no real-time infrastructure is add
 ## Browser game recording and deck lifecycle
 
 `GameManager` is mounted inside confirmed group details for the current session
-identity. It loads validated history DTOs in backend order. The current `GameEditor`
+identity. It loads validated compact history previews in backend date-first order
+from the bounded history endpoint. Games history appends cursor pages of at most
+20 entries when its bottom sentinel enters view, preserves loaded cards on
+recoverable page errors, and retires requests with the group/session lifetime.
+The Overview shares the same parser and compact card, displaying only its three
+recent entries. The current `GameEditor`
 submits participant/deck assignments with contiguous `startPosition` values,
 mode-specific `placement`, `winner` or `stillInGame` fields, `result`, and
 `alternateWinCon`. Server-owned game identity, group, creator, recording time,

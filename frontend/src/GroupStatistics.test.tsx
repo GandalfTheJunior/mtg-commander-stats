@@ -369,7 +369,7 @@ test('numeric ties use the backend order rather than the prior text sort or reve
   expect(sortedIds(playerTable())).toEqual([uid(1), uid(2), uid(9)])
 })
 
-test('both table choices re-sort fresh server rows on statistics and game refresh', async () => {
+test('both table choices re-sort fresh server rows on statistics refresh', async () => {
   const api = gameApi(); api.state.statistics = statistics(); show()
   await stats()
   await screen.findByRole('table', { name: 'Spielerstatistiken' })
@@ -383,13 +383,7 @@ test('both table choices re-sort fresh server rows on statistics and game refres
   await stats()
   await waitFor(() => expect(sortedIds(playerTable())).toEqual([uid(9), uid(1), uid(2)]))
   expect(sortedIds(deckTable())).toEqual([uid(109), uid(101), uid(102)])
-  await games()
-  fireEvent.click(screen.getByRole('button', { name: 'Refresh games' }))
-  await stats()
-  await waitFor(() => expect(within(playerTable()).getByRole('columnheader', { name: 'Siegrate' })).toHaveAttribute('aria-sort', 'descending'))
-  expect(sortedIds(playerTable())).toEqual([uid(9), uid(1), uid(2)])
-  expect(within(deckTable()).getByRole('columnheader', { name: 'Siege' })).toHaveAttribute('aria-sort', 'descending')
-  expect(sortedIds(deckTable())).toEqual([uid(109), uid(101), uid(102)])
+
 })
 
 test.each(['close', 'switch', 'session'] as const)('%s discards previous sort choices along with protected statistics', async action => {

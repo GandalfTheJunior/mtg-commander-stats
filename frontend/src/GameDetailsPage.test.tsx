@@ -91,7 +91,7 @@ test.each([false, true])('direct details verify session, group and game in order
   expect(screen.getByText('Commander: Commander 2')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('link', { name: 'Zur Spielehistorie' }))
   await waitFor(() => expect(window.location.pathname).toBe(groupUrl(group.id, 'games')))
-  await waitFor(() => expect(api.calls(`${groupPath}/games`).length).toBeGreaterThan(0))
+  await waitFor(() => expect(api.calls(`${groupPath}/games/history`).length).toBeGreaterThan(0))
 })
 
 test('signed-out details resume after login and a reload starts fresh verification', async () => {
@@ -200,16 +200,16 @@ test('historical names/ordered assignments, duplicate names, archived and colorl
   expect(screen.getByText(/Erfasst am/).querySelector('time')).toHaveAttribute('datetime', game.recordedAt)
 })
 
-test('cards retain exact API order, current winner/deck and correct recording semantics; active draft blocks detail entry', async () => {
+test('cards retain API order, winner/deck and unknown play dates; active draft blocks detail entry', async () => {
   const api = setup()
   api.state.history = [recorded({ id: uid(21), result: 'DRAW', winnerUserId: null }), recorded()]
   show(groupUrl(group.id, 'games'))
   const cards = await screen.findAllByRole('link', { name: /^Spieldetails:/ })
   expect(cards.map(card => card.getAttribute('href'))).toEqual([gameUrl(group.id, uid(21)), detailUrl])
   expect(cards[0]).toHaveTextContent('Unentschieden')
-  expect(cards[1]).toHaveTextContent('WIN — Same name (…0002) · Deck 2')
-  expect(cards[1]).toHaveTextContent('2 Teilnehmende')
-  expect(cards[1]).toHaveTextContent('Erfasst am')
+  expect(cards[1]).toHaveTextContent('Same name (…0002)Deck: Deck 2')
+  expect(cards[1]).not.toHaveTextContent('Teilnehmende')
+  expect(cards[1]).toHaveTextContent('Spieldatum unbekannt')
   fireEvent.click(screen.getByRole('link', { name: 'Spiel erfassen' }))
   await screen.findByRole('form', { name: 'Spiel erfassen' })
   fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 1' }), { target: { value: uid(2) } })
@@ -219,10 +219,10 @@ test('cards retain exact API order, current winner/deck and correct recording se
   expect(screen.queryByRole('link', { name: /^Spieldetails:/ })).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
   fireEvent.click(await screen.findByRole('button', { name: 'Verwerfen und verlassen' }))
-  fireEvent.click(await screen.findByRole('link', { name: new RegExp(`^Spieldetails:.*${uid(20)}$`) }))
+  fireEvent.click(await screen.findByRole('link', { name: /^Spieldetails: Same name/ }))
   await screen.findByRole('heading', { name: 'Spieldetails' })
   await back()
-  await screen.findByRole('link', { name: new RegExp(`^Spieldetails:.*${uid(20)}$`) })
+  await screen.findByRole('link', { name: /^Spieldetails: Same name/ })
   act(() => window.history.forward())
   await screen.findByRole('heading', { name: 'Spieldetails' })
   expect(api.calls(gamePath)).toHaveLength(2)
@@ -282,7 +282,7 @@ test('DELETE guards CSRF and write lifetime, accepts only 204, replaces detail e
   await screen.findByText('Spiel gelöscht. Die bisherige Decknutzung bleibt erhalten.')
   expect(window.location.pathname).toBe(groupUrl(group.id, 'games'))
   await back()
-  await screen.findByText('No recorded games yet.')
+  await screen.findByText('Tamiyo hat noch keine Aufzeichnungen angefertigt. Sobald ihr ein paar Runden gespielt habt, seht ihr hier eure Historie.')
   expect(api.calls(gamePath)).toHaveLength(1)
 })
 
