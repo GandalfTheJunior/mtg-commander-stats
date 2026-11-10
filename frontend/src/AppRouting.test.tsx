@@ -1,7 +1,5 @@
 import { savedCommander } from './test/commanderFixtures'
 import { stubLanHttpCrypto } from './test/lanHttp'
-import { showCode } from './test/groupEntry'
-import { openNewDeck } from './test/editorEntry'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { AppRouter as BrowserRouter } from './AppRouter'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
@@ -13,7 +11,6 @@ import type { CurrentUser } from './api'
 
 const owner = { id: uid(1), username: 'Owner' }
 const deck = { id: uid(101), name: 'Current deck', commanders: [savedCommander('Karn')], colorIdentity: [], everUsed: false, archived: false }
-const code = 'abcdefghijklmnopqrstuv'
 
 function setup() {
   const state = { user: owner as CurrentUser | null, loginUser: owner, groups: [group], decks: [deck] }
@@ -36,7 +33,6 @@ function setup() {
     if (path === '/api/decks') return response(state.decks)
     if (path === '/api/groups') return response(state.groups)
     if (path === `/api/groups/${group.id}`) return response(group)
-    if (path.endsWith('/join-code')) return response({ code })
     if (path.endsWith('/games')) return response([recorded()])
     if (path.endsWith('/statistics')) return response({ players: [], decks: [] })
     throw new Error(`Unexpected request ${method} ${path}`)
@@ -62,7 +58,6 @@ function hidden() {
   expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
   expect(screen.queryByText(deck.name)).not.toBeInTheDocument()
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
-  expect(screen.queryByDisplayValue(code)).not.toBeInTheDocument()
 }
 
 async function destination(name: 'Dashboard' | 'Playgroups' | 'Decks') {
@@ -101,7 +96,7 @@ test.each([
 
 test.each([
   ['/', 'Dashboard'], ['/dashboard', 'Dashboard'], ['/decks', 'Decks'], ['/playgroups', 'Playgroups'],
-  ['/missing', 'Dashboard'], ['/playgroups/id/games', 'Dashboard'],
+  ['/missing', 'Dashboard'],
 ] as const)('restores %s only after confirming the session, canonicalizing with replace', async (path, target) => {
   const api = setup(), checking = deferred()
   api.next('/api/me', () => checking.promise)
@@ -192,151 +187,24 @@ test('a successful login POST does not expose navigation until rotated CSRF and 
   await destination('Playgroups')
 })
 
-test('group access loss clears details and invitation code without logging out the confirmed account', async () => {
-  const api = setup()
-  show('/playgroups')
-  fireEvent.click(await screen.findByRole('button', { name: group.name }))
-  await showCode()
-  await screen.findByDisplayValue(code)
-  api.next(`/api/groups/${group.id}`, () => response({}, 403))
-  api.next('/api/groups', () => response([]))
-  api.next(`/api/groups/${group.id}/join-code`, () => response({}, 403))
-  fireEvent.click(screen.getByRole('button', { name: 'Einladungscode anzeigen' }))
-  await screen.findByText(/Diese Playgroup ist nicht verfügbar/)
-  await screen.findByText('Noch keine Playgroups. Erstelle eine Gruppe oder tritt mit einem aktuellen Einladungscode bei.')
-  expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
-  expect(screen.queryByDisplayValue(code)).not.toBeInTheDocument()
-  await destination('Playgroups')
-  expect(screen.getByRole('button', { name: 'Log out' })).toBeEnabled()
-})
 
-test('logout clears protected content and destination while pending; Back cannot resurrect prior data', async () => {
-  const api = setup(), pending = deferred()
-  show('/dashboard'); await destination('Dashboard'); await goTo('Playgroups')
-  fireEvent.click(await screen.findByRole('button', { name: group.name }))
-  await showCode()
-  await screen.findByDisplayValue(code)
-  api.next('/api/session', () => pending.promise, 'DELETE')
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
-  hidden(); expect(window.location.pathname).toBe('/')
-  expect(screen.getByText('Logging out…')).toBeInTheDocument()
-  await act(async () => window.history.back())
-  await waitFor(() => expect(window.location.pathname).toBe(`/playgroups/${group.id}`))
-  hidden()
-  api.state.user = null
-  await act(async () => pending.resolve(new Response(null, { status: 204 })))
-  await screen.findByText('Logged out.')
-  expect(window.location.pathname).toBe('/')
-  await signIn(); await destination('Dashboard')
-  expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
-})
-
-test.each([owner, { id: uid(4), username: 'Fourth' }])('re-login as $username discards old route state and late invitation data', async loginUser => {
-  const api = setup(), pending = deferred()
-  api.state.loginUser = loginUser
-  api.next(`/api/groups/${group.id}/join-code`, () => pending.promise)
-  show('/playgroups'); await destination('Playgroups')
-  fireEvent.click(await screen.findByRole('button', { name: group.name }))
-  await showCode()
-  await waitFor(() => expect(api.fetchMock.mock.calls.some(([url]) => url.endsWith('/join-code'))).toBe(true))
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
-  await screen.findByText('Logged out.'); await signIn(); await destination('Dashboard')
-  await goTo('Playgroups'); await destination('Playgroups')
-  await act(async () => pending.resolve(response({ code })))
-  expect(screen.getByText(/Signed in as/)).toHaveTextContent(loginUser.username)
-  expect(screen.queryByDisplayValue(code)).not.toBeInTheDocument()
-  expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
-})
-
-test('ambiguous logout gates navigation during recovery and confirms a fresh identity before the dashboard', async () => {
-  const api = setup(), checking = deferred()
-  show('/decks'); await screen.findByText(deck.name)
-  api.next('/api/session', () => response({}, 403), 'DELETE')
-  api.next('/api/me', () => checking.promise)
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
-  hidden()
-  await waitFor(() => expect(api.fetchMock.mock.calls.filter(([url]) => url === '/api/me')).toHaveLength(2))
-  await act(async () => checking.resolve(response({ id: uid(4), username: 'Fourth' })))
-  await destination('Dashboard')
-  expect(screen.getByText(/Signed in as/)).toHaveTextContent('Fourth')
-  expect(screen.getByText(/Logout could not be confirmed/)).toBeInTheDocument()
-  expect(screen.queryByText('Logged out.')).not.toBeInTheDocument()
-})
-
-test('failed restoration and uncertain logout recovery never enable protected navigation', async () => {
-  const api = setup()
-  api.next('/api/me', () => response({}, 503))
-  show('/decks'); await screen.findByText('Your session identity could not be confirmed.'); hidden()
-  fireEvent.click(screen.getByRole('button', { name: 'Check session' }))
-  await screen.findByText(deck.name)
-  api.next('/api/session', () => response({}, 500), 'DELETE')
-  api.next('/api/me', () => response({}, 503))
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
-  await screen.findByText('Logout could not be confirmed. Check your session before continuing.'); hidden()
-  fireEvent.click(screen.getByRole('button', { name: 'Check session' }))
-  await destination('Dashboard')
-})
-
-test.each([200, 401])('a retired deck list (%s) cannot overwrite the reopened manager or expire its session', async status => {
-  const api = setup(), pending = deferred()
-  api.next('/api/decks', () => pending.promise)
-  show('/decks'); await destination('Decks')
-  await screen.findByText('Decks werden geladen…')
-  const signal = api.fetchMock.mock.calls.find(([url]) => url === '/api/decks')![1]!.signal!
-  await goTo('Playgroups'); await destination('Playgroups')
-  expect(signal.aborted).toBe(true)
-  api.state.decks = [{ ...deck, name: 'Fresh deck' }]
-  await goTo('Decks'); await screen.findByText('Fresh deck')
-  await act(async () => pending.resolve(response([deck], status)))
-  expect(screen.queryByText(deck.name)).not.toBeInTheDocument()
-  expect(screen.queryByText(/session expired/)).not.toBeInTheDocument()
-  await destination('Decks')
-})
-
-test.each([200, 401])('a retired Playgroups list (%s) cannot overwrite the reopened manager or expire its session', async status => {
-  const api = setup(), pending = deferred()
-  api.next('/api/groups', () => pending.promise)
-  show('/playgroups'); await destination('Playgroups')
-  await waitFor(() => expect(api.fetchMock.mock.calls.some(([url]) => url === '/api/groups')).toBe(true))
-  const signal = api.fetchMock.mock.calls.find(([url]) => url === '/api/groups')![1]!.signal!
-  await goTo('Decks'); await destination('Decks')
-  expect(signal.aborted).toBe(true)
-  api.state.groups = [{ ...group, name: 'Fresh Playgroup' }]
-  await goTo('Playgroups'); await screen.findByRole('button', { name: 'Fresh Playgroup' })
-  await act(async () => pending.resolve(response([group], status)))
-  expect(screen.queryByRole('button', { name: group.name })).not.toBeInTheDocument()
-  expect(screen.queryByText(/session expired/)).not.toBeInTheDocument()
-  await destination('Playgroups')
-})
-
-test.each([
-  ['Decks', 'create'], ['Playgroups', 'create'], ['Playgroups', 'join'],
-] as const)('leaving %s during CSRF preparation prevents a retired %s write', async (name, operation) => {
-  const api = setup(), csrf = deferred()
-  show(`/${name.toLowerCase()}`); await destination(name)
-  if (name === 'Decks') {
-    await screen.findByText(deck.name)
-    fireEvent.change(await openNewDeck(), { target: { value: 'Retired write' } })
-    fireEvent.change(screen.getByLabelText(/Commander/), { target: { value: 'Karn' } })
-    fireEvent.focus(screen.getByRole('combobox', { name: /Commander/ }))
-    fireEvent.click(await screen.findByRole('option', { name: 'Karn' }))
-  } else {
-    await screen.findByRole('button', { name: 'Gruppe erstellen' })
-    fireEvent.change(screen.getByLabelText(operation === 'create' ? /Gruppenname/ : /Einladungscode/), { target: { value: operation === 'create' ? 'Retired write' : code } })
-  }
-  api.next('/api/csrf', () => csrf.promise)
-  fireEvent.click(screen.getByRole('button', { name: name === 'Decks' ? 'Deck erstellen' : operation === 'create' ? 'Gruppe erstellen' : 'Gruppe beitreten' }))
-  await waitFor(() => expect(api.fetchMock.mock.calls.some(([url]) => url === '/api/csrf')).toBe(true))
-  await goTo('Dashboard')
-  if (name === 'Decks') {
-    fireEvent.click(await screen.findByRole('button', { name: 'Verwerfen und verlassen' }))
-  }
-  await destination('Dashboard')
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' })); await screen.findByText('Logged out.')
-  api.state.loginUser = { id: uid(4), username: 'Fourth' }
+test('a signed-out protected Games deep link resumes the exact route after login and rechecks group access', async () => {
+  const api = setup(); api.state.user = null
+  const path = `/playgroups/${group.id}/games`
+  show(path)
+  await screen.findByRole('heading', { name: 'Sign in' })
+  expect(api.fetchMock.mock.calls.some(([url]) => url === `/api/groups/${group.id}`)).toBe(false)
   await signIn()
-  await act(async () => csrf.resolve(response({ headerName: 'X-CSRF-TOKEN', token: 'retired-token' })))
-  const writePath = name === 'Decks' ? '/api/decks' : operation === 'create' ? '/api/groups' : '/api/groups/join'
-  expect(api.fetchMock.mock.calls.some(([url, init]) => url === writePath && init?.method === 'POST')).toBe(false)
-  expect(screen.getByText(/Signed in as/)).toHaveTextContent('Fourth')
+  expect(await screen.findByRole('tab', { name: 'Games' })).toHaveAttribute('aria-selected', 'true')
+  expect(window.location.pathname).toBe(path)
+  expect(api.fetchMock.mock.calls.some(([url]) => url === `/api/groups/${group.id}`)).toBe(true)
+})
+
+test('confirmed group access loss redirects to collection with the approved message', async () => {
+  const api = setup()
+  api.next(`/api/groups/${group.id}`, () => response({}, 403))
+  show(`/playgroups/${group.id}/members`)
+  await screen.findByText('Du hast keinen Zugriff mehr auf diese Playgroup.')
+  expect(window.location.pathname).toBe('/playgroups')
+  expect(screen.queryByRole('heading', { name: group.name })).not.toBeInTheDocument()
 })

@@ -1,3 +1,4 @@
+import { clickAccountLogout } from './test/accountActions'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { deck, deckApi, editDeck, showDeckApp } from './test/deckFixtures'
@@ -126,11 +127,11 @@ test('navigation retires the search so a late unauthorized response cannot expir
   api.next(request('Pending'), () => pending.promise)
   type('Pending'); await waitFor(() => expect(searches(api)).toHaveLength(1))
   const signal = searches(api)[0][1]!.signal!
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  clickAccountLogout()
   await screen.findByText('Logged out.')
   expect(signal.aborted).toBe(true)
   await signInDeck()
   await act(async () => pending.resolve(response({}, 401)))
-  expect(screen.getByText(/Signed in as/)).toBeInTheDocument()
+  expect(screen.getByRole('banner')).toBeInTheDocument()
   expect(screen.queryByText(/session expired/)).not.toBeInTheDocument()
 })

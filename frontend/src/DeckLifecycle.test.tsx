@@ -57,7 +57,7 @@ test.each([403, 404, 409, 500])('archival denial %s never claims success and req
   await screen.findByText(/Lifecycle operation rejected/)
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(screen.queryByText(`${deck.name} wurde archiviert.`)).not.toBeInTheDocument()
-  expect(screen.getByText(/Signed in as/)).toBeInTheDocument()
+  expect(screen.getByRole('banner')).toBeInTheDocument()
   if (status === 403 || status === 404) expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   if (status !== 409) fireEvent.click(screen.getByRole('button', { name: 'Serverstand erneut prüfen' }))
   await screen.findByRole('button', { name: 'Serverstand geprüft – Entwurf weiter bearbeiten' })

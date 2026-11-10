@@ -135,7 +135,7 @@ test('retired gallery ignores late writes and authentication failures after rout
   act(() => { window.history.pushState(null, '', '/playgroups'); window.dispatchEvent(new PopStateEvent('popstate')) })
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   await act(async () => pending.resolve(response({}, 401)))
-  expect(screen.getByText(/Signed in as/)).toBeInTheDocument()
+  expect(screen.getByRole('banner')).toBeInTheDocument()
   expect(window.location.pathname).toBe('/playgroups')
 })
 

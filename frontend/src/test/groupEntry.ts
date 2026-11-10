@@ -10,5 +10,6 @@ export async function showCode() {
   fireEvent.click(screen.getByRole('button', { name: 'Einladungscode anzeigen' }))
 }
 export async function selectTab(name: 'Spiele' | 'Statistiken' | 'Mitglieder') {
-  fireEvent.click(await screen.findByRole('tab', { name }))
+  const label = { Spiele: 'Games', Statistiken: 'Statistics', Mitglieder: 'Members' }[name]
+  fireEvent.click(await screen.findByRole('tab', { name: label }))
 }

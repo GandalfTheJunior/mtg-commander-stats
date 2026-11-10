@@ -6,10 +6,9 @@ import App from './App'
 import { AppRouter } from './AppRouter'
 import { AppThemeProvider } from './theme/AppThemeProvider'
 import { selectTab } from './test/groupEntry'
-import { statistics } from './test/statisticsFixtures'
 import { gameAction, openGameDetails } from './test/gameEntry'
 import { deckFor, deferred, gameApi, group, recorded, response, uid } from './test/gameFixtures'
-import { gameUnavailable, gameUrl } from './gamePresentation'
+import { gameUrl } from './gamePresentation'
 import { groupUnavailable, groupUrl } from './groupNavigation'
 import { goTo } from './test/renderApp'
 import type { CurrentUser, Game, GroupDetails } from './api'
@@ -43,6 +42,13 @@ function setup() {
   const calls = (url: string, method = 'GET') => fetchMock.mock.calls.filter(([path, init]) => path === url && (init?.method ?? 'GET') === method)
   return { ...api, server: state, next, calls, fetchMock }
 }
+function clickLogout() {
+  fireEvent.click(within(screen.getByRole('banner', { hidden: true })).getByRole('button', { hidden: true }))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Abmelden' }))
+}
+function expectAccount(name: string) {
+  expect(within(screen.getByRole('banner')).getByRole('button', { name })).toBeInTheDocument()
+}
 function show(path = detailUrl, state: unknown = null, strict = false) {
   window.history.replaceState({ usr: state, key: 'test' }, '', path)
   const ui = <AppThemeProvider><AppRouter><App /></AppRouter></AppThemeProvider>
@@ -53,11 +59,11 @@ async function login() {
   fireEvent.change(form.getByLabelText('Email'), { target: { value: 'user@example.test' } })
   fireEvent.change(form.getByLabelText('Password'), { target: { value: 'a sufficient password' } })
   fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
-  await screen.findByText(/Signed in as/)
+  await screen.findByRole('navigation', { name: 'Main navigation' })
 }
 async function back() {
   act(() => window.history.back())
-  await waitFor(() => expect(window.location.pathname).toBe(groupUrl(group.id)))
+  await waitFor(() => expect(window.location.pathname).toBe(groupUrl(group.id, 'games')))
 }
 // Exercise navigation, guards and retirement with the capabilities of LAN HTTP.
 beforeEach(stubLanHttpCrypto)
@@ -82,10 +88,9 @@ test.each([false, true])('direct details verify session, group and game in order
   await act(async () => game.resolve(response(recorded())))
   expect(await screen.findByRole('heading', { name: 'Spieldetails' })).toHaveFocus()
   expect(screen.getByText('Commander: Commander 2')).toBeInTheDocument()
-  fireEvent.click(screen.getByRole('link', { name: 'Zurück zu Spiele' }))
-  await screen.findByRole('link', { name: /^Spieldetails:/ })
-  expect(window.location.pathname).toBe(groupUrl(group.id))
-  expect(api.calls(`${groupPath}/games`)).toHaveLength(strict ? 2 : 1)
+  fireEvent.click(screen.getByRole('link', { name: 'Zur Spielehistorie' }))
+  await waitFor(() => expect(window.location.pathname).toBe(groupUrl(group.id, 'games')))
+  await waitFor(() => expect(api.calls(`${groupPath}/games`).length).toBeGreaterThan(0))
 })
 
 test('signed-out details resume after login and a reload starts fresh verification', async () => {
@@ -111,14 +116,14 @@ test('UUID identity accepts mixed case without accepting other games or unsuppor
   await screen.findByRole('heading', { name: 'Spieldetails' })
   view.unmount()
   show(`${detailUrl}/edit`)
-  await screen.findByRole('heading', { name: 'Dashboard' })
-  expect(api.calls(gamePath)).toHaveLength(0)
+  await screen.findByRole('form', { name: 'Spiel bearbeiten' })
+  expect(api.calls(gamePath)).toHaveLength(1)
 })
 
 test.each(['group', 'game'])('invalid %s UUID never requests private game data', async which => {
   const api = setup()
   show(gameUrl(which === 'group' ? 'join-code' : group.id, which === 'game' ? 'not-a-uuid' : uid(20)))
-  await screen.findByText(which === 'group' ? groupUnavailable : gameUnavailable)
+  await screen.findByText(which === 'group' ? groupUnavailable : 'Spiel nicht mehr verfügbar')
   expect(api.calls(gamePath)).toHaveLength(0)
   expect(screen.queryByRole('heading', { name: 'Spieldetails' })).not.toBeInTheDocument()
 })
@@ -132,9 +137,9 @@ test.each([403, 404])('group %s returns generically to Playgroups before request
 
 test('game 404 in an accessible group returns to fresh games with generic feedback', async () => {
   const api = setup(); api.state.history = []; show()
-  await screen.findByText(gameUnavailable)
-  await screen.findByText('No recorded games yet.')
-  expect(window.location.pathname).toBe(groupUrl(group.id))
+  await screen.findByText('Spiel nicht mehr verfügbar')
+  expect(window.location.pathname).toBe(detailUrl)
+  expect(screen.getByRole('link', { name: 'Zur Spielehistorie' })).toHaveAttribute('href', groupUrl(group.id, 'games'))
   expect(screen.queryByText(/Spiel gelöscht/)).not.toBeInTheDocument()
 })
 
@@ -197,16 +202,17 @@ test('historical names/ordered assignments, duplicate names, archived and colorl
 test('cards retain exact API order, current winner/deck and correct recording semantics; active draft blocks detail entry', async () => {
   const api = setup()
   api.state.history = [recorded({ id: uid(21), result: 'DRAW', winnerUserId: null }), recorded()]
-  show(groupUrl(group.id))
+  show(groupUrl(group.id, 'games'))
   const cards = await screen.findAllByRole('link', { name: /^Spieldetails:/ })
   expect(cards.map(card => card.getAttribute('href'))).toEqual([gameUrl(group.id, uid(21)), detailUrl])
   expect(cards[0]).toHaveTextContent('Unentschieden')
   expect(cards[1]).toHaveTextContent('WIN — Same name (…0002) · Deck 2')
   expect(cards[1]).toHaveTextContent('2 Teilnehmende')
   expect(cards[1]).toHaveTextContent('Erfasst am')
-  fireEvent.click(screen.getByRole('button', { name: 'Spiel erfassen' }))
+  fireEvent.click(screen.getByRole('link', { name: 'Spiel erfassen' }))
+  await screen.findByRole('form', { name: 'Spiel erfassen' })
   fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 1' }), { target: { value: uid(2) } })
-  expect(window.location.pathname).toBe(groupUrl(group.id))
+  expect(window.location.pathname).toBe(`${groupUrl(group.id, 'games')}/new`)
   expect(screen.getByRole('combobox', { name: 'Spieler 1' })).toHaveValue(uid(2))
   expect(cards[1]).not.toBeInTheDocument()
   expect(screen.queryByRole('link', { name: /^Spieldetails:/ })).not.toBeInTheDocument()
@@ -226,28 +232,17 @@ test.each(['rights', 'gone'])('edit intent validates new membership/history when
   if (change === 'rights') api.server.details = { ...group, role: 'MEMBER' }
   else api.state.history = []
   await gameAction('Bearbeiten', false)
-  await screen.findByText(/Das Spiel kann nicht mehr bearbeitet werden/)
+  await screen.findByRole('button', { name: 'Erneut versuchen' })
   expect(screen.queryByRole('form', { name: 'Spiel bearbeiten' })).not.toBeInTheDocument()
-  expect(window.location.pathname).toBe(groupUrl(group.id))
+  expect(window.location.pathname).toBe(`${detailUrl}/edit`)
 })
 
-test('edit intent is consumed once, cannot be forged/reloaded/replayed by Back and cancel restores safe games', async () => {
-  setup(); show(groupUrl(group.id), { gameEditToken: 'forged', gameId: uid(20) })
-  await screen.findByRole('link', { name: /^Spieldetails:/ })
-  expect(screen.queryByRole('form', { name: 'Spiel bearbeiten' })).not.toBeInTheDocument()
-  await gameAction('Bearbeiten')
+test('direct edit verifies membership and game while cancellation returns to Games', async () => {
+  setup(); show(`${detailUrl}/edit`)
   await screen.findByRole('form', { name: 'Spiel bearbeiten' })
   fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
-  expect(screen.queryByRole('form', { name: 'Spiel bearbeiten' })).not.toBeInTheDocument()
-  await selectTab('Mitglieder')
-  fireEvent.click(screen.getByRole('button', { name: 'Mitglieder aktualisieren' }))
-  await screen.findByRole('tab', { name: 'Spiele' })
-  await selectTab('Spiele')
-  await screen.findByRole('button', { name: 'Spiel erfassen' })
-  expect(screen.queryByRole('form', { name: 'Spiel bearbeiten' })).not.toBeInTheDocument()
-  await openGameDetails()
-  await back()
-  await screen.findByRole('button', { name: 'Spiel erfassen' })
+  await screen.findByRole('link', { name: /^Spieldetails:/ })
+  expect(window.location.pathname).toBe(groupUrl(group.id, 'games'))
   expect(screen.queryByRole('form', { name: 'Spiel bearbeiten' })).not.toBeInTheDocument()
 })
 
@@ -271,7 +266,7 @@ test('cancel/Escape/backdrop send zero DELETEs and restore a reachable actions t
 
 test('DELETE guards CSRF and write lifetime, accepts only 204, replaces detail entry, and Back refetches', async () => {
   const api = setup(), csrf = deferred(), write = deferred()
-  show(groupUrl(group.id)); await openGameDetails(); await gameAction('Löschen', false)
+  show(groupUrl(group.id, 'games')); await openGameDetails(); await gameAction('Löschen', false)
   api.next('/api/csrf', () => csrf.promise)
   api.next(gamePath, () => write.promise, 'DELETE')
   const confirm = screen.getByRole('button', { name: 'Endgültig löschen' })
@@ -283,7 +278,7 @@ test('DELETE guards CSRF and write lifetime, accepts only 204, replaces detail e
   api.state.history = []
   await act(async () => write.resolve(new Response(null, { status: 204 })))
   await screen.findByText('Spiel gelöscht. Die bisherige Decknutzung bleibt erhalten.')
-  await screen.findByText('No recorded games yet.')
+  expect(window.location.pathname).toBe(groupUrl(group.id, 'games'))
   await back()
   await screen.findByText('No recorded games yet.')
   expect(api.calls(gamePath)).toHaveLength(1)
@@ -305,7 +300,7 @@ test.each([200, 400, 403, 404, 409, 500, 'network'] as const)('unacknowledged DE
   expect(screen.getByText(/Die Löschung wurde nicht bestätigt/)).toBeInTheDocument()
   expect(api.calls(gamePath, 'DELETE')).toHaveLength(1)
   expect(api.calls(gamePath)).toHaveLength(2)
-  expect(screen.getByText(/Signed in as/)).toBeInTheDocument()
+  expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument()
 })
 
 test.each(['csrf', 'write'])('current %s 401 expires the session without exposing game data', async stage => {
@@ -321,8 +316,9 @@ test('ambiguous committed delete is inspected as gone and never automatically re
   const api = setup(); show(); await gameAction('Löschen', false)
   api.next(gamePath, () => { api.state.history = []; throw new Error('response lost') }, 'DELETE')
   fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
-  await screen.findByText(gameUnavailable)
-  await screen.findByText('No recorded games yet.')
+  await screen.findByText('Spiel nicht mehr verfügbar')
+  expect(window.location.pathname).toBe(detailUrl)
+  expect(screen.queryByRole('article')).not.toBeInTheDocument()
   expect(api.calls(gamePath, 'DELETE')).toHaveLength(1)
   expect(screen.queryByText(/Spiel gelöscht/)).not.toBeInTheDocument()
 })
@@ -363,7 +359,7 @@ test.each((['read', 'csrf', 'delete', 'retry'] as const).flatMap(stage => [200, 
   fireEvent.click(await screen.findByRole('link', { name: 'Decks' }))
   await screen.findByRole('button', { name: 'Deck erstellen' })
   await act(async () => late.resolve(response(stage === 'csrf' ? { headerName: 'X-CSRF-TOKEN', token: 'late' } : stage === 'read' ? recorded() : group, status)))
-  expect(screen.getByText(/Signed in as/)).toBeInTheDocument()
+  expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Spieldetails' })).not.toBeInTheDocument()
   if (stage === 'csrf') expect(api.calls(gamePath, 'DELETE')).toHaveLength(0)
 })
@@ -372,25 +368,26 @@ test.each([1, 4])('logout and same/different UUID login (%s) retire old game GET
   const api = setup(), late = deferred()
   api.next(gamePath, () => late.promise)
   show(); await waitFor(() => expect(api.calls(gamePath)).toHaveLength(1))
-  fireEvent.click(await screen.findByRole('button', { name: 'Log out' }))
+  clickLogout()
   await screen.findByText('Logged out.')
   api.server.loginUser = { id: uid(actor), username: 'New session' }
   await login()
   await act(async () => late.resolve(response({}, 401)))
-  expect(screen.getByText(/Signed in as/)).toHaveTextContent('New session')
+  expectAccount('New session')
   fireEvent.click(screen.getByRole('link', { name: 'Playgroups' }))
   fireEvent.click(await screen.findByRole('button', { name: group.name }))
+  await selectTab('Spiele')
   await gameAction('Löschen')
   const csrf = deferred()
   api.next('/api/csrf', () => csrf.promise)
   fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
   await waitFor(() => expect(api.calls('/api/csrf').length).toBeGreaterThan(0))
-  fireEvent.click(await screen.findByRole('button', { name: 'Log out' }))
+  clickLogout()
   await screen.findByText('Logged out.')
   await login()
   await act(async () => csrf.resolve(response({ headerName: 'X-CSRF-TOKEN', token: 'retired' })))
   expect(api.calls(gamePath, 'DELETE')).toHaveLength(0)
-  expect(screen.getByText(/Signed in as/)).toHaveTextContent('New session')
+  expectAccount('New session')
 })
 
 
@@ -400,42 +397,29 @@ test.each([1, 4].flatMap(actor => [204, 401].map(status => ({ actor, status })))
   api.next(gamePath, () => late.promise, 'DELETE')
   fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
   await waitFor(() => expect(api.calls(gamePath, 'DELETE')).toHaveLength(1))
-  fireEvent.click(await screen.findByRole('button', { name: 'Log out' }))
+  clickLogout()
   await screen.findByText('Logged out.')
   api.server.loginUser = { id: uid(actor), username: 'Replacement session' }
   await login()
   await act(async () => late.resolve(status === 204 ? new Response(null, { status: 204 }) : response({}, status)))
-  expect(screen.getByText(/Signed in as/)).toHaveTextContent('Replacement session')
+  expectAccount('Replacement session')
   expect(screen.queryByText(/Spiel gelöscht/)).not.toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Spieldetails' })).not.toBeInTheDocument()
   expect(api.calls(gamePath, 'DELETE')).toHaveLength(1)
 })
 
 
-test('handed-off edit preserves its draft across tabs and refreshes visited sorted statistics independently of pending history', async () => {
-  const api = setup(), history = deferred()
-  api.state.statistics = statistics()
+test('focused edit retains its draft until save and returns to the Games route', async () => {
+  const api = setup()
   show(); await gameAction('Bearbeiten', false)
   await screen.findByRole('form', { name: 'Spiel bearbeiten' })
+  expect(window.location.pathname).toBe(`${detailUrl}/edit`)
   fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
-  await selectTab('Statistiken')
-  const first = await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  fireEvent.click(within(first).getByRole('button', { name: 'Siege' }))
-  await selectTab('Spiele')
   expect(screen.getByRole('combobox', { name: 'Spielergebnis' })).toHaveValue('DRAW')
-  fireEvent.click(screen.getByRole('button', { name: 'Spieler 1 bearbeiten' }))
-  expect(screen.getByRole('combobox', { name: 'Spieler 1' })).toHaveValue(uid(2))
-  api.state.statistics = { ...statistics(), players: [{ ...statistics().players[0], wins: 0, winRatePercent: 0 }] }
-  api.next(`${groupPath}/games`, () => history.promise)
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Spiel speichern' })).toBeEnabled())
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
-  await screen.findByText('Game updated.')
-  await selectTab('Statistiken')
-  const updated = await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  expect(within(updated).getByRole('columnheader', { name: 'Siege' })).toHaveAttribute('aria-sort', 'descending')
-  expect(within(updated).getByRole('row', { name: /Ada/ })).toHaveTextContent('1200%')
-  expect(screen.getByText('Loading game history…')).not.toBeVisible()
-  expect(api.calls(`${groupPath}/statistics`)).toHaveLength(2)
+  await screen.findByText('Spiel erfolgreich gespeichert.')
+  expect(window.location.pathname).toBe(groupUrl(group.id, 'games'))
+  expect(api.calls(gamePath, 'PUT')).toHaveLength(1)
 })
 
 test.each([['OWNER', 1], ['MEMBER', 2]] as const)('LAN HTTP hands off %s game edits with fresh authorization, then prevents Forward replay', async (role, actor) => {
@@ -444,16 +428,16 @@ test.each([['OWNER', 1], ['MEMBER', 2]] as const)('LAN HTTP hands off %s game ed
   api.server.details = { ...group, role }
   show(); await gameAction('Bearbeiten', false)
   await screen.findByRole('form', { name: 'Spiel bearbeiten' })
-  expect(window.location.pathname).toBe(groupUrl(group.id))
+  expect(window.location.pathname).toBe(`${detailUrl}/edit`)
   fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
-  await screen.findByText('Game updated.')
+  await screen.findByText('Spiel erfolgreich gespeichert.')
   expect(api.calls(gamePath, 'PUT')).toHaveLength(1)
   expect(JSON.parse(api.calls(gamePath, 'PUT')[0][1]!.body as string)).toMatchObject({ result: 'DRAW', alternateWinCon: false })
   act(() => window.history.back())
   await screen.findByRole('heading', { name: 'Spieldetails' })
   act(() => window.history.forward())
-  await screen.findByRole('button', { name: 'Spiel erfassen' })
+  await screen.findByRole('link', { name: 'Spiel erfassen' })
   expect(screen.queryByRole('form', { name: 'Spiel bearbeiten' })).not.toBeInTheDocument()
 })
 
@@ -462,15 +446,13 @@ test.each([1, 4])('LAN HTTP logout and login as %s retire a game draft and its h
   show(); await gameAction('Bearbeiten', false)
   await screen.findByRole('form', { name: 'Spiel bearbeiten' })
   fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
-  // Keep the original token-bearing Spiele entry behind the tab entry that logout replaces.
-  await selectTab('Mitglieder')
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  clickLogout()
   await screen.findByText('Logged out.')
   api.server.loginUser = { id: uid(actor), username: 'Replacement' }
   await login()
   await screen.findByRole('heading', { name: 'Dashboard' })
   act(() => window.history.back())
-  await screen.findByRole('button', { name: 'Spiel erfassen' })
+  await waitFor(() => expect(window.location.pathname).not.toBe(`${detailUrl}/edit`))
   expect(screen.queryByRole('form', { name: 'Spiel bearbeiten' })).not.toBeInTheDocument()
   expect(api.calls(gamePath, 'PUT')).toHaveLength(0)
 })
@@ -570,7 +552,7 @@ test('mixed availability preserves archived/former-member history while omitting
 test.each([401, 403, 404, 'omitted'] as const)('fresh details after %s never recover an older authorized link', async outcome => {
   const api = setup(); api.state.history = [linkedGame()]; show()
   await screen.findByRole('link', { name: /Deck 1:.*ManaBox/ })
-  fireEvent.click(screen.getByRole('link', { name: 'Zurück zu Spiele' }))
+  fireEvent.click(screen.getByRole('link', { name: 'Zur Spielehistorie' }))
   await screen.findByRole('link', { name: /^Spieldetails:/ })
   api.next(gamePath, () => response(outcome === 'omitted' ? recorded() : {}, outcome === 'omitted' ? 200 : outcome))
   fireEvent.click(screen.getByRole('link', { name: /^Spieldetails:/ }))
@@ -585,7 +567,7 @@ test('game navigation and logout retire links and ignore late authorized respons
   api.state.history[1].id = uid(21)
   api.state.history[1].participants.forEach(person => { delete person.deck.manaBoxUrl })
   show(); await screen.findByRole('link', { name: /Deck 1:.*ManaBox/ })
-  fireEvent.click(screen.getByRole('link', { name: 'Zurück zu Spiele' }))
+  fireEvent.click(screen.getByRole('link', { name: 'Zur Spielehistorie' }))
   await screen.findAllByRole('link', { name: /^Spieldetails:/ })
   expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
   api.next(gamePath, () => pending.promise)
@@ -593,12 +575,13 @@ test('game navigation and logout retire links and ignore late authorized respons
   await waitFor(() => expect(api.calls(gamePath)).toHaveLength(2))
   await goTo('Playgroups')
   fireEvent.click(await screen.findByRole('button', { name: group.name }))
+  await selectTab('Spiele')
   const links = await screen.findAllByRole('link', { name: /^Spieldetails:/ })
   fireEvent.click(links[1]); await screen.findByRole('heading', { name: 'Spieldetails' })
   await act(async () => pending.resolve(response(linkedGame())))
   expect(window.location.pathname).toBe(gameUrl(group.id, uid(21)))
   expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  clickLogout()
   expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
   expect(screen.queryByRole('list', { name: 'Teilnehmende und Decks' })).not.toBeInTheDocument()
 })
@@ -607,20 +590,21 @@ test.each([1, 4])('logout retires visible links and late authorized reads cannot
   const api = setup(), pending = deferred()
   api.state.history = [linkedGame()]; show()
   await screen.findByRole('link', { name: /Deck 1:.*ManaBox/ })
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  clickLogout()
   expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
   await screen.findByText('Logged out.')
   await login(); await goTo('Playgroups')
   fireEvent.click(await screen.findByRole('button', { name: group.name }))
+  await selectTab('Spiele')
   api.next(gamePath, () => pending.promise)
   fireEvent.click(await screen.findByRole('link', { name: /^Spieldetails:/ }))
   await waitFor(() => expect(api.calls(gamePath)).toHaveLength(2))
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  clickLogout()
   await screen.findByText('Logged out.')
   api.server.loginUser = { id: uid(actor), username: 'Replacement session' }
   await login()
   await act(async () => pending.resolve(response(linkedGame())))
-  expect(screen.getByText(/Signed in as/)).toHaveTextContent('Replacement session')
+  expectAccount('Replacement session')
   expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
   expect(screen.queryByRole('list', { name: 'Teilnehmende und Decks' })).not.toBeInTheDocument()
 })

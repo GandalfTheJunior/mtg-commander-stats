@@ -64,7 +64,7 @@ export default function GameEditor({ group, game, busy, writeError, onSubmit, on
   const leave = useContext(EditorLeave)
   useEditorGuard(material(rows, mode) !== baseline || busy, busy, {
     onDiscard: onCancel,
-    allows: destination => destination.origin === window.location.origin && destination.pathname === groupUrl(group.id),
+    allows: destination => destination.origin === window.location.origin && destination.pathname === groupUrl(group.id, 'games'),
   })
   useLayoutEffect(() => { heading.current?.focus() }, [])
   useLayoutEffect(() => {

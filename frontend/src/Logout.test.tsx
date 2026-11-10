@@ -1,5 +1,4 @@
 import { savedCommander } from './test/commanderFixtures'
-import { showCode } from './test/groupEntry'
 import { openNewDeck } from './test/editorEntry'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -53,13 +52,15 @@ function setup() {
   return { server, fetchMock }
 }
 
-async function openCode() {
+async function openGroup() {
   await goTo('Playgroups')
   fireEvent.click(await screen.findByRole('button', { name: 'Private group' }))
-  await showCode()
-  await screen.findByDisplayValue(code)
+  await screen.findByRole('heading', { name: 'Private group' })
 }
-
+function clickLogout() {
+  fireEvent.click(within(screen.getByRole('banner', { hidden: true })).getByRole('button', { hidden: true }))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Abmelden' }))
+}
 async function signIn() {
   const form = within(screen.getByRole('heading', { name: 'Sign in' }).closest('section')!)
   fireEvent.change(form.getByLabelText('Email'), { target: { value: 'gandalf@example.com' } })
@@ -83,10 +84,10 @@ test('logout uses CSRF and waits for 204, clears protected data and restores sig
   server.logout = () => pending.promise
   const view = render(<App />)
   await screen.findByText(deck.name)
-  await openCode()
+  await openGroup()
   expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Create an account' })).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  clickLogout()
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/session', {
     credentials: 'same-origin', method: 'DELETE', headers: { 'X-CSRF-TOKEN': 'logout-token' },
   }))
@@ -100,7 +101,7 @@ test('logout uses CSRF and waits for 204, clears protected data and restores sig
   expect(screen.getByText('Not signed in.')).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Create an account' })).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Log out' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: user.username })).not.toBeInTheDocument()
   view.unmount()
   render(<App />)
   await screen.findByText('Not signed in.')
@@ -110,13 +111,13 @@ test('logout uses CSRF and waits for 204, clears protected data and restores sig
 test.each(['403', '500', '200', 'network', 'csrf'])('failed or ambiguous logout (%s) rechecks a valid session and permits retry', async (failure) => {
   const { server, fetchMock } = setup()
   const view = render(<App />)
-  await openCode()
+  await openGroup()
   server.logout = async () => {
     if (failure === 'network') throw new Error('Network disconnected')
     return json({}, failure === 'csrf' ? 403 : Number(failure))
   }
   if (failure === 'csrf') server.csrf = async () => json({}, 403)
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  clickLogout()
   await screen.findByText('Logout could not be confirmed. You are still signed in. Try again.')
   expect(screen.getByText(user.username)).toBeInTheDocument()
   await goTo('Decks')
@@ -127,10 +128,10 @@ test.each(['403', '500', '200', 'network', 'csrf'])('failed or ambiguous logout 
   if (failure === 'csrf') expect(fetchMock.mock.calls.some(([path, init]) => path === '/api/session' && init?.method === 'DELETE')).toBe(false)
   view.unmount()
   render(<App />)
-  await screen.findByRole('button', { name: 'Log out' })
+  await screen.findByRole('button', { name: user.username })
   server.csrf = async () => json({ headerName: 'X-CSRF-TOKEN', token: 'retry-token' })
   server.logout = async () => { server.identity = null; return new Response(null, { status: 204 }) }
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  clickLogout()
   await screen.findByText('Logged out.')
   expectProtectedDataHidden()
 })
@@ -138,13 +139,13 @@ test.each(['403', '500', '200', 'network', 'csrf'])('failed or ambiguous logout 
 test.each(['401', 'network'])('ambiguous logout (%s) with a lost server session clears data without claiming success', async (failure) => {
   const { server } = setup()
   const view = render(<App />)
-  await openCode()
+  await openGroup()
   server.logout = async () => {
     server.identity = null
     if (failure === 'network') throw new Error('Response lost after server logout')
     return json({}, 401)
   }
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  clickLogout()
   await screen.findByText('Logout could not be confirmed. Your session is no longer active.')
   expect(screen.queryByText('Logged out.')).not.toBeInTheDocument()
   expectProtectedDataHidden()
@@ -157,23 +158,23 @@ test.each(['401', 'network'])('ambiguous logout (%s) with a lost server session 
 test('failed session recheck hides protected data and can recover through an explicit check', async () => {
   const { server } = setup()
   render(<App />)
-  await openCode()
+  await openGroup()
   server.logout = async () => { throw new Error('Network unavailable') }
   server.me = async () => { throw new Error('Still unavailable') }
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  clickLogout()
   await screen.findByText('Logout could not be confirmed. Check your session before continuing.')
   expect(screen.getByText('Your session identity could not be confirmed.')).toBeInTheDocument()
   expectProtectedDataHidden()
   server.me = async () => json(user)
   fireEvent.click(screen.getByRole('button', { name: 'Check session' }))
-  await screen.findByRole('button', { name: 'Log out' })
+  await screen.findByRole('button', { name: user.username })
   await goTo('Decks')
   expect(await screen.findByText(deck.name)).toBeInTheDocument()
   expect(screen.queryByDisplayValue(code)).not.toBeInTheDocument()
 })
 
 for (const logoutFails of [false, true]) {
-  for (const resource of ['deck list', 'deck mutation', 'group list', 'group mutation', 'invitation code']) {
+  for (const resource of ['deck list', 'deck mutation', 'group list', 'group mutation']) {
     test.each(['success', '401', '500', 'network'])(`late ${resource} %s cannot affect the session after ${logoutFails ? "failed" : "successful"} logout`, async (outcome) => {
       const { server } = setup()
       const pending = deferred()
@@ -182,9 +183,8 @@ for (const logoutFails of [false, true]) {
       if (resource === 'group list') server.groups = oldRequest
       if (resource === 'deck mutation') server.createDeck = oldRequest
       if (resource === 'group mutation') server.createGroup = oldRequest
-      if (resource === 'invitation code') server.code = oldRequest
       render(<App />, resource.startsWith('deck') ? '/decks' : '/playgroups')
-      await screen.findByRole('button', { name: 'Log out' })
+      await screen.findByRole('button', { name: user.username })
       if (resource === 'deck mutation') {
         await screen.findByText(deck.name)
         fireEvent.change(await openNewDeck(), { target: { value: deck.name } })
@@ -198,15 +198,11 @@ for (const logoutFails of [false, true]) {
         fireEvent.change(screen.getByLabelText(/Gruppenname/), { target: { value: group.name } })
         fireEvent.click(screen.getByRole('button', { name: 'Gruppe erstellen' }))
       }
-      if (resource === 'invitation code') {
-        fireEvent.click(await screen.findByRole('button', { name: 'Private group' }))
-        await showCode()
-      }
       await waitFor(() => expect(oldRequest).toHaveBeenCalledTimes(1))
       server.decks = async () => json([])
       server.groups = async () => json([])
       if (logoutFails) server.logout = async () => json({}, 403)
-      fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+      clickLogout()
       if (logoutFails) {
         await screen.findByText('Logout could not be confirmed. You are still signed in. Try again.')
       } else {
@@ -217,11 +213,10 @@ for (const logoutFails of [false, true]) {
       await goTo('Decks')
       await screen.findByText('Noch keine Decks.')
       await goTo('Playgroups')
-      await screen.findByText('Noch keine Playgroups. Erstelle eine Gruppe oder tritt mit einem aktuellen Einladungscode bei.')
+      await screen.findByText('Du bist noch keiner Playgroup beigetreten. Erstelle eine eigene Playgroup oder öffne einen Einladungslink.')
       await act(async () => {
         if (outcome === 'network') pending.reject(new Error('Stale network failure'))
         else if (outcome !== 'success') pending.resolve(json({ detail: 'Stale failure' }, Number(outcome)))
-        else if (resource === 'invitation code') pending.resolve(json({ code }))
         else if (resource.startsWith('deck')) pending.resolve(json(resource.endsWith('list') ? [deck] : deck, 200))
         else pending.resolve(json(resource.endsWith('list') ? [group] : group, resource.endsWith('mutation') ? 201 : 200))
       })

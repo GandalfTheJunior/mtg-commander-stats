@@ -5,6 +5,7 @@ import {
 } from './api'
 import { Alert, Box, Button, Card, CardActionArea, Stack, Typography } from '@mui/material'
 import { Link } from 'react-router'
+import { groupUrl } from './groupNavigation'
 import { gameSummary, gameUrl, mayManageGame, recordedTime, sameId } from './gamePresentation'
 import GameEditor from './GameEditor'
 import type { GroupTab } from './groupNavigation'
@@ -224,7 +225,7 @@ function GameContent({ group, games, initialEditor, editError, onError, onStart,
   const closing = useRef(false)
   const alive = useRef(false)
   const controller = useRef<AbortController | null>(null)
-  const trigger = useRef<HTMLButtonElement | null>(null)
+  const trigger = useRef<HTMLAnchorElement | null>(null)
   const restoreFocus = useRef(false)
   useEffect(() => {
     alive.current = true
@@ -262,9 +263,8 @@ function GameContent({ group, games, initialEditor, editError, onError, onStart,
   }
 
   return <Stack sx={{ gap: 2, minWidth: 0 }}>
-    {!editor && <Button variant="contained" ref={trigger} sx={{ alignSelf: 'flex-start', minHeight: 48 }} onClick={() => {
-      onStart(); closing.current = false; setWriteError(''); setEditor('new')
-    }}>Spiel erfassen</Button>}
+    {!editor && <Button component={Link} to={`${groupUrl(group.id, 'games')}/new`} variant="contained" ref={trigger}
+      sx={{ alignSelf: 'flex-start', minHeight: 48 }} onClick={onStart}>Spiel erfassen</Button>}
     {editError && <Typography role="alert">{editError}</Typography>}
     {editor && <GameEditor group={group} game={editor === 'new' ? null : editor} busy={busy} writeError={writeError}
       onSubmit={write} onCancel={() => {

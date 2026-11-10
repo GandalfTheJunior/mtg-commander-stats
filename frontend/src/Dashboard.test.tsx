@@ -191,7 +191,7 @@ test.each([false, true])('group card verifies current membership at its stable U
   await act(async () => fresh.resolve(response(group)))
   const heading = await screen.findByRole('heading', { name: group.name })
   await waitFor(() => expect(heading).toHaveFocus())
-  expect(await screen.findByRole('button', { name: 'Spiel erfassen' })).toBeInTheDocument()
+  expect(await screen.findByRole('link', { name: 'Spiel erfassen' })).toBeInTheDocument()
   expect(api.fetchMock.mock.calls.some(([path]) => path.endsWith('/join-code'))).toBe(false)
 })
 
@@ -242,13 +242,13 @@ test.each([{}, 'bad', { dashboardToken: 'replayed' }, { kind: 'group', id: group
 test('group URL Back/Forward and reload verify and reopen the stable target', async () => {
   const api = setup(); const view = show(); await loaded()
   fireEvent.click(screen.getByRole('button', { name: group.name }))
-  await screen.findByRole('tab', { name: 'Spiele', selected: true })
+  await screen.findByRole('tab', { name: 'Overview', selected: true })
   await act(async () => window.history.back()); await loaded()
   await act(async () => window.history.forward())
-  await screen.findByRole('tab', { name: 'Spiele', selected: true })
+  await screen.findByRole('tab', { name: 'Overview', selected: true })
   expect(api.fetchMock.mock.calls.filter(([path]) => path === `/api/groups/${group.id}`)).toHaveLength(2)
   view.unmount(); show(window.location.pathname, window.history.state.usr)
-  await screen.findByRole('tab', { name: 'Spiele', selected: true })
+  await screen.findByRole('tab', { name: 'Overview', selected: true })
   expect(api.fetchMock.mock.calls.filter(([path]) => path === `/api/groups/${group.id}`)).toHaveLength(3)
   expect(screen.queryByRole('button', { name: 'Gruppe erstellen' })).not.toBeInTheDocument()
 })
@@ -297,7 +297,7 @@ test.each([owner, { id: uid(4), username: 'Fourth' }])('logout and $username log
   api.next('/api/decks', () => pending.promise); show()
   await screen.findByRole('button', { name: group.name })
   api.next('/api/session', () => logout.promise, 'DELETE')
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  fireEvent.click(within(screen.getByRole('banner', { hidden: true })).getByRole('button', { hidden: true })); fireEvent.click(screen.getByRole('menuitem', { name: 'Abmelden' }))
   expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
   api.state.groups = []; api.state.decks = []
   await act(async () => logout.resolve(new Response(null, { status: 204 })))
@@ -306,10 +306,10 @@ test.each([owner, { id: uid(4), username: 'Fourth' }])('logout and $username log
   await act(async () => pending.resolve(response([deck])))
   expect(screen.queryByRole('button', { name: deck.name })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: group.name })).not.toBeInTheDocument()
-  expect(screen.getByText(/Signed in as/)).toHaveTextContent(loginUser.username)
+  expect(screen.getByRole("button", { name: loginUser.username })).toBeInTheDocument()
 })
 
-test.each(['create', 'join'])('Dashboard refreshes after acknowledged group %s', async operation => {
+test.each(['create'])('Dashboard refreshes after acknowledged group %s', async operation => {
   setup(); show(); await loaded(); await goTo('Playgroups')
   await screen.findByRole('button', { name: 'Gruppe erstellen' })
   fireEvent.change(screen.getByLabelText(operation === 'create' ? /Gruppenname/ : /Einladungscode/), { target: { value: operation === 'create' ? 'New group' : 'abcdefghijklmnopqrstuv' } })
@@ -367,7 +367,7 @@ test('a failed destination details request hides private data until an explicit 
   expect(window.history.state.usr).toBeNull()
   expect(screen.queryByRole('tab')).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Gruppe erneut laden' }))
-  await screen.findByRole('tab', { name: 'Spiele', selected: true })
+  await screen.findByRole('tab', { name: 'Overview', selected: true })
 })
 
 test.each([401, 200])('logout recovery (%s) rejects late Dashboard failures and refreshes confirmed data', async status => {
@@ -376,7 +376,7 @@ test.each([401, 200])('logout recovery (%s) rejects late Dashboard failures and 
   show(); await screen.findByRole('button', { name: group.name })
   api.next('/api/session', () => response({}, 500), 'DELETE')
   api.next('/api/me', () => checking.promise)
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  fireEvent.click(within(screen.getByRole('banner', { hidden: true })).getByRole('button', { hidden: true })); fireEvent.click(screen.getByRole('menuitem', { name: 'Abmelden' }))
   await waitFor(() => expect(api.fetchMock.mock.calls.filter(([path]) => path === '/api/me')).toHaveLength(2))
   expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
   await act(async () => old.resolve(response({}, 401)))
@@ -399,7 +399,7 @@ test('expired-session login with the same UUID cannot revive a pending target or
   await screen.findByText('Gruppenberechtigung wird geprüft…')
   await act(async () => pending.resolve(response({}, 401)))
   await screen.findByText('Your session expired. Sign in again.')
-  await signIn(); await screen.findByRole('tab', { name: 'Spiele' })
+  await signIn(); await screen.findByRole('tab', { name: 'Overview' })
   await goTo('Playgroups'); await screen.findByRole('button', { name: 'Gruppe erstellen' })
   await act(async () => old.resolve(response({}, 401)))
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
@@ -421,10 +421,10 @@ test.each([owner, { id: uid(4), username: 'Fourth' }])('pending deck entry is re
   fireEvent.click(screen.getByRole('button', { name: deck.name }))
   await screen.findByText('Deck wird geladen…')
   api.state.loginUser = loginUser
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  fireEvent.click(within(screen.getByRole('banner', { hidden: true })).getByRole('button', { hidden: true })); fireEvent.click(screen.getByRole('menuitem', { name: 'Abmelden' }))
   await screen.findByText('Logged out.'); await signIn(); await loaded()
   await goTo('Decks'); await screen.findByRole('heading', { name: 'Meine Decks' })
   await act(async () => pending.resolve(response([deck])))
   expect(screen.queryByRole('form', { name: /^Deck .* bearbeiten$/ })).not.toBeInTheDocument()
-  expect(screen.getByText(/Signed in as/)).toHaveTextContent(loginUser.username)
+  expect(screen.getByRole("button", { name: loginUser.username })).toBeInTheDocument()
 })

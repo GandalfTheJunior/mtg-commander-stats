@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { NavLink, useLocation } from 'react-router'
+import { NavLink, useLocation, useNavigationType } from 'react-router'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
+import Menu from '@mui/material/Menu'
+import MenuItem from '@mui/material/MenuItem'
 import Stack from '@mui/material/Stack'
 import SvgIcon from '@mui/material/SvgIcon'
 import Typography from '@mui/material/Typography'
@@ -21,13 +23,20 @@ export function AppShell({ user, notice, onLogout, children }: {
   children: ReactNode
 }) {
   const location = useLocation()
-  const focusedEditor = location.pathname === '/decks/new' || /^\/decks\/[^/]+\/edit$/.test(location.pathname)
+  const navigationType = useNavigationType()
+  const focusedEditor = location.pathname === '/decks/new' || /^\/decks\/[^/]+\/edit$/.test(location.pathname) ||
+    /^\/playgroups\/[^/]+\/games\/(?:new|[^/]+\/edit)$/.test(location.pathname) ||
+    /^\/playgroups\/[^/]+\/members\/[^/]+\/decks\/new$/.test(location.pathname)
   const content = useRef<HTMLElement>(null)
+  const [accountMenu, setAccountMenu] = useState<HTMLElement | null>(null)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
   useEffect(() => {
     // The create form now mounts immediately and owns its initial heading focus.
     if (location.pathname !== '/decks/new') content.current?.focus()
   }, [location.pathname])
+  useEffect(() => {
+    if (navigationType === 'PUSH' && window.scrollY > 0) window.scrollTo(0, 0)
+  }, [location.key, navigationType])
   useEffect(() => {
     const viewport = window.visualViewport
     if (!viewport) return
@@ -52,10 +61,14 @@ export function AppShell({ user, notice, onLogout, children }: {
       <Box component="header" sx={{ m: 0, p: 2, bgcolor: 'background.paper' }}>
         <Stack direction="row" useFlexGap sx={{ maxWidth: 1024, mx: 'auto', gap: 2, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography component="h1" variant="wordmark" sx={{ fontSize: { xs: '1.5rem', sm: '2rem' }, overflowWrap: 'anywhere' }}>MTG Commander Stats</Typography>
-          <Stack sx={{ ml: 'auto', alignItems: 'flex-end', minWidth: 0, maxWidth: '100%' }}>
-            <Typography component="p" sx={{ textAlign: 'right', overflowWrap: 'anywhere' }}>Signed in as <strong>{user.username}</strong>.</Typography>
-            <Button color="inherit" variant="outlined" onClick={onLogout}>Log out</Button>
-          </Stack>
+          <Button color="inherit" aria-haspopup="menu" aria-expanded={Boolean(accountMenu)}
+            aria-controls={accountMenu ? 'account-menu' : undefined} onClick={event => setAccountMenu(event.currentTarget)}
+            sx={{ ml: 'auto', maxWidth: '60%', overflowWrap: 'anywhere', textAlign: 'right', minHeight: 48 }}>
+            {user.username}
+          </Button>
+          <Menu id="account-menu" anchorEl={accountMenu} open={Boolean(accountMenu)} onClose={() => setAccountMenu(null)}>
+            <MenuItem onClick={() => { setAccountMenu(null); onLogout() }}>Abmelden</MenuItem>
+          </Menu>
         </Stack>
       </Box>
       <Box component="nav" aria-label="Main navigation" sx={{

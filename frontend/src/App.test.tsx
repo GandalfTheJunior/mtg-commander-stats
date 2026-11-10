@@ -1,5 +1,4 @@
 import { savedCommander } from './test/commanderFixtures'
-import { showCode } from './test/groupEntry'
 import { openNewDeck, openExistingDeck, openDeckAction } from './test/editorEntry'
 import { act, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -27,7 +26,8 @@ function loginForm() {
 }
 
 async function logOutBeforeLogin() {
-  fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+  fireEvent.click(within(screen.getByRole('banner', { hidden: true })).getByRole('button', { hidden: true }))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Abmelden' }))
   await screen.findByText('Logged out.')
 }
 
@@ -115,8 +115,8 @@ test('restores and displays the current user from an existing session', async ()
   render(<App />)
 
   expect(await screen.findByText('Gandalf')).toBeInTheDocument()
-  expect(screen.getByText(/Signed in as/)).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Gandalf' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Gandalf' })).toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Create an account' })).not.toBeInTheDocument()
   expect(fetchMock).toHaveBeenCalledWith('/api/me', {
@@ -327,7 +327,7 @@ test('invalid credentials leave an unauthenticated UI signed out', async () => {
 
   expect(await screen.findByText('Invalid credentials.')).toBeInTheDocument()
   expect(screen.getByText('Not signed in.')).toBeInTheDocument()
-  expect(screen.queryByText(/Signed in as/)).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Gandalf' })).not.toBeInTheDocument()
 })
 
 test('confirmed authentication hides credentials forms and prevents browser re-login until logout', async () => {
@@ -340,7 +340,7 @@ test('confirmed authentication hides credentials forms and prevents browser re-l
   expect(screen.getByText(user.username)).toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Create an account' })).not.toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Log out' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Gandalf' })).toBeEnabled()
   expect(fetchMock).toHaveBeenCalledTimes(2)
 })
 
@@ -381,7 +381,7 @@ test('does not preserve a previous identity when post-login CSRF refresh fails',
     screen.getByText('Your session identity could not be confirmed.'),
   ).toBeInTheDocument()
   expect(screen.queryByText('Gandalf')).not.toBeInTheDocument()
-  expect(screen.queryByText(/Signed in as/)).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Gandalf' })).not.toBeInTheDocument()
 })
 
 test('shows an unverified session when identity confirmation fails after login', async () => {
@@ -414,68 +414,30 @@ test('shows an unverified session when identity confirmation fails after login',
     screen.getByText('Your session identity could not be confirmed.'),
   ).toBeInTheDocument()
   expect(screen.queryByText('Not signed in.')).not.toBeInTheDocument()
-  expect(screen.queryByText(/Signed in as/)).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Gandalf' })).not.toBeInTheDocument()
 })
 
-test.each(['request', 'csrf'])('a group 401 during %s expires the session and clears decks and groups', async (source) => {
+test('a group 401 expires the session and clears protected content', async () => {
   const group = { id: '11111111-1111-4111-8111-111111111111', name: 'Private group', role: 'OWNER' }
   const fetchMock = vi.fn((path: string) => {
-    if (path.startsWith('/api/scryfall/commanders?')) return Promise.resolve(jsonResponse([{ ...savedCommander('Atraxa'), thumbnailUrl: null }]))
     if (path === '/api/me') return Promise.resolve(jsonResponse(user))
-    if (path === '/api/decks') return Promise.resolve(jsonResponse([]))
     if (path === '/api/groups') return Promise.resolve(jsonResponse([group]))
-    if (path === '/api/csrf') return Promise.resolve(jsonResponse({}, 401))
     return Promise.resolve(jsonResponse({}, 401))
   })
   vi.stubGlobal('fetch', fetchMock)
   render(<App />, '/playgroups')
-  await screen.findByRole('button', { name: 'Private group' })
-  if (source === 'request') {
-    fireEvent.click(screen.getByRole('button', { name: 'Private group' }))
-  } else {
-    fireEvent.change(screen.getByLabelText(/Einladungscode/), { target: { value: 'abcdefghijklmnopqrstuv' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Gruppe beitreten' }))
-  }
+  fireEvent.click(await screen.findByRole('button', { name: 'Private group' }))
   await screen.findByText('Your session expired. Sign in again.')
   expect(screen.queryByRole('heading', { name: 'Playgroups' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: 'Meine Decks' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Log out' })).not.toBeInTheDocument()
-  if (source === 'csrf') expect(fetchMock.mock.calls.some(([path]) => path === '/api/groups/join')).toBe(false)
+  expect(screen.queryByRole('button', { name: user.username })).not.toBeInTheDocument()
 })
 
-test('session expiration clears group details and ignores a late invitation-code response', async () => {
-  const group = { id: '11111111-1111-4111-8111-111111111111', name: 'Private group', role: 'OWNER' }
-  let resolveCode!: (response: Response) => void
-  const pendingCode = new Promise<Response>((resolve) => { resolveCode = resolve })
-  const fetchMock = vi.fn((path: string, init?: RequestInit) => {
-    if (path.startsWith('/api/scryfall/commanders?')) return Promise.resolve(jsonResponse([{ ...savedCommander('Atraxa'), thumbnailUrl: null }]))
-    if (path === '/api/me') return Promise.resolve(jsonResponse(user))
-    if (path === '/api/decks' && init?.method === 'POST') return Promise.resolve(jsonResponse({}, 401))
-    if (path === '/api/decks') return Promise.resolve(jsonResponse([]))
-    if (path === '/api/groups') return Promise.resolve(jsonResponse([group]))
-    if (path === `/api/groups/${group.id}`) return Promise.resolve(jsonResponse({ ...group, members: [] }))
-    if (path.endsWith('/join-code')) return pendingCode
-    if (path.endsWith('/games')) return Promise.resolve(jsonResponse([]))
-    if (path.endsWith('/statistics')) return Promise.resolve(jsonResponse({ players: [], decks: [] }))
-    if (path === '/api/csrf') return Promise.resolve(jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'deck-token' }))
-    throw new Error(`Unexpected request: ${path}`)
-  })
-  vi.stubGlobal('fetch', fetchMock)
-  render(<App />, '/playgroups')
-  fireEvent.click(await screen.findByRole('button', { name: 'Private group' }))
-  await showCode()
-  await goTo('Decks')
-  await screen.findByRole('button', { name: 'Deck erstellen' })
-  fireEvent.change(await openNewDeck(), { target: { value: 'My deck' } })
-  fireEvent.change(screen.getByLabelText(/Commander/), { target: { value: 'Atraxa' } })
-  fireEvent.focus(screen.getByRole('combobox', { name: /Commander/ }))
-  fireEvent.click(await screen.findByRole('option', { name: 'Atraxa' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
-  await screen.findByText('Your session expired. Sign in again.')
-  await act(async () => { resolveCode(jsonResponse({ code: 'abcdefghijklmnopqrstuv' })) })
-  expect(screen.queryByRole('heading', { name: 'Playgroups' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
-  expect(screen.queryByDisplayValue('abcdefghijklmnopqrstuv')).not.toBeInTheDocument()
+test.each(['/invite/token-value', '/claim/token-value'])('public %s stays outside the protected redirect gate', async path => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 401)))
+  render(<App />, path)
+  expect(await screen.findByText('Diese Einladung kann noch nicht angezeigt werden.')).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+  expect(screen.queryByRole('navigation', { name: 'Main navigation' })).not.toBeInTheDocument()
 })
 
 test.each(['same user', 'different user'])('a confirmed login for %s discards old groups and ignores a late create response', async (identity) => {
@@ -513,7 +475,7 @@ test.each(['same user', 'different user'])('a confirmed login for %s discards ol
   fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
   await screen.findByText('Login successful.')
   await goTo('Playgroups')
-  await screen.findByText('Noch keine Playgroups. Erstelle eine Gruppe oder tritt mit einem aktuellen Einladungscode bei.')
+  await screen.findByText('Du bist noch keiner Playgroup beigetreten. Erstelle eine eigene Playgroup oder öffne einen Einladungslink.')
   await act(async () => { resolveCreate(jsonResponse({ ...group, name: 'Unconfirmed old group' }, 201)) })
   expect(screen.queryByText(/Old private group/)).not.toBeInTheDocument()
   expect(screen.queryByText(/Unconfirmed old group/)).not.toBeInTheDocument()
@@ -591,7 +553,7 @@ for (const identity of ['same user', 'different user']) {
         else resolveOld(jsonResponse(operation === 'list' ? [oldDeck] : oldDeck, operation === 'create' ? 201 : 200))
       })
       expect(screen.getByText(nextUser.username)).toBeInTheDocument()
-      expect(screen.getByText(/Signed in as/)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: nextUser.username })).toBeInTheDocument()
       expect(screen.getByRole('heading', { name: 'Meine Decks' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Deck erstellen' })).toBeEnabled()
       expect(screen.getByText(newDeck.name)).toBeInTheDocument()
