@@ -150,7 +150,7 @@ test('Playgroup entries require fresh authorization and returning refetches the 
   const detailPath = `/api/groups/${group.id}`
   show('/playgroups')
   const entry = await screen.findByRole('button', { name: group.name })
-  expect(entry).toHaveAccessibleDescription('Gruppenersteller')
+  expect(entry).toHaveAccessibleDescription(`Übersicht, ${group.id}`)
   expect(api.fetchMock.mock.calls.some(([url]) => url === detailPath || url.endsWith('/join-code') || url.endsWith('/games'))).toBe(false)
 
   api.next(detailPath, () => checking.promise)
