@@ -47,7 +47,7 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
   const pending = useRef(false)
   const nameInput = useRef<HTMLInputElement>(null)
   const createButton = useRef<HTMLButtonElement>(null)
-  const entryFromDashboard = useRef(params.get('create') === '1')
+  const [entryFromDashboard, setEntryFromDashboard] = useState(() => params.get('create') === '1')
   const suffixes = groupSuffixes(groups)
 
   // Consume the contextual creation entry so reload does not reopen the dialog.
@@ -138,7 +138,7 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
       <Stack direction="row" sx={{ gap: 2, justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography component="h3" variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, fontWeight: 600 }}>Meine Playgroups</Typography>
         <IconButton ref={createButton} aria-label="Playgroup erstellen" color="secondary" onClick={() => {
-          entryFromDashboard.current = false
+          setEntryFromDashboard(false)
           setGroupName(''); setNameError(false); setCreateError(null); setDialogOpen(true)
         }} sx={{ minWidth: 44, minHeight: 44, flexShrink: 0, border: '1px solid', borderColor: 'interaction.border', borderRadius: 1,
           '&:focus-visible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: 2 } }}>
@@ -173,11 +173,11 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
           ))}
         </Stack>
       )}
-      <Dialog open={dialogOpen} onClose={closeDialog} disableRestoreFocus={entryFromDashboard.current}
+      <Dialog open={dialogOpen} onClose={closeDialog} disableRestoreFocus={entryFromDashboard}
         aria-labelledby="create-group-heading" fullWidth maxWidth="xs"
         slotProps={{ paper: { sx: { m: 2, width: 'calc(100% - 32px)' } }, transition: {
           onEntered: () => nameInput.current?.focus(),
-          onExited: () => { if (entryFromDashboard.current) createButton.current?.focus() },
+          onExited: () => { if (entryFromDashboard) createButton.current?.focus() },
         } }}>
         <Box component="form" noValidate onSubmit={submit} aria-labelledby="create-group-heading" aria-busy={busy}>
           <DialogTitle id="create-group-heading" sx={{ p: { xs: 2, sm: 3 }, fontWeight: 600 }}>Playgroup erstellen</DialogTitle>
