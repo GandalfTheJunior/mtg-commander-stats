@@ -41,6 +41,7 @@ export function gameApi(initial: Game[] = []) {
     if (path.endsWith('/statistics')) return response(state.statistics)
     if (path === '/api/csrf') return response({ headerName: 'X-CSRF-TOKEN', token: 'game-token' })
     if (path === `/api/groups/${group.id}`) return response(group)
+    if (path === `/api/groups/${group.id}/games/history`) return response({ games: state.history.map(game => ({ ...game, playedOn: null })), nextCursor: null })
     if (path === `/api/groups/${group.id}/games` && method === 'GET') return response(state.history)
     const member = members.find((member) => path === `/api/groups/${group.id}/members/${member.userId}/decks`)
     if (member) return response([deckFor(members.indexOf(member) + 1)])

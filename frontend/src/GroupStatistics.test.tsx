@@ -160,12 +160,12 @@ test.each(['network', 'server', 'malformed', 'json', 'bad-request', 'conflict'])
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
-test('loads statistics only after a confirmed session and opened group, and current 401 expires the session', async () => {
+test('Overview loads statistics only after a confirmed session and opened group, and current 401 expires the session', async () => {
   const api = appSetup(); renderApp(<App />, '/playgroups')
   await screen.findByRole('button', { name: group.name })
   expect(statsCalls(api)).toHaveLength(0)
   api.next(path, () => response({}, 401))
-  await open()
+  fireEvent.click(screen.getByRole('button', { name: group.name }))
   await screen.findByText('Your session expired. Sign in again.')
   expect(screen.queryByRole('heading', { name: 'Statistics' })).not.toBeInTheDocument()
 })
