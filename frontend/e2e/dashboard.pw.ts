@@ -56,6 +56,7 @@ for (const width of [320, 390, 1280]) {
     await expect(page.getByRole('dialog', { name: 'Playgroup erstellen' })).toBeVisible()
     await expect(page.getByRole('textbox', { name: 'Name der Playgroup' })).toBeFocused()
     await page.getByRole('button', { name: 'Abbrechen', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Playgroup erstellen' })).toBeFocused()
     await page.reload()
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await page.goto('/dashboard')

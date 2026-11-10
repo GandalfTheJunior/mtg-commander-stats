@@ -4,6 +4,7 @@ import {
   type GroupSummary,
 } from './api'
 import { Link, useNavigate, useSearchParams } from 'react-router'
+import { groupSuffixes } from './groupSuffixes'
 import { Alert, Box, Button, Card, CardActionArea, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Stack, TextField, Typography } from '@mui/material'
 
 type Notice = { kind: 'success' | 'error'; message: string } | null
@@ -15,22 +16,6 @@ function messageFrom(error: unknown) {
 function Feedback({ notice }: { notice: Notice }) {
   return notice && <Alert severity={notice.kind} role={notice.kind === 'error' ? 'alert' : 'status'}
     sx={{ minWidth: 0, '& .MuiAlert-message': { minWidth: 0, overflowWrap: 'anywhere' } }}>{notice.message}</Alert>
-}
-
-// All identical display names use the same shortest distinguishing UUID prefix.
-// Full IDs remain the keys and navigation targets; list order is never changed.
-function groupSuffixes(groups: GroupSummary[]) {
-  const names = new Map<string, GroupSummary[]>()
-  for (const group of groups) names.set(group.name, [...(names.get(group.name) ?? []), group])
-  const suffixes = new Map<string, string>()
-  for (const peers of names.values()) {
-    if (peers.length < 2) continue
-    const ids = peers.map(group => group.id.replaceAll('-', ''))
-    let length = 8
-    while (length < 32 && new Set(ids.map(id => id.slice(0, length))).size < peers.length) length++
-    peers.forEach((group, index) => suffixes.set(group.id, ids[index].slice(0, length)))
-  }
-  return suffixes
 }
 
 const cardAction = {
@@ -61,6 +46,8 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
   const active = useRef(false)
   const pending = useRef(false)
   const nameInput = useRef<HTMLInputElement>(null)
+  const createButton = useRef<HTMLButtonElement>(null)
+  const entryFromDashboard = useRef(params.get('create') === '1')
   const suffixes = groupSuffixes(groups)
 
   // Consume the contextual creation entry so reload does not reopen the dialog.
@@ -150,7 +137,8 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
       <Typography component="h2" variant="h4" id="groups-heading" sx={{ fontWeight: 600 }}>Playgroups</Typography>
       <Stack direction="row" sx={{ gap: 2, justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography component="h3" variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, fontWeight: 600 }}>Meine Playgroups</Typography>
-        <IconButton aria-label="Playgroup erstellen" color="secondary" onClick={() => {
+        <IconButton ref={createButton} aria-label="Playgroup erstellen" color="secondary" onClick={() => {
+          entryFromDashboard.current = false
           setGroupName(''); setNameError(false); setCreateError(null); setDialogOpen(true)
         }} sx={{ minWidth: 44, minHeight: 44, flexShrink: 0, border: '1px solid', borderColor: 'interaction.border', borderRadius: 1,
           '&:focus-visible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: 2 } }}>
@@ -185,9 +173,12 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
           ))}
         </Stack>
       )}
-      <Dialog open={dialogOpen} onClose={closeDialog}
+      <Dialog open={dialogOpen} onClose={closeDialog} disableRestoreFocus={entryFromDashboard.current}
         aria-labelledby="create-group-heading" fullWidth maxWidth="xs"
-        slotProps={{ paper: { sx: { m: 2, width: 'calc(100% - 32px)' } }, transition: { onEntered: () => nameInput.current?.focus() } }}>
+        slotProps={{ paper: { sx: { m: 2, width: 'calc(100% - 32px)' } }, transition: {
+          onEntered: () => nameInput.current?.focus(),
+          onExited: () => { if (entryFromDashboard.current) createButton.current?.focus() },
+        } }}>
         <Box component="form" noValidate onSubmit={submit} aria-labelledby="create-group-heading" aria-busy={busy}>
           <DialogTitle id="create-group-heading" sx={{ p: { xs: 2, sm: 3 }, fontWeight: 600 }}>Playgroup erstellen</DialogTitle>
           <DialogContent sx={{ px: { xs: 2, sm: 3 }, pt: 2 }}>

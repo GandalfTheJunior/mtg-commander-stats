@@ -9,6 +9,7 @@ import Typography from '@mui/material/Typography'
 import { Link } from 'react-router'
 import { ApiError, listGroups } from './api'
 import type { DashboardIntent } from './dashboardNavigation'
+import { groupSuffixes } from './groupSuffixes'
 
 const cardAction = {
   display: 'block', textAlign: 'left', p: 2, minHeight: 72, color: 'text.primary',
@@ -43,6 +44,7 @@ export default function Dashboard({ onUnauthorized, onOpen }: {
   onOpen: (intent: DashboardIntent) => void
 }) {
   const groups = useDashboardList(listGroups, onUnauthorized)
+  const suffixes = groupSuffixes(groups.items)
   return (
     <Stack component="section" aria-labelledby="dashboard-heading" sx={{ gap: 4, minWidth: 0 }}>
       <Typography component="h2" variant="h4" id="dashboard-heading">Dashboard</Typography>
@@ -63,8 +65,11 @@ export default function Dashboard({ onUnauthorized, onOpen }: {
               {groups.items.slice(0, 3).map(group => <Card component="li" key={group.id} sx={{ minWidth: 0 }}>
                 <CardActionArea disableRipple sx={cardAction} onClick={() => onOpen({ kind: 'group', id: group.id })}
                   aria-labelledby={`group-name-${group.id}`} aria-description={`Übersicht, ${group.id}`}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Typography component="h4" variant="h6" id={`group-name-${group.id}`} sx={{ flex: 1, minWidth: 0 }}>{group.name}</Typography>
+                  <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Typography component="span" variant="h6" id={`group-name-${group.id}`} sx={{ flex: 1, minWidth: 0 }}>
+                      {group.name}{suffixes.has(group.id) && <> <Typography component="span" variant="body2"
+                        sx={{ display: 'inline-block', maxWidth: '100%', color: 'text.secondary' }}>ID: {suffixes.get(group.id)}</Typography></>}
+                    </Typography>
                     <Box component="span" aria-hidden="true" sx={{ flexShrink: 0, fontSize: 32, lineHeight: 1, color: 'text.secondary' }}>›</Box>
                   </Box>
                 </CardActionArea>

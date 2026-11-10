@@ -248,13 +248,13 @@ const emptyMessage = 'Du bist noch keiner Playgroup beigetreten. Erstelle eine e
 
 test.each([0, 1, 2, 3, 4, 8])('%s groups render the first three API entries; the shortcut opens the canonical collection only above three', async count => {
   const api = setup()
-  api.state.groups = Array.from({ length: count }, (_, index) => ({ ...group, id: uid(10 + index), name: index < 2 ? 'Same name' : `Group ${count - index}` }))
+  api.state.groups = Array.from({ length: count }, (_, index) => ({ ...group, id: uid(10 + index), name: `Group ${count - index}` }))
   show()
   await screen.findByRole('link', { name: 'Playgroup erstellen' })
   const dashboard = within(screen.getByRole('region', { name: 'Dashboard' }))
   if (count) {
     const list = dashboard.getByRole('list', { name: 'Deine Playgroups' })
-    expect(within(list).getAllByRole('heading').map(item => item.textContent)).toEqual(api.state.groups.slice(0, 3).map(item => item.name))
+    expect(within(list).getAllByRole('listitem')).toHaveLength(Math.min(count, 3))
     for (const [index, card] of within(list).getAllByRole('listitem').entries()) {
       const item = api.state.groups[index]
       const overview = within(card).getByRole('button', { name: item.name })
@@ -273,6 +273,31 @@ test.each([0, 1, 2, 3, 4, 8])('%s groups render the first three API entries; the
     expect(screen.getAllByRole('listitem')).toHaveLength(count)
     expect(window.location.pathname).toBe('/playgroups')
   } else expect(dashboard.queryByRole('link', { name: 'Alle Playgroups anzeigen' })).not.toBeInTheDocument()
+})
+
+test.each([1, 3])('Dashboard distinguishes duplicate names with the other entry at index %s', async duplicateIndex => {
+  const api = setup()
+  const first = { ...group, id: '11111111-1111-4111-8111-111111111111', name: 'Friday Commander' }
+  const duplicate = { ...group, id: '22222222-2222-4222-8222-222222222222', name: 'Friday Commander' }
+  api.state.groups = [first,
+    { ...group, id: uid(41), name: 'Other A' },
+    { ...group, id: uid(42), name: 'Other B' },
+    { ...group, id: uid(43), name: 'Other C' }]
+  api.state.groups[duplicateIndex] = duplicate
+  show()
+  const list = within(await screen.findByRole('list', { name: 'Deine Playgroups' }))
+  const firstButton = list.getByRole('button', { name: 'Friday Commander ID: 11111111' })
+  expect(firstButton).toHaveAccessibleDescription(`Übersicht, ${first.id}`)
+  expect(list.queryByRole('button', { name: 'Friday Commander' })).not.toBeInTheDocument()
+  const firstCard = firstButton.closest('li')!
+  expect(within(firstCard).getByRole('link', { name: `Spiel erfassen: Friday Commander, ${first.id}` }))
+    .toHaveAttribute('href', `/playgroups/${first.id}/games/new`)
+  if (duplicateIndex === 1) {
+    const secondButton = list.getByRole('button', { name: 'Friday Commander ID: 22222222' })
+    expect(secondButton).toHaveAccessibleDescription(`Übersicht, ${duplicate.id}`)
+  } else {
+    expect(list.queryByRole('button', { name: 'Friday Commander ID: 22222222' })).not.toBeInTheDocument()
+  }
 })
 
 test.each([0, 1])('contextual plus opens existing creation and acknowledged creation refreshes Dashboard (%s groups)', async count => {
