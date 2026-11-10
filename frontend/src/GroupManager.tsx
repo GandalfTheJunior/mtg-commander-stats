@@ -137,12 +137,12 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
   return (
     <Stack component="section" aria-labelledby="groups-heading"
       sx={{ gap: 3, minWidth: 0, bgcolor: 'background.default', color: 'text.primary', overflowWrap: 'anywhere' }}>
-      <Typography component="h2" variant="h4" id="groups-heading">Playgroups</Typography>
+      <Typography component="h2" variant="h4" id="groups-heading" sx={{ fontWeight: 600 }}>Playgroups</Typography>
       <Stack direction="row" sx={{ gap: 2, justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography component="h3" variant="h5">Meine Playgroups</Typography>
+        <Typography component="h3" variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, fontWeight: 600 }}>Meine Playgroups</Typography>
         <IconButton aria-label="Playgroup erstellen" color="secondary" onClick={() => {
           setGroupName(''); setNameError(false); setCreateError(null); setDialogOpen(true)
-        }} sx={{ minWidth: 44, minHeight: 44, flexShrink: 0,
+        }} sx={{ minWidth: 44, minHeight: 44, flexShrink: 0, border: '1px solid', borderColor: 'interaction.border', borderRadius: 1,
           '&:focus-visible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: 2 } }}>
           <Box component="span" aria-hidden="true" sx={{ fontSize: 28, lineHeight: 1 }}>+</Box>
         </IconButton>
@@ -159,10 +159,13 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
             <Card component="li" key={group.id} sx={{ minWidth: 0 }}>
               <CardActionArea disableRipple sx={cardAction} onClick={() => { void navigate(`/playgroups/${encodeURIComponent(group.id)}`) }}
                 aria-label={group.name} aria-description={`Übersicht, ${group.id}`}>
-                <Typography component="h4" variant="h6">
-                  {group.name}{suffixes.has(group.id) && <> · <Typography component="span" variant="body2"
-                    sx={{ color: 'text.secondary' }}>ID: {suffixes.get(group.id)}</Typography></>}
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Typography component="h4" variant="h6" sx={{ flex: 1, minWidth: 0, fontWeight: 600 }}>
+                    {group.name}{suffixes.has(group.id) && <> <Typography component="span" variant="body2"
+                      sx={{ display: 'inline-block', maxWidth: '100%', color: 'text.secondary' }}>ID: {suffixes.get(group.id)}</Typography></>}
+                  </Typography>
+                  <Box component="span" aria-hidden="true" sx={{ flexShrink: 0, fontSize: 32, lineHeight: 1, color: 'text.secondary' }}>›</Box>
+                </Box>
               </CardActionArea>
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 2, pb: 2 }}>
                 <Button component={Link} to={`/playgroups/${encodeURIComponent(group.id)}/games/new`} variant="outlined"
@@ -174,17 +177,19 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
       )}
       <Dialog open={dialogOpen} onClose={closeDialog}
         aria-labelledby="create-group-heading" fullWidth maxWidth="xs"
-        slotProps={{ transition: { onEntered: () => nameInput.current?.focus() } }}>
+        slotProps={{ paper: { sx: { m: 2, width: 'calc(100% - 32px)' } }, transition: { onEntered: () => nameInput.current?.focus() } }}>
         <Box component="form" onSubmit={submit} aria-labelledby="create-group-heading" aria-busy={busy}>
-          <DialogTitle id="create-group-heading">Playgroup erstellen</DialogTitle>
-          <DialogContent>
-            <TextField inputRef={nameInput} id="playgroups-create-name" label="Name der Playgroup" name="name" required disabled={busy} fullWidth
+          <DialogTitle id="create-group-heading" sx={{ p: { xs: 2, sm: 3 }, fontWeight: 600 }}>Playgroup erstellen</DialogTitle>
+          <DialogContent sx={{ px: { xs: 2, sm: 3 }, pt: 2 }}>
+            <Typography component="label" htmlFor="playgroups-create-name" sx={{ display: 'block', mb: 2, fontWeight: 600 }}>Name der Playgroup</Typography>
+            <TextField inputRef={nameInput} id="playgroups-create-name" placeholder="z. B. Friday Commander" name="name" required disabled={busy} fullWidth
               value={groupName} onChange={(event) => { setGroupName(event.target.value); setNameError(false) }}
-              error={nameError} helperText={nameError ? 'Bitte gib einen Namen für die Playgroup ein.' : undefined} sx={{ mt: 1 }} />
+              error={nameError} helperText={nameError ? 'Bitte gib einen Namen für die Playgroup ein.' : undefined} />
             {busy && <Typography role="status" sx={{ mt: 2 }}>Playgroup wird erstellt…</Typography>}
             {createError && <Alert severity="error" sx={{ mt: 2 }}>{createError}</Alert>}
           </DialogContent>
-          <DialogActions>
+          <DialogActions sx={{ p: { xs: 2, sm: 3 }, pt: 3, gap: 1,
+            '& .MuiButton-root': { px: 1.5, whiteSpace: 'nowrap', flexShrink: 0 } }}>
             <Button disabled={busy} onClick={closeDialog}>Abbrechen</Button>
             <Button disabled={busy} type="submit" variant="contained">Erstellen</Button>
           </DialogActions>

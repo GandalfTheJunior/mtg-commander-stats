@@ -27,6 +27,67 @@ async function setup(page: Page, list = groups) {
   return () => writes
 }
 
+const wireframeGroups = [
+  { id: 'a71c9e2f-1111-4111-8111-111111111111', name: 'Friday Commander', role: 'MEMBER' },
+  { id: 'b82d4f1a-2222-4222-8222-222222222222', name: 'Friday Commander', role: 'MEMBER' },
+  ...['Mittwochsrunde', 'Sunday Commander', 'Tabletop Crew', 'Wednesday Wizards'].map((name, index) => ({ id: id(index), name, role: 'MEMBER' })),
+]
+
+for (const width of [320, 390, 1280]) {
+  test(`approved wireframe layout in all three states at ${width}px`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 850 })
+    await setup(page, wireframeGroups)
+    const section = page.getByRole('region', { name: 'Playgroups', exact: true })
+    const heading = section.getByRole('heading', { name: 'Meine Playgroups' })
+    const plus = section.getByRole('button', { name: 'Playgroup erstellen', exact: true })
+    const headingBox = (await heading.boundingBox())!
+    const plusBox = (await plus.boundingBox())!
+    expect(headingBox.x + headingBox.width).toBeLessThan(plusBox.x)
+    expect(Math.abs(headingBox.y + headingBox.height / 2 - plusBox.y - plusBox.height / 2)).toBeLessThan(1)
+    expect(headingBox.height).toBeLessThan(44)
+    const cards = section.getByRole('listitem')
+    await expect(cards).toHaveCount(6)
+    let previousBottom = 0
+    for (const card of await cards.all()) {
+      const cardBox = (await card.boundingBox())!
+      const overview = (await card.getByRole('button').boundingBox())!
+      const match = (await card.getByRole('link').boundingBox())!
+      await expect(card.getByText('›', { exact: true })).toBeVisible()
+      expect(cardBox.y).toBeGreaterThanOrEqual(previousBottom)
+      expect(match.y).toBeGreaterThanOrEqual(overview.y + overview.height)
+      expect(cardBox.x + cardBox.width - match.x - match.width).toBeCloseTo(16, 0)
+      previousBottom = cardBox.y + cardBox.height
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: info.outputPath(`wireframe-collection-${width}.png`) })
+    await plus.click()
+    const dialog = page.getByRole('dialog')
+    const input = dialog.getByRole('textbox', { name: 'Name der Playgroup' })
+    await expect(input).toBeFocused()
+    const label = (await dialog.locator('label').boundingBox())!
+    const inputBox = (await input.boundingBox())!
+    const cancel = (await dialog.getByRole('button', { name: 'Abbrechen' }).boundingBox())!
+    const create = (await dialog.getByRole('button', { name: 'Erstellen', exact: true }).boundingBox())!
+    const dialogBox = (await dialog.boundingBox())!
+    expect(label.y + label.height).toBeLessThan(inputBox.y)
+    expect(cancel.y).toBeGreaterThan(inputBox.y + inputBox.height)
+    expect(cancel.x + cancel.width).toBeLessThan(create.x)
+    expect(cancel.y).toBeCloseTo(create.y, 0)
+    expect(cancel.height).toBeLessThan(60)
+    expect(create.height).toBeLessThan(60)
+    expect(dialogBox.x).toBeGreaterThanOrEqual(16)
+    expect(dialogBox.x + dialogBox.width).toBeLessThanOrEqual(width - 16)
+    await page.screenshot({ path: info.outputPath(`wireframe-dialog-${width}.png`) })
+    await page.keyboard.press('Escape')
+    await page.route('**/api/groups', route => route.fulfill({ json: [] }))
+    await page.reload()
+    await expect(page.getByText(empty, { exact: true })).toBeVisible()
+    await expect(plus).toBeVisible()
+    await expect(section.getByRole('listitem')).toHaveCount(0)
+    await page.screenshot({ path: info.outputPath(`wireframe-empty-${width}.png`) })
+  })
+}
+
 for (const width of [320, 1280]) {
   test(`collection, keyboard dialog and scoped navigation at ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 850 })
