@@ -127,7 +127,7 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
         setDialogOpen(false)
         handleError(error)
       } else setCreateError(error instanceof ApiError && error.status === 400
-        ? 'Der Name wurde nicht akzeptiert. Verwende höchstens 30 Zeichen, keine Emojis und keine mehrfachen Leerzeichen. Prüfe den Namen und versuche es erneut.'
+        ? 'Der Name wurde nicht akzeptiert. Erlaubt sind Buchstaben, Ziffern 0–9, Satzzeichen, Währungssymbole, + = < > und einzelne Leerzeichen zwischen Wörtern. Verwende höchstens 30 Zeichen und keine Emojis. Prüfe den Namen und versuche es erneut.'
         : 'Die Erstellung konnte nicht bestätigt werden. Prüfe nach dem Schließen des Dialogs zuerst die Playgroups, bevor du es erneut versuchst.')
     } finally {
       if (active.current) { pending.current = false; setBusy(false) }
@@ -158,9 +158,9 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
           {groups.map((group) => (
             <Card component="li" key={group.id} sx={{ minWidth: 0 }}>
               <CardActionArea disableRipple sx={cardAction} onClick={() => { void navigate(`/playgroups/${encodeURIComponent(group.id)}`) }}
-                aria-label={group.name} aria-description={`Übersicht, ${group.id}`}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Typography component="h4" variant="h6" sx={{ flex: 1, minWidth: 0, fontWeight: 600 }}>
+                aria-labelledby={`playgroup-name-${group.id}`} aria-description={`Übersicht, ${group.id}`}>
+                <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Typography component="span" id={`playgroup-name-${group.id}`} variant="h6" sx={{ flex: 1, minWidth: 0, fontWeight: 600 }}>
                     {group.name}{suffixes.has(group.id) && <> <Typography component="span" variant="body2"
                       sx={{ display: 'inline-block', maxWidth: '100%', color: 'text.secondary' }}>ID: {suffixes.get(group.id)}</Typography></>}
                   </Typography>

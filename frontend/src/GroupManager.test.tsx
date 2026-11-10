@@ -44,6 +44,8 @@ test('duplicate names show distinguishing IDs while keeping distinct full route 
   show()
   const cards = await screen.findAllByRole('button', { name: /Friday Commander/ })
   expect(cards).toHaveLength(2)
+  expect(screen.getByRole('button', { name: 'Friday Commander ID: 11111111' })).toHaveAccessibleDescription(`Übersicht, ${id}`)
+  expect(screen.getByRole('button', { name: 'Friday Commander ID: 22222222' })).toHaveAccessibleDescription(`Übersicht, ${otherId}`)
   expect(screen.getByText(/ID: 11111111/)).toBeInTheDocument()
   expect(screen.getByText(/ID: 22222222/)).toBeInTheDocument()
 })
@@ -113,6 +115,47 @@ test('CSRF 403 preserves authentication and the create draft without sending POS
   expect(screen.getByRole('textbox', { name: 'Name der Playgroup' })).toHaveValue('Draft')
   expect(unauthorized).not.toHaveBeenCalled()
   expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+})
+
+test.each(['Commander™', 'Friday | Night'])('invalid name %s receives actionable allowlist guidance and preserves the draft', async name => {
+  const fetchMock = vi.fn((path: string, init?: RequestInit) => Promise.resolve(
+    path === '/api/csrf' ? response({ headerName: 'X-CSRF-TOKEN', token: 'test' })
+      : init?.method === 'POST' ? response({}, 400) : response([group])))
+  vi.stubGlobal('fetch', fetchMock)
+  show()
+  fireEvent.click(screen.getByRole('button', { name: 'Playgroup erstellen' }))
+  const input = await screen.findByRole('textbox', { name: 'Name der Playgroup' })
+  fireEvent.change(input, { target: { value: name } })
+  fireEvent.click(screen.getByRole('button', { name: 'Erstellen' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Erlaubt sind Buchstaben, Ziffern 0–9, Satzzeichen, Währungssymbole, + = < > und einzelne Leerzeichen zwischen Wörtern.')
+  expect(screen.getByRole('alert')).toHaveTextContent('höchstens 30 Zeichen und keine Emojis')
+  expect(input).toHaveValue(name)
+  expect(screen.getByRole('button', { name: 'Erstellen' })).toBeEnabled()
+  expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
+})
+
+test.each(['cancel', 'escape'])('closing an uncertain creation with %s reconciles the list without another write', async dismissal => {
+  let reads = 0
+  const created = { ...group, id: otherId, name: 'Possibly created' }
+  const fetchMock = vi.fn((path: string, init?: RequestInit) => {
+    if (path === '/api/csrf') return Promise.resolve(response({ headerName: 'X-CSRF-TOKEN', token: 'test' }))
+    if (init?.method === 'POST') return Promise.resolve(response({}, 500))
+    return Promise.resolve(response(++reads === 1 ? [group] : [group, created]))
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  show()
+  await screen.findByRole('button', { name: group.name })
+  fireEvent.click(screen.getByRole('button', { name: 'Playgroup erstellen' }))
+  fireEvent.change(await screen.findByRole('textbox', { name: 'Name der Playgroup' }), { target: { value: created.name } })
+  fireEvent.click(screen.getByRole('button', { name: 'Erstellen' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Die Erstellung konnte nicht bestätigt werden.')
+  expect(screen.queryByText('Overview route')).not.toBeInTheDocument()
+  if (dismissal === 'cancel') fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+  else fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+  expect(await screen.findByRole('button', { name: created.name })).toBeInTheDocument()
+  expect(reads).toBe(2)
+  expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
+  expect(screen.queryByText('Overview route')).not.toBeInTheDocument()
 })
 
 test.each([{}, [null], [{ ...group, id: 'not-an-id' }]])('invalid list %j stays retryable without exposing a card', async body => {

@@ -94,7 +94,10 @@ for (const width of [320, 1280]) {
     const writes = await setup(page)
     const list = page.getByRole('list', { name: 'Deine Playgroups' })
     await expect(list.getByRole('listitem')).toHaveCount(20)
-    expect(await list.getByRole('button').evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label')))).toEqual(groups.map(group => group.name))
+    for (const [index, group] of groups.entries()) {
+      await expect(list.getByRole('button').nth(index)).toHaveAccessibleName(index < 2
+        ? `${group.name} ID: ${group.id.replaceAll('-', '')}` : group.name)
+    }
     await expect(page.getByText(`ID: ${id(0).replaceAll('-', '')}`, { exact: true })).toBeVisible()
     await expect(page.getByText(`ID: ${id(1).replaceAll('-', '')}`, { exact: true })).toBeVisible()
     await expect(page.getByText('Mitglied', { exact: true })).toHaveCount(0)
@@ -125,7 +128,7 @@ for (const width of [320, 1280]) {
     await list.getByRole('listitem').first().getByRole('link', { name: /Spiel erfassen/ }).click()
     await expect(page).toHaveURL(`/playgroups/${id(0)}/games/new`)
     await page.goto('/playgroups')
-    await page.getByRole('list', { name: 'Deine Playgroups' }).getByRole('button', { name: 'Alpha', exact: true }).nth(1).click()
+    await page.getByRole('list', { name: 'Deine Playgroups' }).getByRole('button', { name: `Alpha ID: ${id(1).replaceAll('-', '')}`, exact: true }).click()
     await expect(page).toHaveURL(`/playgroups/${id(1)}`)
     await page.goto('/playgroups')
     await page.getByRole('button', { name: 'Playgroup erstellen', exact: true }).click()
