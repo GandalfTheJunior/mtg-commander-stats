@@ -273,10 +273,12 @@ NFC), and the unique expression index `users_username_canonical_key` enforces it
 Registration asks the database for the canonical form to check reserved names,
 so Java and PostgreSQL cannot disagree, and maps a violation of that index to a
 field-specific `409`. V18 refuses to run on case-insensitively duplicate
-development data without renaming or exposing it. Quick profiles (#223) will
-restrict the index to accounts by recreating it with `WHERE kind = 'ACCOUNT'`
-and reuse `canonical_username` for group-local uniqueness. Security-sensitive behavior requires coverage under the
-testing guide.
+development data without renaming or exposing it. V20 (#223) subsequently
+recreates `users_username_canonical_key` with `WHERE kind = 'ACCOUNT'`, so
+case-insensitive account username uniqueness is global but does not constrain
+quick-profile names. The V20 `users_quick_profile_name_key` instead uses
+`canonical_username` to enforce per-group uniqueness among non-deleted quick
+profiles. Security-sensitive behavior requires coverage under the testing guide.
 
 ## Decisions and source of truth
 
