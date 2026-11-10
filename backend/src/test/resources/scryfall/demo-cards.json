@@ -13,7 +13,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/1/0/10d42b35-844f-4a64-9981-c6118d45e826.jpg?1783915607",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/1/0/10d42b35-844f-4a64-9981-c6118d45e826.jpg?1783915607"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/1/0/10d42b35-844f-4a64-9981-c6118d45e826.jpg?1783915607",
+        "normal": "https://cards.scryfall.io/normal/front/1/0/10d42b35-844f-4a64-9981-c6118d45e826.jpg?1783915607"
       },
       "type_line": "Legendary Creature — Dragon Avatar",
       "oracle_text": "Eminence — As long as The Ur-Dragon is in the command zone or on the battlefield, other Dragon spells you cast cost {1} less to cast.\nFlying\nWhenever one or more Dragons you control attack, draw that many cards, then you may put a permanent card from your hand onto the battlefield.",
@@ -47,7 +48,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/0/5/055a00a2-0df2-4f49-ac51-e33dfaf7ee85.jpg?1783939234",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/0/5/055a00a2-0df2-4f49-ac51-e33dfaf7ee85.jpg?1783939234"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/0/5/055a00a2-0df2-4f49-ac51-e33dfaf7ee85.jpg?1783939234",
+        "normal": "https://cards.scryfall.io/normal/front/0/5/055a00a2-0df2-4f49-ac51-e33dfaf7ee85.jpg?1783939234"
       },
       "type_line": "Legendary Artifact Creature — Golem",
       "oracle_text": "Whenever Karn blocks or becomes blocked, it gets -4/+4 until end of turn.\n{1}: Target noncreature artifact becomes an artifact creature with power and toughness each equal to its mana value until end of turn.",
@@ -72,7 +74,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/8/2/824b2d73-2151-4e5e-9f05-8f63e2bdcaa9.jpg?1783909065",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/8/2/824b2d73-2151-4e5e-9f05-8f63e2bdcaa9.jpg?1783909065"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/8/2/824b2d73-2151-4e5e-9f05-8f63e2bdcaa9.jpg?1783909065",
+        "normal": "https://cards.scryfall.io/normal/front/8/2/824b2d73-2151-4e5e-9f05-8f63e2bdcaa9.jpg?1783909065"
       },
       "type_line": "Legendary Creature — Goblin Warrior",
       "oracle_text": "{T}: Create X 1/1 red Goblin creature tokens, where X is the number of Goblins you control.",
@@ -99,7 +102,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/c/7/c78c2713-39e7-4a6e-a132-027099a89665.jpg?1783915731",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/c/7/c78c2713-39e7-4a6e-a132-027099a89665.jpg?1783915731"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/c/7/c78c2713-39e7-4a6e-a132-027099a89665.jpg?1783915731",
+        "normal": "https://cards.scryfall.io/normal/front/c/7/c78c2713-39e7-4a6e-a132-027099a89665.jpg?1783915731"
       },
       "type_line": "Legendary Creature — Shapeshifter",
       "oracle_text": "If The Prismatic Piper is your commander, choose a color before the game begins. The Prismatic Piper is the chosen color.\nPartner (You can have two commanders if both have partner.)",
@@ -126,7 +130,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/7/4/745d297d-4bb4-40cf-bb9c-99dac04e5069.jpg?1783928793",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/7/4/745d297d-4bb4-40cf-bb9c-99dac04e5069.jpg?1783928793"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/7/4/745d297d-4bb4-40cf-bb9c-99dac04e5069.jpg?1783928793",
+        "normal": "https://cards.scryfall.io/normal/front/7/4/745d297d-4bb4-40cf-bb9c-99dac04e5069.jpg?1783928793"
       },
       "type_line": "Legendary Creature — Elf Druid",
       "oracle_text": "{T}: Add {G}. When you spend this mana to cast a spell with mana value 6 or greater, draw a card.\nPartner (You can have two commanders if both have partner.)",
@@ -155,7 +160,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/5/0/508b1442-bf2c-4ad6-9bcf-bd894e081ab6.jpg?1783907026",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/5/0/508b1442-bf2c-4ad6-9bcf-bd894e081ab6.jpg?1783907026"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/5/0/508b1442-bf2c-4ad6-9bcf-bd894e081ab6.jpg?1783907026",
+        "normal": "https://cards.scryfall.io/normal/front/5/0/508b1442-bf2c-4ad6-9bcf-bd894e081ab6.jpg?1783907026"
       },
       "type_line": "Legendary Creature — Human Shaman",
       "oracle_text": "Whenever another creature you control dies, you get an experience counter.\nAt the beginning of your end step, choose target creature card in your graveyard. If that card's mana value is less than or equal to the number of experience counters you have, return it to the battlefield. Otherwise, put it into your hand.",
@@ -183,7 +189,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/1/b/1be3ed47-072e-481a-b3d9-dc232ac4b24f.jpg?1783911937",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/1/b/1be3ed47-072e-481a-b3d9-dc232ac4b24f.jpg?1783911937"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/1/b/1be3ed47-072e-481a-b3d9-dc232ac4b24f.jpg?1783911937",
+        "normal": "https://cards.scryfall.io/normal/front/1/b/1be3ed47-072e-481a-b3d9-dc232ac4b24f.jpg?1783911937"
       },
       "type_line": "Legendary Creature — Merfolk Wizard",
       "oracle_text": "Whenever you cast an instant or sorcery spell, create a 2/2 blue Drake creature token with flying.",
@@ -210,7 +217,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/2/5/25564fba-5765-457b-8dd3-f26b877221b8.jpg?1783922822",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/2/5/25564fba-5765-457b-8dd3-f26b877221b8.jpg?1783922822"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/2/5/25564fba-5765-457b-8dd3-f26b877221b8.jpg?1783922822",
+        "normal": "https://cards.scryfall.io/normal/front/2/5/25564fba-5765-457b-8dd3-f26b877221b8.jpg?1783922822"
       },
       "type_line": "Legendary Enchantment Creature — Background",
       "oracle_text": "If Faceless One is your commander, choose a color before the game begins. Faceless One is the chosen color.\nChoose a Background (You can have a Background as a second commander.)",
@@ -237,7 +245,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/b/0/b0260e1f-ff6a-4ef3-bef7-8c77f8413500.jpg?1783922722",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/b/0/b0260e1f-ff6a-4ef3-bef7-8c77f8413500.jpg?1783922722"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/b/0/b0260e1f-ff6a-4ef3-bef7-8c77f8413500.jpg?1783922722",
+        "normal": "https://cards.scryfall.io/normal/front/b/0/b0260e1f-ff6a-4ef3-bef7-8c77f8413500.jpg?1783922722"
       },
       "type_line": "Legendary Enchantment — Background",
       "oracle_text": "Commander creatures you own have \"The first Dragon spell you cast each turn costs {2} less to cast.\"",
@@ -264,7 +273,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/8/b/8bf3929c-957f-4ea2-a27d-7d53979844af.jpg?1783911211",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/8/b/8bf3929c-957f-4ea2-a27d-7d53979844af.jpg?1783911211"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/8/b/8bf3929c-957f-4ea2-a27d-7d53979844af.jpg?1783911211",
+        "normal": "https://cards.scryfall.io/normal/front/8/b/8bf3929c-957f-4ea2-a27d-7d53979844af.jpg?1783911211"
       },
       "type_line": "Legendary Artifact Creature — Human",
       "oracle_text": "When Breya enters, create two 1/1 blue Thopter artifact creature tokens with flying.\n{2}, Sacrifice two artifacts: Choose one —\n• Breya deals 3 damage to target player or planeswalker.\n• Target creature gets -4/-4 until end of turn.\n• You gain 5 life.",
@@ -294,7 +304,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/6/3/637c5910-f835-496e-b1b9-445bfb71da97.jpg?1783904537",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/6/3/637c5910-f835-496e-b1b9-445bfb71da97.jpg?1783904537"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/6/3/637c5910-f835-496e-b1b9-445bfb71da97.jpg?1783904537",
+        "normal": "https://cards.scryfall.io/normal/front/6/3/637c5910-f835-496e-b1b9-445bfb71da97.jpg?1783904537"
       },
       "type_line": "Legendary Creature — Elemental",
       "oracle_text": "Landfall — Whenever a land you control enters, create a 5/5 red and green Elemental creature token.\nWhenever Omnath or another Elemental you control dies, Omnath deals 3 damage to any target.",
@@ -324,7 +335,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/9/a/9a1ee042-6713-4e9e-9901-9b94d99d33f1.jpg?1783914685",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/9/a/9a1ee042-6713-4e9e-9901-9b94d99d33f1.jpg?1783914685"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/9/a/9a1ee042-6713-4e9e-9901-9b94d99d33f1.jpg?1783914685",
+        "normal": "https://cards.scryfall.io/normal/front/9/a/9a1ee042-6713-4e9e-9901-9b94d99d33f1.jpg?1783914685"
       },
       "type_line": "Legendary Creature — Human Advisor",
       "oracle_text": "Impossible Girl — If Clara Oswald is your commander, choose a color before the game begins. Clara Oswald is the chosen color.\nIf a triggered ability of a Doctor you control triggers, that ability triggers an additional time.\nDoctor's companion (You can have two commanders if the other is the Doctor.)",
@@ -352,7 +364,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/5/6/568c2687-4381-4954-9cab-f669d1fe6306.jpg?1783914623",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/5/6/568c2687-4381-4954-9cab-f669d1fe6306.jpg?1783914623"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/5/6/568c2687-4381-4954-9cab-f669d1fe6306.jpg?1783914623",
+        "normal": "https://cards.scryfall.io/normal/front/5/6/568c2687-4381-4954-9cab-f669d1fe6306.jpg?1783914623"
       },
       "type_line": "Legendary Creature — Time Lord Doctor",
       "oracle_text": "Players have no maximum hand size.\nHow Civil of You — At the beginning of your end step, each player may draw a card. Each opponent who does can't attack you or permanents you control during their next turn.",
@@ -382,7 +395,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/0/f/0fdae05f-7bdc-45fb-b9b9-e5ec3766f965.jpg?1783911896",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/0/f/0fdae05f-7bdc-45fb-b9b9-e5ec3766f965.jpg?1783911896"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/0/f/0fdae05f-7bdc-45fb-b9b9-e5ec3766f965.jpg?1783911896",
+        "normal": "https://cards.scryfall.io/normal/front/0/f/0fdae05f-7bdc-45fb-b9b9-e5ec3766f965.jpg?1783911896"
       },
       "type_line": "Legendary Creature — Human Assassin",
       "oracle_text": "Deathtouch, haste\nWhen Queen Marchesa enters, you become the monarch.\nAt the beginning of your upkeep, if an opponent is the monarch, create a 1/1 black Assassin creature token with deathtouch and haste.",
@@ -414,7 +428,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/c/a/caef93cc-70d0-4cce-9aaa-13c0931b2ef7.jpg?1783913730",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/c/a/caef93cc-70d0-4cce-9aaa-13c0931b2ef7.jpg?1783913730"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/c/a/caef93cc-70d0-4cce-9aaa-13c0931b2ef7.jpg?1783913730",
+        "normal": "https://cards.scryfall.io/normal/front/c/a/caef93cc-70d0-4cce-9aaa-13c0931b2ef7.jpg?1783913730"
       },
       "type_line": "Legendary Creature — Elder Fungus",
       "oracle_text": "Trample\nThe Mycotyrant's power and toughness are each equal to the number of creatures you control that are Fungi and/or Saprolings.\nAt the beginning of your end step, create X 1/1 black Fungus creature tokens with \"This token can't block,\" where X is the number of times you descended this turn. (You descend each time a permanent card is put into your graveyard from anywhere.)",
@@ -444,7 +459,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/5/a/5a7241f5-4d69-47fe-b037-95037008184c.jpg?1783934878",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/5/a/5a7241f5-4d69-47fe-b037-95037008184c.jpg?1783934878"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/5/a/5a7241f5-4d69-47fe-b037-95037008184c.jpg?1783934878",
+        "normal": "https://cards.scryfall.io/normal/front/5/a/5a7241f5-4d69-47fe-b037-95037008184c.jpg?1783934878"
       },
       "type_line": "Legendary Creature — Human",
       "oracle_text": "Partner with Toothy, Imaginary Friend (When this creature enters, target player may put Toothy into their hand from their library, then shuffle.)\nIf one or more counters would be put on a permanent your team controls, that many plus one of each of those kinds of counters are put on that permanent instead.",
@@ -474,7 +490,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/e/b/ebdf2f50-f69a-47c4-a75f-ff55781bb0c8.jpg?1783934877",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/e/b/ebdf2f50-f69a-47c4-a75f-ff55781bb0c8.jpg?1783934877"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/e/b/ebdf2f50-f69a-47c4-a75f-ff55781bb0c8.jpg?1783934877",
+        "normal": "https://cards.scryfall.io/normal/front/e/b/ebdf2f50-f69a-47c4-a75f-ff55781bb0c8.jpg?1783934877"
       },
       "type_line": "Legendary Creature — Illusion",
       "oracle_text": "Partner with Pir, Imaginative Rascal (When this creature enters, target player may put Pir into their hand from their library, then shuffle.)\nWhenever you draw a card, put a +1/+1 counter on Toothy.\nWhen Toothy leaves the battlefield, draw a card for each +1/+1 counter on it.",
@@ -504,7 +521,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/a/0/a09ffd51-8ea4-40a6-b64e-58f3acfee533.jpg?1783923611",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/a/0/a09ffd51-8ea4-40a6-b64e-58f3acfee533.jpg?1783923611"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/a/0/a09ffd51-8ea4-40a6-b64e-58f3acfee533.jpg?1783923611",
+        "normal": "https://cards.scryfall.io/normal/front/a/0/a09ffd51-8ea4-40a6-b64e-58f3acfee533.jpg?1783923611"
       },
       "type_line": "Legendary Creature — Human Wizard",
       "oracle_text": "Your maximum hand size is eleven.\nWhenever Cecily, Haunted Mage attacks, you draw a card and you lose 1 life. Then if you have eleven or more cards in your hand, you may cast an instant or sorcery spell from your hand without paying its mana cost.\nPartner—Friends forever (You can have two commanders if both have this ability.)",
@@ -535,7 +553,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/b/8/b867fb22-4f2a-47aa-9432-1bcc5e731947.jpg?1783923610",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/b/8/b867fb22-4f2a-47aa-9432-1bcc5e731947.jpg?1783923610"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/b/8/b867fb22-4f2a-47aa-9432-1bcc5e731947.jpg?1783923610",
+        "normal": "https://cards.scryfall.io/normal/front/b/8/b867fb22-4f2a-47aa-9432-1bcc5e731947.jpg?1783923610"
       },
       "type_line": "Legendary Creature — Human",
       "oracle_text": "{2}, {T}: Choose target creature card in your graveyard that was put there from the battlefield this turn. Return it to the battlefield tapped.\nPartner—Friends forever (You can have two commanders if both have this ability.)",
@@ -587,7 +606,8 @@
           "illustration_id": "b02e8c7b-b733-4d3b-9d71-7a48c4d2e713",
           "image_uris": {
             "small": "https://cards.scryfall.io/small/front/f/6/f6cd7465-9dd0-473c-ac5e-dd9e2f22f5f6.jpg?1783928221",
-            "art_crop": "https://cards.scryfall.io/art_crop/front/f/6/f6cd7465-9dd0-473c-ac5e-dd9e2f22f5f6.jpg?1783928221"
+            "art_crop": "https://cards.scryfall.io/art_crop/front/f/6/f6cd7465-9dd0-473c-ac5e-dd9e2f22f5f6.jpg?1783928221",
+            "normal": "https://cards.scryfall.io/normal/front/f/6/f6cd7465-9dd0-473c-ac5e-dd9e2f22f5f6.jpg?1783928221"
           }
         },
         {
@@ -606,7 +626,8 @@
           "illustration_id": "959283a3-5d90-4e9b-95ce-abc0ab93f75c",
           "image_uris": {
             "small": "https://cards.scryfall.io/small/back/f/6/f6cd7465-9dd0-473c-ac5e-dd9e2f22f5f6.jpg?1783928221",
-            "art_crop": "https://cards.scryfall.io/art_crop/back/f/6/f6cd7465-9dd0-473c-ac5e-dd9e2f22f5f6.jpg?1783928221"
+            "art_crop": "https://cards.scryfall.io/art_crop/back/f/6/f6cd7465-9dd0-473c-ac5e-dd9e2f22f5f6.jpg?1783928221",
+            "normal": "https://cards.scryfall.io/normal/back/f/6/f6cd7465-9dd0-473c-ac5e-dd9e2f22f5f6.jpg?1783928221"
           }
         }
       ],
@@ -650,7 +671,8 @@
           "illustration_id": "f90dd248-e671-4055-8031-c0f9938132ee",
           "image_uris": {
             "small": "https://cards.scryfall.io/small/front/f/e/fe675f03-cbb5-4177-b7d7-64a30260ee2a.jpg?1783908191",
-            "art_crop": "https://cards.scryfall.io/art_crop/front/f/e/fe675f03-cbb5-4177-b7d7-64a30260ee2a.jpg?1783908191"
+            "art_crop": "https://cards.scryfall.io/art_crop/front/f/e/fe675f03-cbb5-4177-b7d7-64a30260ee2a.jpg?1783908191",
+            "normal": "https://cards.scryfall.io/normal/front/f/e/fe675f03-cbb5-4177-b7d7-64a30260ee2a.jpg?1783908191"
           }
         },
         {
@@ -665,7 +687,8 @@
           "illustration_id": "7c028c56-e6d0-4ce9-aea9-994ba128245f",
           "image_uris": {
             "small": "https://cards.scryfall.io/small/back/f/e/fe675f03-cbb5-4177-b7d7-64a30260ee2a.jpg?1783908191",
-            "art_crop": "https://cards.scryfall.io/art_crop/back/f/e/fe675f03-cbb5-4177-b7d7-64a30260ee2a.jpg?1783908191"
+            "art_crop": "https://cards.scryfall.io/art_crop/back/f/e/fe675f03-cbb5-4177-b7d7-64a30260ee2a.jpg?1783908191",
+            "normal": "https://cards.scryfall.io/normal/back/f/e/fe675f03-cbb5-4177-b7d7-64a30260ee2a.jpg?1783908191"
           }
         }
       ],
@@ -687,7 +710,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/6/2/6270c798-a3ba-4826-b0a9-82f7e12890f6.jpg?1783915496",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/6/2/6270c798-a3ba-4826-b0a9-82f7e12890f6.jpg?1783915496"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/6/2/6270c798-a3ba-4826-b0a9-82f7e12890f6.jpg?1783915496",
+        "normal": "https://cards.scryfall.io/normal/front/6/2/6270c798-a3ba-4826-b0a9-82f7e12890f6.jpg?1783915496"
       },
       "type_line": "Legendary Creature — Dragon Avatar",
       "oracle_text": "Eminence — As long as The Ur-Dragon is in the command zone or on the battlefield, other Dragon spells you cast cost {1} less to cast.\nFlying\nWhenever one or more Dragons you control attack, draw that many cards, then you may put a permanent card from your hand onto the battlefield.",
@@ -721,7 +745,8 @@
       "layout": "normal",
       "image_uris": {
         "small": "https://cards.scryfall.io/small/front/7/6/76c33402-a022-4d2f-9a83-4b8ddc04e971.jpg?1783934878",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/7/6/76c33402-a022-4d2f-9a83-4b8ddc04e971.jpg?1783934878"
+        "art_crop": "https://cards.scryfall.io/art_crop/front/7/6/76c33402-a022-4d2f-9a83-4b8ddc04e971.jpg?1783934878",
+        "normal": "https://cards.scryfall.io/normal/front/7/6/76c33402-a022-4d2f-9a83-4b8ddc04e971.jpg?1783934878"
       },
       "type_line": "Legendary Creature — Homunculus",
       "oracle_text": "Partner with Okaun, Eye of Chaos (When this creature enters, target player may put Okaun into their hand from their library, then shuffle.)\nAt the beginning of combat on your turn, flip a coin until you lose a flip.\nWhenever a player wins a coin flip, draw a card.",
@@ -770,7 +795,8 @@
           "illustration_id": "6d336a32-95a6-4a15-964c-358f11500f0a",
           "image_uris": {
             "small": "https://cards.scryfall.io/small/front/d/5/d5dfd236-b1da-4552-b94f-ebf6bb9dafdf.jpg?1783923539",
-            "art_crop": "https://cards.scryfall.io/art_crop/front/d/5/d5dfd236-b1da-4552-b94f-ebf6bb9dafdf.jpg?1783923539"
+            "art_crop": "https://cards.scryfall.io/art_crop/front/d/5/d5dfd236-b1da-4552-b94f-ebf6bb9dafdf.jpg?1783923539",
+            "normal": "https://cards.scryfall.io/normal/front/d/5/d5dfd236-b1da-4552-b94f-ebf6bb9dafdf.jpg?1783923539"
           }
         },
         {
@@ -787,7 +813,8 @@
           "illustration_id": "c5e6cb8f-c7bd-4ba7-988f-1332bd6d595b",
           "image_uris": {
             "small": "https://cards.scryfall.io/small/back/d/5/d5dfd236-b1da-4552-b94f-ebf6bb9dafdf.jpg?1783923539",
-            "art_crop": "https://cards.scryfall.io/art_crop/back/d/5/d5dfd236-b1da-4552-b94f-ebf6bb9dafdf.jpg?1783923539"
+            "art_crop": "https://cards.scryfall.io/art_crop/back/d/5/d5dfd236-b1da-4552-b94f-ebf6bb9dafdf.jpg?1783923539",
+            "normal": "https://cards.scryfall.io/normal/back/d/5/d5dfd236-b1da-4552-b94f-ebf6bb9dafdf.jpg?1783923539"
           }
         }
       ],
@@ -798,5 +825,6 @@
       "collector_number": "379",
       "artist": "Alexis Ziritt"
     }
-  }
+  },
+  "normalImagesVerifiedAt": "2026-11-10"
 }
