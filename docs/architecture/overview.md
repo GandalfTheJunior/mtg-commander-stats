@@ -405,9 +405,11 @@ using the chosen settings. The existing keyed selected-group/session lifecycle
 discards previous choices when the view retires. Sorting copies arrays, compares
 raw numeric fields or English case-insensitive text (`Intl.Collator` with accent
 sensitivity), and keeps backend order for ties in both directions. On desktop,
-table heading buttons expose `aria-sort` and a visible arrow; on phones, a
-labeled sort selector and direction button provide the same ordering. No sort
-preference is stored or sent to the API.
+table heading buttons control sorting; the sorted column's header cell
+exposes `aria-sort`, and its button displays a visible arrow. A separate
+`Standardreihenfolge` button restores backend order. On phones, a labeled sort
+selector and direction button provide the same ordering. No sort preference is
+stored or sent to the API.
 
 Game refresh/recovery unmounts statistics, aborting its request. Non-authorization
 history read failures stay local to Spiele and do not retire healthy statistics;
