@@ -25,7 +25,7 @@ async function open(name = 'First') {
 }
 afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState(null, '', '/') })
 
-test.each(['/dashboard', '/decks'])('%s opens each slot independently and commits exactly once only after acknowledgement, then refreshes across views', async path => {
+test.each(['/decks'])('%s opens each slot independently and commits exactly once only after acknowledgement, then refreshes across views', async path => {
   const api = deckApi([pair])
   api.next(galleryPath(second), () => response([option]))
   const pending = deferred<Response>()
@@ -52,7 +52,10 @@ test.each(['/dashboard', '/decks'])('%s opens each slot independently and commit
   await waitFor(() => expect(trigger).toHaveFocus())
   expect(screen.getByRole('img', { name: 'Illustration für Second' })).toHaveAttribute('src', option.artCropUrl)
   expect(screen.getByRole('img', { name: 'Illustration für First' })).toHaveAttribute('src', first.artCropUrl)
-  fireEvent.click(screen.getByRole('link', { name: path === '/dashboard' ? 'Decks' : 'Dashboard' }))
+  fireEvent.click(screen.getByRole('link', { name: 'Dashboard' }))
+  await screen.findByRole('heading', { name: 'Dashboard' })
+  expect(screen.queryByRole('img', { name: 'Illustration für Second' })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('link', { name: 'Decks' }))
   expect(await screen.findByRole('img', { name: 'Illustration für Second' })).toHaveAttribute('src', option.artCropUrl)
   api.next(galleryPath(), () => response([{ ...option, artworkFaceIndex: null }]))
   await open()
@@ -139,7 +142,7 @@ test('retired gallery ignores late writes and authentication failures after rout
   expect(window.location.pathname).toBe('/playgroups')
 })
 
-test.each(['/dashboard', '/decks'].flatMap(path => ['deleted', 'replaced', 'slot removed'].map(conflict => ({ path, conflict }))))(
+test.each(['/decks'].flatMap(path => ['deleted', 'replaced', 'slot removed'].map(conflict => ({ path, conflict }))))(
   '$path reconciles an authoritative $conflict conflict without trapping the dialog or resending the write', async ({ path, conflict }) => {
     const api = deckApi([pair])
     const target = conflict === 'slot removed' ? second : first
@@ -170,7 +173,7 @@ test.each(['/dashboard', '/decks'].flatMap(path => ['deleted', 'replaced', 'slot
     else fireEvent.click(within(dialog).getByRole('button', { name: 'Schließen' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     if (conflict === 'replaced') await waitFor(() => expect(trigger).toHaveFocus())
-    else await waitFor(() => expect(screen.getByRole('heading', { name: path === '/dashboard' ? 'Decks' : 'Meine Decks' })).toHaveFocus())
+    else await waitFor(() => expect(screen.getByRole('heading', { name: 'Meine Decks' })).toHaveFocus())
     expect(api.writes().filter(([url]) => url === writePath(target.position))).toHaveLength(1)
     if (conflict === 'deleted') expect(screen.queryByRole('button', { name: 'Artwork für First ändern' })).not.toBeInTheDocument()
   },

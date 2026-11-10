@@ -3,16 +3,14 @@ import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
 import CardActionArea from '@mui/material/CardActionArea'
+import IconButton from '@mui/material/IconButton'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import { Link } from 'react-router'
-import { ApiError, listDecks, listGroups } from './api'
-import SavedDeckCard from './SavedDeckCard'
-import { useArtworkGallery } from './useArtworkGallery'
+import { ApiError, listGroups } from './api'
 import type { DashboardIntent } from './dashboardNavigation'
+import { groupSuffixes } from './groupSuffixes'
 
-// Fix the locale and tie-break by ID, including case/accent-equivalent names.
-const deckNames = new Intl.Collator('de', { sensitivity: 'base' })
 const cardAction = {
   display: 'block', textAlign: 'left', p: 2, minHeight: 72, color: 'text.primary',
   overflowWrap: 'anywhere',
@@ -38,7 +36,7 @@ function useDashboardList<T>(load: (signal?: AbortSignal) => Promise<T[]>, onUna
     })
     return () => { current = false; controller.abort() }
   }, [load, onUnauthorized, revision])
-  return { ...state, update: (replace: (items: T[]) => T[]) => setState(previous => ({ ...previous, items: replace(previous.items) })), refresh: () => { setState({ status: 'loading', items: [] }); setRevision(value => value + 1) } }
+  return { ...state, refresh: () => { setState({ status: 'loading', items: [] }); setRevision(value => value + 1) } }
 }
 
 export default function Dashboard({ onUnauthorized, onOpen }: {
@@ -46,76 +44,48 @@ export default function Dashboard({ onUnauthorized, onOpen }: {
   onOpen: (intent: DashboardIntent) => void
 }) {
   const groups = useDashboardList(listGroups, onUnauthorized)
-  const decks = useDashboardList(listDecks, onUnauthorized)
-  const [expanded, setExpanded] = useState(false)
-  const { openArtwork, gallery } = useArtworkGallery({
-    onUnauthorized,
-    onUpdated: updated => decks.update(items => items.map(item => item.id === updated.id ? updated : item)),
-    onReconciled: authoritative => decks.update(() => authoritative),
-    fallbackId: 'dashboard-decks-heading',
-  })
-  const sortedDecks = [...decks.items].sort((a, b) => deckNames.compare(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  const suffixes = groupSuffixes(groups.items)
   return (
     <Stack component="section" aria-labelledby="dashboard-heading" sx={{ gap: 4, minWidth: 0 }}>
-      <Stack direction="row" useFlexGap sx={{ gap: 2, flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography component="h2" variant="h4" id="dashboard-heading">Dashboard</Typography>
-        {import.meta.env.DEV && (
-          <Button component="a" href="/dev/lounge.html" variant="outlined" color="secondary">
-            Tech Playground öffnen
-          </Button>
-        )}
-      </Stack>
+      <Typography component="h2" variant="h4" id="dashboard-heading">Dashboard</Typography>
       <Box component="section" aria-labelledby="dashboard-groups-heading">
-        <Stack direction="row" useFlexGap sx={{ gap: 1, flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography component="h3" variant="h5" id="dashboard-groups-heading">Playgroups</Typography>
-          <Button color="secondary" disabled={groups.status === 'loading'} onClick={groups.refresh}>Playgroups aktualisieren</Button>
+        <Stack direction="row" useFlexGap sx={{ gap: 2, justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography component="h3" variant="h5" id="dashboard-groups-heading" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, minWidth: 0 }}>Meine Playgroups</Typography>
+          {groups.status === 'loaded' && groups.items.length > 3 && <Button component={Link} to="/playgroups" size="small" color="secondary"
+            sx={{ ml: 'auto', maxWidth: '50%', flexShrink: 0, textAlign: 'center' }}>Alle Playgroups anzeigen</Button>}
         </Stack>
         {groups.status === 'loading' && <Typography role="status">Playgroups werden geladen…</Typography>}
         {groups.status === 'error' && <Box role="alert">
           <Typography>Playgroups konnten nicht geladen werden.</Typography>
           <Button color="secondary" onClick={groups.refresh}>Playgroups erneut laden</Button>
         </Box>}
-        {groups.status === 'loaded' && (groups.items.length === 0 ? <>
-          <Typography sx={{ mb: 2 }}>Noch keine Playgroups. Erstelle eine Gruppe oder tritt mit einem aktuellen Einladungscode bei.</Typography>
-          <Button component={Link} to="/playgroups" variant="outlined" color="secondary">Playgroup erstellen oder beitreten</Button>
-        </> : <>
-          <Stack component="ul" id="dashboard-groups" aria-label="Deine Playgroups" sx={{ listStyle: 'none', p: 0, m: 0, gap: 2 }}>
-            {(expanded ? groups.items : groups.items.slice(0, 3)).map(group => <Card component="li" key={group.id}>
-              <CardActionArea disableRipple sx={cardAction} onClick={() => onOpen({ kind: 'group', id: group.id })}
-                aria-labelledby={`group-name-${group.id}`} aria-describedby={`group-role-${group.id}`}>
-                <Typography component="h4" variant="h6" id={`group-name-${group.id}`}>{group.name}</Typography>
-                <Typography id={`group-role-${group.id}`} sx={{ color: 'text.secondary' }}>
-                  {group.role === 'OWNER' ? 'Gruppenersteller' : 'Mitglied'}
-                </Typography>
-              </CardActionArea>
-            </Card>)}
-          </Stack>
-          {groups.items.length > 3 && <Button color="secondary" sx={{ mt: 2 }} aria-expanded={expanded}
-            aria-controls="dashboard-groups" onClick={() => setExpanded(value => !value)}>
-            {expanded ? 'Weniger Playgroups anzeigen' : 'Alle Playgroups anzeigen'}
-          </Button>}
-        </>)}
+        {groups.status === 'loaded' && <>
+          {groups.items.length === 0 ? <Typography>Du bist noch keiner Playgroup beigetreten. Erstelle eine eigene Playgroup oder öffne einen Einladungslink.</Typography> :
+            <Stack component="ul" aria-label="Deine Playgroups" sx={{ listStyle: 'none', p: 0, m: 0, gap: 2 }}>
+              {groups.items.slice(0, 3).map(group => <Card component="li" key={group.id} sx={{ minWidth: 0 }}>
+                <CardActionArea disableRipple sx={cardAction} onClick={() => onOpen({ kind: 'group', id: group.id })}
+                  aria-labelledby={`group-name-${group.id}`} aria-description={`Übersicht, ${group.id}`}>
+                  <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Typography component="span" variant="h6" id={`group-name-${group.id}`} sx={{ flex: 1, minWidth: 0 }}>
+                      {group.name}{suffixes.has(group.id) && <> <Typography component="span" variant="body2"
+                        sx={{ display: 'inline-block', maxWidth: '100%', color: 'text.secondary' }}>ID: {suffixes.get(group.id)}</Typography></>}
+                    </Typography>
+                    <Box component="span" aria-hidden="true" sx={{ flexShrink: 0, fontSize: 32, lineHeight: 1, color: 'text.secondary' }}>›</Box>
+                  </Box>
+                </CardActionArea>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 2, pb: 2 }}>
+                  <Button component={Link} to={`/playgroups/${encodeURIComponent(group.id)}/games/new`} variant="contained"
+                    aria-label={`Spiel erfassen: ${group.name}, ${group.id}`}>Spiel erfassen</Button>
+                </Box>
+              </Card>)}
+            </Stack>}
+          <IconButton component={Link} to="/playgroups?create=1" aria-label="Playgroup erstellen" color="secondary"
+            sx={{ mt: 2, minWidth: 44, minHeight: 44, border: '1px solid', borderColor: 'interaction.border', borderRadius: 1,
+              '&:focus-visible, &.Mui-focusVisible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: 2 } }}>
+            <Box component="span" aria-hidden="true" sx={{ fontSize: 28, lineHeight: 1 }}>+</Box>
+          </IconButton>
+        </>}
       </Box>
-      <Box component="section" aria-labelledby="dashboard-decks-heading">
-        <Typography component="h3" variant="h5" id="dashboard-decks-heading" tabIndex={-1}>Decks</Typography>
-        <Stack direction="row" useFlexGap sx={{ gap: 1, flexWrap: 'wrap', my: 2 }}>
-          <Button variant="contained" onClick={() => onOpen({ kind: 'create-deck' })}>Deck erstellen</Button>
-          <Button color="secondary" disabled={decks.status === 'loading'} onClick={decks.refresh}>Decks aktualisieren</Button>
-        </Stack>
-        {decks.status === 'loading' && <Typography role="status">Decks werden geladen…</Typography>}
-        {decks.status === 'error' && <Box role="alert">
-          <Typography>Decks konnten nicht geladen werden.</Typography>
-          <Button color="secondary" onClick={decks.refresh}>Decks erneut laden</Button>
-        </Box>}
-        {decks.status === 'loaded' && (sortedDecks.length === 0
-          ? <Typography>Noch keine Decks. Erstelle dein erstes Commander-Deck.</Typography>
-          : <Stack component="ul" aria-label="Deine Decks" sx={{ listStyle: 'none', p: 0, m: 0, gap: 2 }}>
-            {sortedDecks.map(deck => <SavedDeckCard key={deck.id} deck={deck} onOpenArtwork={openArtwork}
-              onOpen={() => onOpen({ kind: 'deck', id: deck.id })}
-              showId={sortedDecks.some(other => other.id !== deck.id && deckNames.compare(other.name, deck.name) === 0)} />)}
-          </Stack>)}
-      </Box>
-      {gallery}
     </Stack>
   )
 }

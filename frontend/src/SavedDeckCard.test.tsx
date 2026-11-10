@@ -14,7 +14,7 @@ const second = { ...savedCommander('Second Commander'), position: 2, oracleId: '
 
 afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState(null, '', '/') })
 
-test.each(['/dashboard', '/decks'])('%s renders saved single, dual and missing imagery with independent sources and fresh editor navigation', async path => {
+test.each(['/decks'])('%s renders saved single, dual and missing imagery with independent sources and fresh editor navigation', async path => {
   const pair = { ...deck, name: 'Partners', commanders: [first, second], colorIdentity: ['G' as const], everUsed: true, archived: true }
   const api = deckApi([pair, { ...deck, id: '00000000-0000-4000-8000-000000000102', name: 'Single', commanders: [first] },
     { ...deck, id: '00000000-0000-4000-8000-000000000103', name: 'Missing' }])
@@ -43,7 +43,7 @@ test.each(['/dashboard', '/decks'])('%s renders saved single, dual and missing i
   expect(api.writes()).toHaveLength(0)
 })
 
-test.each(['/dashboard', '/decks'])('%s keeps failed-art metadata and shows replaced art immediately after refetch', async path => {
+test.each(['/decks'])('%s keeps failed-art metadata and shows replaced art immediately after refetch', async path => {
   const api = deckApi([{ ...deck, commanders: [first] }]); showDeckApp(path)
   const img = await screen.findByRole('img', { name: `Illustration für ${first.name}` })
   fireEvent.error(img)
@@ -92,7 +92,7 @@ test('ManaBox is opt-in and independent from editing and artwork actions', () =>
   expect(onOpen).toHaveBeenCalledOnce()
 })
 
-test.each(['/dashboard', '/decks'])('%s shows owner links only on Meine Decks, including used and archived decks', async path => {
+test.each(['/decks'])('%s shows owner links only on Meine Decks, including used and archived decks', async path => {
   const linked = 'https://manabox.app/decks/Synthetic-Mixed_123'
   deckApi([deck, ...[false, true].map((archived, index) => ({ ...deck, id: `deck-${index}`, name: `Linked ${index}`, everUsed: true, archived, manaBoxUrl: linked })),
     { ...deck, id: 'unsafe', name: 'Unsafe', manaBoxUrl: 'https://evil.test/decks/id' }])

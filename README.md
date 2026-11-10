@@ -311,7 +311,14 @@ npm run build
 From the repository root, verify the demo tooling with `node --test tools/demo/*.test.mjs`.
 See [demo verification](docs/development/demo.md#verification) for the opt-in real API check.
 
-Dashboard layout and empty-state browser checks use synthetic API responses:
+Dashboard #191 layout, empty/error states and navigation use synthetic API
+responses in `frontend/e2e/dashboard.pw.ts`. From `frontend/`, run
+`npm run test:browser -- e2e/dashboard.pw.ts --project=chromium`; the test server
+starts automatically. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` for a system
+Chromium and `MTG_SCREENSHOTS` for an additional screenshot directory. The tests
+cover 320, 390 and 1280px widths; CI also runs them with WebKit.
+
+Statistics browser checks use synthetic API responses:
 with Vite running, run `python tools/ui/verify-statistics.py` (Python Playwright
 and Chromium required). `MTG_UI_URL`, `CHROMIUM_PATH` and `MTG_SCREENSHOTS` override
 the server, browser and screenshot output locations.

@@ -53,9 +53,9 @@ test('zero width space and BOM are meaningful DisplayText and pass through uncha
   await waitFor(() => expect(api.writes()).toHaveLength(1))
   expect(JSON.parse(api.writes()[0][1]!.body as string)).toMatchObject({ name: '\u200b', commanders: [{ selectionRef: deck.commanders[0].selectionRef }] })
 })
-test.each(['/dashboard', '/decks'] as const)('save/cancel/discard use trusted calling overview %s', async origin => {
+test.each(['/decks'] as const)('save/cancel/discard use trusted calling overview %s', async origin => {
   const api = deckApi(); showDeckApp(origin)
-  await screen.findByRole('heading', { name: origin === '/dashboard' ? 'Dashboard' : 'Meine Decks' })
+  await screen.findByRole('heading', { name: 'Meine Decks' })
   // The overview heading can render before its list effect starts. Establish
   // the initial read before asserting that entering create adds no list GET.
   await waitFor(() => expect(api.fetchMock.mock.calls.filter(([path]) => path === '/api/decks')).toHaveLength(1))
@@ -66,10 +66,10 @@ test.each(['/dashboard', '/decks'] as const)('save/cancel/discard use trusted ca
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
   await screen.findByText('New wurde erstellt.')
   expect(window.location.pathname).toBe(origin)
-  await screen.findByRole('heading', { name: origin === '/dashboard' ? 'Dashboard' : 'Meine Decks' })
+  await screen.findByRole('heading', { name: 'Meine Decks' })
   await newDeck()
   fireEvent.click(screen.getByRole('button', { name: 'Zurück' }))
-  await screen.findByRole('heading', { name: origin === '/dashboard' ? 'Dashboard' : 'Meine Decks' })
+  await screen.findByRole('heading', { name: 'Meine Decks' })
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   await newDeck(); await changeDeck('Discard', 'Karn')
   fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
@@ -112,9 +112,9 @@ test.each(['malformed', uid(999)])('invalid/missing/foreign ID %s is unavailable
   expect(api.writes()).toHaveLength(0)
   expect(screen.getByRole('link', { name: 'Zur Deckübersicht' })).toHaveAttribute('href', '/decks')
 })
-test('reload retains stable deck URL but never the previous Dashboard origin/draft', async () => {
-  deckApi(); const view = showDeckApp('/dashboard')
-  fireEvent.click(await screen.findByRole('button', { name: deck.name })); await screen.findByRole('textbox', { name: /Deckname/ })
+test('reload retains stable deck URL but never the previous collection origin/draft', async () => {
+  deckApi(); const view = showDeckApp('/decks')
+  await editDeck(); await screen.findByRole('textbox', { name: /Deckname/ })
   await changeDeck('Not persisted')
   const state = window.history.state.usr, path = window.location.pathname
   view.unmount(); showDeckApp(path, state); await screen.findByRole('textbox', { name: /Deckname/ })
@@ -322,10 +322,10 @@ test.each(['network', 'malformed', 500, 403, 404, 401] as const)('edit still req
   expect(api.fetchMock.mock.calls.some(([path]) => path === '/api/csrf')).toBe(false)
   expect(api.writes()).toHaveLength(0)
 })
-test('reloading create resets draft and trusted Dashboard return without loading a deck list', async () => {
-  const api = deckApi(); const view = showDeckApp('/dashboard'); await newDeck()
+test('reloading create resets draft and trusted collection return without loading a deck list', async () => {
+  const api = deckApi(); const view = showDeckApp('/decks'); await newDeck()
   const listRequests = () => api.fetchMock.mock.calls.filter(([path, init]) => path === '/api/decks' && !init?.method)
-  expect(listRequests()).toHaveLength(1) // Dashboard only.
+  expect(listRequests()).toHaveLength(1) // Initial collection read only.
   await changeDeck('Unpersisted create', 'Karn')
   const state = window.history.state.usr
   view.unmount(); showDeckApp('/decks/new', state)
@@ -358,7 +358,7 @@ test('the freshly focused edit form can save before passive effects run', async 
   }
 })
 
-test.each(['/dashboard', '/decks'] as const)('LAN HTTP creates and edits from %s with functional saves and trusted return', async origin => {
+test.each(['/decks'] as const)('LAN HTTP creates and edits from %s with functional saves and trusted return', async origin => {
   const api = deckApi(); showDeckApp(origin)
   await newDeck()
   expect(window.location.pathname).toBe('/decks/new')
@@ -366,9 +366,8 @@ test.each(['/dashboard', '/decks'] as const)('LAN HTTP creates and edits from %s
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
   await screen.findByText('LAN deck wurde erstellt.')
   expect(window.location.pathname).toBe(origin)
-  await screen.findByRole('heading', { name: origin === '/dashboard' ? 'Dashboard' : 'Meine Decks' }, { timeout: 5000 })
-  if (origin === '/dashboard') fireEvent.click(await screen.findByRole('button', { name: deck.name }))
-  else await editDeck()
+  await screen.findByRole('heading', { name: 'Meine Decks' }, { timeout: 5000 })
+  await editDeck()
   expect(await screen.findByRole('textbox', { name: /Deckname/ })).toHaveValue(deck.name)
   expect(window.location.pathname).toBe(`/decks/${deck.id}/edit`)
   await changeDeck('LAN edit')

@@ -21,9 +21,9 @@ Lounge and Mana work without a backend or login. Commander-Rahmen requires the
 regular application session and online lookup (see below). The ordinary build
 imports/emits neither this HTML nor its code/assets. `/dev/theme.html` remains separate. Do not add either to build inputs.
 
-In development, the authenticated Dashboard also links here via **Tech Playground
-öffnen**. The signed-out **Open Tech Playground** link remains available; both
-entries are hidden in production builds.
+The signed-out **Open Tech Playground** link is available in development and
+hidden in production builds. Dashboard has no Playground entry (#191); use the
+direct development URL above when signed in.
 
 ## Interaction implementation
 
