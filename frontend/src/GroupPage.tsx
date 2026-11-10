@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { Alert, Box, Button, Card, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Stack, Tab, Tabs, Typography } from '@mui/material'
 import { ApiError, getGroup, leaveGroup, type CurrentUser, type GroupDetails, type GroupMember } from './api'
 import GameManager from './GameManager'
+import GroupOverview from './GroupOverview'
 import type { Notice } from './App'
 import { groupUnavailable, groupUrl, type GroupTab } from './groupNavigation'
 
@@ -122,13 +123,13 @@ export default function GroupPage({ tab, currentUser, onUnauthorized, onNotice }
     {details && <>
       {!checkingAccess && <>
       <Typography component="h2" variant="h4" ref={heading} tabIndex={-1} sx={{ overflowWrap: 'anywhere' }}>{details.name}</Typography>
-      <Tabs value={tab} variant="scrollable" scrollButtons="auto" aria-label="Playgroup-Bereiche"
+      <Tabs value={tab} variant="fullWidth" textColor="secondary" indicatorColor="secondary" aria-label="Playgroup-Bereiche"
         onChange={(_event, value: GroupTab) => { void navigate(groupUrl(groupId, value)) }}
-        sx={{ '& .MuiTab-root': { minHeight: 48, minWidth: 72, px: 1, '&.Mui-focusVisible, &:focus-visible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: -3 } } }}>
+        sx={{ '& .MuiTab-root': { minHeight: 48, minWidth: 0, px: 0.5, fontSize: { xs: '0.75rem', sm: '0.875rem' }, '&.Mui-focusVisible, &:focus-visible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: -3 } } }}>
         {tabs.map(({ value, label }) => <Tab key={value} value={value} label={label} id={`group-tab-${value}`} aria-controls={`group-panel-${value}`} />)}
       </Tabs>
       {tab === 'overview' && <Box role="tabpanel" id="group-panel-overview" aria-labelledby="group-tab-overview">
-        <Button component={Link} to={`${groupUrl(groupId, 'games')}/new`} variant="contained">Spiel erfassen</Button>
+        <GroupOverview groupId={groupId} onAccessError={handleError} />
       </Box>}
       {tab === 'members' && <Box role="tabpanel" id="group-panel-members" aria-labelledby="group-tab-members">
         <Button color="secondary" onClick={recheck} disabled={busy}>Mitglieder aktualisieren</Button>

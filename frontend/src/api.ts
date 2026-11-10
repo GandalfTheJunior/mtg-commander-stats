@@ -439,6 +439,53 @@ function gameFrom(value: unknown, groupId: string, gameId?: string, includeManaB
 
 const gamesPath = (groupId: string) => `/api/groups/${encodeURIComponent(groupId)}/games`
 
+export type GamePreview = Pick<Game, 'id' | 'groupId' | 'result' | 'winnerUserId'> & {
+  playedOn: string | null
+  participants: { userId: string; username: string; deck: DeckSelection }[]
+}
+
+function playDate(value: unknown): value is string | null {
+  if (value === null) return true
+  if (typeof value !== 'string' || !/^(?!0000)\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const date = new Date(`${value}T00:00:00Z`)
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value
+}
+
+// The bounded history endpoint owns date-first ordering, including unknown dates.
+// Read only preview fields so legacy games without seats/ranks remain displayable.
+export async function recentGames(groupId: string, signal?: AbortSignal): Promise<GamePreview[]> {
+  const response = await checkedResponse(
+    await fetch(`${gamesPath(groupId)}/history`, { ...requestDefaults, ...(signal ? { signal } : {}) }),
+    200, 'Die letzten Spiele konnten nicht geladen werden.',
+  )
+  const body: unknown = await response.json()
+  if (!isRecord(body) || !Array.isArray(body.games) || body.games.length > 20 ||
+    !(body.nextCursor === null || (typeof body.nextCursor === 'string' && /^[A-Za-z0-9_-]+$/.test(body.nextCursor)))) {
+    throw new Error('The server returned invalid game history.')
+  }
+  const games = body.games.map((value: unknown): GamePreview => {
+    if (!isRecord(value) || !isUuid(value.id) || !isUuid(value.groupId) || value.groupId.toLowerCase() !== groupId.toLowerCase() ||
+      !playDate(value.playedOn) || !Array.isArray(value.participants) || value.participants.length < 2 || value.participants.length > 6 ||
+      (value.result !== 'WIN' && value.result !== 'DRAW')) throw new Error('The server returned invalid game preview data.')
+    const participants = value.participants.map((person: unknown) => {
+      if (!isRecord(person) || !isUuid(person.userId) || typeof person.username !== 'string' || !person.username.trim() ||
+        !isUuid(person.deckId)) throw new Error('The server returned an invalid game participant.')
+      const deck = selectionFrom(person.deck)
+      if (deck.id.toLowerCase() !== person.deckId.toLowerCase()) throw new Error('The server returned mismatched game deck data.')
+      return { userId: person.userId, username: person.username, deck }
+    })
+    if (new Set(participants.map(person => person.userId.toLowerCase())).size !== participants.length ||
+      (value.result === 'DRAW' ? value.winnerUserId !== null :
+        !isUuid(value.winnerUserId) || !participants.some(person => person.userId.toLowerCase() === String(value.winnerUserId).toLowerCase()))) {
+      throw new Error('The server returned an invalid game result.')
+    }
+    return { id: value.id, groupId, playedOn: value.playedOn, result: value.result,
+      winnerUserId: value.winnerUserId as string | null, participants }
+  })
+  if (new Set(games.map(game => game.id.toLowerCase())).size !== games.length) throw new Error('The server returned duplicate games.')
+  return games.slice(0, 3)
+}
+
 export async function getGame(groupId: string, gameId: string, signal?: AbortSignal): Promise<Game> {
   const response = await checkedResponse(
     await fetch(`${gamesPath(groupId)}/${encodeURIComponent(gameId)}`, { ...requestDefaults, ...(signal ? { signal } : {}) }),

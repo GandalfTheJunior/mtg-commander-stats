@@ -532,3 +532,36 @@ Repeat the manual test with functioning VoiceOver before merge if possible; see
 for the reproduction, test steps and limitations. Physical-phone/software
 keyboard and live-backend acceptance remain untested; the local fixture checks
 do not substitute for those environments.
+
+## Playgroup Overview (#193)
+
+The authorized default group route renders one fixed **Gesamtsiegquote pro Spieler**
+spotlight above **Letzte Spiele**, with a single prominent **Spiel erfassen**
+link to the existing group-scoped recorder. Its acknowledged-save return remains
+that group's Games history. The four child tabs fit at 320px; the signed-in shell
+continues to own global navigation.
+
+Overview reads unfiltered statistics and the first bounded `/games/history` page
+independently. It displays at most three games in the server's date-first order,
+without loading further pages. The preview reader validates only the fields the
+compact card consumes, allowing historical games without seats/ranks. `playedOn`
+is a validated calendar date or null; `recordedAt` never supplies a missing play
+date. The reusable `CompactGameCard` shows winner, deck, saved Commander artwork
+(including two Commanders), or a neutral draw/missing-art placeholder. The entire
+card links to the game's details; other record metadata stays out of previews.
+The full Games view and its pagination remain owned by #194.
+
+`spotlightPlayers` implements #197's approved shared selection: most games first,
+then alphabetical display name and stable UUID, capped at three. It introduces no
+minimum sample threshold and uses only API percentages. The compact spotlight
+shows name and rate and opens `/statistics/reports/players` directly, with all
+sizes; the guarded report host is still pending #197. It does not fall back to
+the mixed Statistics tab or implement #197's report UI.
+
+Successful empty responses show #193's exact Archive/Tamiyo copy. Loading and
+failed requests have separate feedback, and an explicit retry clears both prior
+results. A current 401/403/404 retires both reads and all protected group content;
+route/session cleanup ignores late responses. Browser fixtures cover populated,
+empty, loading and error states at 320/390/1280px, keyboard focus, overflow,
+long names, dual/missing/broken artwork and canonical destinations. These checks
+use intercepted non-sensitive data, not a live backend or physical-device test.
