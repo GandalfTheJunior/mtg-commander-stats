@@ -60,6 +60,7 @@ test('transient list failure offers an explicit retry without treating it as emp
   const fetchMock = vi.fn().mockResolvedValueOnce(response({}, 503)).mockResolvedValueOnce(response([group]))
   vi.stubGlobal('fetch', fetchMock)
   show()
-  fireEvent.click(await screen.findByRole('button', { name: 'Playgroups aktualisieren' }))
+  await screen.findByText('Playgroups konnten nicht geladen werden. Nutze „Playgroups aktualisieren“, um es erneut zu versuchen.')
+  fireEvent.click(screen.getByRole('button', { name: 'Playgroups aktualisieren' }))
   expect(await screen.findByRole('button', { name: 'Friday Commander' })).toBeInTheDocument()
 })
