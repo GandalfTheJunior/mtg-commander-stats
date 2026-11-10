@@ -112,7 +112,7 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
     while (characters.length && boundary(characters[0])) characters.shift()
     while (characters.length && boundary(characters[characters.length - 1])) characters.pop()
     const name = characters.join('')
-    if (!name) { setNameError(true); return }
+    if (!name) { setNameError(true); nameInput.current?.focus(); return }
     pending.current = true
     setBusy(true)
     setCreateError(null)
@@ -178,7 +178,7 @@ export default function GroupManager({ onUnauthorized }: { onUnauthorized: () =>
       <Dialog open={dialogOpen} onClose={closeDialog}
         aria-labelledby="create-group-heading" fullWidth maxWidth="xs"
         slotProps={{ paper: { sx: { m: 2, width: 'calc(100% - 32px)' } }, transition: { onEntered: () => nameInput.current?.focus() } }}>
-        <Box component="form" onSubmit={submit} aria-labelledby="create-group-heading" aria-busy={busy}>
+        <Box component="form" noValidate onSubmit={submit} aria-labelledby="create-group-heading" aria-busy={busy}>
           <DialogTitle id="create-group-heading" sx={{ p: { xs: 2, sm: 3 }, fontWeight: 600 }}>Playgroup erstellen</DialogTitle>
           <DialogContent sx={{ px: { xs: 2, sm: 3 }, pt: 2 }}>
             <Typography component="label" htmlFor="playgroups-create-name" sx={{ display: 'block', mb: 2, fontWeight: 600 }}>Name der Playgroup</Typography>
