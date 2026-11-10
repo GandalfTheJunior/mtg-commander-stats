@@ -2,7 +2,13 @@
 
 ## Status
 
-Accepted. The post-MVP UI direction is planned, not yet implemented.
+Accepted. The Product Owner confirmed MVP completion on 2026-10-16 in
+[issue #71](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/71),
+satisfying the sequencing prerequisite for Material UI. The shared Material UI
+foundation was introduced in [PR #79](https://github.com/GandalfTheJunior/mtg-commander-stats/pull/79).
+Incremental screen migration is underway; the broader frontend redesign is not
+yet complete. See the [frontend theme guidance](../../development/frontend-theme.md)
+for the current technical implementation.
 
 ## Context
 
