@@ -435,7 +435,7 @@ test('a group 401 expires the session and clears protected content', async () =>
 test.each(['/invite/token-value', '/claim/token-value'])('public %s stays outside the protected redirect gate', async path => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 401)))
   render(<App />, path)
-  expect(await screen.findByText('Diese Einladung kann noch nicht angezeigt werden.')).toBeInTheDocument()
+  expect(await screen.findByText('Dieser Link kann noch nicht angezeigt werden.')).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
   expect(screen.queryByRole('navigation', { name: 'Main navigation' })).not.toBeInTheDocument()
 })

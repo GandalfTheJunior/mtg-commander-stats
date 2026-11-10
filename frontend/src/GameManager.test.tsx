@@ -1,3 +1,5 @@
+import { selectTab } from './test/groupEntry'
+import { statistics, emptyStatistics } from './test/statisticsFixtures'
 import { act, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App'
@@ -40,15 +42,23 @@ test('direct new-game route verifies group and mounts the existing focused edito
 
 test('confirmed save uses the selected group and returns to refreshed Games history', async () => {
   const { api } = setup([])
-  renderApp(<App />, editorPath)
+  api.state.statistics = statistics()
+  renderApp(<App />, groupUrl(group.id, 'statistics'))
+  await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  await selectTab('Spiele')
+  fireEvent.click(await screen.findByRole('link', { name: 'Spiel erfassen' }))
   await screen.findByRole('form', { name: 'Spiel erfassen' })
   await players()
   selectGameWinner(uid(2))
+  api.state.statistics = emptyStatistics()
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
   expect(await screen.findByText('Spiel erfolgreich gespeichert.')).toBeInTheDocument()
   expect(await screen.findByRole('article', { name: `Game ${uid(20)}` })).toBeInTheDocument()
   expect(screen.queryByRole('form', { name: 'Spiel erfassen' })).not.toBeInTheDocument()
   expect(api.fetchMock.mock.calls.some(([path, init]) => path === apiPath && init?.method === 'POST')).toBe(true)
+  await selectTab('Statistiken')
+  await screen.findByText(/Noch keine Spielerstatistiken/)
+  expect(api.fetchMock.mock.calls.filter(([path]) => path.endsWith('/statistics'))).toHaveLength(2)
 })
 
 test('dirty cancel asks before discarding the focused form', async () => {
@@ -87,11 +97,12 @@ test('an ambiguous write gives no success and keeps the draft', async () => {
   expect(screen.queryByText('Spiel erfolgreich gespeichert.')).not.toBeInTheDocument()
 })
 
-test('a direct edit route refuses a game the viewer cannot modify', async () => {
+test.each(['MEMBER', 'ADMIN'])('a direct edit route refuses a cross-creator %s edit', async role => {
   const { api } = setup([recorded({ creatorId: uid(3) })])
-  api.next(`/api/groups/${group.id}`, () => response({ ...group, role: 'MEMBER' }))
+  api.next(`/api/groups/${group.id}`, () => response({ ...group, role }))
   renderApp(<App />, `${gamesPath}/${uid(20)}/edit`)
-  expect(await screen.findByRole('button', { name: 'Erneut versuchen' })).toBeInTheDocument()
+  expect(await screen.findByText('Dieses Spiel kann nicht bearbeitet werden.')).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Zurück zum Spiel' })).toHaveAttribute('href', `${gamesPath}/${uid(20)}`)
   expect(screen.queryByRole('form', { name: 'Spiel bearbeiten' })).not.toBeInTheDocument()
 })
 
@@ -111,4 +122,27 @@ test('a late group response after navigation cannot restore a retired editor', a
   view.unmount()
   await act(async () => pending.resolve(response(group)))
   expect(screen.queryByRole('form', { name: 'Spiel erfassen' })).not.toBeInTheDocument()
+})
+
+ test.each(['loading', 'error'] as const)('focused editor has a fixed exit while %s', async status => {
+  const { api } = setup([])
+  api.next(`/api/groups/${group.id}`, () => status === 'loading' ? deferred().promise : response({}, 503))
+  renderApp(<App />, editorPath)
+  expect(await screen.findByRole('link', { name: 'Zur Spielehistorie' })).toHaveAttribute('href', gamesPath)
+  if (status === 'error') expect(await screen.findByRole('button', { name: 'Erneut versuchen' })).toBeInTheDocument()
+})
+
+test('cancelled creation returns to unchanged server statistics without a POST', async () => {
+  const { api } = setup([])
+  api.state.statistics = statistics()
+  renderApp(<App />, groupUrl(group.id, 'statistics'))
+  await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  await selectTab('Spiele')
+  fireEvent.click(await screen.findByRole('link', { name: 'Spiel erfassen' }))
+  await screen.findByRole('form', { name: 'Spiel erfassen' })
+  fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+  await selectTab('Statistiken')
+  await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  expect(api.fetchMock.mock.calls.filter(([path]) => path.endsWith('/statistics'))).toHaveLength(2)
+  expect(api.fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
 })

@@ -1,3 +1,4 @@
+import { statistics, emptyStatistics } from './test/statisticsFixtures'
 import { stubLanHttpCrypto } from './test/lanHttp'
 import { StrictMode } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -169,7 +170,7 @@ test.each(['group', 'game', 'malformed', 'wrong-group', 'wrong-game', 'network',
   expect(screen.getByRole('button', { name: 'Spielaktionen' })).toBeInTheDocument()
 })
 
-test.each([['OWNER', 1, true], ['MEMBER', 2, true], ['MEMBER', 3, false]] as const)('fresh %s viewer %s has actions only when entitled', async (role, actor, allowed) => {
+test.each([['OWNER', 1, true], ['MEMBER', 2, true], ['MEMBER', 3, false], ['ADMIN', 1, false]] as const)('fresh %s viewer %s has actions only when entitled', async (role, actor, allowed) => {
   const api = setup(); api.server.details = { ...group, role }; api.server.user = { id: uid(actor), username: 'Viewer' }; show()
   await screen.findByRole('heading', { name: 'Spieldetails' })
   expect(Boolean(screen.queryByRole('button', { name: 'Spielaktionen' }))).toBe(allowed)
@@ -232,7 +233,8 @@ test.each(['rights', 'gone'])('edit intent validates new membership/history when
   if (change === 'rights') api.server.details = { ...group, role: 'MEMBER' }
   else api.state.history = []
   await gameAction('Bearbeiten', false)
-  await screen.findByRole('button', { name: 'Erneut versuchen' })
+  if (change === 'rights') await screen.findByText('Dieses Spiel kann nicht bearbeitet werden.')
+  else await screen.findByRole('button', { name: 'Erneut versuchen' })
   expect(screen.queryByRole('form', { name: 'Spiel bearbeiten' })).not.toBeInTheDocument()
   expect(window.location.pathname).toBe(`${detailUrl}/edit`)
 })
@@ -607,4 +609,33 @@ test.each([1, 4])('logout retires visible links and late authorized reads cannot
   expectAccount('Replacement session')
   expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
   expect(screen.queryByRole('list', { name: 'Teilnehmende und Decks' })).not.toBeInTheDocument()
+})
+
+test.each(['edit', 'delete'].flatMap(action => [true, false].map(confirmed => ({ action, confirmed }))))('$action confirmed=$confirmed returns to freshly fetched statistics without fabricating a write', async ({ action, confirmed }) => {
+  const api = setup()
+  api.state.statistics = statistics()
+  show(groupUrl(group.id, 'statistics'))
+  await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  await selectTab('Spiele')
+  await gameAction(action === 'edit' ? 'Bearbeiten' : 'Löschen')
+  if (confirmed) api.state.statistics = emptyStatistics()
+  if (action === 'edit') {
+    await screen.findByRole('form', { name: 'Spiel bearbeiten' })
+    if (confirmed) {
+      fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
+      await screen.findByText('Spiel erfolgreich gespeichert.')
+    } else fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+  } else if (confirmed) {
+    fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
+    await screen.findByText('Spiel gelöscht. Die bisherige Decknutzung bleibt erhalten.')
+  } else {
+    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    fireEvent.click(await screen.findByRole('link', { name: 'Zur Spielehistorie' }))
+  }
+  await selectTab('Statistiken')
+  if (confirmed) await screen.findByText(/Noch keine Spielerstatistiken/)
+  else await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  expect(api.calls(`${groupPath}/statistics`)).toHaveLength(2)
+  expect(api.calls(gamePath, action === 'edit' ? 'PUT' : 'DELETE')).toHaveLength(confirmed ? 1 : 0)
 })

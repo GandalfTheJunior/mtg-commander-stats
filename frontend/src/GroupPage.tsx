@@ -96,7 +96,17 @@ export default function GroupPage({ tab, currentUser, onUnauthorized, onNotice }
       callbacks.current.onNotice({ kind: 'success', message: 'Du hast die Gruppe verlassen. Historische Spiele und Statistiken bleiben erhalten.' })
       void navigate('/playgroups', { replace: true, state: null })
     } catch (error) {
-      if (alive.current && !controller.signal.aborted) handleError(error)
+      if (!alive.current || controller.signal.aborted) return
+      if (error instanceof ApiError && error.status === 401) { handleError(error); return }
+      callbacks.current.onNotice({ kind: 'error', message: 'Der Austritt wurde nicht bestätigt. Prüfe den aktuellen Gruppenzugriff vor einem erneuten Versuch.' })
+      try {
+        const fresh = await getGroup(groupId, controller.signal)
+        if (!alive.current || controller.signal.aborted) return
+        setDetails(fresh)
+        setStatus('ready')
+      } catch (checkError) {
+        if (alive.current && !controller.signal.aborted) handleError(checkError)
+      }
     } finally {
       if (alive.current) setBusy(false)
     }
@@ -134,7 +144,7 @@ export default function GroupPage({ tab, currentUser, onUnauthorized, onNotice }
         </Stack>
       </Box>}
       </>}
-      {(tab === 'games' || tab === 'statistics') && <GameManager group={details} actorId={currentUser.id} tab={tab}
+      {(tab === 'games' || tab === 'statistics') && <GameManager group={details} tab={tab}
         onUnauthorized={() => { setDetails(null); onUnauthorized() }} onAccessLost={accessLost}
         onCheckingAccess={setCheckingAccess} onGroupConfirmed={group => { setDetails(group); setCheckingAccess(false) }} />}
       {!checkingAccess && details.role === 'MEMBER' && <Button color="secondary" onClick={() => setConfirmLeave(true)}>Gruppe verlassen</Button>}

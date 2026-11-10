@@ -22,7 +22,7 @@ function show() {
   function Harness() {
     const [tab, setTab] = useState<GroupTab>('statistics')
     return <><button onClick={() => setTab('games')}>Show games</button><button onClick={() => setTab('statistics')}>Show statistics</button>
-      <GameManager group={group} actorId={uid(1)} tab={tab} {...handlers} /></>
+      <GameManager group={group} tab={tab} {...handlers} /></>
   }
   return { ...renderApp(<Harness />), ...handlers }
 }

@@ -119,3 +119,85 @@ test('an ordinary member can confirm departure and return to the collection', as
   expect(notice).toHaveBeenCalledWith({ kind: 'success', message: 'Du hast die Gruppe verlassen. Historische Spiele und Statistiken bleiben erhalten.' })
   expect(fetchMock.mock.calls.filter(([path, init]) => path === `/api/groups/${group.id}/membership` && init?.method === 'DELETE')).toHaveLength(1)
 })
+
+test.each(['network', 'malformed', 'wrong-id'])('details verification %s hides data until an explicit valid retry', async kind => {
+  const fetchMock = vi.fn().mockImplementationOnce(() => kind === 'network' ? Promise.reject(new Error('offline')) : Promise.resolve(response(kind === 'malformed' ? { ...group, members: null } : { ...group, id: uid(99) })))
+    .mockImplementation(() => Promise.resolve(response(group)))
+  vi.stubGlobal('fetch', fetchMock)
+  show(groupUrl(group.id.toUpperCase(), 'members'))
+  fireEvent.click(await screen.findByRole('button', { name: 'Gruppe erneut laden' }))
+  expect(await screen.findByRole('heading', { name: group.name })).toBeInTheDocument()
+})
+
+test.each([200, 401])('retired details status %s cannot affect the next route', async status => {
+  const pending = await import('./test/gameFixtures').then(m => m.deferred())
+  const fetchMock = vi.fn((_path: string, _init?: RequestInit) => { void _path; void _init; return pending.promise })
+  vi.stubGlobal('fetch', fetchMock)
+  show()
+  fireEvent.click(screen.getByRole('link', { name: 'Zurück zu Playgroups' }))
+  await screen.findByText('Playgroups collection')
+  expect(fetchMock.mock.calls[0][1]!.signal!.aborted).toBe(true)
+  await act(async () => pending.resolve(response(group, status)))
+  expect(screen.queryByRole('heading', { name: group.name })).not.toBeInTheDocument()
+})
+
+function departure(status: number | 'network' | 'abort', csrfStatus = 200, committed = false) {
+  let left = false
+  const fetchMock = vi.fn((path: string, init?: RequestInit): Promise<Response> => {
+    if (path === '/api/csrf') return Promise.resolve(response({ headerName: 'X-CSRF-TOKEN', token: 'test' }, csrfStatus))
+    if (init?.method === 'DELETE') {
+      left = committed
+      if (typeof status === 'string') return Promise.reject(status === 'abort' ? new DOMException('Aborted', 'AbortError') : new Error('offline'))
+      return Promise.resolve(response({}, status))
+    }
+    return Promise.resolve(response(left ? {} : { ...group, role: 'MEMBER' }, left ? 403 : 200))
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  const unauthorized = vi.fn(), notice = vi.fn()
+  show(groupUrl(group.id, 'members'), unauthorized, notice)
+  return { fetchMock, unauthorized, notice }
+}
+async function confirmDeparture() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Gruppe verlassen' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Verlassen bestätigen' }))
+}
+test.each([200, 400, 403, 500, 'network', 'abort'] as const)('unconfirmed departure %s revalidates without success or repeated DELETE', async status => {
+  const { fetchMock, notice } = departure(status)
+  await confirmDeparture()
+  await screen.findByRole('button', { name: 'Gruppe verlassen' })
+  expect(notice).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'success' }))
+  expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(1)
+  expect(fetchMock.mock.calls.filter(([path]) => path === `/api/groups/${group.id}`)).toHaveLength(2)
+})
+test('ambiguous committed departure retires content after fresh membership denial without claiming success', async () => {
+  const { notice } = departure('network', 200, true)
+  await confirmDeparture()
+  await screen.findByText('Playgroups collection')
+  expect(notice).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'success' }))
+})
+test.each(['csrf', 'delete'])('departure %s 401 expires the current session', async stage => {
+  const { unauthorized, fetchMock } = departure(401, stage === 'csrf' ? 401 : 200)
+  await confirmDeparture()
+  await act(async () => {})
+  expect(unauthorized).toHaveBeenCalledOnce()
+  expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(stage === 'csrf' ? 0 : 1)
+})
+test.each(['cancel', 'escape'])('departure %s sends no DELETE', async how => {
+  const { fetchMock } = departure(204)
+  fireEvent.click(await screen.findByRole('button', { name: 'Gruppe verlassen' }))
+  const dialog = screen.getByRole('dialog')
+  if (how === 'escape') fireEvent.keyDown(dialog, { key: 'Escape' })
+  else fireEvent.click(within(dialog).getByRole('button', { name: 'Abbrechen' }))
+  expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false)
+})
+
+test.each([true, false])('mixed-case UUID accepts only the same response identity (same=%s)', async same => {
+  const routeId = 'AaBbCcDd-1234-4aBc-8dEf-AbCdEf123456'
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ ...group, id: same ? routeId.toLowerCase() : uid(99) })))
+  show(groupUrl(routeId))
+  if (same) expect(await screen.findByRole('heading', { name: group.name })).toBeInTheDocument()
+  else {
+    await screen.findByRole('button', { name: 'Gruppe erneut laden' })
+    expect(screen.queryByRole('heading', { name: group.name })).not.toBeInTheDocument()
+  }
+})

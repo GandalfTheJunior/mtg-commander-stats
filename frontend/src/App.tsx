@@ -6,7 +6,7 @@ import {
   restoreSession,
   type CurrentUser,
 } from './api'
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
+import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
@@ -261,8 +261,9 @@ export default function App() {
 
   if (sessionStatus === 'authenticated' && currentUser) {
     if (isPublicPath(location.pathname)) return <Box component="main" sx={{ p: 3 }}>
-      <Typography component="h1" variant="h4">Einladung</Typography>
-      <Typography>Diese Einladung kann noch nicht angezeigt werden.</Typography>
+      <Typography component="h1" variant="h4">{location.pathname.startsWith('/claim/') ? 'Profilübernahme' : 'Einladung'}</Typography>
+      <Typography>Dieser Link kann noch nicht angezeigt werden.</Typography>
+      <Button component={Link} to="/dashboard">Zum Dashboard</Button>
     </Box>
     return (
       <EditorNavigation key={`navigation-${sessionVersion}`} onLogout={logOut}>
@@ -326,7 +327,7 @@ export default function App() {
       }),
     }}>
       {location.pathname !== '/' && !isProtectedPath(location.pathname) && !isPublicPath(location.pathname) && <Navigate to="/" replace />}
-      {isPublicPath(location.pathname) && <Typography component="h2" variant="h5">Diese Einladung kann noch nicht angezeigt werden.</Typography>}
+      {isPublicPath(location.pathname) && <Typography component="h2" variant="h5">Dieser Link kann noch nicht angezeigt werden.</Typography>}
       <Container maxWidth="md" disableGutters>
         <Stack spacing={3}>
           <Box component="header" sx={{ m: 0 }}>

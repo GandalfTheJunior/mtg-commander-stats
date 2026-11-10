@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 import { Alert, Button, Stack, Typography } from '@mui/material'
 import { ApiError, getGame, getGroup, saveGame, type Game, type GameInput, type GroupDetails } from './api'
 import GameEditor from './GameEditor'
 import type { Notice } from './App'
 import { groupUnavailable, groupUrl } from './groupNavigation'
-import { mayManageGame } from './gamePresentation'
+import { gameUrl, mayManageGame } from './gamePresentation'
 import type { CurrentUser } from './api'
 
 const validId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -19,7 +19,7 @@ export default function GameEditorPage({ currentUser, onUnauthorized, onNotice }
   const navigate = useNavigate()
   const [group, setGroup] = useState<GroupDetails | null>(null)
   const [game, setGame] = useState<Game | null>(null)
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'denied'>('loading')
   const [revision, setRevision] = useState(0)
   const [busy, setBusy] = useState(false)
   const [writeError, setWriteError] = useState('')
@@ -68,7 +68,7 @@ export default function GameEditorPage({ currentUser, onUnauthorized, onNotice }
         const freshGame = gameId ? await getGame(groupId, gameId, request.signal) : null
         if (request.signal.aborted) return
         if (freshGame && !mayManageGame(freshGroup, freshGame, currentUser.id)) {
-          setStatus('error')
+          setStatus('denied')
           return
         }
         setGroup(freshGroup)
@@ -100,6 +100,10 @@ export default function GameEditorPage({ currentUser, onUnauthorized, onNotice }
     } finally { if (!signal.aborted) setBusy(false) }
   }
   return <Stack component="section" sx={{ gap: 2 }}>
+    <Button component={Link} to={gameId ? gameUrl(groupId, gameId) : groupUrl(groupId, 'games')} sx={{ alignSelf: 'flex-start' }}>
+      {gameId ? 'Zurück zum Spiel' : 'Zur Spielehistorie'}
+    </Button>
+    {status === 'denied' && <Alert severity="warning">Dieses Spiel kann nicht bearbeitet werden.</Alert>}
     {status === 'loading' && <Typography role="status">Gruppenberechtigung wird geprüft…</Typography>}
     {status === 'error' && <><Alert severity="error">Die Berechtigung oder das Spiel konnte nicht geprüft werden.</Alert>
       <Button onClick={() => { setStatus('loading'); setRevision(value => value + 1) }}>Erneut versuchen</Button></>}

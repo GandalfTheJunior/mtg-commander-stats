@@ -5,7 +5,7 @@ export const gameUrl = (groupId: string, gameId: string) => `/playgroups/${encod
 export const recordedTime = (game: Game) => new Date(game.recordedAt).toLocaleString('de-DE')
 export const gameUnavailable = 'Dieses Spiel ist nicht verfügbar. Bitte prüfe den aktuellen Spielverlauf.'
 export const mayManageGame = (group: GroupDetails, game: Game, actorId: string) =>
-  group.role === 'OWNER' || group.role === 'ADMIN' || sameId(game.creatorId, actorId)
+  group.role === 'OWNER' || sameId(game.creatorId, actorId)
 
 type Person = { userId: string; username: string }
 // Use only response public names; identifiers disambiguate namesakes without emails.
