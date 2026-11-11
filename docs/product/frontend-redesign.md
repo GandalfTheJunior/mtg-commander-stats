@@ -100,14 +100,28 @@ own the contract and sequencing.
   - An OWNER cannot leave. Neither role can remove another member through the current API.
 - Keep group creation and joining in the global **Playgroups** area, not the members tab.
 
-## Deck create/edit and existing lifecycle
+## Personal Decks collection and deck editor (#201)
 
-- **Deck erstellen** and tapping an existing deck both open a dedicated mobile form; creation and editing share the same layout and use the existing deck API.
-- Input fields: required **Deckname**, required **Commander**, and a large **WUBRG color identity selector**. Render five clearly labeled, color-coded, finger-friendly options (white W, blue U, black B, red R, green G), with explicit checked/selected states **independent of color**. No selection means **Farblos**; do not add a sixth color.
-- New or never-used decks allow changes to all three fields. Once **everUsed** becomes true, commander and color identity are permanently immutable, **even if all game records are later edited or deleted**. Keep locked values visible with an explanation and allow renaming. Archived decks can still be renamed and are not eligible for new game assignments.
-- The primary button is **Deck erstellen** or **Änderungen speichern**, with validation, pending state, post-success navigation/feedback and unsaved-changes protection.
-- Place the existing destructive UI action in the deck editor overflow menu, with explicit confirmation: **Löschen** for an unused deck, **Archivieren** for an active previously used deck; used and already-archived decks have no further destructive action in the current UI. Preserve server rules: backend supports archiving unused decks and deleting archived unused decks, but those are not new UI paths for this redesign. No unarchive functionality exists.
-- Keep manual commander text entry; card autocomplete, card art, Scryfall, ManaBox and decklists are outside this milestone.
+[Issue #201](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/201) and its
+[PO-approved wireframes](wireframes/201/README.md) own this area; they supersede the earlier
+manual-text, WUBRG-selector draft of this section. In summary:
+
+- **Meine Decks** shows active decks first and archived decks in a collapsed **Archivierte Decks**
+  section (omitted when empty), each sorted A–Z by name with the deck UUID as tie-breaker. A
+  top-right **+** creates a deck; there is no manual refresh. Search by deck or Commander name
+  appears only when the complete collection overflows the viewport. Compact cards show
+  Commander names prominently, the deck name quieter, an adjacent ManaBox link when valid,
+  WUBRG symbols and independent artwork (gallery), **Karte anzeigen** and editor targets.
+- One scrolling create/edit form: Deckname → Deckformat (Commander / Pauper Commander) →
+  artwork preview (after the first Commander) → Commander(s) with per-Commander chosen color →
+  optional genuine Companion → optional ManaBox link → Abbrechen / Save. Inline autocomplete
+  (two characters, up to five name-and-color rows, Fblthp/Moon copy) commits only explicit
+  selections. Invalid dependent selections are removed with an inline **Rückgängig**.
+- All edits, including artwork chosen in the editor, are a local draft saved atomically with
+  one explicit action. After first use, format, Commanders, chosen colors and Companion stay
+  visibly locked; activating them shows a short notice. The header menu offers only valid
+  actions: active unused **Archivieren** + **Löschen**, active used **Archivieren**, archived
+  unused **Löschen**, archived used no menu. No unarchive exists.
 
 ## Shared visual system
 

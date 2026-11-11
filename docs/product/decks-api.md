@@ -419,7 +419,7 @@ do not expose links; the match editor may consume the member-deck response but
 does not show a link action. The owner editor supports
 the optional link on unused, used and archived decks, with explicit clearing,
 dirty-state guards and authoritative reconciliation after uncertain writes.
-Meine Decks exposes an independent safe external action; Dashboard does not.
+Meine Decks exposes an independent safe external icon beside the deck name; Dashboard does not.
 See [frontend behavior](../development/frontend-routing.md#manabox-links).
 This is external linking, not ManaBox API, account linking, import or synchronization.
 
@@ -457,13 +457,13 @@ All gameplay snapshots, chosen colors, effective/deck WUBRG, slot order, lifecyc
 flags and historical references remain unchanged. Failed validation/upstream
 resolution changes nothing; reads remain offline.
 
-On saved personal Decks cards, each image (including its fallback) is an
-independent, keyboard-accessible gallery trigger. A pencil marker, focus outline
-and label identify the action; the other card region opens the editor. The two
-overlapping images retain independently reachable touch regions. No interactive
-control contains another interactive control.
+On saved personal Decks cards, each Commander and Companion image (including its
+fallback) is an independent, keyboard-accessible gallery trigger. A pencil marker, focus
+outline and label identify the action; the other card region opens the editor. No
+interactive control contains another interactive control. The Companion uses
+`PUT /api/decks/{deckId}/companion/artwork` with the same gallery behavior.
 
-Each gallery option immediately submits one per-slot write with no confirmation
+Each gallery option on Meine Decks immediately submits one per-slot write with no confirmation
 button. While saving, choices and closing are disabled. Confirmed success closes
 the dialog, restores focus to its trigger and updates that view's deck response;
 changing routes loads the other view afresh. Confirmed failure retains the old
@@ -476,6 +476,10 @@ while stale choices stay disabled. Closing restores focus to the artwork trigger
 or to the deck-list heading if the trigger no longer exists. Selecting the already saved
 printing/side or closing without choosing makes no write. Loading, empty, lookup
 failure and broken-image fallback states remain local to the gallery.
+
+The deck editor (#201) instead uses the gallery as a draft picker: choosing an image
+only updates the local preview, and the explicit save sends it as the optional
+`artwork` of the Commander or Companion entry in the single atomic create/update.
 
 ## Permanent lifecycle and security
 
@@ -549,22 +553,23 @@ Existing demo data is never reset or migrated implicitly.
 
 ## Two-slot editor
 
-Selecting any pairing-capable card reveals the second field. Ordinary Partner
-starts with an empty name search; Partner with immediately offers its validated
-reciprocal counterpart as a clickable suggestion, requiring explicit activation.
-It can be dismissed or removed. Restoring a saved selection on edit does not
-trigger that recommendation lookup; an unchanged rename remains offline. Doctor-first shows `Doctor's companion (optional)`;
-other standalone-eligible choices can also remain single. A Background without
-standalone eligibility requires an explicitly selected compatible second card.
-The backend search unions all roles, including both Faceless One roles.
+The #201 editor shows **+ Zweiten Commander hinzufügen** only for a first Commander
+with pairing metadata (Doctor-first: **+ Doctor's companion hinzufügen**). A Commander
+without standalone eligibility, such as a Background, immediately reveals the second
+search with an explanation and cannot lose its counterpart alone. Partner-with opens
+its second search with the validated reciprocal counterpart as a suggestion that still
+requires explicit selection. Restoring a saved selection on edit does not trigger that
+recommendation lookup; an unchanged rename remains offline. The backend search unions
+all roles, including both Faceless One roles.
 
-Each slot keeps query text separate from its selection reference and chosen
-color. Editing a selected name immediately invalidates that entire slot. Changing
-the first slot clears the second slot and retires its requests; restoring typed
-text cannot restore either reference. Each qualifying slot has its own mandatory
-W/U/B/R/G radio group; combined WUBRG is read-only. Saved pairs restore both
-choices without lookup; first-use locks both fields, while rename omits Commanders.
-Existing guarded navigation and uncertain-write recovery apply to the whole pair.
+Each selected card is a compact row with **Ändern**; reopening the search never changes
+the committed card until another result is selected. Replacing the first Commander keeps
+a still-compatible second Commander and Companion (by the saved pairing metadata and
+WUBRG subset, as a client hint) and removes only incompatible ones with an inline Undo
+that restores the previous coherent draft; the server remains authoritative on save.
+Each qualifying slot has its own mandatory W/U/B/R/G radio group directly under it.
+Saved pairs restore both choices without lookup; first-use locks both rows, while rename
+omits Commanders. Guarded navigation and uncertain-write recovery apply to the whole draft.
 
 V7 adds nullable pairing metadata to existing snapshots without network access or
 invented rules. Older snapshots remain readable and renameable offline; reselect

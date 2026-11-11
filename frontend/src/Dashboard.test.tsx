@@ -156,13 +156,16 @@ test('a failed destination details request hides private data until an explicit 
 
 test.each([false, true])('deck card opens the exact routed edit form including archived decks (%s)', async archived => {
   const api = setup(); api.state.decks = [{ ...deck, archived, everUsed: archived }, { ...deck, id: uid(102), name: 'Other deck' }]
-  show('/decks'); await screen.findByRole('button', { name: `${deck.name} bearbeiten` })
-  fireEvent.click(screen.getByRole('button', { name: `${deck.name} bearbeiten` }))
+  show('/decks'); await screen.findByRole('button', { name: 'Other deck bearbeiten' })
+  // Archived decks live in the collapsed archive section.
+  if (archived) fireEvent.click(screen.getByRole('button', { name: 'Archivierte Decks', expanded: false }))
+  fireEvent.click(await screen.findByRole('button', { name: `${deck.name} bearbeiten` }))
   const form = await screen.findByRole('form', { name: `Deck ${deck.name} bearbeiten` })
   expect(window.location.pathname).toBe(`/decks/${deck.id}/edit`)
   expect(window.history.state.usr).toEqual({ editorToken: expect.any(String) })
   expect(within(form).getByLabelText(/Deckname/)).toHaveValue(deck.name)
-  expect(within(form).getByLabelText(/Commander/)).toHaveProperty('readOnly', archived)
+  expect(within(form).getByRole('button', { name: archived ? 'Commander ändern (gesperrt)' : 'Commander ändern' })).toBeInTheDocument()
+  if (archived) expect(screen.getByText('Archiviertes Deck')).toBeInTheDocument()
   expect(screen.queryByRole('form', { name: 'Deck Other deck bearbeiten' })).not.toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Deck bearbeiten' })).toHaveFocus()
   expect(api.fetchMock.mock.calls.filter(([path]) => path === '/api/decks')).toHaveLength(2)
@@ -199,7 +202,7 @@ test.each(['create', 'rename', 'archive', 'delete'])('Decks reloads its collecti
   if (operation === 'create' || operation === 'rename') {
     fireEvent.change(within(form).getByLabelText(/Deckname/), { target: { value: 'New deck' } })
     if (operation === 'create') {
-      fireEvent.change(within(form).getByLabelText(/Commander/), { target: { value: 'Karn' } })
+      fireEvent.change(within(form).getByRole('combobox', { name: /Commander/ }), { target: { value: 'Karn' } })
       fireEvent.focus(screen.getByRole('combobox', { name: /Commander/ }))
       fireEvent.click(await screen.findByRole('option', { name: 'Karn' }))
     }
@@ -207,15 +210,18 @@ test.each(['create', 'rename', 'archive', 'delete'])('Decks reloads its collecti
     await screen.findByText(`New deck wurde ${operation === 'create' ? 'erstellt' : 'gespeichert'}.`)
   } else {
     await openDeckAction(operation === 'archive' ? 'Archivieren' : 'Löschen')
-    fireEvent.click(screen.getByRole('button', { name: operation === 'archive' ? 'Archivieren bestätigen' : 'Löschen bestätigen' }))
+    fireEvent.click(screen.getByRole('button', { name: operation === 'archive' ? 'Deck archivieren' : 'Deck löschen' }))
     await screen.findByText(`Alpha wurde ${operation === 'archive' ? 'archiviert' : 'gelöscht'}.`)
   }
   await screen.findByRole('heading', { name: 'Meine Decks' })
-  if (operation === 'delete') await screen.findByText(/Noch keine Decks/)
-  else {
-    const card = await screen.findByRole('button', { name: operation === 'archive' ? `${deck.name} bearbeiten` : 'New deck bearbeiten' })
-    if (operation === 'archive') expect(card).toHaveAccessibleDescription(expect.stringContaining('Archiviert'))
-  }
+  if (operation === 'delete') await screen.findByText(/Noch keine Decks vorhanden/)
+  else if (operation === 'archive') {
+    // A successful archive never forces the archive section open.
+    const archive = await screen.findByRole('button', { name: 'Archivierte Decks', expanded: false })
+    expect(screen.getByText('Keine aktiven Decks vorhanden.')).toBeInTheDocument()
+    fireEvent.click(archive)
+    expect(await screen.findByRole('button', { name: `${deck.name} bearbeiten` })).toBeInTheDocument()
+  } else await screen.findByRole('button', { name: 'New deck bearbeiten' })
 })
 
 test('reload while an editor loads resolves the stable target from a fresh list', async () => {

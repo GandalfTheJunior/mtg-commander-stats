@@ -2,7 +2,7 @@ import { clickAccountLogout } from './test/accountActions'
 import { savedCommander } from './test/commanderFixtures'
 import { stubLanHttpCrypto } from './test/lanHttp'
 import { StrictMode } from 'react'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { AppRouter as BrowserRouter } from './AppRouter'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App'
@@ -18,32 +18,46 @@ beforeEach(stubLanHttpCrypto)
 afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState(null, '', '/') })
 const field = () => screen.getByRole('textbox', { name: /Deckname/ })
 const stay = async () => {
-  fireEvent.click(await screen.findByRole('button', { name: 'Im Editor bleiben' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Weiter bearbeiten' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 }
-const discard = async () => { fireEvent.click(await screen.findByRole('button', { name: 'Verwerfen und verlassen' })) }
+const discard = async () => { fireEvent.click(await screen.findByRole('button', { name: 'Änderungen verwerfen' })) }
 const warning = () => { const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented }
 
-test.each([[], ['R'], ['W', 'U', 'B'], ['W', 'U', 'B', 'R', 'G']].map(colors => ({ colors: colors as MagicColor[] })))('creates using authoritative selected colors $colors and read-only WUBRG', async ({ colors }) => {
+const names: Record<MagicColor, string> = { W: 'Weiß', U: 'Blau', B: 'Schwarz', R: 'Rot', G: 'Grün' }
+test.each([[], ['R'], ['W', 'U', 'B'], ['W', 'U', 'B', 'R', 'G']].map(colors => ({ colors: colors as MagicColor[] })))('creates using authoritative selected colors $colors and read-only mana symbols', async ({ colors }) => {
   const api = deckApi(); showDeckApp(); await newDeck()
-  expect(screen.queryByText('Farblos')).not.toBeInTheDocument()
+  expect(screen.queryByRole('img', { name: /Farbidentität/ })).not.toBeInTheDocument()
   api.next('/api/scryfall/commanders?q=Karn', () => response([{ ...savedCommander('Karn', colors), thumbnailUrl: null }]))
   await changeDeck('  Internal  spaces  ', 'Karn')
-  for (const button of screen.queryAllByRole('button', { pressed: true })) expect(button).toBeDisabled()
-  expect(screen.queryAllByRole('button', { pressed: true })).toHaveLength(colors.length)
+  expect(within(screen.getByRole('region', { name: 'Commander' })).getByRole('img', { name: `Farbidentität: ${colors.map(color => names[color]).join(', ') || 'Farblos'}` })).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
   await screen.findByText(/wurde erstellt\./)
-  expect(JSON.parse(api.writes()[0][1]!.body as string)).toEqual({ name: '  Internal  spaces  ', commanders: [{ selectionRef: deck.commanders[0].selectionRef }] })
+  expect(JSON.parse(api.writes()[0][1]!.body as string)).toEqual({ name: '  Internal  spaces  ', format: 'COMMANDER', commanders: [{ selectionRef: deck.commanders[0].selectionRef }] })
+  expect(api.writes()[0][1]!.headers).toMatchObject({ 'Idempotency-Key': expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/) })
   expect(api.fetchMock.mock.calls.find(([path]) => path === '/api/csrf')?.[1]?.signal).toBe(api.writes()[0][1]!.signal)
   expect(warning()).toBe(false)
 })
-test.each(['', '\u00a0\u0085\u001c', '   '])('DisplayText blank %j has field errors and no unsafe request', async value => {
+test.each(['', '\u00a0\u0085\u001c', '   '])('DisplayText blank %j shows field feedback after leaving it, keeps Save disabled and sends nothing', async value => {
   const api = deckApi(); showDeckApp('/decks/new'); await screen.findByRole('textbox', { name: /Deckname/ })
-  await changeDeck(value, value)
-  fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
-  expect(screen.getByText('Bitte einen Decknamen eingeben.')).toBeInTheDocument()
-  expect(screen.getByText('Bitte einen Commander aus den Suchergebnissen wählen.')).toBeInTheDocument()
-  expect(field()).toHaveFocus()
+  await changeDeck(value, 'Karn')
+  // Feedback is not shown on each keystroke, only after leaving the field.
+  expect(screen.queryByText('Deckname darf nicht leer sein.')).not.toBeInTheDocument()
+  fireEvent.blur(field())
+  expect(screen.getByText('Deckname darf nicht leer sein.')).toBeInTheDocument()
+  const save = screen.getByRole('button', { name: 'Deck erstellen' })
+  expect(save).toBeDisabled()
+  fireEvent.submit(save.closest('form')!)
+  fireEvent.change(field(), { target: { value: 'Valid' } })
+  expect(screen.queryByText('Deckname darf nicht leer sein.')).not.toBeInTheDocument()
+  expect(save).toBeEnabled()
+  expect(api.writes()).toHaveLength(0)
+})
+test('a missing Commander keeps Save disabled with an explicit empty selection', async () => {
+  const api = deckApi(); showDeckApp('/decks/new'); await screen.findByRole('textbox', { name: /Deckname/ })
+  await changeDeck('No commander')
+  expect(screen.getByText('Kein Commander ausgewählt')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Deck erstellen' })).toBeDisabled()
   expect(api.writes()).toHaveLength(0)
 })
 test('zero width space and BOM are meaningful DisplayText and pass through unchanged', async () => {
@@ -156,13 +170,14 @@ test.each(['network', 'status', 'malformed'] as const)('ambiguous %s write canno
     return response(outcome === 'malformed' ? {} : deck, outcome === 'status' ? 202 : 200)
   }, 'PUT')
   fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
-  await screen.findByText(/Kein Erfolg bestätigt/)
-  expect(screen.getByRole('button', { name: 'Änderungen speichern' })).toBeDisabled()
+  await screen.findByText('Speicherstatus unklar')
+  expect(screen.getByRole('button', { name: 'Speichern erst nach Statusprüfung' })).toBeDisabled()
   expect(api.writes()).toHaveLength(1)
-  fireEvent.click(screen.getByRole('button', { name: 'Serverstand erneut prüfen' }))
-  await screen.findByRole('button', { name: 'Serverstand geprüft – Entwurf weiter bearbeiten' })
+  fireEvent.click(screen.getByRole('button', { name: 'Gespeicherten Stand prüfen' }))
+  // The authoritative list does not contain the attempted name, so nothing was saved.
+  await screen.findByText('Nicht gespeichert')
   expect(field()).toHaveValue('Ambiguous')
-  fireEvent.click(screen.getByRole('button', { name: 'Serverstand geprüft – Entwurf weiter bearbeiten' }))
+  expect(api.writes()).toHaveLength(1)
   fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
   await screen.findByText('Ambiguous wurde gespeichert.')
   expect(api.writes()).toHaveLength(2)
@@ -184,7 +199,7 @@ test.each(['csrf', 'write'])('logout retires a pending %s immediately without di
 test.each([false, true])('archive current vs retired 401 expires only the active view (retired=%s)', async retired => {
   const api = deckApi([{ ...deck, everUsed: true }]), pending = deferred(); showDeckApp(); await editDeck()
   api.next(`/api/decks/${deck.id}/archive`, () => pending.promise, 'POST')
-  await menuAction('Archivieren'); fireEvent.click(screen.getByRole('button', { name: 'Archivieren bestätigen' }))
+  await menuAction('Archivieren'); fireEvent.click(screen.getByRole('button', { name: 'Deck archivieren' }))
   await waitFor(() => expect(api.writes()).toHaveLength(1))
   if (retired) { clickAccountLogout(); await screen.findByText('Logged out.'); await signInDeck() }
   await act(async () => pending.resolve(response({}, 401)))
@@ -234,7 +249,7 @@ test('double submit during CSRF preparation sends a single create and keeps all 
   const submit = screen.getByRole('button', { name: 'Deck erstellen' })
   fireEvent.click(submit); fireEvent.click(submit)
   expect(field()).toBeDisabled()
-  expect(screen.getByRole('button', { name: 'Weiß (W)' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Commander ändern' })).toBeDisabled()
   expect(screen.getByRole('button', { name: 'Zurück' })).toBeDisabled()
   expect(api.writes()).toHaveLength(0)
   await act(async () => pending.resolve(response({ headerName: 'X-CSRF-TOKEN', token: 'once' })))
@@ -246,7 +261,8 @@ test('duplicate display names still select the exact owned UUID', async () => {
   const second = { ...deck, id: uid(104), commanders: [savedCommander('Second commander')] }
   deckApi([deck, second]); showDeckApp(`/decks/${second.id}/edit`)
   await screen.findByRole('textbox', { name: /Deckname/ })
-  expect(screen.getByRole('combobox', { name: /Commander/ })).toHaveValue('Second commander')
+  expect(screen.getByRole('region', { name: 'Commander' })).toHaveTextContent('Second commander')
+  expect(screen.queryByRole('combobox', { name: /Commander/ })).not.toBeInTheDocument()
 })
 test('a rejected 400 preserves input with attached feedback and no success, allowing an explicit correction', async () => {
   const api = deckApi(); showDeckApp('/decks/new'); await screen.findByRole('textbox', { name: /Deckname/ })
@@ -259,20 +275,39 @@ test('a rejected 400 preserves input with attached feedback and no success, allo
   expect(window.location.pathname).toBe('/decks/new')
   expect(api.writes()).toHaveLength(1)
 })
-test('ambiguous create recheck lists possibly committed decks and requires deliberate manual retry', async () => {
+test('ambiguous create checks with the same Idempotency-Key and never duplicates a committed deck', async () => {
   const api = deckApi(); showDeckApp('/decks/new'); await screen.findByRole('textbox', { name: /Deckname/ })
   await changeDeck('Maybe saved', 'Karn')
-  api.next('/api/decks', () => { api.state.decks.push({ ...deck, id: uid(102), name: 'Maybe saved' }); throw new Error('Connection lost after commit') }, 'POST')
+  const committed = { ...deck, id: uid(102), name: 'Maybe saved' }
+  api.next('/api/decks', () => { api.state.decks.push(committed); throw new Error('Connection lost after commit') }, 'POST')
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
-  await screen.findByText(/Kein Erfolg bestätigt/)
-  fireEvent.click(screen.getByRole('button', { name: 'Serverstand erneut prüfen' }))
-  await screen.findByText(/Aktuelle Decks/)
-  expect(screen.getByRole('list')).toHaveTextContent('Maybe saved')
+  await screen.findByText('Speicherstatus unklar')
+  expect(screen.getByRole('button', { name: 'Speichern erst nach Statusprüfung' })).toBeDisabled()
   expect(field()).toHaveValue('Maybe saved')
-  expect(api.writes()).toHaveLength(1)
-  fireEvent.click(screen.getByRole('link', { name: 'Zur Deckübersicht' })); await discard()
+  // The backend replays a keyed repeat with 200 and the already committed deck.
+  api.next('/api/decks', () => response(committed, 200), 'POST')
+  fireEvent.click(screen.getByRole('button', { name: 'Gespeicherten Stand prüfen' }))
+  await screen.findByText('Maybe saved wurde erstellt.')
+  const [first, second] = api.writes()
+  expect(api.writes()).toHaveLength(2)
+  expect((second[1]!.headers as Record<string, string>)['Idempotency-Key']).toBe((first[1]!.headers as Record<string, string>)['Idempotency-Key'])
+  expect(second[1]!.body).toBe(first[1]!.body)
   await screen.findByRole('heading', { name: 'Meine Decks' })
-  expect(await screen.findByRole('button', { name: 'Maybe saved bearbeiten' })).toBeInTheDocument()
+  expect(await screen.findAllByRole('button', { name: 'Maybe saved bearbeiten' })).toHaveLength(1)
+})
+test('a confirmed 503 create failure keeps the draft and offers Retry with a fresh key', async () => {
+  const api = deckApi(); showDeckApp('/decks/new'); await screen.findByRole('textbox', { name: /Deckname/ })
+  await changeDeck('Moon', 'Karn')
+  api.next('/api/decks', () => response({ detail: 'SCRYFALL_UNAVAILABLE' }, 503), 'POST')
+  fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
+  await screen.findByText('Speichern fehlgeschlagen')
+  expect(screen.getByRole('alert')).toHaveTextContent('Scryfall is currently imprisoned in the moon… Please try again later.')
+  expect(screen.getByText('Dein Entwurf und die Artworks bleiben erhalten.')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Erneut versuchen' }))
+  await screen.findByText('Moon wurde erstellt.')
+  const keys = api.writes().map(([, init]) => (init!.headers as Record<string, string>)['Idempotency-Key'])
+  expect(keys).toHaveLength(2)
+  expect(keys[0]).not.toBe(keys[1])
 })
 
 test.each(['network', 500, 403, 401] as const)('direct create needs no deck list and can save even when the next list GET will fail (%s)', async failure => {
@@ -292,7 +327,7 @@ test.each(['network', 500, 403, 401] as const)('direct create needs no deck list
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
   await waitFor(() => expect(api.writes()).toHaveLength(1))
   expect(listRequests()).toHaveLength(0)
-  expect(JSON.parse(api.writes()[0][1]!.body as string)).toEqual({ name: 'Created independently', commanders: [{ selectionRef: deck.commanders[0].selectionRef }] })
+  expect(JSON.parse(api.writes()[0][1]!.body as string)).toEqual({ name: 'Created independently', format: 'COMMANDER', commanders: [{ selectionRef: deck.commanders[0].selectionRef }] })
   expect(window.location.pathname).toBe('/decks/new')
   expect(screen.queryByText('Created independently wurde erstellt.')).not.toBeInTheDocument()
   await act(async () => pending.resolve(response({ ...deck, name: 'Created independently' }, 201)))
@@ -301,7 +336,7 @@ test.each(['network', 500, 403, 401] as const)('direct create needs no deck list
   if (failure === 401) await screen.findByText('Your session expired. Sign in again.')
   else {
     expect(await screen.findByText('Created independently wurde erstellt.')).toBeInTheDocument()
-    expect(await screen.findByText(/Deine Deckliste ist nicht verfügbar/)).toBeInTheDocument()
+    expect(await screen.findByText('Deine Decks konnten nicht geladen werden.')).toBeInTheDocument()
   }
   expect(window.location.pathname).toBe('/decks')
   expect(api.writes()).toHaveLength(1)
@@ -338,23 +373,26 @@ test('reloading create resets draft and trusted collection return without loadin
   expect(listRequests()).toHaveLength(2)
 })
 
-test('the freshly focused edit form can save before passive effects run', async () => {
+test('an unchanged edit form offers no save from its first focus, and reverting a change disables it again', async () => {
   const api = deckApi()
-  const submitOnEntry = (event: FocusEvent) => {
+  let disabledOnEntry: boolean | undefined
+  const inspect = (event: FocusEvent) => {
     if (!(event.target instanceof HTMLElement) || event.target.id !== 'deck-editor-heading') return
-    document.removeEventListener('focusin', submitOnEntry)
-    const save = screen.getByRole('button', { name: 'Änderungen speichern' })
-    if (save instanceof HTMLButtonElement) save.click()
+    document.removeEventListener('focusin', inspect)
+    disabledOnEntry = (screen.getByRole('button', { name: 'Änderungen speichern' }) as HTMLButtonElement).disabled
   }
-  document.addEventListener('focusin', submitOnEntry)
+  document.addEventListener('focusin', inspect)
   try {
     showDeckApp(`/decks/${deck.id}/edit`)
-    await screen.findByText(`${deck.name} wurde gespeichert.`)
-    await screen.findByRole('heading', { name: 'Meine Decks' })
-    expect(api.writes()).toHaveLength(1)
-    expect(api.writes()[0][1]?.signal?.aborted).toBe(true)
+    await screen.findByRole('textbox', { name: /Deckname/ })
+    expect(disabledOnEntry).toBe(true)
+    await changeDeck('Changed')
+    expect(screen.getByRole('button', { name: 'Änderungen speichern' })).toBeEnabled()
+    await changeDeck(deck.name)
+    expect(screen.getByRole('button', { name: 'Änderungen speichern' })).toBeDisabled()
+    expect(api.writes()).toHaveLength(0)
   } finally {
-    document.removeEventListener('focusin', submitOnEntry)
+    document.removeEventListener('focusin', inspect)
   }
 })
 
@@ -375,4 +413,13 @@ test.each(['/decks'] as const)('LAN HTTP creates and edits from %s with function
   await screen.findByText('LAN edit wurde gespeichert.')
   expect(window.location.pathname).toBe(origin)
   expect(api.writes().map(([, init]) => init?.method)).toEqual(['POST', 'PUT'])
+})
+
+test('deck editor dialogs offer exactly the two approved actions without a logout button', async () => {
+  deckApi([{ ...deck, everUsed: true }]); showDeckApp(); await editDeck(); await changeDeck('Unsaved')
+  const buttons = (dialog: HTMLElement) => within(dialog).getAllByRole('button').map(button => button.textContent)
+  fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+  expect(buttons(await screen.findByRole('dialog', { name: 'Änderungen verwerfen?' }))).toEqual(['Weiter bearbeiten', 'Änderungen verwerfen'])
+  await stay()
+  expect(buttons(await menuAction('Archivieren'))).toEqual(['Abbrechen', 'Deck archivieren'])
 })

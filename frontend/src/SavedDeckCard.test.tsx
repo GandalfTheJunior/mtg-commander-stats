@@ -1,105 +1,96 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import SavedDeckCard from './SavedDeckCard'
+import type { SavedCompanion } from './api'
 import { savedCommander } from './test/commanderFixtures'
 import { deck, deckApi, showDeckApp } from './test/deckFixtures'
 import { AppThemeProvider } from './theme/AppThemeProvider'
 
-const first = { ...savedCommander('The Prismatic Piper'), requiresChosenColor: true, chosenColor: 'G' as const,
-  effectiveColorIdentity: ['G' as const], artCropUrl: 'https://cards.scryfall.io/art_crop/front/piper.jpg',
-  artist: 'First artist', scryfallUri: 'https://scryfall.com/card/test/1/piper' }
-const second = { ...savedCommander('Second Commander'), position: 2, oracleId: '00000000-0000-4000-8000-000000000402',
-  artworkFaceIndex: 1, artCropUrl: 'https://cards.scryfall.io/art_crop/back/second.jpg',
-  artist: 'Back-side artist', scryfallUri: 'https://scryfall.com/card/test/2/second' }
-
+const first = { ...savedCommander("Kraum, Ludevic's Opus", ['U', 'R']), artCropUrl: 'https://cards.scryfall.io/art_crop/front/kraum.jpg', artist: 'First artist' }
+const second = { ...savedCommander('Tymna the Weaver', ['W', 'B']), position: 2, oracleId: '00000000-0000-4000-8000-000000000402',
+  artworkFaceIndex: 1, artCropUrl: 'https://cards.scryfall.io/art_crop/back/tymna.jpg', artist: 'Back-side artist' }
+const companion: SavedCompanion = { oracleId: '00000000-0000-4000-8000-000000000410', name: 'Obosh, the Preypiercer',
+  selectionRef: { scryfallCardId: '00000000-0000-4000-8000-000000000310' }, scryfallCardId: '00000000-0000-4000-8000-000000000310',
+  colorIdentity: ['B', 'R'], artworkFaceIndex: null, artCropUrl: 'https://cards.scryfall.io/art_crop/front/obosh.jpg', illustrationId: null,
+  artist: null, scryfallUri: null }
+const show = (props: Parameters<typeof SavedDeckCard>[0]) => render(<AppThemeProvider><ul><SavedDeckCard {...props} /></ul></AppThemeProvider>)
 afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState(null, '', '/') })
 
-test.each(['/decks'])('%s renders saved single, dual and missing imagery with independent sources and fresh editor navigation', async path => {
-  const pair = { ...deck, name: 'Partners', commanders: [first, second], colorIdentity: ['G' as const], everUsed: true, archived: true }
-  const api = deckApi([pair, { ...deck, id: '00000000-0000-4000-8000-000000000102', name: 'Single', commanders: [first] },
-    { ...deck, id: '00000000-0000-4000-8000-000000000103', name: 'Missing' }])
-  showDeckApp(path)
-  await screen.findByRole('heading', { name: 'Partners' })
-  expect(screen.getAllByRole('img', { name: `Illustration für ${first.name}` })).toHaveLength(2)
-  expect(screen.getByRole('img', { name: `Illustration für ${second.name}` })).toHaveAttribute('src', second.artCropUrl)
-  expect(screen.getByRole('img', { name: 'Keine Illustration für Karn verfügbar' })).toBeInTheDocument()
-  const card = screen.getByRole('heading', { name: 'Partners' }).closest('li')!
-  const editor = within(card).getByRole('button', { name: path === '/decks' ? 'Partners bearbeiten' : 'Partners' })
-  expect(editor).toHaveAccessibleDescription(expect.stringContaining('G (Grün)'))
-  expect(editor).toHaveAccessibleDescription(expect.stringContaining('Archiviert'))
-  expect(editor).toHaveAccessibleDescription(expect.stringContaining(`${first.name} / ${second.name}`))
-  expect(within(card).getByText(/Back-side artist/)).toBeInTheDocument()
-  const source = within(card).getByRole('link', { name: /Quelle zu Commander 2/ })
-  expect(source).toHaveAttribute('href', second.scryfallUri)
-  expect(source).toHaveAttribute('rel', 'noopener noreferrer')
-  expect(source.closest('button')).toBeNull()
-  expect(within(editor).queryByRole('link')).not.toBeInTheDocument()
-  expect(within(editor).queryByRole('img')).not.toBeInTheDocument()
-  expect(window.location.pathname).toBe(path)
-  expect(api.fetchMock.mock.calls.some(([url]) => url.includes('scryfall'))).toBe(false)
+test('one Commander: prominent name, quieter deck name, mana identity and independent artwork/full-card/editor targets', () => {
+  const onOpen = vi.fn(), onOpenArtwork = vi.fn()
+  show({ deck: { ...deck, name: 'Ein Deck', commanders: [first], colorIdentity: ['U', 'R'] }, onOpen, onOpenArtwork })
+  const editor = screen.getByRole('button', { name: 'Ein Deck bearbeiten' })
+  expect(editor).toHaveTextContent(first.name)
+  expect(editor).not.toHaveTextContent('Ein Deck')
+  expect(editor).toHaveAccessibleDescription(expect.stringContaining('Ein Deck'))
+  expect(screen.getByRole('img', { name: 'Farbidentität: Blau, Rot' })).toBeInTheDocument()
+  const art = screen.getByRole('button', { name: `Artwork für ${first.name} ändern` })
+  const viewer = screen.getByRole('button', { name: `Karte anzeigen: ${first.name}` })
+  expect(viewer).toHaveTextContent('Karte anzeigen')
+  for (const target of [art, viewer]) expect(target.parentElement?.closest('button')).toBeNull()
+  expect(within(editor).queryByRole('button')).not.toBeInTheDocument()
+  fireEvent.click(art)
+  expect(onOpenArtwork).toHaveBeenCalledWith(expect.objectContaining({ id: deck.id }), { kind: 'commander', card: first }, art)
+  expect(onOpen).not.toHaveBeenCalled()
+  fireEvent.click(viewer)
+  expect(screen.getByRole('dialog', { name: first.name })).toBeInTheDocument()
+  expect(onOpen).not.toHaveBeenCalled()
   fireEvent.click(editor)
-  await screen.findByRole('form', { name: 'Deck Partners bearbeiten' })
-  expect(window.location.pathname).toBe(`/decks/${deck.id}/edit`)
-  expect(api.writes()).toHaveLength(0)
+  expect(onOpen).toHaveBeenCalledOnce()
 })
-
-test.each(['/decks'])('%s keeps failed-art metadata and shows replaced art immediately after refetch', async path => {
-  const api = deckApi([{ ...deck, commanders: [first] }]); showDeckApp(path)
-  const img = await screen.findByRole('img', { name: `Illustration für ${first.name}` })
-  fireEvent.error(img)
-  expect(screen.getByRole('img', { name: `Keine Illustration für ${first.name} verfügbar` })).toBeInTheDocument()
-  expect(screen.getByText(/First artist/)).toBeInTheDocument()
-  expect(screen.getByRole('link', { name: /Quelle zu Commander 1/ })).toHaveAttribute('href', first.scryfallUri)
-  expect(api.state.decks[0].commanders[0].artCropUrl).toBe(first.artCropUrl)
-  api.state.decks = [{ ...deck, commanders: [{ ...first, artCropUrl: second.artCropUrl, artist: second.artist, artworkFaceIndex: 1 }] }]
-  fireEvent.click(screen.getByRole('button', { name: 'Decks aktualisieren' }))
-  expect(await screen.findByRole('img', { name: `Illustration für ${first.name}` })).toHaveAttribute('src', second.artCropUrl)
-  expect(screen.getByText(/Back-side artist/)).toBeInTheDocument()
-  expect(api.fetchMock.mock.calls.map(([url]) => url).filter(url => url.includes('scryfall'))).toEqual([])
-  expect(api.writes()).toHaveLength(0)
+test('two Commanders and a genuine Companion each have their own artwork and viewer targets; the Companion is labelled as such', () => {
+  const onOpenArtwork = vi.fn()
+  show({ deck: { ...deck, name: 'Partner-Protokoll', commanders: [first, second], companion, colorIdentity: ['W', 'U', 'B', 'R'] }, onOpen: vi.fn(), onOpenArtwork })
+  const editor = screen.getByRole('button', { name: 'Partner-Protokoll bearbeiten' })
+  expect(editor).toHaveTextContent(first.name)
+  expect(editor).toHaveTextContent(second.name)
+  expect(editor).not.toHaveTextContent(companion.name)
+  expect(screen.getByText(`Companion: ${companion.name}`)).toBeInTheDocument()
+  expect(screen.getAllByRole('button', { name: /^Artwork für / }).map(button => button.getAttribute('aria-label'))).toEqual([
+    `Artwork für ${first.name} ändern`, `Artwork für ${second.name} ändern`, `Artwork für Companion ${companion.name} ändern`])
+  expect(screen.getAllByRole('button', { name: /^Karte anzeigen: / })).toHaveLength(3)
+  fireEvent.click(screen.getByRole('button', { name: `Artwork für Companion ${companion.name} ändern` }))
+  expect(onOpenArtwork).toHaveBeenCalledWith(expect.anything(), { kind: 'companion', card: companion }, expect.any(HTMLButtonElement))
+  expect(screen.getByRole('img', { name: `Illustration für ${second.name}` })).toHaveAttribute('src', second.artCropUrl)
 })
-
-test.each(['javascript:alert(1)', 'http://scryfall.com/card/test', 'https://scryfall.com.evil.test/card', 'https://user@scryfall.com/card', 'invalid'])('unsafe source %s is omitted without hiding the card', source => {
-  render(<AppThemeProvider><SavedDeckCard deck={{ ...deck, commanders: [{ ...first, scryfallUri: source }] }} onOpen={vi.fn()} /></AppThemeProvider>)
-  expect(screen.queryByRole('link')).not.toBeInTheDocument()
-  expect(screen.getByRole('button', { name: deck.name })).toHaveAccessibleDescription(expect.stringContaining('Farblos'))
-})
-
-test('missing attribution, an unsafe image and a long name retain readable fallback and status', () => {
+test('missing or unsafe imagery and a long name keep a readable fallback', () => {
   const name = 'Long Commander name '.repeat(20).trim()
-  render(<AppThemeProvider><SavedDeckCard deck={{ ...deck, everUsed: true,
-    commanders: [{ ...savedCommander(name), artCropUrl: 'https://evil.test/art.jpg' }] }} onOpen={vi.fn()} /></AppThemeProvider>)
+  show({ deck: { ...deck, everUsed: true, commanders: [{ ...savedCommander(name), artCropUrl: 'https://evil.test/art.jpg' }] }, onOpen: vi.fn() })
   expect(screen.getByRole('img', { name: `Keine Illustration für ${name} verfügbar` })).toBeInTheDocument()
-  expect(screen.getByText(/Künstlerangabe nicht verfügbar/)).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: deck.name })).toHaveAccessibleDescription(expect.stringContaining('Bereits gespielt'))
+  expect(screen.getByRole('button', { name: `${deck.name} bearbeiten` })).toHaveTextContent(name)
+  expect(screen.getByRole('img', { name: 'Farbidentität: Farblos' })).toBeInTheDocument()
 })
-
-test('ManaBox is opt-in and independent from editing and artwork actions', () => {
+test('a broken image falls back without changing the saved choice', () => {
+  show({ deck: { ...deck, commanders: [first] }, onOpen: vi.fn() })
+  fireEvent.error(screen.getByRole('img', { name: `Illustration für ${first.name}` }))
+  expect(screen.getByRole('img', { name: `Keine Illustration für ${first.name} verfügbar` })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: `Artwork für ${first.name} ändern` })).toBeInTheDocument()
+})
+test('a valid ManaBox link sits beside the deck name, outside the editor target', () => {
   const onOpen = vi.fn(), onOpenArtwork = vi.fn()
   const linked = { ...deck, manaBoxUrl: 'https://manabox.app/decks/Synthetic-Mixed_123' }
-  const view = render(<AppThemeProvider><SavedDeckCard deck={linked} onOpen={onOpen} onOpenArtwork={onOpenArtwork} /></AppThemeProvider>)
-  expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
-  view.rerender(<AppThemeProvider><SavedDeckCard deck={linked} showManaBox onOpen={onOpen} onOpenArtwork={onOpenArtwork} /></AppThemeProvider>)
+  show({ deck: linked, onOpen, onOpenArtwork })
   const link = screen.getByRole('link', { name: 'Alpha: Deck in ManaBox ansehen (öffnet einen neuen Tab)' })
   expect(link).toHaveAttribute('href', linked.manaBoxUrl)
   expect(link).toHaveAttribute('target', '_blank')
   expect(link).toHaveAttribute('rel', 'noopener noreferrer')
   expect(link.closest('button')).toBeNull()
+  expect(link.parentElement?.parentElement).toHaveTextContent(deck.name)
   fireEvent.click(link)
   expect(onOpen).not.toHaveBeenCalled()
   expect(onOpenArtwork).not.toHaveBeenCalled()
-  fireEvent.click(screen.getByRole('button', { name: deck.name }))
-  expect(onOpen).toHaveBeenCalledOnce()
 })
-
-test.each(['/decks'])('%s shows owner links only on Meine Decks, including used and archived decks', async path => {
+test.each([null, 'https://evil.test/decks/id', 'https://www.manabox.app/decks/id'])('ManaBox value %j renders no control', url => {
+  show({ deck: { ...deck, manaBoxUrl: url }, onOpen: vi.fn() })
+  expect(screen.queryByRole('link')).not.toBeInTheDocument()
+})
+test('Meine Decks shows owner links on active and archived cards without provider reads', async () => {
   const linked = 'https://manabox.app/decks/Synthetic-Mixed_123'
-  deckApi([deck, ...[false, true].map((archived, index) => ({ ...deck, id: `deck-${index}`, name: `Linked ${index}`, everUsed: true, archived, manaBoxUrl: linked })),
-    { ...deck, id: 'unsafe', name: 'Unsafe', manaBoxUrl: 'https://evil.test/decks/id' }])
-  showDeckApp(path)
-  await screen.findByRole('heading', { name: 'Linked 0' })
-  expect(screen.queryAllByRole('link', { name: /ManaBox/ })).toHaveLength(path === '/decks' ? 2 : 0)
-  for (const name of ['Alpha', 'Unsafe']) {
-    expect(within(screen.getByRole('heading', { name }).closest('li')!).queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
-  }
+  const api = deckApi([deck, ...[false, true].map((archived, index) => ({ ...deck, id: `00000000-0000-4000-8000-00000000020${index}`, name: `Linked ${index}`, everUsed: true, archived, manaBoxUrl: linked }))])
+  showDeckApp('/decks')
+  await screen.findByRole('button', { name: 'Linked 0 bearbeiten' })
+  expect(screen.getAllByRole('link', { name: /ManaBox/ })).toHaveLength(1)
+  fireEvent.click(screen.getByRole('button', { name: 'Archivierte Decks' }))
+  expect(screen.getAllByRole('link', { name: /ManaBox/ })).toHaveLength(2)
+  expect(api.fetchMock.mock.calls.some(([url]) => url.includes('scryfall'))).toBe(false)
 })

@@ -83,8 +83,8 @@ test('restores the authenticated session and loads its decks', async () => {
 
   expect(await screen.findByRole('heading', { name: 'Meine Decks' })).toBeInTheDocument()
   expect(await screen.findByText('Atraxa Superfriends')).toBeInTheDocument()
-  const savedDeck = within(screen.getByRole('heading', { name: deck.name }).closest('li')!)
-  expect(savedDeck.getByText("Commander: Atraxa, Praetors' Voice")).toBeInTheDocument()
+  const savedDeck = within(screen.getByRole('button', { name: `${deck.name} bearbeiten` }).closest('li')!)
+  expect(savedDeck.getByText("Atraxa, Praetors' Voice")).toBeInTheDocument()
   expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/decks', {
     signal: expect.any(AbortSignal),
     credentials: 'same-origin',
@@ -336,7 +336,7 @@ test('confirmed authentication hides credentials forms and prevents browser re-l
     .mockResolvedValueOnce(jsonResponse([]))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
-  await screen.findByText('Noch keine Decks.')
+  await screen.findByText(/Noch keine Decks vorhanden/)
   expect(screen.getByText(user.username)).toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Create an account' })).not.toBeInTheDocument()
@@ -364,7 +364,7 @@ test('does not preserve a previous identity when post-login CSRF refresh fails',
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
   await screen.findByText('Gandalf')
-  await screen.findByText('Noch keine Decks.')
+  await screen.findByText(/Noch keine Decks vorhanden/)
 
   await logOutBeforeLogin()
   const form = loginForm()
@@ -524,16 +524,17 @@ for (const identity of ['same user', 'different user']) {
         await screen.findByText(oldDeck.name)
         if (operation === 'create') {
           fireEvent.change(await openNewDeck(), { target: { value: 'Stale created deck' } })
-          fireEvent.change(screen.getByLabelText(/Commander/), { target: { value: 'Atraxa' } })
+          fireEvent.change(screen.getByRole('combobox', { name: /Commander/ }), { target: { value: 'Atraxa' } })
         fireEvent.focus(screen.getByRole('combobox', { name: /Commander/ }))
         fireEvent.click(await screen.findByRole('option', { name: 'Atraxa' }))
           fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
         } else if (operation === 'edit') {
           await openExistingDeck()
+          fireEvent.change(screen.getByRole('textbox', { name: /Deckname/ }), { target: { value: 'Stale edit' } })
           fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
         } else {
           await openExistingDeck(); await openDeckAction('Löschen')
-          fireEvent.click(screen.getByRole('button', { name: 'Löschen bestätigen' }))
+          fireEvent.click(screen.getByRole('button', { name: 'Deck löschen' }))
         }
       }
       // Flush CSRF and start the business request before replacing its session.
@@ -584,7 +585,7 @@ test.each(['request', 'csrf'])('a current deck %s 401 after re-login still expir
   })
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
-  await screen.findByText('Noch keine Decks.')
+  await screen.findByText(/Noch keine Decks vorhanden/)
   await logOutBeforeLogin()
   const form = loginForm()
   fireEvent.change(form.getByLabelText('Email'), { target: { value: 'gandalf@example.com' } })
@@ -592,10 +593,10 @@ test.each(['request', 'csrf'])('a current deck %s 401 after re-login still expir
   fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
   await screen.findByText('Login successful.')
   await goTo('Decks')
-  await screen.findByText('Noch keine Decks.')
+  await screen.findByText(/Noch keine Decks vorhanden/)
   rejectDeck = true
   fireEvent.change(await openNewDeck(), { target: { value: 'Deck' } })
-  fireEvent.change(screen.getByLabelText(/Commander/), { target: { value: 'Atraxa' } })
+  fireEvent.change(screen.getByRole('combobox', { name: /Commander/ }), { target: { value: 'Atraxa' } })
   fireEvent.focus(screen.getByRole('combobox', { name: /Commander/ }))
   fireEvent.click(await screen.findByRole('option', { name: 'Atraxa' }))
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))

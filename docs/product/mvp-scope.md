@@ -127,8 +127,9 @@ UI work is separate (#196, #198, #199, #201).
   [Scryfall](scryfall-api.md); saved snapshots need no provider access.
 - Color identity is the backend-derived WUBRG union of the selected Commanders'
   base colors and each required single pregame chosen color. Empty means colorless.
-  There is no manual color override. The editor retains read-only WUBRG controls
-  and supplies a separate required W/U/B/R/G picker when appropriate.
+  There is no manual color override. The editor shows the identity as read-only
+  mana symbols and supplies a separate required W/U/B/R/G picker per Commander when
+  appropriate.
 - Optional public ManaBox deck share links can be stored by owners. Active group
   readers see them in game details, including archived decks, or in the authorized
   unarchived member-deck list while the deck owner is currently active in that
@@ -138,19 +139,24 @@ UI work is separate (#196, #198, #199, #201).
   Owners edit links in the existing deck editor and open them from Meine Decks;
   Dashboard intentionally has no ManaBox action. Authorized game details show
   each available participant link as a separate external action in a new tab.
-- Browser deletion requires a confirmation naming the selected unused deck.
-  Canceling does not change the deck; confirmed deletion updates the UI only
-  after the server acknowledges success.
+- Browser deletion and archival each require their own confirmation. Canceling
+  does not change the deck; the UI updates only after the server acknowledges
+  success. See [#201](frontend-redesign.md#personal-decks-collection-and-deck-editor-201)
+  for which actions the editor menu offers.
 - The deck name, ManaBox link and selected artwork remain editable, including after use or
-  archival. Each saved Commander image opens its own immediate-save gallery;
-  selecting front/back artwork never changes the gameplay Commander.
+  archival. On Meine Decks each saved Commander/Companion image opens its own
+  immediate-save gallery; in the editor, artwork choices are part of the draft and
+  saved atomically with the deck. Selecting front/back artwork never changes the
+  gameplay Commander.
 - Commander and color identity may change until the deck is first used in a
   recorded game; they become immutable after first use, including any pregame chosen color.
 - Decks remain used forever after their first committed game, even if all games
   referencing them are edited or deleted. Failed writes leave usage unchanged.
 - Used-deck DELETE returns a conflict; owners explicitly archive them instead.
   The browser offers an Archive action with confirmation, visibly locks used-deck
-  commander/colors, and supports renaming archived decks without unarchiving.
+  format, Commanders, colors and Companion, and supports renaming archived decks
+  without unarchiving. Unused decks can be archived or deleted; unused archived
+  decks can still be deleted.
 - Archived decks remain visible in historical games and statistics but cannot
   be selected for new games.
 
