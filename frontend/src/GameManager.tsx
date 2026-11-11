@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   ApiError, getGroup, gamesHistoryPage,
   type GamePreview, type GroupDetails, type PlayerCount,
@@ -18,6 +18,8 @@ type Props = {
   onAccessLost: () => void
   onCheckingAccess: (checking: boolean) => void
   onGroupConfirmed: (group: GroupDetails) => void
+  /** Nonblocking post-save panel shown directly above the history (#196). */
+  savedPanel?: ReactNode
 }
 
 function message(error: unknown) {
@@ -27,7 +29,7 @@ function message(error: unknown) {
 // The parent keys this area by selected group; App keys the
 // entire group manager by confirmed session. Abort and generation checks retire
 // responses (including 401s) before they can affect a different lifetime.
-export default function GameManager({ group, tab = 'games', ...handlers }: Props) {
+export default function GameManager({ group, tab = 'games', savedPanel, ...handlers }: Props) {
   const leave = useContext(EditorLeave)
   const id = group.id
   const callbacks = useRef(handlers)
@@ -195,6 +197,7 @@ export default function GameManager({ group, tab = 'games', ...handlers }: Props
       <section aria-labelledby={`games-${id}`}>
         <Button component={Link} to={`${groupUrl(group.id, 'games')}/new`} variant="contained"
           sx={{ mb: 2, minHeight: 48 }}>Spiel erfassen</Button>
+        {savedPanel}
         <Typography component="h3" variant="h5" id={`games-${id}`} sx={{ mb: 2 }}>Spielehistorie</Typography>
         {state.status === 'loading' && <p role="status">Spielehistorie wird geladen…</p>}
         {state.error && <Alert severity="error">{state.error}</Alert>}

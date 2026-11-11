@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
-import { Alert, Button, Stack, Typography } from '@mui/material'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
+import { Alert, Button, IconButton, Stack, Typography } from '@mui/material'
 import { ApiError, getGame, getGroup, saveGame, type Game, type GameInput, type GroupDetails } from './api'
 import GameEditor from './GameEditor'
 import type { Notice } from './App'
 import { groupUnavailable, groupUrl } from './groupNavigation'
 import { gameUrl, mayManageGame } from './gamePresentation'
 import type { CurrentUser } from './api'
+import { forgetHandoff, handoffToken, offerHandoff, readHandoff } from './gameHandoff'
 
 const validId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -17,6 +18,13 @@ export default function GameEditorPage({ currentUser, onUnauthorized, onNotice }
 }) {
   const { groupId = '', gameId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  // "Noch ein Spiel – gleiche Spieler" carries member IDs once; reload/Back start blank.
+  const [repeatToken] = useState(() => gameId ? undefined : handoffToken(location.state, 'repeatGame'))
+  const [repeatMembers] = useState(() => readHandoff(repeatToken, 'repeat', currentUser.id, groupId))
+  useEffect(() => { forgetHandoff(repeatToken) }, [repeatToken])
+  const heading = useRef<HTMLHeadingElement>(null)
+  const [savedMembers, setSavedMembers] = useState<string[]>([])
   const [group, setGroup] = useState<GroupDetails | null>(null)
   const [game, setGame] = useState<Game | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'denied'>('loading')
@@ -85,9 +93,10 @@ export default function GameEditorPage({ currentUser, onUnauthorized, onNotice }
   // Navigate after that commit so ordinary links and POP never bypass dirty drafts.
   useEffect(() => {
     if (!completed) return
-    callbacks.current.onNotice({ kind: 'success', message: 'Spiel erfolgreich gespeichert.' })
-    void callbacks.current.navigate(groupUrl(groupId, 'games'), { replace: true, state: null })
-  }, [completed, groupId])
+    const token = offerHandoff({ kind: 'saved', userId: currentUser.id, groupId, memberIds: savedMembers })
+    void callbacks.current.navigate(groupUrl(groupId, 'games'), { replace: true, state: { gameSaved: token } })
+  }, [completed, groupId, currentUser.id, savedMembers])
+  useEffect(() => { if (status === 'ready') heading.current?.focus() }, [status])
 
   async function write(input: GameInput) {
     const signal = controller.current?.signal
@@ -97,6 +106,7 @@ export default function GameEditorPage({ currentUser, onUnauthorized, onNotice }
     try {
       await saveGame(groupId, input, gameId, signal)
       if (signal.aborted) return
+      setSavedMembers(input.participants.map(participant => participant.userId))
       setCompleted(true)
     } catch (error) {
       if (signal.aborted) return
@@ -107,16 +117,21 @@ export default function GameEditorPage({ currentUser, onUnauthorized, onNotice }
         : 'Der Speichervorgang wurde nicht bestätigt und könnte bereits gespeichert worden sein. Prüfe die Spielehistorie vor einem erneuten Versuch.')
     } finally { if (!signal.aborted) setBusy(false) }
   }
-  return <Stack component="section" sx={{ gap: 2 }}>
-    <Button component={Link} to={gameId ? gameUrl(groupId, gameId) : groupUrl(groupId, 'games')} sx={{ alignSelf: 'flex-start' }}>
-      {gameId ? 'Zurück zum Spiel' : 'Zur Spielehistorie'}
-    </Button>
+  return <Stack component="section" aria-labelledby="game-editor-heading" sx={{ gap: 2, maxWidth: 720, width: '100%', mx: 'auto', minWidth: 0 }}>
+    <Stack direction="row" sx={{ alignItems: 'center', gap: 1, pb: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
+      <IconButton component={Link} to={gameId ? gameUrl(groupId, gameId) : groupUrl(groupId, 'games')} aria-label={gameId ? 'Zurück zum Spiel' : 'Zur Spielehistorie'}
+        sx={{ width: 48, height: 48, '&.Mui-focusVisible, &:focus-visible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: 2 } }}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+      </IconButton>
+      <Typography component="h2" variant="h5" id="game-editor-heading" ref={heading} tabIndex={-1}
+        sx={{ '&:focus': { outline: '2px solid', outlineColor: 'interaction.focus', outlineOffset: 3 } }}>{gameId ? 'Spiel bearbeiten' : 'Spiel erfassen'}</Typography>
+    </Stack>
     {status === 'denied' && <Alert severity="warning">Dieses Spiel kann nicht bearbeitet werden.</Alert>}
     {status === 'loading' && <Typography role="status">Gruppenberechtigung wird geprüft…</Typography>}
     {status === 'error' && <><Alert severity="error">Die Berechtigung oder das Spiel konnte nicht geprüft werden.</Alert>
       <Button onClick={() => { setStatus('loading'); setRevision(value => value + 1) }}>Erneut versuchen</Button></>}
-    {status === 'ready' && group && <GameEditor group={group} game={game} busy={busy} completed={completed} writeError={writeError}
-      onSubmit={input => { void write(input) }} onCancel={() => { void navigate(groupUrl(groupId, 'games')) }}
+    {status === 'ready' && group && <GameEditor group={group} game={game} currentUserId={currentUser.id} initialMembers={repeatMembers}
+      busy={busy} completed={completed} writeError={writeError} onSubmit={input => { void write(input) }}
       onAccessError={error => { const signal = controller.current?.signal; if (signal) void failed(error, signal) }} />}
   </Stack>
 }

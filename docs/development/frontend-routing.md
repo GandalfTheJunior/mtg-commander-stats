@@ -52,7 +52,11 @@ on its next visit. Failed/ambiguous writes preserve drafts and never auto-retry.
 pathname bypasses the game draft guard: both the visible Back link and browser
 Back require a dirty-draft decision. Only a validated save acknowledgment marks
 the editor completed; its guard is released before the save-return navigation.
-The approved success panel and nested quick-profile flow remain owned by #196.
+That navigation replaces the editor entry with Games and an opaque history-state
+token for the #196 success panel. `gameHandoff.ts` keeps saved/repeat handoffs in
+memory only, bound to user and group, and clears them on every session change;
+**Noch ein Spiel – gleiche Spieler** consumes a second one-use token for the new
+editor. A reload or traversal to a consumed token shows no panel and a blank form.
 
 The header shows username with only **Abmelden** in its menu. Global destinations
 are Dashboard, Playgroups, Decks. Group main views alone show Overview, Games,
@@ -110,28 +114,32 @@ aborts reads and writes and ignores late results even if transport ignores abort
 
 ## Focused Commander game editor
 
-`GameEditorPage` mounts the shared `GameEditor` at the focused create/edit URLs. New games start with four blank cards;
-edits use exactly the saved ordered assignments and result. Stable slot keys keep
-card state and focus through insertion/removal. Visible slots are bounded at 2–6,
-while completely blank slots are omitted from the payload. Partial slots block
-saving and retain input, with an error summary, field messages and first-error
-focus. Completed assignments collapse to public player/deck/commander/color
-summaries; Bearbeiten restores field focus. Duplicate public names get sufficient
-ID suffixes, never emails. Changing any winning assignment clears its winner;
-Sieg requires an explicit complete participant, Unentschieden sends null.
+`GameEditorPage` mounts the shared `GameEditor` at the focused create/edit URLs;
+the [games API browser editor section](../product/games-api.md#browser-game-editor)
+owns the #196 behavior. New games start with four blank cards; edits use exactly
+the saved ordered assignments, result and `playedOn`. Stable card keys keep card
+state and focus through insertion, removal and reordering. Picker dialogs are
+mounted only while open and do not restore focus themselves: the editor focuses
+the empty card, the member/deck action or the collapsed card's chevron explicitly.
+Validation focuses the first incomplete card's action or the error summary.
 
 Each selected active member has an independent abortable deck-selection lifetime
 and loading/error/retry state. A failed or malformed list is never an empty list.
-Changing the member clears the deck. Only that member's eligible response decks
-can form a new assignment. An exact pair from the currently edited saved game
-remains retainable without fresh eligibility, including former members and
-archived decks; former members never gain another deck choice. A later edit uses
-only the then-current saved pairs. Backend validation remains final.
+Only that member's eligible response decks, decks created in this editor and the
+exact recorded pair of the edited game can form an assignment; former members
+never gain another deck choice. Backend validation remains final.
 
-Focused game routes show no group tabs. Back, Cancel, global navigation and
-supported browser exits use `EditorNavigation`/`useEditorGuard`. Dirty drafts stay
-intact when the user cancels navigation. The guard compares persisted values and
-partial input; untouched blank slots and expansion alone do not make a draft dirty.
+Nested quick-profile/own deck creation renders the shared `DeckForm` with a
+`DeckFormContext` inside the still-mounted editor, so match state is never
+serialized. Its dirty/pending guard registers through a nested `EditorGuard`
+provider and is combined with the match guard. Quick-profile creation is a single
+unrepeated POST; an unacknowledged attempt asks the user to check the members.
+
+Focused game routes show no group tabs. The header back arrow, global navigation
+and supported browser exits use `EditorNavigation`/`useEditorGuard`. Dirty drafts
+stay intact when the user cancels navigation. The guard compares participants,
+results of every mode, seat order, mode and date; untouched blank slots and
+expansion alone do not make a draft dirty.
 Logout/session/access retirement discards protected drafts and aborts requests.
 
 One pending guard covers CSRF and POST/PUT. Validated 201/200 responses replace
@@ -144,10 +152,16 @@ deletes; cancelling a form/dialog sends no write and cannot fabricate statistics
 
 Editor, routing, group and session regression suites cover validation, eligibility,
 exact acknowledgments, dirty exits, denial/retry and late request retirement.
+`e2e/record-game.pw.ts` records a game at 320, 390 and 1280px with intercepted
+synthetic API responses, including a real pointer drag on the grip, the partial
+ranking dialog, the success panel and the repeat handoff, and checks for
+horizontal overflow. It does not establish live-backend, physical-device or
+screen-reader acceptance.
 
 ### Historical game editor browser evidence
 
-The following predates #190; same-group hidden-tab behavior was retired.
+The following predates #190 and #196; same-group hidden-tab behavior and the
+select-based editor were retired.
 
 Headless Chrome with intercepted API fixtures checked 320, 390 and 1280px with
 long/unbroken and duplicate names, all five colors and Farblos. No horizontal

@@ -13,7 +13,7 @@ import MenuItem from '@mui/material/MenuItem'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
-import { ApiError, archiveDeck, createDeck, deleteDeck, listDecks, updateDeck, commanderNames, type CommanderChoice, type Deck, type MagicColor, magicColors, scryfallUnavailable } from './api'
+import { ApiError, archiveDeck, createDeck, deleteDeck, listDecks, updateDeck, commanderNames, type CommanderChoice, type Deck, type DeckInput, type MagicColor, magicColors, scryfallUnavailable } from './api'
 import { CommanderSearch } from './CommanderSearch'
 import Radio from '@mui/material/Radio'
 import RadioGroup from '@mui/material/RadioGroup'
@@ -79,13 +79,24 @@ export default function DeckEditor({ onUnauthorized, getReturnTo, onFinished, on
   return <DeckForm deck={state.deck} getReturnTo={getReturnTo} onUnauthorized={onUnauthorized} onFinished={onFinished} onLogout={onLogout} />
 }
 
-function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
-  deck?: Deck; getReturnTo: () => DeckOverview; onUnauthorized: () => void; onLogout: () => void; onFinished: (message: string, destination: DeckOverview) => void
+/** Contextual deck creation for another owner (#196): the caller keeps its own
+ * in-progress state mounted and decides where Back, Cancel and success return. */
+export type DeckFormContext = {
+  title: string
+  create: (input: DeckInput, signal: AbortSignal) => Promise<Deck>
+  list: (signal: AbortSignal) => Promise<Deck[]>
+  onExit: (created?: Deck) => void
+}
+
+export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout, context }: {
+  deck?: Deck; getReturnTo?: () => DeckOverview; onUnauthorized: () => void; onLogout?: () => void
+  onFinished?: (message: string, destination: DeckOverview) => void; context?: DeckFormContext
 }) {
   const navigate = useNavigate()
   // Capture once per form mount without coupling create entry to a list request.
   const returnTo = useRef<DeckOverview | null>(null)
-  useLayoutEffect(() => { returnTo.current ??= getReturnTo() }, [getReturnTo])
+  useLayoutEffect(() => { returnTo.current ??= getReturnTo?.() ?? '/decks' }, [getReturnTo])
+  const exit = () => { if (context) context.onExit(); else void navigate(returnTo.current ?? '/decks', { replace: true }) }
   const [confirmed, setConfirmed] = useState(deck)
   const [baseline, setBaseline] = useState(() => inputOf(deck))
   const [draft, setDraft] = useState(() => inputOf(deck))
@@ -123,7 +134,7 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
     const version = ++recheckVersion.current
     setRecovery('checking')
     try {
-      const decks = await listDecks(signal)
+      const decks = await (context?.list ?? listDecks)(signal)
       if (signal.aborted || version !== recheckVersion.current) return
       const fresh = decks.find(candidate => candidate.id === deck?.id)
       if (deck && !fresh) { setConfirmed(undefined); setRecovery('unavailable'); return }
@@ -144,6 +155,7 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
     setBusy(true)
     setNotice(null)
     let succeeded = false
+    let saved: Deck | undefined
     try {
       let acknowledgment: string
       if (kind === 'destroy' && confirmed) {
@@ -163,14 +175,15 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
         const payload = { name: draft.name, ...(linkChanged ? { manaBoxUrl: draft.manaBoxUrl === '' ? null : draft.manaBoxUrl } : {}),
           ...(!confirmed?.everUsed && !sameSelection ? { commanders: selected.map(slot => ({ selectionRef: slot.selection!.selectionRef,
           ...(slot.selection!.requiresChosenColor ? { chosenColor: slot.chosenColor } : {}) })) } : {}) }
-        const saved = confirmed ? await updateDeck(confirmed.id, payload, signal) : await createDeck(payload, signal)
+        saved = confirmed ? await updateDeck(confirmed.id, payload, signal) : await (context?.create ?? createDeck)(payload, signal)
         acknowledgment = `${saved.name} wurde ${confirmed ? 'gespeichert' : 'erstellt'}.`
       }
       if (signal.aborted) return
       succeeded = true
       setCompleted(true)
       releaseGuard()
-      onFinished(acknowledgment, returnTo.current ?? '/decks')
+      if (context) context.onExit(saved)
+      else onFinished?.(acknowledgment, returnTo.current ?? '/decks')
     } catch (error) {
       if (signal.aborted) return
       setDestructive(false)
@@ -222,11 +235,11 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
   const discardingChanges = confirmed?.everUsed && dirty
   return <Stack component="section" aria-labelledby="deck-editor-heading" sx={{ gap: 2, minWidth: 0, maxWidth: 800, mx: 'auto' }}>
     <Stack direction="row" sx={{ gap: 1, alignItems: 'center', justifyContent: 'space-between' }}>
-      <Button color="secondary" disabled={busy} onClick={() => { void navigate(returnTo.current ?? '/decks', { replace: true }) }}>Zurück</Button>
+      <Button color="secondary" disabled={busy} onClick={exit}>Zurück</Button>
       {destructiveAction && !hidden && <Button ref={overflow} color="secondary" disabled={restricted} aria-label="Deckaktionen" aria-haspopup="menu"
         aria-controls={menu ? 'deck-menu' : undefined} aria-expanded={Boolean(menu)} onClick={event => setMenu(event.currentTarget)}>•••</Button>}
     </Stack>
-    <Typography ref={heading} tabIndex={-1} component="h2" variant="h4" id="deck-editor-heading" sx={{ '&:focus': { outline: '2px solid', outlineColor: 'interaction.focus', outlineOffset: 4 } }}>{deck ? 'Deck bearbeiten' : 'Deck erstellen'}</Typography>
+    <Typography ref={heading} tabIndex={-1} component="h2" variant="h4" id="deck-editor-heading" sx={{ '&:focus': { outline: '2px solid', outlineColor: 'interaction.focus', outlineOffset: 4 } }}>{context?.title ?? (deck ? 'Deck bearbeiten' : 'Deck erstellen')}</Typography>
     {notice && <Alert ref={noticeElement} tabIndex={-1} severity="error" sx={{ '&:focus': { outlineColor: 'interaction.focus' } }}>{notice}</Alert>}
     {recovery !== 'none' && <Box>
       <Typography role="status">{recovery === 'checking' ? 'Serverstand wird geprüft…' : recovery === 'unavailable'
@@ -249,7 +262,7 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
           setNotice(null)
         }}>Serverstand geprüft – Entwurf weiter bearbeiten</Button>
       </>}
-      <Button component={Link} to="/decks" color="secondary" replace>Zur Deckübersicht</Button>
+      {!context && <Button component={Link} to="/decks" color="secondary" replace>Zur Deckübersicht</Button>}
     </Box>}
     {!hidden && <Box component="form" aria-label={deck ? `Deck ${deck.name} bearbeiten` : 'Deck erstellen'} noValidate onSubmit={submit} sx={{ display: 'grid', gap: 3, mt: 0, minWidth: 0 }}>
       <TextField inputRef={nameField} label="Deckname" name="name" required fullWidth value={draft.name} disabled={restricted}
@@ -290,7 +303,7 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
         descriptionId={confirmed?.everUsed ? 'deck-locked' : undefined} onChange={() => {}} />
       <Stack direction="row" useFlexGap sx={{ gap: 1, flexWrap: 'wrap' }}>
         <Button variant="contained" type="submit" disabled={restricted}>{busy ? 'Wird gespeichert…' : deck ? 'Änderungen speichern' : 'Deck erstellen'}</Button>
-        <Button color="secondary" type="button" disabled={busy} onClick={() => { void navigate(returnTo.current ?? '/decks', { replace: true }) }}>Abbrechen</Button>
+        <Button color="secondary" type="button" disabled={busy} onClick={exit}>Abbrechen</Button>
       </Stack>
     </Box>}
     <Menu id="deck-menu" anchorEl={menu} open={Boolean(menu)} onClose={() => setMenu(null)}>
@@ -308,7 +321,7 @@ function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout }: {
       </DialogContent>
       <DialogActions sx={{ flexWrap: 'wrap' }}>
         <Button ref={cancelDestructive} autoFocus color="secondary" disabled={busy} onClick={() => setDestructive(false)}>Abbrechen</Button>
-        <Button color="inherit" onClick={onLogout}>Log out</Button>
+        {onLogout && <Button color="inherit" onClick={onLogout}>Log out</Button>}
         <Button color="error" disabled={busy} onClick={() => { void write('destroy') }}>{busy ? 'Bitte warten…' : discardingChanges ? 'Änderungen verwerfen und archivieren' : `${action} bestätigen`}</Button>
       </DialogActions>
     </Dialog>}

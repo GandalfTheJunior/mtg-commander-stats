@@ -254,7 +254,7 @@ export async function deleteDeck(id: string, signal?: AbortSignal): Promise<void
 
 export type GroupRole = 'OWNER' | 'ADMIN' | 'MEMBER'
 export type GroupSummary = { id: string; name: string; role: GroupRole }
-export type GroupMember = { userId: string; username: string; role: GroupRole }
+export type GroupMember = { userId: string; username: string; role: GroupRole; quickProfile?: boolean }
 export type GroupDetails = GroupSummary & { members: GroupMember[] }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -317,17 +317,44 @@ export async function getGroup(id: string, signal?: AbortSignal): Promise<GroupD
   if (!isRecord(body) || !Array.isArray(body.members) || group.id.toLowerCase() !== id.toLowerCase()) {
     throw new Error('The server returned invalid group details.')
   }
-  const members = body.members.map((member: unknown): GroupMember => {
-    if (!isRecord(member) || typeof member.userId !== 'string' || !uuidPattern.test(member.userId) ||
-      typeof member.username !== 'string' || !member.username || !isRole(member.role)) {
-      throw new Error('The server returned an invalid group member.')
-    }
-    return { userId: member.userId, username: member.username, role: member.role }
-  })
+  const members = body.members.map(memberFrom)
   if (new Set(members.map((member) => member.userId)).size !== members.length) {
     throw new Error('The server returned duplicate group members.')
   }
   return { ...group, members }
+}
+
+function memberFrom(member: unknown): GroupMember {
+  if (!isRecord(member) || typeof member.userId !== 'string' || !uuidPattern.test(member.userId) ||
+    typeof member.username !== 'string' || !member.username || !isRole(member.role) ||
+    ('quickProfile' in member && typeof member.quickProfile !== 'boolean')) {
+    throw new Error('The server returned an invalid group member.')
+  }
+  return { userId: member.userId, username: member.username, role: member.role, ...(member.quickProfile === true ? { quickProfile: true } : {}) }
+}
+
+/** The server generates the playful name and stores the profile immediately (#223). */
+export async function createQuickProfile(groupId: string, signal?: AbortSignal): Promise<GroupMember> {
+  const response = await checkedResponse(await unsafeRequest('POST', `/api/groups/${encodeURIComponent(groupId)}/quick-profiles`, undefined, signal),
+    201, 'Das Schnellprofil konnte nicht erstellt werden.')
+  const profile = memberFrom(await response.json())
+  if (!profile.quickProfile) throw new Error('The server returned an invalid quick profile.')
+  return profile
+}
+
+const quickProfileDecksPath = (groupId: string, userId: string) =>
+  `/api/groups/${encodeURIComponent(groupId)}/quick-profiles/${encodeURIComponent(userId)}/decks`
+
+export async function listQuickProfileDecks(groupId: string, userId: string, signal?: AbortSignal): Promise<Deck[]> {
+  const response = await checkedResponse(await fetch(quickProfileDecksPath(groupId, userId), { ...requestDefaults, ...(signal ? { signal } : {}) }),
+    200, 'Could not load the quick profile decks.')
+  const body: unknown = await response.json()
+  if (!Array.isArray(body)) throw new Error('The server returned an invalid deck list.')
+  return body.map(deckFrom)
+}
+
+export async function createQuickProfileDeck(groupId: string, userId: string, input: DeckInput, signal?: AbortSignal): Promise<Deck> {
+  return deckResponse(await unsafeRequest('POST', quickProfileDecksPath(groupId, userId), input, signal), 'Could not create the deck.', 201)
 }
 
 export async function getJoinCode(id: string, regenerate = false, signal?: AbortSignal): Promise<string> {
@@ -378,6 +405,8 @@ export type Game = {
   winnerUserId: string | null
 }
 export type GameInput = Pick<Game, 'result' | 'alternateWinCon'> & {
+  /** Absent preserves a stored date on PUT; null explicitly records an unknown date. */
+  playedOn?: string | null
   participants: { userId: string; deckId: string; startPosition: number; placement?: number; winner?: true; stillInGame?: boolean }[]
 }
 

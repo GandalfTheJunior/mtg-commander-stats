@@ -49,8 +49,8 @@ export function gameApi(initial: Game[] = []) {
       const input = JSON.parse(init!.body as string) as GameInput
       const winner = input.result === 'DRAW' ? null : input.participants.find(p => input.alternateWinCon ? p.winner : p.placement === 1)?.userId ?? null
       const game = recorded({ ...input, winnerUserId: winner, participants: input.participants.map((p) => ({
-        ...p, placement: input.result === 'DRAW' ? null : input.alternateWinCon ? p.winner ? 1 : p.stillInGame ? 2 : p.placement! : p.placement!,
-        stillInGame: input.result === 'DRAW' ? p.stillInGame! : input.alternateWinCon ? Boolean(p.winner || p.stillInGame) : p.placement === 1, username: members.find((m) => m.userId === p.userId)?.username ?? 'Former',
+        ...p, placement: input.result === 'DRAW' ? null : input.alternateWinCon ? p.winner ? 1 : p.stillInGame ? 2 : p.placement ?? null : p.placement ?? null,
+        stillInGame: input.result === 'DRAW' ? p.stillInGame! : input.alternateWinCon ? p.winner ? true : p.stillInGame ?? null : p.placement === 1, username: members.find((m) => m.userId === p.userId)?.username ?? 'Former',
         deck: { ...deckFor(Number(p.userId.slice(-1))), id: p.deckId, archived: false },
       })) })
       state.history = [game]
