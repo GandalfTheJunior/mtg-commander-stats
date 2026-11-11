@@ -18,7 +18,7 @@ export async function selectGameDeck(slot: number, deck: DeckSelection) {
 }
 
 export async function openGameDetails() {
-  const games = within(await screen.findByRole('region', { name: 'Spiele' }))
+  const games = within(await screen.findByRole('region', { name: 'Spielehistorie' }))
   fireEvent.click((await games.findAllByRole('link', { name: /^Spieldetails:/ }))[0])
   await screen.findByRole('heading', { name: 'Spieldetails' })
 }

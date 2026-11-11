@@ -453,9 +453,11 @@ function playDate(value: unknown): value is string | null {
 
 // The bounded history endpoint owns date-first ordering, including unknown dates.
 // Read only preview fields so legacy games without seats/ranks remain displayable.
-export async function recentGames(groupId: string, signal?: AbortSignal): Promise<GamePreview[]> {
+export type GamesHistoryPage = { games: GamePreview[]; nextCursor: string | null }
+
+export async function gamesHistoryPage(groupId: string, cursor?: string, signal?: AbortSignal): Promise<GamesHistoryPage> {
   const response = await checkedResponse(
-    await fetch(`${gamesPath(groupId)}/history`, { ...requestDefaults, ...(signal ? { signal } : {}) }),
+    await fetch(`${gamesPath(groupId)}/history${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`, { ...requestDefaults, ...(signal ? { signal } : {}) }),
     200, 'Die letzten Spiele konnten nicht geladen werden.',
   )
   const body: unknown = await response.json()
@@ -483,7 +485,12 @@ export async function recentGames(groupId: string, signal?: AbortSignal): Promis
       winnerUserId: value.winnerUserId as string | null, participants }
   })
   if (new Set(games.map(game => game.id.toLowerCase())).size !== games.length) throw new Error('The server returned duplicate games.')
-  return games.slice(0, 3)
+  if (body.nextCursor !== null && (games.length === 0 || body.nextCursor === cursor)) throw new Error('The server returned an invalid history cursor.')
+  return { games, nextCursor: body.nextCursor as string | null }
+}
+
+export async function recentGames(groupId: string, signal?: AbortSignal): Promise<GamePreview[]> {
+  return (await gamesHistoryPage(groupId, undefined, signal)).games.slice(0, 3)
 }
 
 export async function getGame(groupId: string, gameId: string, signal?: AbortSignal): Promise<Game> {

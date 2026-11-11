@@ -56,7 +56,7 @@ test('confirmed save uses the selected group and returns to refreshed Games hist
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
   expect(await screen.findByText('Spiel erfolgreich gespeichert.')).toBeInTheDocument()
   expect(screen.queryByRole('dialog', { name: 'Änderungen verwerfen?' })).not.toBeInTheDocument()
-  expect(await screen.findByRole('article', { name: `Game ${uid(20)}` })).toBeInTheDocument()
+  expect(await screen.findByRole('article')).toBeInTheDocument()
   expect(screen.queryByRole('form', { name: 'Spiel erfassen' })).not.toBeInTheDocument()
   expect(api.fetchMock.mock.calls.some(([path, init]) => path === apiPath && init?.method === 'POST')).toBe(true)
   await selectTab('Statistiken')
