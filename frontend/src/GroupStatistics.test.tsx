@@ -1,52 +1,35 @@
 import { savedCommander } from './test/commanderFixtures'
-import { useState } from 'react'
-import type { GroupTab } from './groupNavigation'
-import { selectTab } from './test/groupEntry'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App'
+import type { GroupStatistics } from './api'
 import { renderApp, goTo } from './test/renderApp'
-import GameManager from './GameManager'
-import { deferred, gameApi, group, recorded, response, uid } from './test/gameFixtures'
+import { deferred, gameApi, group, response, uid } from './test/gameFixtures'
 import { statistics, emptyStatistics } from './test/statisticsFixtures'
+import { groupUrl } from './groupNavigation'
 
-function clickLogout() {
-  fireEvent.click(within(screen.getByRole('banner', { hidden: true })).getByRole('button', { hidden: true }))
-  fireEvent.click(screen.getByRole('menuitem', { name: 'Abmelden' }))
-}
-const path = `/api/groups/${group.id}/statistics`
+const apiPath = `/api/groups/${group.id}/statistics`
+const landing = groupUrl(group.id, 'statistics')
+const chooser = `${landing}/reports`
+const reportUrl = (report: string) => `${chooser}/${report}`
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
-function show() {
-  const handlers = { onUnauthorized: vi.fn(), onAccessLost: vi.fn(), onCheckingAccess: vi.fn(), onGroupConfirmed: vi.fn() }
-  function Harness() {
-    const [tab, setTab] = useState<GroupTab>('statistics')
-    return <><button onClick={() => setTab('games')}>Show games</button><button onClick={() => setTab('statistics')}>Show statistics</button>
-      <GameManager group={group} tab={tab} {...handlers} /></>
-  }
-  return { ...renderApp(<Harness />), ...handlers }
+const history = { navigate: (() => undefined) as ReturnType<typeof useNavigate>, path: '' }
+function HistoryProbe() {
+  const navigate = useNavigate(), location = useLocation()
+  useEffect(() => {
+    history.navigate = navigate
+    history.path = `${location.pathname}${location.search}`
+  })
+  return null
 }
-async function games() {
-  // Detect the tiny harness without computing every App button's accessible name.
-  if (screen.queryByText('Show games', { selector: 'button' })) fireEvent.click(screen.getByRole('button', { name: 'Show games' }))
-  else await selectTab('Spiele')
-}
-async function stats() {
-  if (screen.queryByText('Show statistics', { selector: 'button' })) fireEvent.click(screen.getByRole('button', { name: 'Show statistics' }))
-  else await selectTab('Statistiken')
-}
-const playerTable = () => { selectView('Spieler'); return screen.getByRole('table', { name: 'Spielerstatistiken' }) }
-const deckTable = () => { selectView('Decks'); return screen.getByRole('table', { name: 'Deckstatistiken' }) }
-const viewButton = (name: 'Spieler' | 'Decks') => within(screen.getByRole('group', { name: 'Statistikansicht' })).getByRole('button', { name })
-function selectView(name: 'Spieler' | 'Decks') {
-  const button = viewButton(name)
-  if (button.getAttribute('aria-pressed') !== 'true') fireEvent.click(button)
-}
-const statsCalls = (api: ReturnType<typeof gameApi>) => api.fetchMock.mock.calls.filter(([url]) => url === path)
+const back = () => act(async () => { await history.navigate(-1) })
 
-function appSetup() {
-  const api = gameApi([recorded()])
-  api.state.statistics = statistics()
+function setup(data: GroupStatistics = richStatistics()) {
+  const api = gameApi()
+  api.state.statistics = data
   const base = api.fetchMock
   const other = { ...group, id: uid(11), name: 'Sunday games' }
   const session = { user: { id: uid(1), username: 'Owner' } as { id: string; username: string } | null,
@@ -56,593 +39,412 @@ function appSetup() {
     if (url === '/api/decks') return response([])
     if (url === '/api/groups') return response([group, other])
     if (url === `/api/groups/${other.id}`) return response(other)
-    if (url === `/api/groups/${other.id}/games`) return response([])
+    if (url.startsWith(`/api/groups/${other.id}/statistics`)) return response(emptyStatistics())
     if (url === '/api/session' && init?.method === 'DELETE') return session.logout()
     if (url === '/api/session' && init?.method === 'POST') {
-      session.user = { id: uid(4), username: 'Fourth' }
+      session.user = { id: uid(1), username: 'Owner' }
       return response(session.user)
+    }
+    if (url.startsWith(`${apiPath}?playerCount=`)) {
+      // The fixture answers a filtered read with only the selected table-size section.
+      const size = Number(url.split('=')[1]), reply = await base(apiPath, init)
+      const body = await reply.clone().json() as GroupStatistics
+      return Array.isArray(body.startPositions) && body.startPositions.length === 5
+        ? response({ ...body, startPositions: body.startPositions.filter(section => section.playerCount === size) }) : reply
     }
     return base(url, init)
   })
   vi.stubGlobal('fetch', fetchMock)
-  return { ...api, session, other }
+  const statsCalls = () => fetchMock.mock.calls.map(([url]) => url).filter(url => url.startsWith(apiPath))
+  return { ...api, fetchMock, statsCalls, session, other }
 }
-async function open(name = group.name) {
-  await goTo('Playgroups')
-  fireEvent.click(await screen.findByRole('button', { name }))
-  await selectTab('Statistiken')
+function show(path = landing) {
+  return renderApp(<><App /><HistoryProbe /></>, path)
 }
-async function signIn() {
-  const form = within(screen.getByRole('heading', { name: 'Sign in' }).closest('section')!)
-  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'fourth@example.test' } })
-  fireEvent.change(form.getByLabelText('Password'), { target: { value: 'correct horse battery' } })
-  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
-  await screen.findByText('Fourth')
+function mobile() {
+  vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {},
+    addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true } }))
 }
+const seats = (n: number, games: number[], wins: number[]) => Array.from({ length: n }, (_, i) => ({ startPosition: i + 1, games: games[i] ?? 0, wins: wins[i] ?? 0,
+  winRatePercent: (games[i] ?? 0) === 0 ? null : Math.round(10000 * (wins[i] ?? 0) / games[i]) / 100 }))
 
-test('shows loading then the selected server-ordered dataset with API rates, former users and archived decks', async () => {
-  const api = gameApi(), pending = deferred()
-  api.next(path, () => pending.promise)
-  show()
-  await screen.findByText('Statistiken werden geladen…')
-  expect(screen.queryByRole('table')).not.toBeInTheDocument()
-  expect(viewButton('Spieler')).toHaveAttribute('aria-pressed', 'true')
-  await act(async () => pending.resolve(response(statistics())))
-  const players = within(playerTable())
-  expect(players.getAllByRole('columnheader').map(cell => cell.textContent)).toEqual(['Spieler', 'Spiele', 'Siege', 'Siegrate'])
-  expect(players.getAllByRole('row').slice(1).map(row => within(row).getAllByRole('cell').map(cell => cell.textContent))).toEqual([
-    ['12', '6', '50%'], ['12', '1', '8.33%'], ['4', '0', '0%'],
-  ])
-  expect(players.getByRole('row', { name: /Former member/ })).toBeInTheDocument()
-  expect(screen.queryByText(`Spielerkennung: ${uid(1)}`)).not.toBeInTheDocument()
-  const decks = within(deckTable())
-  expect(screen.getAllByRole('table')).toHaveLength(1)
-  expect(screen.queryByRole('table', { name: 'Spielerstatistiken' })).not.toBeInTheDocument()
-  expect(decks.getAllByRole('columnheader').map(cell => cell.textContent)).toEqual(['Deck', 'Besitzer', 'Spiele', 'Siege', 'Siegrate'])
-  expect(decks.getByRole('row', { name: /Dragon Engine/ })).toHaveTextContent('66100%')
-  expect(decks.getByRole('row', { name: /Patient Constructs/ })).toHaveTextContent('600%')
-  expect(decks.getByRole('row', { name: /Old Artifacts/ })).toHaveTextContent('Archiviert')
-  expect(decks.getByRole('row', { name: /Old Artifacts/ })).toHaveTextContent('Former member')
-  expect(decks.queryByRole('button', { name: /Edit|Archive|Delete/ })).not.toBeInTheDocument()
-  expect(screen.queryByText('50.00%')).not.toBeInTheDocument()
-})
-
-test('namesakes reveal distinct complete identifiers only on request, preserving fresh API order', async () => {
-  const api = gameApi(), data = statistics()
-  data.players = data.players.slice(0, 2).map(row => ({ ...row, username: 'Same name' }))
-  data.decks = data.decks.slice(0, 2).map(row => ({ ...row, name: 'Same deck' }))
-  api.state.statistics = data
-  show()
-  await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  expect(screen.queryByText(`Spielerkennung: ${uid(1)}`)).not.toBeInTheDocument()
-  const disclosures = within(playerTable()).getAllByRole('button', { name: /Kennung anzeigen/ })
-  expect(disclosures[0]).not.toHaveAccessibleName(disclosures[1].getAttribute('aria-label')!)
-  expect(sortedIds(playerTable())).toEqual([uid(1), uid(2)])
-  api.state.statistics = { ...data, players: [...data.players].reverse(), decks: [...data.decks].reverse() }
-  fireEvent.click(screen.getByRole('button', { name: 'Statistiken aktualisieren' }))
-  await waitFor(() => expect(sortedIds(playerTable())).toEqual([uid(2), uid(1)]))
-  const decks = deckTable()
-  expect(within(decks).getAllByRole('rowheader')[0]).toHaveTextContent('Karn, Silver Golem')
-  expect(within(decks).getAllByRole('rowheader')[1]).toHaveTextContent('The Ur-Dragon')
-  const disclosure = within(decks).getAllByRole('button', { name: /Kennung anzeigen/ })[0]
-  disclosure.focus(); fireEvent.click(disclosure)
-  expect(disclosure).toHaveAttribute('aria-expanded', 'true')
-  expect(disclosure).toHaveFocus()
-  expect(screen.getByText(`Deckkennung: ${uid(102)}`)).toBeVisible()
-  expect(screen.getByText(`Besitzerkennung: ${uid(1)}`)).toBeVisible()
-  fireEvent.click(disclosure)
-  expect(screen.queryByText(`Deckkennung: ${uid(102)}`)).not.toBeInTheDocument()
-})
-
-test('empty history shows a concise empty state with no invented active-member or unused-deck rows', async () => {
-  gameApi(); show()
-  await stats()
-  await screen.findByText(/Noch keine (Spieler|Deck)statistiken/)
-  expect(screen.queryByRole('table')).not.toBeInTheDocument()
-})
-
-test.each(['network', 'server', 'malformed', 'json', 'bad-request', 'conflict'])('failed refresh (%s) hides old rows and offers a successful explicit retry', async failure => {
-  const api = gameApi()
-  api.state.statistics = statistics()
-  show(); await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  api.next(path, () => {
-    if (failure === 'network') throw new Error('Network unavailable')
-    if (failure === 'json') return new Response('invalid json')
-    if (failure === 'bad-request' || failure === 'conflict') return response({}, failure === 'bad-request' ? 400 : 409)
-    return response(failure === 'server' ? { detail: 'Statistics unavailable.' } : { players: [{}], decks: [] }, failure === 'server' ? 500 : 200)
-  })
-  fireEvent.click(screen.getByRole('button', { name: 'Statistiken aktualisieren' }))
-  expect(screen.queryByRole('table')).not.toBeInTheDocument()
-  expect(await screen.findByRole('alert')).toHaveTextContent('Zum erneuten Versuch Statistiken aktualisieren.')
-  fireEvent.click(screen.getByRole('button', { name: 'Statistiken aktualisieren' }))
-  await stats()
-  await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-})
-
-test('Overview loads statistics only after a confirmed session and opened group, and current 401 expires the session', async () => {
-  const api = appSetup(); renderApp(<App />, '/playgroups')
-  await screen.findByRole('button', { name: group.name })
-  expect(statsCalls(api)).toHaveLength(0)
-  api.next(path, () => response({}, 401))
-  fireEvent.click(screen.getByRole('button', { name: group.name }))
-  await screen.findByText('Your session expired. Sign in again.')
-  expect(screen.queryByRole('heading', { name: 'Statistics' })).not.toBeInTheDocument()
-})
-
-test.each([403, 404])('statistics %s hides all protected details during a safe recheck, then permits retry on confirmed membership', async status => {
-  const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
-  await stats()
-  await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  const checking = deferred()
-  api.next(path, () => response({}, status))
-  api.next(`/api/groups/${group.id}`, () => checking.promise)
-  fireEvent.click(screen.getByRole('button', { name: 'Statistiken aktualisieren' }))
-  await screen.findByText('Checking group access…')
-  expect(screen.queryByRole('table')).not.toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: group.name })).not.toBeInTheDocument()
-  await act(async () => checking.resolve(response(group)))
-  await screen.findByRole('tab', { name: 'Members' })
-  expect(screen.queryByRole('table')).not.toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Owner' })).toBeInTheDocument()
-  await games()
-  await stats()
-  await screen.findByRole('table', { name: 'Spielerstatistiken' })
-})
-
-test.each([403, 404, 401, 500])('statistics denial followed by access-check %s never restores protected statistics', async status => {
-  const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
-  await stats()
-  await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  api.next(path, () => response({}, 403))
-  api.next(`/api/groups/${group.id}`, () => response({}, status))
-  fireEvent.click(screen.getByRole('button', { name: 'Statistiken aktualisieren' }))
-  if (status === 401) await screen.findByText('Your session expired. Sign in again.')
-  else if (status === 500) await screen.findByText(/Group access could not be verified/)
-  else await screen.findByText('Du hast keinen Zugriff mehr auf diese Playgroup.')
-  expect(screen.queryByRole('table')).not.toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: group.name })).not.toBeInTheDocument()
-})
-
-test.each(['switch', 'close', 'members', 'games'].flatMap(action => [200, 401].map(status => ({ action, status }))))('retiring statistics on $action aborts requests and ignores late status $status', async ({ action, status }) => {
-  const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
-  await stats()
-  await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  const late = deferred()
-  api.next(path, () => late.promise)
-  fireEvent.click(screen.getByRole('button', { name: 'Statistiken aktualisieren' }))
-  await screen.findByText('Statistiken werden geladen…')
-  const signal = statsCalls(api).at(-1)![1]!.signal!
-  api.state.statistics = emptyStatistics()
-  if (action === 'switch') {
-    api.next(`/api/groups/${api.other.id}/statistics`, () => response(emptyStatistics()))
-    await open(api.other.name)
-  } else if (action === 'close') fireEvent.click(screen.getByRole('link', { name: 'Zurück zu Playgroups' }))
-  else if (action === 'members') {
-    await selectTab('Mitglieder')
-    await screen.findByRole('tab', { name: 'Statistics' }); await stats()
-  } else { await games(); await stats() }
-  expect(signal.aborted).toBe(true)
-  if (action === 'close') {
-    expect(screen.queryByRole('heading', { name: 'Statistics' })).not.toBeInTheDocument()
-    await open()
-  }
-  await stats()
-  await screen.findByText(/Noch keine (Spieler|Deck)statistiken/)
-  await act(async () => late.resolve(response(statistics(), status)))
-  expect(screen.queryByRole('table')).not.toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Owner' })).toBeInTheDocument()
-  expect(screen.queryByText(/session expired/i)).not.toBeInTheDocument()
-})
-
-test.each([200, 401, 403])('logout hides statistics immediately and late status %s cannot restore them or expire the new identity', async status => {
-  const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
-  await stats()
-  await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  const late = deferred()
-  api.next(path, () => late.promise)
-  fireEvent.click(screen.getByRole('button', { name: 'Statistiken aktualisieren' }))
-  await screen.findByText('Statistiken werden geladen…')
-  const logout = deferred()
-  api.session.logout = () => logout.promise
-  clickLogout()
-  expect(screen.queryByRole('heading', { name: 'Statistics' })).not.toBeInTheDocument()
-  await act(async () => logout.resolve(new Response(null, { status: 204 })))
-  await screen.findByText('Logged out.')
-  await signIn()
-  await open()
-  await stats()
-  await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  await act(async () => late.resolve(response(statistics(), status)))
-  expect(screen.getByRole('button', { name: 'Fourth' })).toBeInTheDocument()
-  expect(screen.queryByText(/session expired/i)).not.toBeInTheDocument()
-})
-
-test('switching a loaded group hides its statistics while the next group details are still pending', async () => {
-  const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
-  await stats()
-  await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  const details = deferred()
-  // The second group's details use the App fixture's branch, so intercept that request here.
-  const previousFetch = globalThis.fetch
-  vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => url === `/api/groups/${api.other.id}`
-    ? details.promise : previousFetch(url, init)))
-  await goTo('Playgroups')
-  fireEvent.click(await screen.findByRole('button', { name: api.other.name }))
-  await screen.findByText('Gruppenberechtigung wird geprüft…')
-  expect(screen.queryByRole('heading', { name: 'Statistics' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('table')).not.toBeInTheDocument()
-  await act(async () => details.resolve(response(api.other)))
-})
-
-test('logout immediately removes loaded statistics even while logout acknowledgment is pending', async () => {
-  const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
-  await stats()
-  await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  const logout = deferred()
-  api.session.logout = () => logout.promise
-  clickLogout()
-  expect(screen.queryByRole('table')).not.toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: 'Statistics' })).not.toBeInTheDocument()
-  await act(async () => logout.resolve(new Response(null, { status: 204 })))
-  await screen.findByText('Logged out.')
-})
-
-
-function sortedIds(table: HTMLElement) {
-  for (const button of within(table).queryAllByRole('button', { name: /Kennung anzeigen/ })) fireEvent.click(button)
-  return within(table).getAllByRole('rowheader').map(header =>
-    header.textContent!.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)![0])
-}
-
-function sortingData() {
+function richStatistics(): GroupStatistics {
   const data = statistics()
   data.players = [
-    { ...data.players[0], games: 12, wins: 6 },
-    { ...data.players[1], games: 9, wins: 1 },
-    { ...data.players[2], games: 2, wins: 0 },
-    { ...data.players[0], userId: uid(4), username: 'Zed', games: 100, wins: 100, winRatePercent: 100 },
+    { userId: uid(5), username: 'Mara', games: 18, wins: 9, winRatePercent: 50 },
+    { userId: uid(6), username: 'Alex', games: 24, wins: 10, winRatePercent: 41.67 },
+    { userId: uid(7), username: 'Alex', games: 14, wins: 5, winRatePercent: 35.71 },
+    { userId: uid(8), username: 'Deleted profile', deleted: true, deletedNumber: 2, games: 18, wins: 2, winRatePercent: 11.11 },
+    { userId: uid(9), username: 'Sam', games: 1, wins: 1, winRatePercent: 100 },
   ]
-  data.decks = data.players.map((row, index) => ({ ...data.decks[0], deckId: uid(101 + index),
-    games: row.games, wins: row.wins, winRatePercent: row.winRatePercent }))
+  data.decks = [
+    { ...data.decks[1], deckId: uid(102), name: 'Friedhof', ownerUsername: 'Sam', commanders: [savedCommander('Muldrotha, the Gravetide')], archived: true, games: 12, wins: 3, winRatePercent: 25 },
+    { ...data.decks[0], deckId: uid(101), name: 'Superfriends', ownerUsername: 'Mara', commanders: [savedCommander('Atraxa, Praetors\' Voice')], games: 6, wins: 4, winRatePercent: 66.67 },
+    { ...data.decks[0], deckId: uid(103), name: 'Partner Control', ownerUsername: 'Deleted profile', ownerDeleted: true, ownerDeletedNumber: 2,
+      commanders: [savedCommander('Tymna the Weaver'), { ...savedCommander('Kraum, Ludevic\'s Opus'), position: 2, oracleId: uid(402), scryfallCardId: uid(302), selectionRef: { scryfallCardId: uid(302) } }], games: 4, wins: 2, winRatePercent: 50 },
+    { ...data.decks[0], deckId: uid(104), name: 'One shot', ownerUsername: 'Alex', commanders: [savedCommander('Yuriko')], games: 1, wins: 1, winRatePercent: 100 },
+  ]
+  data.startPositions = [
+    { playerCount: 2, seats: seats(2, [0, 0], []) },
+    { playerCount: 3, seats: seats(3, [12, 12, 12], [5, 4, 3]) },
+    { playerCount: 4, seats: seats(4, [12, 12, 12, 0], [3, 2, 1]) },
+    { playerCount: 5, seats: seats(5, [], []) },
+    { playerCount: 6, seats: seats(6, [], []) },
+  ]
+  data.manaColors = [
+    { color: 'W', games: 12, wins: 7, winRatePercent: 58.33 }, { color: 'U', games: 21, wins: 11, winRatePercent: 52.38 },
+    { color: 'B', games: 18, wins: 6, winRatePercent: 33.33 }, { color: 'R', games: 0, wins: 0, winRatePercent: null },
+    { color: 'G', games: 16, wins: 7, winRatePercent: 43.75 }, { color: 'C', games: 4, wins: 0, winRatePercent: 0 },
+  ]
   return data
 }
+const teaser = (title: string) => screen.getByRole('link', { name: title })
+const radio = (name: string) => within(screen.getByRole('group', { name: 'Spielerzahl' })).getByRole('radio', { name })
+const cardTitles = (list: string) => within(screen.getByRole('list', { name: list })).getAllByRole('heading', { level: 4 }).map(heading => heading.textContent)
 
-test.each(['players', 'decks'] as const)('every numeric %s heading sorts numbers descending then ascending, with independent accessible state', async kind => {
-  const api = gameApi(); api.state.statistics = sortingData(); show()
-  await stats()
+test('landing shows three fixed unfiltered teasers with their exact selections and destinations', async () => {
+  const api = setup()
+  show()
+  expect(await screen.findByRole('heading', { name: 'Statistiken', level: 3 })).toBeInTheDocument()
+  await screen.findByRole('list', { name: 'Spieler mit den meisten Partien' })
+  expect(screen.getAllByRole('heading', { level: 4 }).map(heading => heading.textContent))
+    .toEqual(['Gesamtsiegquote pro Spieler', 'Gesamtsiegquote pro Deck', 'Siegrate nach Startplatz'])
+  expect(teaser('Gesamtsiegquote pro Spieler')).toHaveAttribute('href', reportUrl('players'))
+  expect(teaser('Gesamtsiegquote pro Deck')).toHaveAttribute('href', reportUrl('decks'))
+  expect(teaser('Siegrate nach Startplatz')).toHaveAttribute('href', reportUrl('starting-seats'))
+  expect(screen.getByRole('link', { name: 'Alle Statistiken anzeigen' })).toHaveAttribute('href', chooser)
+  expect(screen.queryByRole('button', { name: /aktualisieren/ })).not.toBeInTheDocument()
+  // Most games, then display name: the deleted profile sorts by its localized label after Mara.
+  const players = within(screen.getByRole('list', { name: 'Spieler mit den meisten Partien' })).getAllByRole('listitem')
+  expect(players.map(row => row.textContent)).toEqual([
+    'Alex41,67 %24 Spiele · 10 Siege', 'Gelöschtes Profil 211,11 %18 Spiele · 2 Siege', 'Mara50 %18 Spiele · 9 Siege'])
+  // Highest rate with no sample threshold, partner Commanders on separate lines and archived marker.
+  const decks = within(screen.getByRole('list', { name: 'Decks mit der höchsten Siegrate' })).getAllByRole('listitem')
+  expect(decks.map(row => row.textContent)).toEqual([
+    'YurikoDeck: One shot · Alex1 Spiel · 1 Sieg100 %',
+    'Atraxa, Praetors\' VoiceDeck: Superfriends · Mara6 Spiele · 4 Siege66,67 %',
+    'Tymna the WeaverKraum, Ludevic\'s OpusDeck: Partner Control · Gelöschtes Profil 24 Spiele · 2 Siege50 %'])
+  // 3 and 4 players both have 12 observed games: prefer the larger table, never pooled.
+  const seatsTeaser = teaser('Siegrate nach Startplatz')
+  expect(within(seatsTeaser).getByText('4 Spieler · 12 Partien')).toBeInTheDocument()
+  expect(within(within(seatsTeaser).getByRole('list')).getAllByRole('listitem').map(row => row.textContent)).toEqual([
+    'Startplatz 112 Spiele · 3 Siege25 %', 'Startplatz 212 Spiele · 2 Siege16,67 %', 'Startplatz 312 Spiele · 1 Sieg8,33 %', 'Startplatz 40 Spiele · 0 SiegeKeine Beobachtung'])
+  expect(api.statsCalls()).toEqual([apiPath])
+})
+
+test('landing keeps all three linked teasers with truthful empty states and no invented rows', async () => {
+  setup(emptyStatistics())
+  show()
+  await screen.findByText('Noch keine Spielerstatistiken.')
+  expect(screen.getByText('Noch keine Deckstatistiken.')).toBeInTheDocument()
+  expect(screen.getByText('Noch keine Startplätze aufgezeichnet.')).toBeInTheDocument()
+  expect(screen.getAllByRole('link', { name: /Gesamtsiegquote|Siegrate/ })).toHaveLength(3)
+  expect(screen.queryByText(/%/)).not.toBeInTheDocument()
+})
+
+test('loading is announced, failures offer a distinct retry and never show stale numbers', async () => {
+  const api = setup(), pending = deferred()
+  api.next(apiPath, () => pending.promise)
+  show()
+  await screen.findByText('Statistiken werden geladen…')
+  expect(screen.getAllByRole('link', { name: /Gesamtsiegquote|Siegrate/ })).toHaveLength(3)
+  await act(async () => pending.resolve(response({}, 503)))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Die Statistiken konnten nicht geladen werden.')
+  expect(screen.queryByText(/%/)).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Erneut versuchen' }))
+  await screen.findByText('Statistiken geladen.')
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  expect(api.statsCalls()).toHaveLength(2)
+})
+
+test('chooser starts collapsed, expands independently and lists exactly the four reports', async () => {
+  const api = setup()
+  show()
+  fireEvent.click(await screen.findByRole('link', { name: 'Alle Statistiken anzeigen' }))
+  expect(await screen.findByRole('heading', { name: 'Alle Statistiken' })).toBeInTheDocument()
+  const section = within(screen.getByRole('region', { name: 'Alle Statistiken' }))
+  const toggles = section.getAllByRole('button', { expanded: false })
+  expect(toggles.map(button => button.textContent)).toEqual(['Spieler', 'Decks', 'Gruppe'])
+  expect(screen.queryByRole('link', { name: /Gesamtsiegquote|Siegrate/ })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Spieler' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Gruppe' }))
+  expect(screen.getByRole('button', { name: 'Spieler' })).toHaveAttribute('aria-expanded', 'true')
+  expect(screen.getByRole('button', { name: 'Decks' })).toHaveAttribute('aria-expanded', 'false')
+  expect(screen.getAllByRole('link', { name: /Gesamtsiegquote|Siegrate/ }).map(link => link.getAttribute('href')))
+    .toEqual([reportUrl('players'), reportUrl('starting-seats'), reportUrl('mana-colors')])
+  fireEvent.click(screen.getByRole('button', { name: 'Decks' }))
+  expect(screen.getAllByRole('link', { name: /Gesamtsiegquote|Siegrate/ })).toHaveLength(4)
+  expect(screen.getByRole('link', { name: 'Zurück zu Statistiken' })).toHaveAttribute('href', landing)
+  expect(api.statsCalls()).toHaveLength(1) // The chooser itself reads no statistics.
+})
+
+test.each(['visible Back', 'browser Back'] as const)('%s from a chooser report restores expanded categories; fresh chooser entry is collapsed', async exit => {
+  setup()
+  show(chooser)
+  fireEvent.click(await screen.findByRole('button', { name: 'Gruppe' }))
+  fireEvent.click(screen.getByRole('link', { name: 'Siegrate nach Manafarbe' }))
+  await screen.findByRole('heading', { name: 'Siegrate nach Manafarbe', level: 3 })
+  if (exit === 'visible Back') fireEvent.click(screen.getByRole('link', { name: 'Zurück zu Statistiken' }))
+  else await back()
+  expect(await screen.findByRole('button', { name: 'Gruppe' })).toHaveAttribute('aria-expanded', 'true')
+  expect(screen.getByRole('button', { name: 'Spieler' })).toHaveAttribute('aria-expanded', 'false')
+  expect(history.path).toBe(chooser)
+  fireEvent.click(screen.getByRole('link', { name: 'Zurück zu Statistiken' }))
+  fireEvent.click(await screen.findByRole('link', { name: 'Alle Statistiken anzeigen' }))
+  expect(await screen.findByRole('button', { name: 'Gruppe' })).toHaveAttribute('aria-expanded', 'false')
+})
+
+test('filter is shared between chooser reports, reset by teaser entry, and never written to the URL', async () => {
+  const api = setup()
+  show(chooser)
+  fireEvent.click(await screen.findByRole('button', { name: 'Spieler' }))
+  fireEvent.click(screen.getByRole('link', { name: 'Gesamtsiegquote pro Spieler' }))
   await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  const table = () => kind === 'players' ? playerTable() : deckTable()
-  const other = () => kind === 'players' ? deckTable() : playerTable()
-  const base = kind === 'players' ? [uid(1), uid(2), uid(9), uid(4)] : [101, 102, 103, 104].map(uid)
-  const untouched = sortedIds(other())
-  expect(sortedIds(table())).toEqual(base)
-  expect(within(table()).getAllByRole('columnheader').every(header => !header.hasAttribute('aria-sort'))).toBe(true)
-  for (const label of ['Siegrate', 'Spiele', 'Siege']) {
-    fireEvent.click(within(table()).getByRole('button', { name: label }))
-    expect(sortedIds(table())).toEqual([base[3], base[0], base[1], base[2]])
-    const active = within(table()).getByRole('columnheader', { name: label })
-    expect(active).toHaveAttribute('aria-sort', 'descending')
-    expect(active).toHaveTextContent('↓')
-    expect(table().querySelectorAll('th[aria-sort]')).toHaveLength(1)
-    fireEvent.click(within(table()).getByRole('button', { name: label }))
-    expect(sortedIds(table())).toEqual([base[2], base[1], base[0], base[3]])
-    expect(active).toHaveAttribute('aria-sort', 'ascending')
-    expect(active).toHaveTextContent('↑')
-    expect(sortedIds(other())).toEqual(untouched)
-  }
-  expect(statsCalls(api)).toHaveLength(1) // Presentation-only sorting never makes an API call.
-})
-
-test.each([
-  ['players', 'Spieler'], ['decks', 'Deck'], ['decks', 'Besitzer'],
-] as const)('%s %s heading sorts mixed-case text, retaining backend ID order for equal names in both directions', async (kind, label) => {
-  const api = gameApi(), data = sortingData()
-  const labels = ['beta', 'ALPHA', 'alpha', 'Zoo']
-  data.players = data.players.map((row, index) => ({ ...row, username: labels[index] }))
-  data.decks = data.decks.map((row, index) => ({ ...row, name: labels[index], ownerUsername: labels[index] }))
-  api.state.statistics = data; show()
-  await stats()
-  await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  const table = kind === 'players' ? playerTable() : deckTable()
-  const base = sortedIds(table)
-  fireEvent.click(within(table).getByRole('button', { name: label }))
-  expect(sortedIds(table)).toEqual([base[1], base[2], base[0], base[3]])
-  expect(within(table).getByRole('columnheader', { name: label })).toHaveAttribute('aria-sort', 'ascending')
-  fireEvent.click(within(table).getByRole('button', { name: label }))
-  expect(sortedIds(table)).toEqual([base[3], base[0], base[1], base[2]])
-  expect(within(table).getByRole('columnheader', { name: label })).toHaveAttribute('aria-sort', 'descending')
-})
-
-test('numeric ties use the backend order rather than the prior text sort or reversed tie order', async () => {
-  const api = gameApi(), data = statistics()
-  data.players = data.players.map(row => ({ ...row, games: 12, wins: 0, winRatePercent: 0 }))
-  api.state.statistics = data; show()
-  await stats()
-  await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  fireEvent.click(within(playerTable()).getByRole('button', { name: 'Spieler' }))
-  fireEvent.click(within(playerTable()).getByRole('button', { name: 'Spieler' }))
-  expect(sortedIds(playerTable())).toEqual([uid(9), uid(2), uid(1)])
-  fireEvent.click(within(playerTable()).getByRole('button', { name: 'Siege' }))
-  expect(sortedIds(playerTable())).toEqual([uid(1), uid(2), uid(9)])
-  fireEvent.click(within(playerTable()).getByRole('button', { name: 'Siege' }))
-  expect(sortedIds(playerTable())).toEqual([uid(1), uid(2), uid(9)])
-})
-
-test('both table choices re-sort fresh server rows on statistics refresh and games retry', async () => {
-  const api = gameApi()
-  api.next(`/api/groups/${group.id}/games/history`, () => response({}, 503))
-  api.state.statistics = statistics(); show()
-  await stats()
-  await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  fireEvent.click(within(playerTable()).getByRole('button', { name: 'Siegrate' }))
-  fireEvent.click(within(deckTable()).getByRole('button', { name: 'Siege' }))
-  const updated = statistics()
-  updated.players[2] = { ...updated.players[2], wins: 4, winRatePercent: 100 }
-  updated.decks[2] = { ...updated.decks[2], games: 10, wins: 10, winRatePercent: 100 }
-  api.state.statistics = updated
-  fireEvent.click(screen.getByRole('button', { name: 'Statistiken aktualisieren' }))
-  await stats()
-  await waitFor(() => expect(sortedIds(playerTable())).toEqual([uid(9), uid(1), uid(2)]))
-  expect(sortedIds(deckTable())).toEqual([uid(109), uid(101), uid(102)])
-  api.state.statistics = statistics()
-  await games()
-  fireEvent.click(screen.getByRole('button', { name: 'Refresh games' }))
-  await stats()
-  await waitFor(() => expect(sortedIds(playerTable())).toEqual([uid(1), uid(2), uid(9)]))
-  expect(within(playerTable()).getByRole('columnheader', { name: 'Siegrate' })).toHaveAttribute('aria-sort', 'descending')
-  expect(within(deckTable()).getByRole('columnheader', { name: 'Siege' })).toHaveAttribute('aria-sort', 'descending')
-  expect(sortedIds(deckTable())).toEqual([uid(101), uid(102), uid(109)])
-  expect(statsCalls(api)).toHaveLength(3)
-})
-
-test.each(['close', 'switch', 'session'] as const)('%s discards previous sort choices along with protected statistics', async action => {
-  const api = appSetup(); renderApp(<App />, '/playgroups'); await open()
-  await stats()
-  await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  fireEvent.click(within(playerTable()).getByRole('button', { name: 'Siegrate' }))
-  fireEvent.click(within(deckTable()).getByRole('button', { name: 'Siege' }))
-  if (action === 'close') {
-    fireEvent.click(screen.getByRole('link', { name: 'Zurück zu Playgroups' })); await open()
-  } else if (action === 'switch') await open(api.other.name)
-  else {
-    clickLogout()
-    await screen.findByText('Logged out.'); await signIn(); await open()
-  }
-  await stats()
-  await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  expect(viewButton('Spieler')).toHaveAttribute('aria-pressed', 'true')
-  expect(sortedIds(playerTable())).toEqual([uid(1), uid(2), uid(9)])
-  expect(sortedIds(deckTable())).toEqual([uid(101), uid(102), uid(109)])
-  for (const getTable of [playerTable, deckTable]) expect(getTable().querySelector('th[aria-sort]')).toBeNull()
-})
-
-function responsiveViewport(initialDesktop = false) {
-  let desktop = initialDesktop
-  const listeners = new Set<() => void>()
-  vi.stubGlobal('matchMedia', (query: string) => ({
-    media: query, get matches() { return desktop },
-    addEventListener(_event: string, listener: () => void) { listeners.add(listener) },
-    removeEventListener(_event: string, listener: () => void) { listeners.delete(listener) },
-  }))
-  return (wide: boolean) => act(() => { desktop = wide; listeners.forEach(listener => listener()) })
-}
-function cardIds() {
-  const list = screen.getByRole('list', { name: /statistiken$/ })
-  for (const button of within(list).queryAllByRole('button', { name: /Kennung anzeigen/ })) fireEvent.click(button)
-  return within(list).getAllByRole('listitem').map(card => card.textContent!.match(/[0-9a-f-]{36}/)![0])
-}
-
-test.each([
-  ['players', 'username', 'Spieler', 'ascending'], ['players', 'games', 'Spiele', 'descending'],
-  ['players', 'wins', 'Siege', 'descending'], ['players', 'winRatePercent', 'Siegrate', 'descending'],
-  ['decks', 'name', 'Deck', 'ascending'], ['decks', 'ownerUsername', 'Besitzer', 'ascending'],
-  ['decks', 'games', 'Spiele', 'descending'], ['decks', 'wins', 'Siege', 'descending'],
-  ['decks', 'winRatePercent', 'Siegrate', 'descending'],
-] as const)('mobile %s %s selects its first direction, reverses and resets API order', async (kind, field, label, direction) => {
-  responsiveViewport()
-  const api = gameApi(), data = sortingData()
-  const names = ['beta', 'ALPHA', 'alpha', 'Éclair']
-  data.players = data.players.map((row, i) => ({ ...row, username: names[i] }))
-  data.decks = data.decks.map((row, i) => ({ ...row, name: names[i], ownerUsername: names[i] }))
-  api.state.statistics = data; show()
-  await screen.findByRole('list', { name: 'Spielerstatistiken' })
-  if (kind === 'decks') selectView('Decks')
-  const base = kind === 'players' ? [uid(1), uid(2), uid(9), uid(4)] : [101, 102, 103, 104].map(uid)
-  expect(cardIds()).toEqual(base)
-  const selector = screen.getByRole('combobox', { name: 'Sortieren nach' })
-  expect(within(selector).getAllByRole('option')).toHaveLength(kind === 'players' ? 5 : 6)
-  expect(screen.getByRole('button', { name: 'Sortierrichtung: Keine Sortierung' })).toBeDisabled()
-  fireEvent.change(selector, { target: { value: field } })
-  const numeric = direction === 'descending'
-  expect(cardIds()).toEqual(numeric ? [base[3], base[0], base[1], base[2]] : [base[1], base[2], base[0], base[3]])
-  expect(screen.getByRole('button', { name: `Sortierrichtung: ${numeric ? 'Absteigend' : 'Aufsteigend'}` })).toBeEnabled()
-  expect(screen.getByText(`${kind === 'players' ? 'Spielerstatistiken' : 'Deckstatistiken'}: ${label}, ${numeric ? 'Absteigend' : 'Aufsteigend'}`)).toHaveAttribute('role', 'status')
-  fireEvent.click(screen.getByRole('button', { name: /^Sortierrichtung:/ }))
-  expect(cardIds()).toEqual(numeric ? [base[2], base[1], base[0], base[3]] : [base[3], base[0], base[1], base[2]])
-  expect(selector).toHaveValue(field)
-  fireEvent.change(selector, { target: { value: '' } })
-  expect(cardIds()).toEqual(base)
-  expect(screen.getByRole('button', { name: 'Sortierrichtung: Keine Sortierung' })).toBeDisabled()
-  expect(screen.queryByRole('table')).not.toBeInTheDocument()
-  expect(statsCalls(api)).toHaveLength(1)
-})
-
-test('responsive variants share selection, independent sorts and stable disclosures without extra fetches', async () => {
-  const resize = responsiveViewport()
-  const api = gameApi(); api.state.statistics = statistics(); show()
-  await screen.findByRole('list', { name: 'Spielerstatistiken' })
-  const choose = (field: string) => fireEvent.change(screen.getByRole('combobox', { name: 'Sortieren nach' }), { target: { value: field } })
-  choose('wins')
-  selectView('Decks'); choose('name')
-  const disclosure = screen.getAllByRole('button', { name: /Kennung anzeigen/ })[0]
-  fireEvent.click(disclosure)
-  const controlledId = disclosure.getAttribute('aria-controls')
-  resize(true)
-  expect(viewButton('Decks')).toHaveAttribute('aria-pressed', 'true')
-  expect(screen.getAllByRole('table')).toHaveLength(1)
-  expect(screen.queryByRole('list', { name: 'Deckstatistiken' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('combobox', { name: 'Sortieren nach' })).not.toBeInTheDocument()
-  expect(within(deckTable()).getByRole('columnheader', { name: 'Deck' })).toHaveAttribute('aria-sort', 'ascending')
-  expect(screen.getByRole('button', { name: /Kennung verbergen/ })).toHaveAttribute('aria-controls', controlledId)
-  fireEvent.click(screen.getByRole('button', { name: 'Standardreihenfolge' }))
-  expect(deckTable().querySelector('th[aria-sort]')).toBeNull()
-  selectView('Spieler')
-  expect(within(playerTable()).getByRole('columnheader', { name: 'Siege' })).toHaveAttribute('aria-sort', 'descending')
-  resize(false)
-  expect(screen.getByRole('combobox', { name: 'Sortieren nach' })).toHaveValue('wins')
-  selectView('Decks')
-  expect(screen.getByRole('combobox', { name: 'Sortieren nach' })).toHaveValue('')
-  expect(statsCalls(api)).toHaveLength(1)
-})
-
-test('mobile cards retain complete long identity, server numbers and archived/owner disclosures', async () => {
-  responsiveViewport()
-  const api = gameApi(), data = statistics()
-  const longName = 'LangerUnunterbrochenerName'.repeat(12)
-  data.players[0].username = longName
-  data.decks[2] = { ...data.decks[2], name: longName, ownerUsername: longName, commanders: [savedCommander(longName)], winRatePercent: 12.5 }
-  api.state.statistics = data; show()
-  const players = await screen.findByRole('list', { name: 'Spielerstatistiken' })
-  expect(within(players).getByRole('heading', { name: longName })).toHaveTextContent(longName)
-  expect(within(players).getAllByRole('term').map(term => term.textContent)).toEqual(Array(3).fill(['Spiele', 'Siege', 'Siegrate']).flat())
-  expect(within(players).getAllByRole('definition').map(value => value.textContent)).toEqual(['12', '6', '50%', '12', '1', '8.33%', '4', '0', '0%'])
-  selectView('Decks')
-  const decks = screen.getByRole('list', { name: 'Deckstatistiken' })
-  const archived = within(decks).getAllByRole('listitem')[2]
-  expect(archived).toHaveTextContent(`Commander: ${longName}`)
-  expect(archived).toHaveTextContent(`Besitzer: ${longName}`)
-  expect(archived).toHaveTextContent('Archiviert')
-  expect(archived).toHaveTextContent('12.5%')
-  expect(screen.queryByText(`Deckkennung: ${uid(109)}`)).not.toBeInTheDocument()
-  fireEvent.click(within(archived).getByRole('button', { name: /Kennung anzeigen/ }))
-  expect(screen.getByText(`Deckkennung: ${uid(109)}`)).toBeVisible()
-  expect(screen.getByText(`Besitzerkennung: ${uid(9)}`)).toBeVisible()
-})
-
-test.each(['players', 'decks', 'both'] as const)('empty %s shows selected-subview feedback and keeps the switch available', async empty => {
-  const api = gameApi(), data = statistics()
-  if (empty !== 'decks') data.players = []
-  if (empty !== 'players') data.decks = []
-  api.state.statistics = data; show()
-  if (empty !== 'decks') await screen.findByText(/Noch keine Spielerstatistiken/)
-  else await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  selectView('Decks')
-  expect(viewButton('Spieler')).toBeEnabled()
-  expect(viewButton('Decks')).toBeEnabled()
-  if (empty !== 'players') expect(screen.getByText(/Noch keine Deckstatistiken/)).toBeVisible()
-  else expect(deckTable()).toBeInTheDocument()
-})
-
-test('refresh keeps visible keyboard focus through loading and local failure', async () => {
-  const api = gameApi(); api.state.statistics = statistics(); show()
-  await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  const pending = deferred()
-  api.next(path, () => pending.promise)
-  const refresh = screen.getByRole('button', { name: 'Statistiken aktualisieren' })
-  refresh.focus(); fireEvent.click(refresh)
-  expect(refresh).toHaveFocus()
-  expect(refresh).toHaveAttribute('aria-disabled', 'true')
-  expect(screen.queryByRole('table')).not.toBeInTheDocument()
-  await act(async () => pending.resolve(response({}, 500)))
-  expect(await screen.findByRole('alert')).toBeVisible()
-  expect(refresh).toHaveFocus()
-  expect(refresh).toHaveAttribute('aria-disabled', 'false')
-})
-
-
-test('a breakpoint change recovers focus from a removed mobile sort control', async () => {
-  const resize = responsiveViewport()
-  const api = gameApi(); api.state.statistics = statistics(); show()
-  await screen.findByRole('list', { name: 'Spielerstatistiken' })
-  const selector = screen.getByRole('combobox', { name: 'Sortieren nach' })
-  selector.focus()
-  resize(true)
-  expect(screen.getByRole('button', { name: 'Statistiken aktualisieren' })).toHaveFocus()
-})
-
-test('denial recovery focuses explicit retry and reloaded statistics without automatic retry loops', async () => {
-  const api = gameApi(); api.state.statistics = statistics(); show()
-  await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  selectView('Decks')
-  api.next(path, () => response({}, 403))
-  fireEvent.click(screen.getByRole('button', { name: 'Statistiken aktualisieren' }))
-  await screen.findByText('Gruppenzugriff bestätigt. Bitte Statistiken aktualisieren, um den Serverstand zu prüfen.')
-  const retry = screen.getByRole('button', { name: 'Statistiken aktualisieren' })
-  // The recovery UI is committed before the effect restores focus.
-  await waitFor(() => expect(retry).toHaveFocus())
-  expect(statsCalls(api)).toHaveLength(2)
-  fireEvent.click(retry)
+  expect(radio('Alle')).toBeChecked()
+  fireEvent.click(radio('4'))
+  expect(radio('4')).toBeChecked()
+  await waitFor(() => expect(api.statsCalls().at(-1)).toBe(`${apiPath}?playerCount=4`))
+  expect(history.path).toBe(reportUrl('players'))
+  fireEvent.click(screen.getByRole('link', { name: 'Zurück zu Statistiken' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Decks' }))
+  fireEvent.click(screen.getByRole('link', { name: 'Gesamtsiegquote pro Deck' }))
   await screen.findByRole('table', { name: 'Deckstatistiken' })
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Statistiken aktualisieren' })).toHaveFocus())
-  expect(statsCalls(api)).toHaveLength(3)
-  await games()
-  const tabTrigger = screen.getByRole('button', { name: 'Show statistics' })
-  tabTrigger.focus(); fireEvent.click(tabTrigger)
-  expect(tabTrigger).toHaveFocus()
+  expect(radio('4')).toBeChecked()
+  expect(api.statsCalls().at(-1)).toBe(`${apiPath}?playerCount=4`)
+  // Deliberate Statistics tab selection lands on the unfiltered teaser page.
+  fireEvent.click(screen.getByRole('tab', { name: 'Statistics' }))
+  await screen.findByRole('link', { name: 'Alle Statistiken anzeigen' })
+  expect(history.path).toBe(landing)
+  await screen.findByText('Statistiken geladen.')
+  expect(api.statsCalls().at(-1)).toBe(apiPath)
+  fireEvent.click(teaser('Gesamtsiegquote pro Deck'))
+  await screen.findByRole('table', { name: 'Deckstatistiken' })
+  expect(radio('Alle')).toBeChecked()
+  expect(api.statsCalls().at(-1)).toBe(apiPath)
+  expect(screen.getByRole('link', { name: 'Zurück zu Statistiken' })).toHaveAttribute('href', landing)
 })
 
-test('shared filter replaces every view, hides stale charts, ignores retired responses and preserves sorting', async () => {
-  const api = gameApi()
-  const data = statistics()
-  data.startPositions[0].seats = data.startPositions[0].seats.map((row, i) => ({ ...row, games: 2, wins: i === 0 ? 1 : 0, winRatePercent: i === 0 ? 50 : 0 }))
-  data.manaColors[0] = { color: 'W', games: 4, wins: 1, winRatePercent: 25 }
-  api.state.statistics = data
-  const base = api.fetchMock
-  const pending = deferred()
-  const fetchMock = vi.fn((url: string, init?: RequestInit) => {
-    if (url === `${path}?playerCount=3`) return pending.promise
-    if (url === `${path}?playerCount=4`) return Promise.resolve(response(emptyStatistics(4)))
-    return base(url, init)
-  })
-  vi.stubGlobal('fetch', fetchMock)
-  show()
-  const seat = await screen.findByRole('region', { name: 'Siegrate nach Startplatz' })
-  expect(within(seat).getByRole('region', { name: '2 Spieler' })).toBeInTheDocument()
-  expect(within(seat).queryByRole('region', { name: '3 Spieler' })).not.toBeInTheDocument()
-  expect(within(seat).getByText('0%')).toBeInTheDocument()
-  expect(screen.getByRole('region', { name: 'Siegrate nach Manafarbe' })).toHaveTextContent('25%')
-  selectView('Decks')
-  fireEvent.click(within(deckTable()).getByRole('button', { name: 'Siege' }))
-  expect(seat).toBeInTheDocument()
-  const filter = screen.getByRole('combobox', { name: 'Spielerzahl' })
-  expect(filter).toHaveValue('')
-  fireEvent.change(filter, { target: { value: '3' } })
-  expect(screen.queryByRole('region', { name: 'Siegrate nach Startplatz' })).not.toBeInTheDocument()
-  fireEvent.change(filter, { target: { value: '4' } })
-  await screen.findByText('Keine Deckstatistiken für 4-Spieler-Partien vorhanden.')
-  expect(screen.getByText('Deckstatistiken: Siege, Absteigend')).toBeInTheDocument()
-  expect(screen.getByRole('region', { name: 'Siegrate nach Startplatz' })).toHaveTextContent('Keine Daten vorhanden')
-  expect(screen.queryByText('Startplatz 1')).not.toBeInTheDocument()
-  await act(async () => pending.resolve(response({ ...data, startPositions: [emptyStatistics(3).startPositions[0]] })))
-  expect(screen.getByRole('region', { name: 'Siegrate nach Manafarbe' })).not.toHaveTextContent('25%')
-  expect(screen.queryByRole('table')).not.toBeInTheDocument()
-  expect(fetchMock.mock.calls.filter(([url]) => url.startsWith(path)).map(([url]) => url)).toEqual([path, `${path}?playerCount=3`, `${path}?playerCount=4`])
+test('a fresh direct report URL starts with Alle and the default sort and returns to the landing page', async () => {
+  const api = setup()
+  show(reportUrl('players'))
+  const table = await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  expect(radio('Alle')).toBeChecked()
+  expect(within(table).getByRole('columnheader', { name: 'Spiele' })).toHaveAttribute('aria-sort', 'descending')
+  expect(within(table).getAllByRole('rowheader').map(cell => cell.firstChild!.textContent))
+    .toEqual(['Alex', 'Gelöschtes Profil 2', 'Mara', 'Alex', 'Sam'])
+  expect(screen.getByRole('link', { name: 'Zurück zu Statistiken' })).toHaveAttribute('href', landing)
+  expect(screen.getByRole('tab', { name: 'Statistics', selected: true })).toBeInTheDocument()
+  expect(api.statsCalls()).toEqual([apiPath])
 })
 
+test('player report lists every played player, sorts by all columns and directions, and discloses IDs only for visible namesakes', async () => {
+  setup()
+  show(reportUrl('players'))
+  const table = await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  const names = () => within(table).getAllByRole('rowheader').map(cell => cell.firstChild!.textContent)
+  fireEvent.click(within(table).getByRole('button', { name: 'Siegrate' }))
+  expect(names()).toEqual(['Sam', 'Mara', 'Alex', 'Alex', 'Gelöschtes Profil 2'])
+  expect(within(table).getByRole('columnheader', { name: /Siegrate/ })).toHaveAttribute('aria-sort', 'descending')
+  fireEvent.click(within(table).getByRole('button', { name: /Siegrate/ }))
+  expect(names()).toEqual(['Gelöschtes Profil 2', 'Alex', 'Alex', 'Mara', 'Sam'])
+  fireEvent.click(within(table).getByRole('button', { name: 'Spieler' }))
+  expect(names()).toEqual(['Alex', 'Alex', 'Gelöschtes Profil 2', 'Mara', 'Sam'])
+  fireEvent.click(within(table).getByRole('button', { name: 'Siege' }))
+  expect(names()).toEqual(['Alex', 'Mara', 'Alex', 'Gelöschtes Profil 2', 'Sam'])
+  const disclosures = within(table).getAllByRole('button', { name: /Kennung anzeigen/ })
+  expect(disclosures).toHaveLength(2)
+  expect(screen.queryByText(uid(6), { exact: false })).not.toBeInTheDocument()
+  fireEvent.click(disclosures[1])
+  expect(screen.getByText(`Spielerkennung: ${uid(7)}`)).toBeInTheDocument()
+  // The disclosure stays with the same stable identity after re-sorting.
+  fireEvent.click(within(table).getByRole('button', { name: /Siege/ }))
+  expect(within(within(table).getAllByRole('row').find(row => row.textContent!.includes(uid(7)))!).getByText('14')).toBeInTheDocument()
+})
 
-test('empty filtered statistics name the selected table size in both views despite existing group games', async () => {
-  const api = gameApi([recorded()]) // Existing two-player game, no four-player games.
-  api.state.statistics = statistics()
-  api.next(`${path}?playerCount=4`, () => response(emptyStatistics(4)))
-  show()
+test('a filter that leaves one namesake visible removes its disclosure; empty filtered subsets name the table size', async () => {
+  const api = setup()
+  show(reportUrl('players'))
   await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spielerzahl' }), { target: { value: '4' } })
+  const filtered = richStatistics()
+  filtered.players = filtered.players.slice(1, 2)
+  api.next(apiPath, () => response({ ...filtered, startPositions: emptyStatistics(3).startPositions }))
+  fireEvent.click(radio('3'))
+  const table = await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  expect(within(table).getAllByRole('row')).toHaveLength(2)
+  expect(within(table).queryByRole('button', { name: /Kennung/ })).not.toBeInTheDocument()
+  api.next(apiPath, () => response(emptyStatistics(5)))
+  fireEvent.click(radio('5'))
+  expect(await screen.findByText('Keine Spielerstatistiken für 5-Spieler-Partien vorhanden.')).toBeInTheDocument()
+})
+
+test('a retired filter response cannot replace the newer selection', async () => {
+  const api = setup()
+  show(reportUrl('players'))
+  await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  const late = deferred()
+  api.next(apiPath, () => late.promise)
+  fireEvent.click(radio('3'))
+  await screen.findByText('Statistiken werden geladen…')
+  const signal = api.fetchMock.mock.calls.at(-1)![1]!.signal!
+  api.next(apiPath, () => response(emptyStatistics(4)))
+  fireEvent.click(radio('4'))
   await screen.findByText('Keine Spielerstatistiken für 4-Spieler-Partien vorhanden.')
-  selectView('Decks')
-  expect(screen.getByText('Keine Deckstatistiken für 4-Spieler-Partien vorhanden.')).toBeInTheDocument()
-  expect(screen.queryByText(/Erfasse ein Spiel in dieser Gruppe/)).not.toBeInTheDocument()
-  selectView('Spieler')
-  expect(screen.getByText('Keine Spielerstatistiken für 4-Spieler-Partien vorhanden.')).toBeInTheDocument()
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spielerzahl' }), { target: { value: '' } })
-  await screen.findByRole('table', { name: 'Spielerstatistiken' })
-  expect(screen.queryByText(/für 4-Spieler-Partien vorhanden/)).not.toBeInTheDocument()
+  expect(signal.aborted).toBe(true)
+  await act(async () => late.resolve(response({ ...richStatistics(), startPositions: emptyStatistics(3).startPositions })))
+  expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  expect(radio('4')).toBeChecked()
 })
 
-test('unfiltered empty statistics retain the original guidance for both views', async () => {
-  gameApi()
-  show()
-  await screen.findByText('Noch keine Spielerstatistiken. Erfasse ein Spiel in dieser Gruppe, um Ergebnisse zu sehen.')
-  selectView('Decks')
-  expect(screen.getByText('Noch keine Deckstatistiken. Erfasse ein Spiel in dieser Gruppe, um Ergebnisse zu sehen.')).toBeInTheDocument()
+test('mobile reports use cards, explicit sort controls and independent per-report sorts across report and tab switches', async () => {
+  mobile()
+  const api = setup()
+  show(chooser)
+  fireEvent.click(await screen.findByRole('button', { name: 'Spieler' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Decks' }))
+  fireEvent.click(screen.getByRole('link', { name: 'Gesamtsiegquote pro Spieler' }))
+  await screen.findByRole('list', { name: 'Spielerstatistiken' })
+  expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  expect(screen.getByLabelText('Sortieren nach')).toHaveValue('games')
+  expect(screen.getByLabelText('Reihenfolge')).toHaveValue('descending')
+  fireEvent.change(screen.getByLabelText('Sortieren nach'), { target: { value: 'name' } })
+  fireEvent.change(screen.getByLabelText('Reihenfolge'), { target: { value: 'ascending' } })
+  expect(cardTitles('Spielerstatistiken')).toEqual(['Alex', 'Alex', 'Gelöschtes Profil 2', 'Mara', 'Sam'])
+  expect(within(screen.getByRole('list', { name: 'Spielerstatistiken' })).getAllByRole('button', { name: /Kennung anzeigen/ })).toHaveLength(2)
+  fireEvent.click(screen.getByRole('link', { name: 'Zurück zu Statistiken' }))
+  fireEvent.click(await screen.findByRole('link', { name: 'Gesamtsiegquote pro Deck' }))
+  await screen.findByRole('list', { name: 'Deckstatistiken' })
+  expect(screen.getByLabelText('Sortieren nach')).toHaveValue('winRate')
+  expect(cardTitles('Deckstatistiken')).toEqual(['Yuriko', 'Atraxa, Praetors\' Voice', 'Tymna the WeaverKraum, Ludevic\'s Opus', 'Muldrotha, the Gravetide'])
+  const archived = within(screen.getByRole('list', { name: 'Deckstatistiken' })).getAllByRole('listitem')[3]
+  expect(archived).toHaveTextContent('Archiviert')
+  expect(archived).toHaveTextContent('Deck: Friedhof')
+  expect(archived).toHaveTextContent('Besitzer: Sam')
+  expect(within(screen.getByRole('list', { name: 'Deckstatistiken' })).getAllByRole('listitem')[2]).toHaveTextContent('Besitzer: Gelöschtes Profil 2')
+  fireEvent.change(screen.getByLabelText('Sortieren nach'), { target: { value: 'name' } })
+  fireEvent.change(screen.getByLabelText('Reihenfolge'), { target: { value: 'ascending' } })
+  expect(cardTitles('Deckstatistiken')[0]).toBe('Muldrotha, the Gravetide') // Saved deck name "Friedhof" sorts first.
+  await act(async () => { await history.navigate(groupUrl(group.id, 'members')) })
+  await screen.findByRole('list', { name: 'Aktive Mitglieder' })
+  await act(async () => { await history.navigate(reportUrl('players'), { state: { statisticsOrigin: { kind: 'chooser', expanded: ['players'] } } }) })
+  await screen.findByRole('list', { name: 'Spielerstatistiken' })
+  expect(screen.getByLabelText('Sortieren nach')).toHaveValue('name')
+  expect(screen.getByLabelText('Reihenfolge')).toHaveValue('ascending')
+  expect(api.statsCalls().every(url => url === apiPath)).toBe(true)
+})
+
+test('duplicate deck identities get disclosures only when Commanders, name and owner all collide', async () => {
+  const data = richStatistics()
+  data.decks = [data.decks[1], { ...data.decks[1], deckId: uid(105), ownerUserId: uid(15) }, { ...data.decks[1], deckId: uid(106), ownerUsername: 'Other owner' }]
+  setup(data)
+  show(reportUrl('decks'))
+  const table = await screen.findByRole('table', { name: 'Deckstatistiken' })
+  const buttons = within(table).getAllByRole('button', { name: /Kennung anzeigen/ })
+  expect(buttons).toHaveLength(2)
+  fireEvent.click(buttons[1])
+  expect(screen.getByText(`Deckkennung: ${uid(105)}`)).toBeInTheDocument()
+  expect(screen.getByText(`Besitzerkennung: ${uid(15)}`)).toBeInTheDocument()
+})
+
+test('starting seats show separate observed table sizes in seat order, with no-observation seats never shown as 0 %', async () => {
+  const api = setup()
+  show(reportUrl('starting-seats'))
+  const sections = await screen.findAllByRole('region', { name: /Spieler ·/ })
+  expect(sections.map(section => within(section).getByRole('heading').textContent)).toEqual(['3 Spieler · 12 Partien', '4 Spieler · 12 Partien'])
+  expect(within(sections[1]).getAllByRole('listitem').map(row => row.textContent)).toEqual([
+    'Startplatz 112 Spiele · 3 Siege25 %', 'Startplatz 212 Spiele · 2 Siege16,67 %', 'Startplatz 312 Spiele · 1 Sieg8,33 %', 'Startplatz 40 Spiele · 0 SiegeKeine Beobachtung'])
+  expect(screen.queryByLabelText('Sortieren nach')).not.toBeInTheDocument()
+  api.next(apiPath, () => response({ ...emptyStatistics(3), startPositions: [{ playerCount: 3, seats: seats(3, [5, 5, 5], [0, 5, 0]) }] }))
+  fireEvent.click(radio('3'))
+  await screen.findByRole('heading', { name: '3 Spieler · 5 Partien' })
+  expect(screen.getAllByRole('region', { name: /Spieler ·/ })).toHaveLength(1)
+  expect(screen.getAllByText('0 %')).toHaveLength(2) // Measured zero stays a valid rate.
+  api.next(apiPath, () => response(emptyStatistics(6)))
+  fireEvent.click(radio('6'))
+  expect(await screen.findByText('Keine Startplatzdaten für 6-Spieler-Partien vorhanden.')).toBeInTheDocument()
+})
+
+test('Mana colors list only observed colors in ranked order with names and letters', async () => {
+  setup()
+  show(reportUrl('mana-colors'))
+  const list = await screen.findByRole('list', { name: 'Siegrate nach Manafarbe' })
+  expect(within(list).getAllByRole('listitem').map(row => row.textContent)).toEqual([
+    'WWeiß58,33 %12 Spiele · 7 Siege', 'UBlau52,38 %21 Spiele · 11 Siege', 'GGrün43,75 %16 Spiele · 7 Siege',
+    'BSchwarz33,33 %18 Spiele · 6 Siege', 'CFarblos0 %4 Spiele · 0 Siege'])
+  expect(within(list).queryByRole('link')).not.toBeInTheDocument()
+  expect(screen.getByText(/Mehrfarbige Decks zählen je enthaltener Farbe/)).toBeInTheDocument()
+})
+
+test('Overview spotlight opens the player report with Alle and its Back returns to Overview', async () => {
+  const api = setup()
+  show(chooser)
+  fireEvent.click(await screen.findByRole('button', { name: 'Spieler' }))
+  fireEvent.click(screen.getByRole('link', { name: 'Gesamtsiegquote pro Spieler' }))
+  await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  fireEvent.click(radio('2'))
+  await waitFor(() => expect(api.statsCalls().at(-1)).toBe(`${apiPath}?playerCount=2`))
+  fireEvent.click(screen.getByRole('tab', { name: 'Overview' }))
+  fireEvent.click(await screen.findByRole('link', { name: /Alle Spielerstatistiken ansehen/ }))
+  await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  expect(radio('Alle')).toBeChecked()
+  expect(api.statsCalls().at(-1)).toBe(apiPath)
+  const backLink = screen.getByRole('link', { name: 'Zurück zur Übersicht' })
+  expect(backLink).toHaveAttribute('href', groupUrl(group.id))
+  fireEvent.click(backLink)
+  expect(await screen.findByRole('heading', { name: 'Letzte Spiele' })).toBeInTheDocument()
+})
+
+test('presentation memory resets for another group and a new session', async () => {
+  const api = setup()
+  show(reportUrl('players'))
+  await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  fireEvent.click(radio('3'))
+  await waitFor(() => expect(api.statsCalls().at(-1)).toBe(`${apiPath}?playerCount=3`))
+  await act(async () => { await history.navigate(reportUrl('decks').replace(group.id, api.other.id)) })
+  await screen.findByText('Noch keine Deckstatistiken. Erfasst ein Spiel in dieser Gruppe, um Ergebnisse zu sehen.')
+  expect(radio('Alle')).toBeChecked()
+  await act(async () => { await history.navigate(reportUrl('players')) })
+  await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  fireEvent.click(radio('4'))
+  await waitFor(() => expect(api.statsCalls().at(-1)).toBe(`${apiPath}?playerCount=4`))
+  fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Owner' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Abmelden' }))
+  await screen.findByText('Logged out.')
+  const form = within(screen.getByRole('heading', { name: 'Sign in' }).closest('section')!)
+  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'owner@example.test' } })
+  fireEvent.change(form.getByLabelText('Password'), { target: { value: 'correct horse battery' } })
+  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
+  await screen.findByRole('navigation', { name: 'Main navigation' })
+  await act(async () => { await history.navigate(reportUrl('players')) })
+  await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  expect(radio('Alle')).toBeChecked()
+})
+
+test.each([403, 404])('statistics %s retires the group and returns to the collection with the access notice', async status => {
+  const api = setup()
+  api.next(apiPath, () => response({}, status))
+  show(reportUrl('decks'))
+  expect(await screen.findByText('Du hast keinen Zugriff mehr auf diese Playgroup.')).toBeInTheDocument()
+  await waitFor(() => expect(history.path).toBe('/playgroups'))
+  expect(screen.queryByRole('heading', { name: group.name })).not.toBeInTheDocument()
+})
+
+test('statistics 401 expires the session at the protected report path', async () => {
+  const api = setup()
+  api.next(apiPath, () => response({}, 401))
+  show(reportUrl('mana-colors'))
+  expect(await screen.findByText('Your session expired. Sign in again.')).toBeInTheDocument()
+  expect(screen.queryByRole('list', { name: 'Siegrate nach Manafarbe' })).not.toBeInTheDocument()
+})
+
+test.each([200, 401])('leaving a loading report ignores a late status %s response', async status => {
+  const api = setup(), late = deferred()
+  api.next(apiPath, () => late.promise)
+  show(reportUrl('players'))
+  await screen.findByText('Statistiken werden geladen…')
+  const signal = api.fetchMock.mock.calls.find(([url]) => url === apiPath)![1]!.signal!
+  await goTo('Decks')
+  expect(signal.aborted).toBe(true)
+  await act(async () => late.resolve(response(richStatistics(), status)))
+  expect(screen.queryByText(/session expired/i)).not.toBeInTheDocument()
+  expect(screen.queryByRole('table', { name: 'Spielerstatistiken' })).not.toBeInTheDocument()
 })

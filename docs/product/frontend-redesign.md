@@ -81,6 +81,7 @@ Opening a playgroup lands directly in **Spiele**. Inside the group, use three su
 - Support **all existing client-side sorting**: players by name/games/wins/win rate; decks by deck name/owner/games/wins/win rate. Support ascending and descending order, with independent state for the two views. Before sorting, preserve the API name-based order; numeric sort starts descending and textual sort ascending.
 - Values, including win rate (up to two fractional digits), come from the **existing statistics API**. Only players/decks appearing in persisted group games are included. Former members and archived decks with surviving game references remain in results; draws count as games without wins.
 - Provide loading/error/empty states and refresh. No new profiles, drilldown pages, rankings, leaderboards, totals, charts or derived statistics in this milestone.
+- **Superseded by [#197](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/197):** the Statistics tab is now a landing page with three fixed teasers, an All Statistics chooser and four focused player, deck, starting-seat and Mana-color reports with a shared player-count filter and automatic loading instead of a refresh button. See [group statistics routing](../development/frontend-routing.md#group-statistics-197).
 
 ### Mitglieder and group administration
 

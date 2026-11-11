@@ -15,12 +15,13 @@ not force scroll reset. The fixed collection Back link targets `/playgroups`.
 | `/playgroups` | Complete collection and creation dialog; `?create=1` opens the dialog and is consumed with replace |
 | `/playgroups/:groupId` | Freshly authorized Overview |
 | `/playgroups/:groupId/games` | Games history |
-| `/playgroups/:groupId/statistics` | Reused statistics view |
+| `/playgroups/:groupId/statistics` | #197 statistics landing with three fixed teasers |
 | `/playgroups/:groupId/members` | Active members |
 | `/playgroups/:groupId/games/new` | Focused game creation |
 | `/playgroups/:groupId/games/:gameId` | Freshly authorized game details |
 | `/playgroups/:groupId/games/:gameId/edit` | Focused game edit after fresh permission check |
-| `/playgroups/:groupId/statistics/reports` and `/playgroups/:groupId/statistics/reports/{players,decks,starting-seats,mana-colors}` | Guarded child hosts; #197 integration pending |
+| `/playgroups/:groupId/statistics/reports` | #197 All Statistics chooser |
+| `/playgroups/:groupId/statistics/reports/{players,decks,starting-seats,mana-colors}` | #197 focused read-only reports |
 | `/playgroups/:groupId/members/:memberId/decks` and `/playgroups/:groupId/members/:memberId/decks/new` | Guarded child hosts; #198/#199/#196 integration pending |
 | `/decks`, `/decks/new`, `/decks/:deckId/edit` | Personal collection and focused editors |
 | `/invite/:code`, `/claim/:code` | Public placeholders before the auth gate; #200/#247 own preview and transactions |
@@ -71,25 +72,50 @@ Only personal deck return-context tokens remain: session/path-scoped opaque
 values associate a trusted calling overview without conferring permission or
 accepting external return URLs. All group/game authorization remains server-backed.
 
-### Responsive group statistics
+### Group statistics (#197)
 
-`GameManager` owns separate player/deck sorts and the selected statistics subview
-(initially Spieler) above the keyed `GroupStatistics` request instance. Refresh re-sorts fresh API arrays without discarding either choice.
-Route/group/session retirement resets them; the switch adds no URL or storage state.
-`GroupStatistics` uses the shared theme's `md` media query (900px): phones mount a
-semantic card list and labelled native Sortieren nach selector/direction button;
-wider viewports mount only the selected semantic table with header buttons and
-`aria-sort`. Both offer Standardreihenfolge. Breakpoint changes make no API calls.
-Inactive variants are unmounted, and outer panels use native `hidden`.
+The Statistics tab and its report routes render inside `GroupPage`, so they keep
+the group heading, child tabs and fresh group authorization of every main group
+route. Selecting the Statistics tab while a chooser or report is open always
+navigates to the landing page; browser history is otherwise untouched.
 
-Per-row disclosure state and element IDs use group/dataset/stable UUID identity,
-so sorting and responsive changes cannot associate an identifier with another row.
-Only requested disclosures mount complete player/deck/owner ID text; contextual
-button names distinguish namesakes without permanently announcing raw UUIDs.
-The refresh button stays focusable with guarded `aria-disabled` during loading;
-access recovery focuses explicit retry and its replacement refresh control.
-Removing a focused responsive control returns focus to the persistent refresh.
+- `StatisticsLanding` reads unfiltered statistics once and shows three fixed
+  teaser cards: top three players by games (`spotlightPlayers`, shared with #193),
+  top three decks by exact win ratio then games, and the most observed starting-seat
+  table size (ties prefer the larger size; sizes are never pooled). Each whole
+  card links to its own report; namesakes in a teaser keep a short UUID suffix
+  because no button may nest inside the card link.
+- `StatisticsChooser` makes no request. Its expanded categories live only in the
+  chooser's history-entry state: a fresh entry starts collapsed, and both the
+  visible Back of a chooser-opened report and browser Back restore them.
+- `StatisticsReportPage` renders one report with the shared native-radio
+  **Spielerzahl** control (3 × 2 at 360px or less). Player/deck reports use cards
+  with an explicit sort selector and direction on phones, and sortable semantic
+  tables with `aria-sort` from the theme's `md` breakpoint. Seat sections and the
+  compact Mana list never offer sorting. **Kennung anzeigen** appears only for
+  visible rows whose displayed identity collides, keyed by stable UUIDs.
 
+Filter and player/deck sorts are in-memory presentation (`statisticsState.ts`),
+scoped by `App` to the session epoch and one group, and cleared when the
+pathname leaves that group. They are never in the URL or browser storage, so a
+reload or shared link starts at **Alle** with default sorts. Teaser and Overview
+entries reset only the filter. The report's visible Back targets the validated
+history-state origin: landing (default and fresh links), chooser with its
+expanded categories, or Overview.
+
+`useGroupStatistics` issues one read per group, filter and explicit retry; a
+changed key shows loading immediately and aborts the old request, so retired
+responses cannot replace the current screen. There is no manual refresh: each
+route entry, including the return after an acknowledged game write, reads fresh
+data. Failures show **Erneut versuchen**; 401/403/404 go to `GroupPage`, which
+retires private content, expires the session or returns to `/playgroups`.
+Loading uses report-shaped skeletons without animation under reduced motion and
+a polite status announcement.
+
+Browser fixtures in `frontend/e2e/statistics.pw.ts` cover the landing, chooser
+and four reports at 320/375/390/1280px, horizontal overflow, the radio focus
+ring and keyboard arrows, touch-target height, the 390 × 844 Mana fit and retry.
+They use intercepted non-sensitive data, not a live backend or physical device.
 
 Deck/group API functions accept optional AbortSignals without changing HTTP
 contracts. Each mounted manager/detail view aborts its work on retirement;
@@ -509,7 +535,9 @@ covered through canonical routes.
 Historical browser evidence below describes the stated implementation revision;
 it is not evidence for removed query-tab/code-screen behavior in #190.
 
-### Statistics browser evidence
+### Statistics browser evidence (before #197)
+
+Historical evidence for the replaced mixed player/deck Statistics tab.
 
 Chrome against the production build with intercepted API fixtures checked 320,
 390, 900 and 1280px. Both datasets, long/unbroken names, duplicate names, full
@@ -591,9 +619,8 @@ The full Games view and its pagination remain owned by #194.
 `spotlightPlayers` implements #197's approved shared selection: most games first,
 then alphabetical display name and stable UUID, capped at three. It introduces no
 minimum sample threshold and uses only API percentages. The compact spotlight
-shows name and rate and opens `/statistics/reports/players` directly, with all
-sizes; the guarded report host is still pending #197. It does not fall back to
-the mixed Statistics tab or implement #197's report UI.
+shows name and rate and opens the #197 player report directly. That entry resets
+the report filter to all sizes, and the report's Back returns to Overview.
 
 Successful empty responses show #193's exact Archive/Tamiyo copy. Loading and
 failed requests have separate feedback, and an explicit retry clears both prior

@@ -5,7 +5,8 @@ import { ApiError, getGroupStatistics, recentGames, type GamePreview, type Group
 import { publicName } from './gamePresentation'
 import CompactGameCard from './CompactGameCard'
 import { groupUrl } from './groupNavigation'
-import { spotlightPlayers } from './statisticsOrder'
+import { playerLabel, spotlightPlayers } from './statisticsOrder'
+import { originState, statisticsUrl, useStatisticsMemory } from './statisticsState'
 
 export const archiveEmpty = 'Die Archive erscheinen unvollständig… Absolviert mehr Spiele, um eure Statistiken zu sehen.'
 export const gamesEmpty = 'Tamiyo hat noch keine Aufzeichnungen angefertigt. Sobald ihr ein paar Runden gespielt habt, seht ihr hier eure Historie.'
@@ -43,14 +44,14 @@ export default function GroupOverview({ groupId, onAccessError }: { groupId: str
     setStatistics({ status: 'loading' })
     setRevision(value => value + 1)
   }
-  const players = statistics.status === 'ready' ? spotlightPlayers(statistics.data.players).map(player => ({ ...player, username: player.deleted ? `Gelöschtes Profil ${player.deletedNumber}` : player.username })) : []
-  const reportUrl = `${groupUrl(groupId, 'statistics')}/reports/players`
+  const players = statistics.status === 'ready' ? spotlightPlayers(statistics.data.players).map(player => ({ ...player, username: playerLabel(player) })) : []
+  const memory = useStatisticsMemory(groupId)
   return <Stack sx={{ gap: 3, minWidth: 0 }}>
     <Button component={Link} to={`${groupUrl(groupId, 'games')}/new`} variant="contained" sx={{ width: '100%' }}>Spiel erfassen</Button>
     <Box component="section" aria-labelledby="spotlight-heading" sx={{ minWidth: 0 }}>
       <Typography component="h3" variant="h5" id="spotlight-heading" sx={{ mb: 2 }}>Statistik im Fokus</Typography>
       <Card>
-        <CardActionArea component={Link} to={reportUrl} sx={{ p: 2, display: 'block', textAlign: 'left', color: 'text.primary', textDecoration: 'none',
+        <CardActionArea component={Link} to={statisticsUrl(groupId, 'players')} state={originState({ kind: 'overview' })} onClick={memory.resetFilter} sx={{ p: 2, display: 'block', textAlign: 'left', color: 'text.primary', textDecoration: 'none',
           '&.Mui-focusVisible, &:focus-visible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: -3 } }}>
           <Typography component="h4" variant="h6" sx={{ mb: 2, overflowWrap: 'anywhere' }}>Gesamtsiegquote pro Spieler</Typography>
           {statistics.status === 'loading' && <Typography role="status">Statistiken werden geladen…</Typography>}

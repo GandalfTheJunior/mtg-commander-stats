@@ -107,3 +107,16 @@ test.each([
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ ...emptyStatistics(), ...change })))
   await expect(getGroupStatistics(group.id)).rejects.toThrow()
 })
+
+test('keeps deleted deck-owner metadata and rejects inconsistent owner anonymization', async () => {
+  const data = statistics()
+  const owner = { ...data.decks[0], ownerUsername: 'Deleted profile', ownerDeleted: true, ownerDeletedNumber: 3 }
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ ...data, decks: [owner, { ...data.decks[1], ownerDeleted: false, ownerDeletedNumber: null }] })))
+  const decks = (await getGroupStatistics(group.id)).decks
+  expect(decks[0]).toMatchObject({ ownerDeleted: true, ownerDeletedNumber: 3 })
+  expect(decks[1]).toMatchObject({ ownerDeleted: false, ownerDeletedNumber: null })
+  for (const invalid of [{ ownerDeleted: true, ownerDeletedNumber: null }, { ownerDeleted: 'yes' }, { ownerDeleted: false, ownerDeletedNumber: 1 }]) {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ ...data, decks: [{ ...data.decks[0], ...invalid }] })))
+    await expect(getGroupStatistics(group.id)).rejects.toThrow('invalid deleted profile metadata')
+  }
+})
