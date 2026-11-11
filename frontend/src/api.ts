@@ -360,7 +360,7 @@ export type DeckSelection = Pick<Deck, 'id' | 'name' | 'commanders' | 'colorIden
 export type GameParticipant = {
   startPosition: number
   placement: number | null
-  stillInGame: boolean
+  stillInGame: boolean | null
   userId: string
   username: string
   deckId: string
@@ -371,6 +371,7 @@ export type Game = {
   groupId: string
   creatorId: string
   recordedAt: string
+  playedOn: string | null
   participants: GameParticipant[]
   result: 'WIN' | 'DRAW'
   alternateWinCon: boolean
@@ -403,7 +404,7 @@ function gameFrom(value: unknown, groupId: string, gameId?: string, includeManaB
   if (!isRecord(value) || !isUuid(value.id) || (gameId !== undefined && value.id.toLowerCase() !== gameId.toLowerCase()) ||
     !isUuid(value.groupId) || value.groupId.toLowerCase() !== groupId.toLowerCase() || !isUuid(value.creatorId) || typeof value.recordedAt !== 'string' ||
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(value.recordedAt) ||
-    !Number.isFinite(Date.parse(value.recordedAt)) || !Array.isArray(value.participants) ||
+    !Number.isFinite(Date.parse(value.recordedAt)) || !playDate(value.playedOn) || !Array.isArray(value.participants) ||
     value.participants.length < 2 || value.participants.length > 6 ||
     (value.result !== 'WIN' && value.result !== 'DRAW') || typeof value.alternateWinCon !== 'boolean' || (value.result === 'DRAW' && value.alternateWinCon)) {
     throw new Error('The server returned invalid game data. Refresh games before continuing.')
@@ -415,8 +416,8 @@ function gameFrom(value: unknown, groupId: string, gameId?: string, includeManaB
       typeof participant.deck.archived !== 'boolean' ||
       typeof participant.startPosition !== 'number' || !Number.isInteger(participant.startPosition) ||
       participant.startPosition < 1 || participant.startPosition > participantCount ||
-      typeof participant.stillInGame !== 'boolean' ||
-      (value.result === 'DRAW' ? participant.placement !== null :
+      (typeof participant.stillInGame !== 'boolean' && !(value.result === 'WIN' && participant.userId !== value.winnerUserId && participant.stillInGame === null)) ||
+      (value.result === 'DRAW' ? participant.placement !== null : participant.placement === null ? participant.userId === value.winnerUserId :
         typeof participant.placement !== 'number' || !Number.isInteger(participant.placement) ||
         participant.placement < 1 || participant.placement > participantCount)) {
       throw new Error('The server returned an invalid game participant.')
@@ -433,7 +434,7 @@ function gameFrom(value: unknown, groupId: string, gameId?: string, includeManaB
     (value.result === 'DRAW' && value.winnerUserId !== null)) {
     throw new Error('The server returned an invalid game result.')
   }
-  return { id: value.id, groupId, creatorId: value.creatorId, recordedAt: value.recordedAt,
+  return { id: value.id, groupId, creatorId: value.creatorId, recordedAt: value.recordedAt, playedOn: value.playedOn,
     participants, result: value.result, alternateWinCon: value.alternateWinCon, winnerUserId: value.winnerUserId as string | null }
 }
 

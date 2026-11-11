@@ -55,8 +55,10 @@ test('failed append preserves cards, retries the same cursor and deduplicates ov
   api.next(path, () => response({ games: rows(20), nextCursor: 'next' }))
   api.next(path + '?cursor=next', () => response({}, 503))
   api.next(path + '?cursor=next', () => response({ games: rows(2, 19), nextCursor: null }))
+  const previousObserver = intersect
   show()
   await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(20))
+  await waitFor(() => expect(intersect).not.toBe(previousObserver))
   act(() => intersect())
   fireEvent.click(await screen.findByRole('button', { name: 'Erneut versuchen' }))
   await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(21))

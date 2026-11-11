@@ -243,7 +243,9 @@ export default function GameEditor({ group, game, busy, completed = false, write
               }))} />} />}
             {mode !== 'WIN' && !(mode === 'ALTERNATE' && alternateOutcome(row.outcome).winner) &&
               <FormControlLabel label="Noch im Spiel" control={<Checkbox disabled={busy}
-                checked={mode === 'DRAW' ? row.outcome.draw ?? true : alternateOutcome(row.outcome).stillInGame}
+                indeterminate={mode === 'ALTERNATE' && alternateOutcome(row.outcome).stillInGame === null}
+                slotProps={{ input: { 'aria-checked': mode === 'ALTERNATE' && alternateOutcome(row.outcome).stillInGame === null ? 'mixed' : undefined } }}
+                checked={mode === 'DRAW' ? row.outcome.draw ?? true : alternateOutcome(row.outcome).stillInGame ?? false}
                 onChange={event => updateOutcome(row.key, draft => mode === 'DRAW' ? { ...draft, draw: event.target.checked } : {
                   ...draft, alternate: { ...alternateOutcome(draft), winner: false, stillInGame: event.target.checked },
                 })} />} />}

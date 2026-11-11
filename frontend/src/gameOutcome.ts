@@ -3,19 +3,19 @@ import type { Game, GameInput, GameParticipant } from './api'
 export type OutcomeMode = 'WIN' | 'ALTERNATE' | 'DRAW'
 export type OutcomeDraft = {
   placement?: number
-  alternate?: { winner: boolean; stillInGame: boolean; placement?: number }
+  alternate?: { winner: boolean; stillInGame: boolean | null; placement?: number }
   draw?: boolean
 }
 export const gameMode = (game: Game | null): OutcomeMode =>
   game?.result === 'DRAW' ? 'DRAW' : game?.alternateWinCon ? 'ALTERNATE' : 'WIN'
 
 export function savedOutcome(game: Game, p: GameParticipant): OutcomeDraft {
-  if (game.result === 'DRAW') return { draw: p.stillInGame }
+  if (game.result === 'DRAW') return { draw: p.stillInGame! }
   if (game.alternateWinCon) return { alternate: {
     winner: p.userId === game.winnerUserId, stillInGame: p.userId !== game.winnerUserId && p.stillInGame,
-    ...(!p.stillInGame ? { placement: p.placement! } : {}),
+    ...(!p.stillInGame ? { placement: p.placement ?? undefined } : {}),
   } }
-  return { placement: p.placement! }
+  return { placement: p.placement ?? undefined }
 }
 export const alternateOutcome = (draft: OutcomeDraft) =>
   draft.alternate ?? { winner: false, stillInGame: true }
@@ -27,6 +27,7 @@ export function effectivePlace(draft: OutcomeDraft, mode: OutcomeMode): number |
 }
 export function outcomeError(drafts: OutcomeDraft[], mode: OutcomeMode): string {
   if (mode === 'DRAW') return drafts.some(d => d.draw ?? true) ? '' : 'Mindestens ein Spieler muss noch im Spiel sein.'
+  if (mode === 'ALTERNATE' && drafts.some(d => !alternateOutcome(d).winner && alternateOutcome(d).stillInGame === null)) return 'Bitte den unbekannten Überlebensstatus bestätigen.'
   const places = drafts.map(d => effectivePlace(d, mode))
   if (places.filter(p => p === 1).length !== 1) return 'Genau ein Spieler muss Platz 1 / Winner sein.'
   if (mode === 'ALTERNATE' && !drafts.some(d => {
@@ -48,7 +49,7 @@ export function outcomeFields(draft: OutcomeDraft, mode: OutcomeMode) {
   if (mode === 'WIN') return { placement: draft.placement! }
   const alt = alternateOutcome(draft)
   if (alt.winner) return { winner: true as const }
-  return { stillInGame: alt.stillInGame, ...(!alt.stillInGame ? { placement: alt.placement! } : {}) }
+  return { stillInGame: alt.stillInGame!, ...(!alt.stillInGame ? { placement: alt.placement! } : {}) }
 }
 // Also used at the transport boundary: cached inactive fields and read-only data
 // must never reach the strict complete-write API.

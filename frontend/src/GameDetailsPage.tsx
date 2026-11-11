@@ -1,8 +1,8 @@
 import { FullCardView } from './FullCardView'
 import { ManaBoxLink } from './ManaBoxLink'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useId, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
-import { Alert, Box, Button, Card, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, Menu, MenuItem, Stack, Typography } from '@mui/material'
+import { Alert, Box, Button, Card, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, Popover, Stack, Typography } from '@mui/material'
 import { ApiError, deleteGame, getGame, getGroup, type CurrentUser, type Game, type GroupDetails } from './api'
 import type { Notice } from './App'
 import { colorNames } from './deckColors'
@@ -25,7 +25,6 @@ export default function GameDetailsPage({ currentUser, onUnauthorized, onNotice,
   useLayoutEffect(() => { callbacks.current = { onUnauthorized, onNotice, onEdit, navigate } })
   const [state, setState] = useState<State>({ status: 'checking' })
   const [notice, setNotice] = useState('')
-  const [menu, setMenu] = useState<HTMLElement | null>(null)
   const [confirm, setConfirm] = useState(false)
   const [busy, setBusy] = useState(false)
   const pending = useRef(false)
@@ -92,7 +91,6 @@ export default function GameDetailsPage({ currentUser, onUnauthorized, onNotice,
     const controller = new AbortController()
     request.current = controller
     setState({ status: 'checking' })
-    setMenu(null)
     setConfirm(false)
     void load(controller.signal)
   }
@@ -103,7 +101,6 @@ export default function GameDetailsPage({ currentUser, onUnauthorized, onNotice,
     setBusy(true)
     cancelled.current = false
     setConfirm(false)
-    setMenu(null)
     setState({ status: 'checking' })
     const signal = request.current!.signal
     try {
@@ -129,9 +126,7 @@ export default function GameDetailsPage({ currentUser, onUnauthorized, onNotice,
   const allowed = ready && mayManageGame(ready.group, ready.game, currentUser.id)
   const people = ready ? [...ready.game.participants, ...ready.group.members.filter(member => !ready.game.participants.some(person => sameId(person.userId, member.userId)))] : []
   const creator = ready && people.find(person => sameId(person.userId, ready.game.creatorId))
-  const winner = ready?.game.result === 'WIN' ? ready.game.participants.find(person => sameId(person.userId, ready.game.winnerUserId ?? '')) : undefined
-  const participants = ready ? [...ready.game.participants].sort((a, b) =>
-    (ready.game.result === 'WIN' ? a.placement! - b.placement! : 0) || a.startPosition - b.startPosition) : []
+  const participants = ready ? [...ready.game.participants].sort((a, b) => a.startPosition - b.startPosition) : []
   return <Stack component="section" aria-label="Spieldetails" sx={{ gap: 2, minWidth: 0, overflowWrap: 'anywhere' }}>
     <Button component={Link} to={groupUrl(groupId, 'games')} color="secondary" sx={{ alignSelf: 'flex-start' }}>Zur Spielehistorie</Button>
     {notice && <Alert severity="warning" role="status">{notice}</Alert>}
@@ -147,55 +142,67 @@ export default function GameDetailsPage({ currentUser, onUnauthorized, onNotice,
           <Typography component="h2" variant="h4" ref={heading} tabIndex={-1} sx={{ '&:focus': { outline: '2px solid', outlineColor: 'interaction.focus', outlineOffset: 3 } }}>Spieldetails</Typography>
           <Typography sx={{ color: 'text.secondary' }}>{ready.group.name}</Typography>
         </Box>
-        {allowed && <IconButton ref={trigger} aria-label="Spielaktionen" aria-haspopup="menu" aria-controls={menu ? 'game-actions' : undefined} aria-expanded={Boolean(menu)}
-          disabled={busy} onClick={event => setMenu(event.currentTarget)} sx={{ minWidth: 48, minHeight: 48, '&.Mui-focusVisible, &:focus-visible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: 2 } }}>⋮</IconButton>}
       </Stack>
-      <Card component="article" aria-label={`Game ${ready.game.id}`} sx={{ p: 2, minWidth: 0 }}>
-        <Typography component="h3" variant="h5">{ready.game.result === 'WIN' ? ready.game.alternateWinCon ? 'Sieg durch alternative Siegbedingung' : 'Sieg' : 'Unentschieden'}</Typography>
-        {winner && <Typography sx={{ mt: 1 }}>Gewonnen: {publicName(winner, people)} · {winner.deck.name}</Typography>}
-        <Typography sx={{ mt: 1 }}>Erfasst am <time dateTime={ready.game.recordedAt}>{recordedTime(ready.game)}</time></Typography>
-        <Typography>Ersteller: {creator ? publicName(creator, people) : ready.game.creatorId}</Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary' }}>Spielkennung: {ready.game.id}</Typography>
-      </Card>
-      <Typography component="h3" variant="h6">Teilnehmende ({ready.game.participants.length})</Typography>
+      <Box>
+        <Typography>{ready.game.playedOn ? <>Gespielt am <time dateTime={ready.game.playedOn}>{ready.game.playedOn.split('-').reverse().join('.')}</time></> : 'Spieldatum unbekannt'}</Typography>
+        {ready.game.result === 'DRAW' && <Typography sx={{ mt: 1, color: 'text.secondary' }}>Unentschieden</Typography>}
+      </Box>
       <Stack component="ol" aria-label="Teilnehmende und Decks" sx={{ listStyle: 'none', m: 0, p: 0, gap: 2 }}>
         {participants.map(person => {
           const isWinner = ready.game.result === 'WIN' && sameId(person.userId, ready.game.winnerUserId ?? '')
-          const rankStep = ready.game.result === 'WIN' ? person.placement! - 1 : 0
+          const accent = ready.game.alternateWinCon ? 'info.main' : 'secondary.main'
           return <Card component="li" key={person.userId} sx={{
-            minWidth: 0, ml: { xs: `${Math.min(rankStep * 4, 16)}px`, sm: `${rankStep * 10}px` },
-            border: isWinner ? '2px solid' : '1px solid', borderColor: isWinner ? 'primary.main' : 'divider',
+            minWidth: 0, p: 1.5, border: '2px solid', borderColor: isWinner ? accent : 'divider',
           }}>
-            <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${person.deck.commanders.length}, minmax(0, 1fr))`, height: { xs: 220, sm: 280 }, minWidth: 0 }}>
-              {person.deck.commanders.map(commander => <Box key={`${person.deckId}:${commander.oracleId}:${commander.position}`} sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', '& [role="img"]': { alignItems: 'start', pt: 2 } }}>
-                <FullCardView card={commander} artwork preload="immediate" />
-                <Box sx={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(to bottom, transparent 20%, rgba(0,0,0,0.65) 60%, #000 100%)' }} />
-                <Typography sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: { xs: 1, sm: 2 }, color: '#fff', pointerEvents: 'none', fontWeight: 700, lineHeight: 1.3, overflowWrap: 'anywhere' }}>
-                  Commander: {commander.name}
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, minWidth: 0 }}>
+              <Box role="group" aria-label="Gespeicherte Kartenillustrationen" sx={{ position: 'relative', flexShrink: 0,
+                width: person.deck.commanders.length === 2 ? { xs: 92, sm: 136 } : { xs: 56, sm: 80 },
+                pb: person.deck.companion ? '44px' : 0 }}>
+                {person.deck.companion && <Box sx={{ position: 'absolute', bottom: 0, left: '25%', width: { xs: 44, sm: 56 }, height: { xs: 64, sm: 80 }, zIndex: 0,
+                  '& img, & [role="img"]': { width: { xs: 32, sm: 48 }, height: { xs: 48, sm: 64 }, borderRadius: 1 } }}>
+                  <FullCardView card={person.deck.companion} artwork compact preload="immediate" />
+                </Box>}
+                <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${person.deck.commanders.length}, minmax(0, 1fr))`, gap: 0.5, position: 'relative', zIndex: 1, pointerEvents: 'none' }}>
+                  {person.deck.commanders.map(commander => <Box key={`${person.deckId}:${commander.oracleId}:${commander.position}`} sx={{ height: { xs: 72, sm: 96 }, minWidth: 0, borderRadius: 1, overflow: 'hidden', pointerEvents: 'auto' }}>
+                    <FullCardView card={commander} artwork compact preload="immediate" />
+                  </Box>)}
+                </Box>
+              </Box>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Stack direction="row" sx={{ alignItems: 'flex-start', gap: 0.5 }}>
+                  <Typography component="h3" variant="h6" sx={{ flex: 1, minWidth: 0 }}>{publicName(person, people)}</Typography>
+                  {isWinner && <InformationIcon label={ready.game.alternateWinCon ? 'Alternative Siegbedingung' : 'Normaler Sieg'} symbol="✦" trophy={!ready.game.alternateWinCon} color={accent} />}
+                </Stack>
+                {person.deck.commanders.map((commander, index) => <Typography key={commander.position} sx={{ fontWeight: 600 }}>
+                  {commander.name}{index === 0 && person.deck.companion && <InformationIcon label="Companion anzeigen" content={person.deck.companion.name} symbol="Ⓒ" />}
+                </Typography>)}
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  {person.deck.name}<ManaBoxLink url={person.deck.manaBoxUrl} deckName={person.deck.name} compact />
                 </Typography>
-              </Box>)}
+              </Box>
             </Box>
-            <Box sx={{ p: 2, minWidth: 0 }}>
-              <Typography component="h4" variant="h6">{publicName(person, people)}</Typography>
-              {isWinner && <Typography sx={{ fontWeight: 700 }}>🏆 Sieg</Typography>}
-              <Typography>Startplatz: {person.startPosition}</Typography>
-              {ready.game.result === 'WIN' && <Typography sx={{ fontWeight: 700 }}>Platzierung: {person.placement}</Typography>}
-              <Typography>{person.stillInGame ? 'Noch im Spiel' : 'Ausgeschieden'}</Typography>
-              {!ready.group.members.some(member => sameId(member.userId, person.userId)) && <Typography sx={{ color: 'text.secondary' }}>Ehemaliges Mitglied</Typography>}
-              <Typography sx={{ mt: 1, fontWeight: 600 }}>{person.deck.name}</Typography>
-              <Typography>Farbidentität: {person.deck.colorIdentity.length ? person.deck.colorIdentity.map(color => `${color} (${colorNames[color]})`).join(' · ') : 'Farblos'}</Typography>
-              {person.deck.archived && <Typography sx={{ color: 'text.secondary' }}>Archiviertes Deck</Typography>}
-              <Typography variant="body2" sx={{ color: 'text.secondary' }}>Deckkennung: {person.deckId}</Typography>
-              {person.deck.companion && <FullCardView card={person.deck.companion} preload="immediate" />}
-              <ManaBoxLink url={person.deck.manaBoxUrl} deckName={person.deck.name} />
-            </Box>
+            <Stack direction="row" sx={{ mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider', justifyContent: 'space-between', gap: 1 }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>Startplatz {person.startPosition}</Typography>
+              {ready.game.result === 'WIN' && person.placement !== null && <Typography variant="body2" sx={{ fontWeight: 700 }}>Platz {person.placement}</Typography>}
+            </Stack>
+            <Typography variant="body2" sx={{ mt: 0.5, color: 'text.secondary' }}>
+              {person.stillInGame === null ? 'Überlebensstatus unbekannt' : person.stillInGame ? 'Noch im Spiel' : 'Ausgeschieden'}
+              {!ready.group.members.some(member => sameId(member.userId, person.userId)) && ' · Ehemaliges Mitglied'}
+              {person.deck.archived && ' · Archiviertes Deck'}
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>Farbidentität: {person.deck.colorIdentity.length ? person.deck.colorIdentity.map(color => `${color} (${colorNames[color]})`).join(' · ') : 'Farblos'}</Typography>
           </Card>
         })}
       </Stack>
-      {allowed && <Menu id="game-actions" anchorEl={menu} open={Boolean(menu)} onClose={() => setMenu(null)} slotProps={{ list: { 'aria-label': 'Spielaktionen', sx: { '& .MuiMenuItem-root': { minHeight: 48, whiteSpace: 'normal', '&.Mui-focusVisible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: -3 } } } } }}>
-        <MenuItem onClick={() => { setMenu(null); callbacks.current.onEdit(ready.group.id, ready.game.id) }}>Bearbeiten</MenuItem>
-        <MenuItem onClick={() => { setMenu(null); cancelled.current = true; setConfirm(true) }}>Löschen</MenuItem>
-      </Menu>}
+      <Box sx={{ pt: 2, borderTop: '1px solid', borderColor: 'divider', color: 'text.secondary' }}>
+        <Typography variant="body2">Erfasst am <time dateTime={ready.game.recordedAt}>{recordedTime(ready.game)}</time></Typography>
+        <Typography variant="body2">Ersteller: {creator ? publicName(creator, people) : ready.game.creatorId}</Typography>
+        <Typography variant="body2">Spielkennung: {ready.game.id}</Typography>
+      </Box>
+      {allowed && <Stack direction="row" sx={{ gap: 1, '& > button': { flex: 1, minWidth: 0 } }}>
+        <Button variant="contained" disabled={busy} onClick={() => callbacks.current.onEdit(ready.group.id, ready.game.id)}>Spiel bearbeiten</Button>
+        <Button ref={trigger} variant="outlined" color="error" disabled={busy} onClick={() => { cancelled.current = true; setConfirm(true) }}>Spiel löschen</Button>
+      </Stack>}
     </>}
     <Dialog open={confirm && Boolean(allowed)} onClose={() => setConfirm(false)} aria-labelledby="delete-game-title"
       slotProps={{ transition: { onEntered: () => cancel.current?.focus(), onExited: () => { if (cancelled.current) trigger.current?.focus() } } }}>
@@ -210,4 +217,24 @@ export default function GameDetailsPage({ currentUser, onUnauthorized, onNotice,
       </DialogActions>
     </Dialog>
   </Stack>
+}
+
+function InformationIcon({ label, content = label, symbol, color = 'text.secondary', trophy = false }: {
+  label: string; content?: string; symbol: string; color?: string; trophy?: boolean
+}) {
+  const id = useId()
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null)
+  return <>
+    <IconButton aria-label={label} aria-haspopup="dialog" aria-expanded={Boolean(anchor)} aria-controls={anchor ? id : undefined}
+      onClick={event => setAnchor(event.currentTarget)} sx={{ color, width: 44, height: 44, verticalAlign: 'middle',
+        '&.Mui-focusVisible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: 2 } }}>
+      {trophy ? <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M7 3h10l-1 8a4 4 0 0 1-8 0L7 3ZM7 5H3v3a4 4 0 0 0 5 4m9-7h4v3a4 4 0 0 1-5 4M12 15v6m-4 0h8" /></svg> : <span aria-hidden="true">{symbol}</span>}
+    </IconButton>
+    <Popover open={Boolean(anchor)} anchorEl={anchor} onClose={() => setAnchor(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+      <Box role="dialog" id={id} aria-label={label} sx={{ p: 1.5, maxWidth: 280, overflowWrap: 'anywhere' }}>
+        <Typography>{content}</Typography>
+        <Button onClick={() => setAnchor(null)}>Schließen</Button>
+      </Box>
+    </Popover>
+  </>
 }

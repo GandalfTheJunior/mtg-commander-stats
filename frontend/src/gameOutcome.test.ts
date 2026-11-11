@@ -22,3 +22,10 @@ test('tied survivors count towards eliminated competition ranks', () => {
   drafts[3].alternate.placement = 3
   expect(outcomeError(drafts, 'ALTERNATE')).not.toBe('')
 })
+
+test('unknown alternate survivor status cannot be silently saved as elimination', () => {
+  expect(outcomeError([
+    { alternate: { winner: true, stillInGame: false } },
+    { alternate: { winner: false, stillInGame: null } },
+  ], 'ALTERNATE')).toBe('Bitte den unbekannten Überlebensstatus bestätigen.')
+})

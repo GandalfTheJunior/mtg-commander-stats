@@ -126,3 +126,8 @@ test.each([
   vi.stubGlobal('fetch', vi.fn(async () => response({ ...game, participants: [{ ...game.participants[0], ...changes }, game.participants[1]] })))
   await expect(getGame(group.id, game.id)).rejects.toThrow()
 })
+
+test.each(['2026-02-30', 'not-a-date', undefined])('rejects invalid or absent playedOn %s in details', async playedOn => {
+  vi.stubGlobal('fetch', vi.fn(async () => response({ ...recorded(), playedOn })))
+  await expect(getGame(group.id, uid(20))).rejects.toThrow()
+})

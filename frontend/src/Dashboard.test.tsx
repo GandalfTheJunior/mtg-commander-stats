@@ -352,6 +352,7 @@ test('current groups 401 retires the session', async () => {
 test.each([200, 401])('retired Dashboard response (%s) cannot replace a fresh list or expire the session', async status => {
   const api = setup(), pending = deferred(); api.next('/api/groups', () => pending.promise)
   show(); await screen.findByText('Playgroups werden geladen…')
+  await waitFor(() => expect(api.fetchMock.mock.calls.some(([path]) => path === '/api/groups')).toBe(true))
   const signal = api.fetchMock.mock.calls.find(([path]) => path === '/api/groups')![1]!.signal!
   await goTo('Playgroups'); await screen.findByRole('button', { name: group.name })
   expect(signal.aborted).toBe(true)
