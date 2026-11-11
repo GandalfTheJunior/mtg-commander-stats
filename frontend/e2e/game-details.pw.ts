@@ -111,7 +111,10 @@ for (const width of [320, 1280]) for (const mode of ['normal', 'alternate', 'dra
       await edit.click()
       const editor = page.getByRole('form', { name: 'Spiel bearbeiten' })
       await expect(editor).toBeVisible()
-      await expect(editor.locator('input[aria-checked="mixed"]')).toHaveCount(1)
+      // The unknown alternate survival status stays unknown instead of being inferred.
+      await expect(editor.getByRole('switch', { name: 'Alternative Siegbedingung' })).toBeChecked()
+      await expect(editor.getByRole('combobox', { name: 'Ergebnis für Player 3' })).toHaveValue('')
+      await expect(editor.getByRole('img', { name: 'Player 4: Sieger des Spiels, Platz 1' })).toBeVisible()
       await page.screenshot({ path: `${directory}/details-edit-handoff-${width}.png`, fullPage: true })
     }
     if (mode === 'normal') {

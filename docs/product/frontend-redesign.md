@@ -60,6 +60,11 @@ Opening a playgroup lands directly in **Spiele**. Inside the group, use three su
 
 ### Spiel erfassen: phone form
 
+> The PO-approved #196 specification and [wireframes](wireframes/196/README.md)
+> refine this baseline (date row, outcome switch, compact cards with a separate
+> result row, pickers, winner-only saving and the post-save panel). The
+> [browser game editor](games-api.md#browser-game-editor) describes the result.
+
 - Use a single, vertically scrolling, focused screen rather than a multi-step wizard. A new game displays **four empty player cards by default**, while the game contract remains **2–6 distinct participants**. The recorder need not participate and is not inserted automatically.
 - Each player card selects a group member first, then one of that active member's eligible **owned, unarchived** decks. A participant cannot be selected twice. Show loading, unavailable-deck and retry states without permitting invalid selections.
 - A fully filled player/deck card collapses automatically into a compact summary (player, deck, WUBRG identity) and can be reopened. Auto-collapse must not strand keyboard/screen-reader focus.

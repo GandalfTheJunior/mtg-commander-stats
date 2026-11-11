@@ -27,6 +27,7 @@ import { isProtectedPath, isPublicPath, returnDestination } from './appRoutes'
 import GameEditorPage from './GameEditorPage'
 import PendingGroupView from './PendingGroupView'
 import { navigationToken } from './navigationToken'
+import { forgetAllHandoffs } from './gameHandoff'
 
 export type Notice = { kind: 'success' | 'error'; message: string } | null
 type SessionStatus = 'checking' | 'signed-out' | 'authenticated' | 'unverified' | 'logging-out'
@@ -139,6 +140,7 @@ export default function App() {
         () => {
           if (version !== sessionVersionRef.current) return
           editorOrigin.current = null
+          forgetAllHandoffs()
           version = ++sessionVersionRef.current
           setSessionVersion(version)
           setCurrentUser(null)
@@ -168,6 +170,7 @@ export default function App() {
     if (sessionStatus !== 'authenticated') return
     // Retire old requests immediately, including while DELETE or its recovery GET is pending.
     editorOrigin.current = null
+    forgetAllHandoffs()
     const version = ++sessionVersionRef.current
     setSessionVersion(version)
     setSessionStatus('logging-out')
@@ -208,6 +211,7 @@ export default function App() {
   async function checkSession() {
     if (loggingIn || sessionStatus !== 'unverified') return
     editorOrigin.current = null
+    forgetAllHandoffs()
     const version = ++sessionVersionRef.current
     setSessionVersion(version)
     setSessionStatus('checking')
@@ -232,6 +236,7 @@ export default function App() {
     // Check synchronously: an old response can arrive before effect cleanup.
     if (sessionVersion !== sessionVersionRef.current) return
     editorOrigin.current = null
+    forgetAllHandoffs()
     setSessionVersion(++sessionVersionRef.current)
     setCurrentUser(null)
     setSessionStatus('signed-out')

@@ -7,7 +7,7 @@ import App from './App'
 import { AppRouter } from './AppRouter'
 import { AppThemeProvider } from './theme/AppThemeProvider'
 import { selectTab } from './test/groupEntry'
-import { gameAction, openGameDetails } from './test/gameEntry'
+import { gameAction, gameCard, openGameDetails, selectGameMember } from './test/gameEntry'
 import { deckFor, deferred, gameApi, group, recorded, response, uid } from './test/gameFixtures'
 import { gameUrl } from './gamePresentation'
 import { groupUnavailable, groupUrl } from './groupNavigation'
@@ -69,6 +69,11 @@ async function back() {
 // Exercise navigation, guards and retirement with the capabilities of LAN HTTP.
 beforeEach(stubLanHttpCrypto)
 
+// A DRAW requires an explicit status for every participant; keep everyone in the game.
+function recordDraw() {
+  fireEvent.click(screen.getByRole('button', { name: 'Unentschieden' }))
+  for (const field of screen.getAllByRole('combobox', { name: /^Ergebnis für / })) fireEvent.change(field, { target: { value: 'IN' } })
+}
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 test.each([false, true])('direct details verify session, group and game in order before exposing private fields (StrictMode %s)', async strict => {
@@ -210,12 +215,14 @@ test('cards retain API order, winner/deck and unknown play dates; active draft b
   expect(cards[1]).toHaveTextContent('Spieldatum unbekannt')
   fireEvent.click(screen.getByRole('link', { name: 'Spiel erfassen' }))
   await screen.findByRole('form', { name: 'Spiel erfassen' })
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 1' }), { target: { value: uid(2) } })
+  await selectGameMember(1, 'Same name (…0002)')
+  fireEvent.click(within(await screen.findByRole('dialog', { name: 'Deck auswählen' })).getByRole('button', { name: 'Schließen' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(window.location.pathname).toBe(`${groupUrl(group.id, 'games')}/new`)
-  expect(screen.getByRole('combobox', { name: 'Spieler 1' })).toHaveValue(uid(2))
+  expect(gameCard(1).getByText('Same name (…0002)')).toBeInTheDocument()
   expect(cards[1]).not.toBeInTheDocument()
   expect(screen.queryByRole('link', { name: /^Spieldetails:/ })).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+  fireEvent.click(screen.getByRole('link', { name: 'Zur Spielehistorie' }))
   fireEvent.click(await screen.findByRole('button', { name: 'Verwerfen und verlassen' }))
   fireEvent.click(await screen.findByRole('link', { name: /^Spieldetails: Same name/ }))
   await screen.findByRole('heading', { name: 'Spieldetails' })
@@ -237,12 +244,12 @@ test.each(['rights', 'gone'])('edit intent validates new membership/history when
   expect(window.location.pathname).toBe(`${detailUrl}/edit`)
 })
 
-test('direct edit verifies membership and game while cancellation returns to Games', async () => {
+test('direct edit verifies membership and game while the back action returns to the game', async () => {
   setup(); show(`${detailUrl}/edit`)
   await screen.findByRole('form', { name: 'Spiel bearbeiten' })
-  fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
-  await screen.findByRole('link', { name: /^Spieldetails:/ })
-  expect(window.location.pathname).toBe(groupUrl(group.id, 'games'))
+  fireEvent.click(screen.getByRole('link', { name: 'Zurück zum Spiel' }))
+  await screen.findByRole('heading', { name: 'Spieldetails' })
+  expect(window.location.pathname).toBe(detailUrl)
   expect(screen.queryByRole('form', { name: 'Spiel bearbeiten' })).not.toBeInTheDocument()
 })
 
@@ -414,10 +421,10 @@ test('focused edit retains its draft until save and returns to the Games route',
   show(); await gameAction('Bearbeiten', false)
   await screen.findByRole('form', { name: 'Spiel bearbeiten' })
   expect(window.location.pathname).toBe(`${detailUrl}/edit`)
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
-  expect(screen.getByRole('combobox', { name: 'Spielergebnis' })).toHaveValue('DRAW')
+  recordDraw()
+  expect(screen.getByRole('button', { name: 'Unentschieden' })).toHaveAttribute('aria-pressed', 'true')
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
-  await screen.findByText('Spiel erfolgreich gespeichert.')
+  await screen.findByRole('heading', { name: 'Spiel erfolgreich gespeichert' })
   expect(window.location.pathname).toBe(groupUrl(group.id, 'games'))
   expect(api.calls(gamePath, 'PUT')).toHaveLength(1)
 })
@@ -429,9 +436,9 @@ test.each([['OWNER', 1], ['MEMBER', 2]] as const)('LAN HTTP hands off %s game ed
   show(); await gameAction('Bearbeiten', false)
   await screen.findByRole('form', { name: 'Spiel bearbeiten' })
   expect(window.location.pathname).toBe(`${detailUrl}/edit`)
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
+  recordDraw()
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
-  await screen.findByText('Spiel erfolgreich gespeichert.')
+  await screen.findByRole('heading', { name: 'Spiel erfolgreich gespeichert' })
   expect(api.calls(gamePath, 'PUT')).toHaveLength(1)
   expect(JSON.parse(api.calls(gamePath, 'PUT')[0][1]!.body as string)).toMatchObject({ result: 'DRAW', alternateWinCon: false })
   act(() => window.history.back())
@@ -445,7 +452,7 @@ test.each([1, 4])('LAN HTTP logout and login as %s retire a game draft and its h
   const api = setup()
   show(); await gameAction('Bearbeiten', false)
   await screen.findByRole('form', { name: 'Spiel bearbeiten' })
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
+  recordDraw()
   clickLogout()
   await screen.findByText('Logged out.')
   api.server.loginUser = { id: uid(actor), username: 'Replacement' }
@@ -621,10 +628,13 @@ test.each(['edit', 'delete'].flatMap(action => [true, false].map(confirmed => ({
   if (action === 'edit') {
     await screen.findByRole('form', { name: 'Spiel bearbeiten' })
     if (confirmed) {
-      fireEvent.change(screen.getByRole('combobox', { name: 'Spielergebnis' }), { target: { value: 'DRAW' } })
+      recordDraw()
       fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
-      await screen.findByText('Spiel erfolgreich gespeichert.')
-    } else fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+      await screen.findByRole('heading', { name: 'Spiel erfolgreich gespeichert' })
+    } else {
+      fireEvent.click(screen.getByRole('link', { name: 'Zurück zum Spiel' }))
+      fireEvent.click(await screen.findByRole('link', { name: 'Zur Spielehistorie' }))
+    }
   } else if (confirmed) {
     fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
     await screen.findByText('Spiel gelöscht. Die bisherige Decknutzung bleibt erhalten.')

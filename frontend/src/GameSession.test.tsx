@@ -1,5 +1,4 @@
-import { selectGameWinner } from './test/gameEntry'
-import { gameAction, openGameDetails, selectGameDeck } from './test/gameEntry'
+import { gameAction, openGameDetails, selectGameDeck, selectGameMember, selectGamePlayer, selectGameWinner } from './test/gameEntry'
 import { selectTab } from './test/groupEntry'
 import { openExistingDeck, openDeckAction } from './test/editorEntry'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
@@ -50,21 +49,13 @@ async function open(name = group.name, waitForTab = true) {
 }
 async function create() {
   fireEvent.click(await screen.findByRole('link', { name: 'Spiel erfassen' }))
-  const editor = within(await screen.findByRole('form', { name: 'Spiel erfassen' }))
-  // This scenario records two players; remove unused cards through the real UI.
-  for (const slot of [4, 3]) {
-    const card = within(editor.getByRole('region', { name: `Spieler ${slot}` }))
-    fireEvent.click(card.getByRole('button', { name: `Spieler ${slot} entfernen` }))
-  }
-  for (const slot of [1, 2]) {
-    const card = within(editor.getByRole('region', { name: `Spieler ${slot}` }))
-    fireEvent.change(card.getByRole('combobox', { name: `Spieler ${slot}` }), { target: { value: uid(slot) } })
-  }
-  await selectGameDeck(1, deckFor(1))
-  await selectGameDeck(2, deckFor(2))
-  selectGameWinner(uid(1))
+  await screen.findByRole('form', { name: 'Spiel erfassen' })
+  // This scenario records two players; untouched blank cards are omitted.
+  await selectGamePlayer(1, 'Owner', deckFor(1))
+  await selectGamePlayer(2, 'Same name (…0002)', deckFor(2))
+  selectGameWinner('Owner')
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
-  await screen.findByText('Spiel erfolgreich gespeichert.')
+  await screen.findByRole('heading', { name: 'Spiel erfolgreich gespeichert' })
   await screen.findByRole('article')
 }
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
@@ -201,21 +192,23 @@ test('game recording waits for the second member’s independently delayed deck 
   // flow against a second one-second findBy query on slower CI runners.
   fireEvent.click(await screen.findByRole('link', { name: 'Spiel erfassen' }))
   await screen.findByRole('form', { name: 'Spiel erfassen' })
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 1' }), { target: { value: uid(1) } })
-  fireEvent.change(screen.getByRole('combobox', { name: 'Spieler 2' }), { target: { value: uid(2) } })
-  await selectGameDeck(1, deckFor(1))
-  expect(screen.getByRole('combobox', { name: 'Deck für Spieler 2' })).toBeDisabled()
+  await selectGamePlayer(1, 'Owner', deckFor(1))
+  await selectGameMember(2, 'Same name (…0002)')
+  expect(within(screen.getByRole('dialog', { name: 'Deck auswählen' })).getByRole('status')).toHaveTextContent('werden geladen')
+  fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern', hidden: true }))
   expect(api.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0)
   await act(async () => secondDecks.resolve(response([deckFor(2)])))
   await selectGameDeck(2, deckFor(2))
-  selectGameWinner(uid(1))
+  selectGameWinner('Owner')
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
-  await screen.findByText('Spiel erfolgreich gespeichert.')
+  await screen.findByRole('heading', { name: 'Spiel erfolgreich gespeichert' })
   await screen.findByRole('article')
   const writes = api.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')
   expect(writes).toHaveLength(1)
-  expect(JSON.parse(writes[0][1]!.body as string)).toEqual({
-    participants: [1, 2].map(n => ({ userId: uid(n), deckId: deckFor(n).id, startPosition: n, placement: n })),
-    result: 'WIN', alternateWinCon: false,
+  const body = JSON.parse(writes[0][1]!.body as string)
+  expect(body).toEqual({
+    participants: [{ userId: uid(1), deckId: deckFor(1).id, startPosition: 1, placement: 1 }, { userId: uid(2), deckId: deckFor(2).id, startPosition: 2 }],
+    result: 'WIN', alternateWinCon: false, playedOn: body.playedOn,
   })
+  expect(body.playedOn).toMatch(/^\d{4}-\d{2}-\d{2}$/)
 })

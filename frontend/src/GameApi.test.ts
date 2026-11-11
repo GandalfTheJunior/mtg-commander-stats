@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest'
-import { archiveDeck, deleteDeck, getGame, listDecks, listGames, memberDecks, saveGame } from './api'
+import { archiveDeck, createQuickProfile, createQuickProfileDeck, deleteDeck, getGame, getGroup, listDecks, listGames, listQuickProfileDecks, memberDecks, saveGame } from './api'
 import { deckFor, gameApi, group, recorded, response, uid } from './test/gameFixtures'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -130,4 +130,42 @@ test.each([
 test.each(['2026-02-30', 'not-a-date', undefined])('rejects invalid or absent playedOn %s in details', async playedOn => {
   vi.stubGlobal('fetch', vi.fn(async () => response({ ...recorded(), playedOn })))
   await expect(getGame(group.id, uid(20))).rejects.toThrow()
+})
+
+test('group members carry the optional quick-profile marker and reject a malformed one', async () => {
+  const members = [{ userId: uid(1), username: 'Owner', role: 'OWNER', quickProfile: false }, { userId: uid(5), username: 'Hairy Zombie', role: 'MEMBER', quickProfile: true }]
+  vi.stubGlobal('fetch', vi.fn(async () => response({ ...group, members })))
+  expect((await getGroup(group.id)).members).toEqual([{ userId: uid(1), username: 'Owner', role: 'OWNER' }, { userId: uid(5), username: 'Hairy Zombie', role: 'MEMBER', quickProfile: true }])
+  vi.stubGlobal('fetch', vi.fn(async () => response({ ...group, members: [{ ...members[1], quickProfile: 'yes' }] })))
+  await expect(getGroup(group.id)).rejects.toThrow()
+})
+
+test('quick-profile creation and its deck routes use the group-scoped API with CSRF', async () => {
+  const profile = { userId: uid(5), username: 'Hairy Zombie', role: 'MEMBER', quickProfile: true }
+  const saved = { ...deckFor(5), everUsed: false, archived: false, manaBoxUrl: null }
+  const fetchMock = vi.fn(async (path: string, init?: RequestInit) => {
+    if (path === '/api/csrf') return response({ headerName: 'X-CSRF-TOKEN', token: 'token' })
+    if (path === `/api/groups/${group.id}/quick-profiles` && init?.method === 'POST') return response(profile, 201)
+    if (path === `/api/groups/${group.id}/quick-profiles/${uid(5)}/decks`) return init?.method === 'POST' ? response(saved, 201) : response([saved])
+    throw new Error(`Unexpected ${path}`)
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  expect(await createQuickProfile(group.id)).toEqual(profile)
+  expect(fetchMock.mock.calls[1][1]).toEqual(expect.objectContaining({ method: 'POST', headers: { 'X-CSRF-TOKEN': 'token' } }))
+  expect(fetchMock.mock.calls[1][1]).not.toHaveProperty('body')
+  expect((await createQuickProfileDeck(group.id, uid(5), { name: 'Deck 5' })).id).toBe(saved.id)
+  expect((await listQuickProfileDecks(group.id, uid(5))).map(deck => deck.id)).toEqual([saved.id])
+  vi.stubGlobal('fetch', vi.fn(async (path: string) => path === '/api/csrf' ? response({ headerName: 'X', token: 't' }) : response({ ...profile, quickProfile: false }, 201)))
+  await expect(createQuickProfile(group.id)).rejects.toThrow()
+})
+
+test('game writes send playedOn and leave winner-only ranks unknown', async () => {
+  const api = gameApi()
+  await saveGame(group.id, { result: 'WIN', alternateWinCon: false, playedOn: '2026-11-06', participants: [
+    { userId: uid(2), deckId: deckFor(2).id, startPosition: 1, placement: 1 }, { userId: uid(3), deckId: deckFor(3).id, startPosition: 2 },
+  ] })
+  const body = JSON.parse(api.fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')![1]!.body as string)
+  expect(body).toEqual({ result: 'WIN', alternateWinCon: false, playedOn: '2026-11-06', participants: [
+    { userId: uid(2), deckId: deckFor(2).id, startPosition: 1, placement: 1 }, { userId: uid(3), deckId: deckFor(3).id, startPosition: 2 },
+  ] })
 })

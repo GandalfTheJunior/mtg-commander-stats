@@ -66,7 +66,7 @@ for (const width of [320, 390, 1280]) {
     await page.goBack()
     await cards.nth(1).getByRole('link').click()
     await expect(page).toHaveURL(new RegExp(`/playgroups/${id(1)}/games/new$`))
-    await expect(page.getByRole('heading', { name: 'Commander-Spiel erfassen' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Spiel erfassen', exact: true })).toBeVisible()
     list = groups.slice(0, 3)
     await page.goto('/dashboard')
     await expect(cards).toHaveCount(3)

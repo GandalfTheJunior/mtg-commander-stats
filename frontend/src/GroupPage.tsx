@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
-import { Alert, Box, Button, Card, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Stack, Tab, Tabs, Typography } from '@mui/material'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
+import { Alert, Box, Button, Card, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, Stack, Tab, Tabs, Typography } from '@mui/material'
 import { ApiError, getGroup, leaveGroup, type CurrentUser, type GroupDetails, type GroupMember } from './api'
 import GameManager from './GameManager'
 import GroupOverview from './GroupOverview'
 import type { Notice } from './App'
 import { groupUnavailable, groupUrl, type GroupTab } from './groupNavigation'
+import { forgetHandoff, handoffToken, offerHandoff, readHandoff } from './gameHandoff'
 
 const validId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const tabs: { value: GroupTab; label: string }[] = [
@@ -31,6 +32,12 @@ export default function GroupPage({ tab, currentUser, onUnauthorized, onNotice }
 }) {
   const { groupId = '' } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  // Capture the post-save panel for this mount only and retire its token at once,
+  // so leaving and traversing back to this history entry cannot restore it.
+  const [savedToken] = useState(() => tab === 'games' ? handoffToken(location.state, 'gameSaved') : undefined)
+  const [savedMembers, setSavedMembers] = useState(() => readHandoff(savedToken, 'saved', currentUser.id, groupId))
+  useEffect(() => { forgetHandoff(savedToken) }, [savedToken])
   const [details, setDetails] = useState<GroupDetails | null>(null)
   const [checkingAccess, setCheckingAccess] = useState(false)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -146,6 +153,17 @@ export default function GroupPage({ tab, currentUser, onUnauthorized, onNotice }
       </Box>}
       </>}
       {(tab === 'games' || tab === 'statistics') && <GameManager group={details} tab={tab}
+        savedPanel={savedMembers && <SavedGamePanel
+          onAgain={() => {
+            const repeatGame = offerHandoff({ kind: 'repeat', userId: currentUser.id, groupId, memberIds: savedMembers })
+            void navigate(`${groupUrl(groupId, 'games')}/new`, { state: { repeatGame } })
+          }}
+          onOverview={() => { void navigate(groupUrl(groupId)) }}
+          onDismiss={() => {
+            setSavedMembers(undefined)
+            void navigate(location.pathname, { replace: true, state: null })
+            heading.current?.focus()
+          }} />}
         onUnauthorized={() => { setDetails(null); onUnauthorized() }} onAccessLost={accessLost}
         onCheckingAccess={setCheckingAccess} onGroupConfirmed={group => { setDetails(group); setCheckingAccess(false) }} />}
       {!checkingAccess && details.role === 'MEMBER' && <Button color="secondary" onClick={() => setConfirmLeave(true)}>Gruppe verlassen</Button>}
@@ -156,4 +174,24 @@ export default function GroupPage({ tab, currentUser, onUnauthorized, onNotice }
       <DialogActions><Button onClick={() => setConfirmLeave(false)}>Abbrechen</Button><Button color="error" disabled={busy} onClick={() => { void depart() }}>Verlassen bestätigen</Button></DialogActions>
     </Dialog>
   </Stack>
+}
+
+/** Nonblocking, non-auto-dismissing confirmation after an acknowledged save. */
+function SavedGamePanel({ onAgain, onOverview, onDismiss }: { onAgain: () => void; onOverview: () => void; onDismiss: () => void }) {
+  return <Card component="section" aria-labelledby="game-saved-title" sx={{ p: 2, mb: 3, display: 'grid', gap: 2, border: '1px solid', borderColor: 'interaction.border' }}>
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+      <Box aria-hidden="true" sx={{ display: 'grid', placeItems: 'center', width: 32, height: 32, flexShrink: 0, borderRadius: '50%', border: '2px solid', borderColor: 'success.main', color: 'success.main' }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 5 5 9-10" /></svg>
+      </Box>
+      <Box role="status" sx={{ flex: 1, minWidth: 0 }}>
+        <Typography component="h3" variant="h6" id="game-saved-title">Spiel erfolgreich gespeichert</Typography>
+        <Typography sx={{ color: 'text.secondary' }}>Deine Partie ist jetzt in der Spielehistorie dieser Playgroup sichtbar.</Typography>
+      </Box>
+      <IconButton aria-label="Hinweis schließen" onClick={onDismiss} sx={{ width: 48, height: 48, mt: -1, mr: -1 }}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+      </IconButton>
+    </Box>
+    <Button variant="contained" onClick={onAgain} sx={{ minHeight: 52 }}><Box component="span" aria-hidden="true" sx={{ mr: 1, fontSize: 22 }}>+</Box>Noch ein Spiel – gleiche Spieler</Button>
+    <Button variant="outlined" color="secondary" onClick={onOverview} sx={{ minHeight: 52 }}><Box component="span" aria-hidden="true" sx={{ mr: 1 }}>←</Box>Zur Playgroup-Übersicht</Button>
+  </Card>
 }

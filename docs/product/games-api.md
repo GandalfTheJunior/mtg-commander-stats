@@ -428,49 +428,74 @@ only the actual winner.
 
 ## Browser integration handoff (#196, #195)
 
-The backend two-state ranking contract is required for the complete #172 release.
-The existing browser parser in `frontend/src/api.ts` still requires numeric WIN
-placements and boolean survivor flags; the current editor also requires complete
-ranks. They must be aligned as part of the dependent frontend work before
-winner-only recording is released.
-No frontend changes are included in backend issue #228.
-
-- #196 must accept/display unknown non-winner and eliminated-opponent placements
-  without selecting or submitting inferred ranks, including when editing an
-  existing game. Its transport/read parser must allow explicit null WIN ranks.
-- #195 must render null as unknown, omit numeric place/indentation claims for that
-  participant, and highlight the winner using `winnerUserId`. Details always
-  sort by saved start seat without rank indentation.
-- #196 must discard all optional ranks and alternate opponent statuses when the
-  user confirms saving without placements. #195 must display unknown alternate
-  survival without an invented alive/dead status or rank 2.
-- #194/#193 history/overview must consume the nullable read contract while deriving
-  the displayed winner/draw from `winnerUserId`/`result`, never a reconstructed
-  complete ranking. The shared parser must accept these responses.
-
-The following browser sections describe the current UI, pending those changes.
+The browser now consumes the backend two-state ranking contract (#228). The shared
+parser in `frontend/src/api.ts` accepts explicit null WIN ranks and unknown alternate
+statuses. #195 details render them as unknown, #194/#193 derive the winner/draw from
+`winnerUserId`/`result`, and the #196 editor below never submits inferred ranks.
 
 ## Browser game editor
 
-The editor records the final outcome after a completed match. Player cards are
-ordered by saved start seat; dragging the left grip (pointer/touch), its arrow
-keys, or the up/down buttons changes only start order. Fully blank placeholders
-are omitted and complete assignments receive contiguous seats. Partial cards
-block saving.
+The PO-approved #196 functional wireframes are archived in
+[`wireframes/196`](wireframes/196/README.md). One vertically scrolling, mobile-first
+**Spiel erfassen** / **Spiel bearbeiten** view is scoped to the selected playgroup.
 
-Result controls remain visible outside the collapsible player/deck selection.
-Normal WIN uses manual numeric place buttons with competition ties and exactly
-one first place. Alternate WinCon, selected at the upper right, uses an explicit
-Winner marker and surviving opponents at derived place 2; only eliminated
-opponents select manual later ranks. DRAW records survivor status without ranks.
-Alternate victory requires a surviving opponent; DRAW requires a survivor.
-New Alternate opponents and DRAW participants default to still in the game.
+- **Date:** a compact **Spieldatum** row with the native date control right of the
+  label. New entries send the user's local calendar day as `playedOn`; edits keep
+  the stored value, including unknown (`null`), until the user changes it.
+  `recordedAt` stays server-assigned.
+- **Outcome:** a **Sieg | Unentschieden** segmented choice (default Sieg) and, for
+  Sieg only, the **Alternative Siegbedingung** switch (default off). Each of normal
+  WIN, alternate WIN and DRAW keeps its own unsaved results while the editor is
+  open; returning to Sieg restores the last win variant. Only the active mode's
+  fields reach POST/PUT.
+- **Participants:** new games start with four empty, collapsed cards in starting
+  seat order. Tapping an empty card opens the member picker; dismissing it collapses
+  the card again, or removes a card just added by **+ Spieler hinzufügen** (hidden
+  at six cards). Choosing a member opens that member's deck picker immediately; X
+  keeps the member without a deck. A complete card collapses to a full-width
+  summary: left drag grip, saved artwork (two Commanders side by side, a genuine
+  Companion smaller behind), player name, Commander name(s), smaller deck name and
+  an edit chevron. Untouched blank cards are omitted; a member without a deck
+  blocks saving.
+- **Pickers:** active members and #223 quick profiles appear together (quick
+  profiles marked **Schnellprofil**); members chosen on other cards are excluded.
+  Deck pickers list only that member's eligible owned, unarchived decks plus the
+  card's exact recorded pair on edit. Each list reveals a search field only when
+  the unfiltered list overflows the dialog. **Schnellprofil erstellen** creates the
+  profile through the group-scoped API and opens deck creation for it. **Deck
+  erstellen** is offered only for the signed-in user's own decks and the group's
+  quick profiles, reusing the deck form inside the editor so match inputs remain.
+  Cancelling returns to the same member's deck picker; the created profile stays
+  saved. Another account without eligible decks shows **Keine Decks verfügbar**
+  and **Anderes Mitglied auswählen**.
+- **Editing cards:** the expanded card offers **Mitglied ändern**, **Deck ändern**,
+  move up/down and a discreet **Spieler entfernen** (this match only, seats
+  compact). Changing the member clears that card's deck and its results in every
+  mode; changing only the deck keeps them. The grip reorders by pointer/touch
+  (live) or arrow keys and changes starting seats only. Former members can keep
+  only their exact recorded pair.
+- **Results:** every complete card has one result row below its summary. Without a
+  winner, WIN cards show **Sieger des Spiels**; the winner shows a trophy with
+  **Sieger · Platz 1**, every other card a dropdown in the same place. The
+  dropdown can replace the winner (the former winner returns to unknown) or set
+  places 2…N (normal) or **Noch im Spiel · Platz 2** / places 3…N (alternate).
+  Equal ranks need no confirmation; complete rankings must be valid standard
+  competition rankings, and a complete alternate ranking needs a survivor.
+  DRAW shows only **Noch im Spiel | Ausgeschieden**, with no preselection; every
+  participant needs an explicit status and at least one survivor.
+- **Saving:** winner-only and complete rankings save directly. If only some
+  additional results were entered, **Fehlende Platzierungen** asks first:
+  **Anpassen** keeps everything; **Spiel ohne Platzierungen speichern** discards
+  every extra rank (and alternate status) and saves winner-only. Missing
+  players, decks or the winner always block saving.
+- **After saving:** the editor returns to the group's Games tab, where a closeable,
+  non-auto-dismissing panel above the history offers **Noch ein Spiel – gleiche
+  Spieler** (a new entry with only the same active members, in roster order, today
+  and normal WIN) and **Zur Playgroup-Übersicht**. The handoff is a one-use,
+  in-memory token; reloads and other tabs restore nothing.
 
-Each mode retains its own unsaved in-memory results while the editor is open.
-Only active-mode fields reach POST/PUT. A player change clears only that card's
-results across modes; a deck-only change preserves results. The leave guard
-includes seat order, mode and inactive cached results. No cross-session draft
-recovery, live match tracking or partial historical-game correction is provided.
+No cross-session draft recovery, live match tracking or partial historical-game
+correction is provided.
 
 ## Read-only game details presentation
 

@@ -326,9 +326,9 @@ test.each([false, true])('record opens the exact group editor after fresh author
   if (strict) api.next(`/api/groups/${other.id}`, () => pending.promise.then(reply => reply.clone()))
   fireEvent.click(screen.getByRole('link', { name: `Spiel erfassen: ${other.name}, ${other.id}` }))
   await waitFor(() => expect(window.location.pathname).toBe(`/playgroups/${other.id}/games/new`))
-  expect(screen.queryByRole('heading', { name: 'Commander-Spiel erfassen' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('form', { name: 'Spiel erfassen' })).not.toBeInTheDocument()
   await act(async () => pending.resolve(response({ ...other, members: group.members })))
-  await screen.findByRole('heading', { name: 'Commander-Spiel erfassen' })
+  await screen.findByRole('form', { name: 'Spiel erfassen' })
   expect(api.fetchMock.mock.calls.some(([path]) => path === '/api/decks')).toBe(false)
 })
 
