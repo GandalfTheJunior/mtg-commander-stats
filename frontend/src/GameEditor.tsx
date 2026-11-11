@@ -217,13 +217,18 @@ export default function GameEditor({ group, game, currentUserId, initialMembers,
     // additionally fences any response that no longer belongs to the open slot.
     const operation = {}
     profileOperation.current = operation
+    // Snapshot the slot's assignment: an empty slot and "Mitglied ändern" on an
+    // assigned card are both valid targets as long as nothing superseded them.
+    const target = rowsRef.current.find(row => row.key === key)
+    const snapshot = target && { userId: target.userId, deckId: target.deckId }
     setProfile({ busy: true, error: '' })
     try {
       const created = await createQuickProfile(group.id, signal)
       if (signal.aborted) return
       // A saved profile always joins the roster, even if its slot was superseded.
       setAddedMembers(current => [...current, created])
-      if (profileOperation.current !== operation || !rowsRef.current.some(row => row.key === key && !row.userId)) {
+      const current = rowsRef.current.find(row => row.key === key)
+      if (profileOperation.current !== operation || !snapshot || !current || current.userId !== snapshot.userId || current.deckId !== snapshot.deckId) {
         setProfile({ busy: false, error: '' })
         return
       }

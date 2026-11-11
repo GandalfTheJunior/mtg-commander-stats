@@ -139,8 +139,9 @@ Back/Cancel changes no URL and asks through a nested `EditorLeave` provider abou
 the deck draft only: staying keeps it, discarding returns to the member's deck
 picker. Quick-profile creation is a single unrepeated POST. While it is pending the
 member picker cannot be dismissed or used, navigation is guarded like a pending
-save, and an operation token binds the response to its still-empty slot (a saved
-profile always joins the roster). An unacknowledged attempt asks the user to check
+save, and an operation token plus a snapshot of the target card's member and deck
+bind the response to that card, whether it started empty or via **Mitglied
+ändern** (a saved profile always joins the roster). An unacknowledged attempt asks the user to check
 the members.
 
 Focused game routes show no group tabs. The header back arrow, global navigation
