@@ -18,10 +18,12 @@ const normalized = (query: string) => [...query].map(char => /\p{White_Space}/u.
  * (outside tap, Escape) keeps the typed text. Stale, cancelled and retired responses are ignored.
  */
 export function CardSearch<T extends SearchChoice>({ label, name, search, context = '', immediate = false, filter, onSelect, onCancel,
-  onUnauthorized, error, inputRef, autoFocus = false, hint }: {
+  onUnauthorized, error, inputRef, autoFocus = false, hint, disabled = false }: {
   label: string; name: string; search: (query: string, signal: AbortSignal) => Promise<T[]>; context?: string; immediate?: boolean
   filter?: (choice: T) => boolean; onSelect: (choice: T) => void; onCancel?: () => void; onUnauthorized: () => void
   error?: string; inputRef?: RefObject<HTMLInputElement | null>; autoFocus?: boolean; hint?: string
+  /** While a save is pending nothing may be committed to the draft. */
+  disabled?: boolean
 }) {
   const id = useId()
   const [query, setQuery] = useState('')
@@ -57,12 +59,13 @@ export function CardSearch<T extends SearchChoice>({ label, name, search, contex
   }, [key, text, active, suggested, retry])
   const current = active && feedback?.context === key ? feedback : null
   const options = (current?.status === 'ready' ? current.options : []).filter(choice => !filter || filter(choice))
-  const listOpen = open && options.length > 0
+  const listOpen = open && !disabled && options.length > 0
   const listId = `${id}-list`
   const feedbackId = `${id}-feedback`
   const optionId = (index: number) => `${id}-option-${index}`
 
   function choose(choice: T) {
+    if (disabled) return
     generation.current++
     setFeedback(null); setOpen(false); setDismissed(true)
     onSelect(choice)
@@ -82,7 +85,7 @@ export function CardSearch<T extends SearchChoice>({ label, name, search, contex
   }
   return <Box ref={container} sx={{ position: 'relative', display: 'grid', gap: 1 }}
     onBlur={event => { if (!container.current?.contains(event.relatedTarget as Node | null)) setOpen(false) }}>
-    <TextField inputRef={inputRef} label={label} name={name} value={query} autoFocus={autoFocus} fullWidth error={Boolean(error)} helperText={error}
+    <TextField inputRef={inputRef} label={label} name={name} value={query} autoFocus={autoFocus} fullWidth disabled={disabled} error={Boolean(error)} helperText={error}
       autoComplete="off" onFocus={() => setOpen(true)} onKeyDown={keyDown}
       onChange={event => { setQuery(event.target.value); setOpen(true); setHighlight(0); setDismissed(true) }}
       slotProps={{

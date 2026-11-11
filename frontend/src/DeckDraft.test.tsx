@@ -1,9 +1,9 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { Artwork, Deck, SavedCompanion } from './api'
 import { savedCommander } from './test/commanderFixtures'
 import { deck, deckApi, editDeck, showDeckApp } from './test/deckFixtures'
-import { response, uid } from './test/gameFixtures'
+import { deferred, response, uid } from './test/gameFixtures'
 
 const companionPath = (q: string) => `/api/scryfall/companions?q=${encodeURIComponent(q)}`
 const artworksPath = (id: string) => `/api/scryfall/cards/${id}/artworks`
@@ -118,4 +118,96 @@ test('the collection Companion artwork shortcut writes only the Companion artwor
   expect(api.writes().map(([path]) => path)).toEqual([`/api/decks/${deck.id}/companion/artwork`])
   expect(body(api)).toEqual({ scryfallCardId: uid(903) })
   expect(screen.getByRole('img', { name: `Illustration für ${obosh.name}` })).toHaveAttribute('src', option(903).artCropUrl)
+})
+
+// Review follow-up for PR #289: draft preservation and recovery.
+test('edits made after an uncertain create survive its keyed confirmation and are saved as an update', async () => {
+  const api = await create()
+  const committed: Deck = { ...deck, id: uid(150), name: 'Draft deck' }
+  api.next('/api/decks', () => { throw new Error('Response lost') }, 'POST')
+  fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
+  await screen.findByText('Speicherstatus unklar')
+  fireEvent.change(screen.getByRole('textbox', { name: /Deckname/ }), { target: { value: 'Newer name' } })
+  api.next('/api/decks', () => response(committed, 200), 'POST')
+  fireEvent.click(screen.getByRole('button', { name: 'Gespeicherten Stand prüfen' }))
+  expect(await screen.findByText('Draft deck wurde erstellt. Deine späteren Änderungen sind noch nicht gespeichert.')).toBeInTheDocument()
+  expect(window.location.pathname).toBe('/decks/new')
+  expect(screen.getByRole('textbox', { name: /Deckname/ })).toHaveValue('Newer name')
+  expect(screen.getByRole('heading', { name: 'Deck bearbeiten' })).toBeInTheDocument()
+  api.state.decks = [committed]
+  api.next(`/api/decks/${committed.id}`, () => response({ ...committed, name: 'Newer name' }), 'PUT')
+  fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
+  await screen.findByText('Newer name wurde gespeichert.')
+  expect(api.writes().map(([path, init]) => [path, init?.method])).toEqual([['/api/decks', 'POST'], ['/api/decks', 'POST'], [`/api/decks/${committed.id}`, 'PUT']])
+  expect(body(api, 2)).toEqual({ name: 'Newer name' })
+})
+
+test('edits made after an uncertain update survive when the check finds the earlier attempt committed', async () => {
+  const api = deckApi(); showDeckApp(); await editDeck()
+  fireEvent.change(screen.getByRole('textbox', { name: /Deckname/ }), { target: { value: 'First attempt' } })
+  api.next(`/api/decks/${deck.id}`, () => { api.state.decks = [{ ...deck, name: 'First attempt' }]; throw new Error('Response lost') }, 'PUT')
+  fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
+  await screen.findByText('Speicherstatus unklar')
+  fireEvent.change(screen.getByRole('textbox', { name: /Deckname/ }), { target: { value: 'Second attempt' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Gespeicherten Stand prüfen' }))
+  await screen.findByText('Der vorherige Stand wurde gespeichert. Deine späteren Änderungen sind noch nicht gespeichert.')
+  expect(screen.getByRole('textbox', { name: /Deckname/ })).toHaveValue('Second attempt')
+  fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
+  await screen.findByText('Second attempt wurde gespeichert.')
+  expect(body(api, 1)).toEqual({ name: 'Second attempt' })
+})
+
+test('while a save is pending, artwork, selections, Undo and fields cannot change the captured draft', async () => {
+  const api = deckApi([{ ...deck, companion: savedCompanion, colorIdentity: ['B', 'R'], commanders: [savedCommander('Karn', ['B', 'R'])] }])
+  showDeckApp(); await editDeck()
+  fireEvent.click(screen.getByRole('button', { name: 'Companion entfernen' }))
+  const pending = deferred()
+  api.next(`/api/decks/${deck.id}`, () => pending.promise, 'PUT')
+  fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
+  await waitFor(() => expect(api.writes()).toHaveLength(1))
+  for (const name of ['Artwork für Karn wählen', 'Commander ändern', 'Rückgängig', '+ Companion hinzufügen']) {
+    expect(screen.getByRole('button', { name })).toBeDisabled()
+  }
+  expect(screen.getByRole('textbox', { name: /Deckname/ })).toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: 'Rückgängig' }))
+  expect(screen.queryByRole('region', { name: 'Companion' })).not.toBeInTheDocument()
+  await act(async () => pending.resolve(response({ ...api.state.decks[0], companion: null })))
+  await screen.findByText(`${deck.name} wurde gespeichert.`)
+  expect(body(api)).toEqual({ name: deck.name, companion: null })
+})
+
+test('a destructive conflict whose refresh failed can be checked again without a prior save', async () => {
+  const api = deckApi(); showDeckApp(); await editDeck()
+  api.next(`/api/decks/${deck.id}`, () => { api.state.decks = [{ ...deck, everUsed: true }]; return response({ detail: 'Deck is now used.' }, 409) }, 'DELETE')
+  api.next('/api/decks', () => { throw new Error('offline') })
+  fireEvent.click(screen.getByRole('button', { name: 'Deckaktionen' }))
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Löschen' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Deck löschen' }))
+  await screen.findByText('Speicherstatus unklar')
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  const lists = () => api.fetchMock.mock.calls.filter(([path, init]) => path === '/api/decks' && !init?.method).length
+  const before = lists()
+  fireEvent.click(screen.getByRole('button', { name: 'Gespeicherten Stand prüfen' }))
+  await screen.findByText('Deck wurde zwischenzeitlich geändert')
+  expect(lists()).toBe(before + 1)
+  expect(screen.getByRole('button', { name: 'Commander ändern (gesperrt)' })).toBeInTheDocument()
+  expect(api.writes()).toHaveLength(1)
+})
+
+test('first-use reconciliation keeps permitted artwork while reverting and locking gameplay changes', async () => {
+  const saved: Deck = { ...deck, commanders: [{ ...savedCommander('Karn'), artCropUrl: 'https://cards.scryfall.io/art_crop/front/saved.jpg' }] }
+  const api = deckApi([saved]); showDeckApp(); await editDeck()
+  api.next(artworksPath(saved.commanders[0].scryfallCardId), () => response([option(904)]))
+  fireEvent.click(screen.getByRole('button', { name: 'Artwork für Karn wählen' }))
+  fireEvent.click(await screen.findByRole('button', { name: /Illustration 1 von Artist 904 auswählen/ }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  fireEvent.click(screen.getByRole('radio', { name: 'Pauper Commander' }))
+  api.next(`/api/decks/${deck.id}`, () => { api.state.decks = [{ ...saved, everUsed: true }]; return response({ detail: 'Deck is now used.' }, 409) }, 'PUT')
+  fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
+  await screen.findByText('Deck wurde zwischenzeitlich geändert')
+  expect(screen.getByRole('radio', { name: 'Commander' })).toHaveAttribute('aria-checked', 'true')
+  expect(screen.getByRole('img', { name: 'Illustration für Karn' })).toHaveAttribute('src', option(904).artCropUrl)
+  fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
+  await screen.findByText(`${deck.name} wurde gespeichert.`)
+  expect(body(api, 1)).toEqual({ name: deck.name, commanders: [{ selectionRef: saved.commanders[0].selectionRef, artwork: { scryfallCardId: uid(904) } }] })
 })

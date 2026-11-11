@@ -39,11 +39,12 @@ function Artwork({ card }: { card: PreviewCard }) {
  * Combined editor preview (#201): one Commander fills the frame, two are equal side by side, and a genuine
  * Companion is smaller and offset below them. Dimensions are reserved so image loads never shift the form.
  */
-export function DeckArtworkPreview({ commanders, companion, onEdit }: {
+export function DeckArtworkPreview({ commanders, companion, onEdit, disabled = false }: {
   commanders: PreviewCard[]; companion: PreviewCard | null; onEdit: (card: PreviewCard, trigger: HTMLButtonElement) => void
+  disabled?: boolean
 }) {
   const paired = commanders.length === 2
-  const button = (card: PreviewCard, sx: object) => <ButtonBase key={card.key} aria-label={card.label} aria-haspopup="dialog"
+  const button = (card: PreviewCard, sx: object) => <ButtonBase key={card.key} aria-label={card.label} aria-haspopup="dialog" disabled={disabled}
     onClick={event => onEdit(card, event.currentTarget)}
     sx={{ position: 'absolute', overflow: 'hidden', borderRadius: 1, border: '1px solid', borderColor: 'interaction.border', boxSizing: 'border-box',
       bgcolor: 'background.raised', '&:hover': { outline: '2px solid', outlineColor: 'secondary.main' },

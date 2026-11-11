@@ -322,7 +322,13 @@ and artwork (503 offers **Erneut versuchen**). Network/other 5xx/unexpected/malf
 successes show **Speicherstatus unklar** and block Save until **Gespeicherten Stand prüfen**:
 create repeats the identical keyed POST, which the backend answers with the already
 committed deck instead of a duplicate; edit compares a fresh owned list with the attempted
-draft. No unkeyed write is automatically repeated.
+draft. No unkeyed write is automatically repeated. Edits made while the outcome is unknown are
+newer than the attempted write: if the check confirms that write, the editor adopts the saved deck
+as its baseline, keeps the newer draft and asks for an explicit further save (a contextual create
+from the match editor instead freezes the draft until the check). While any request is pending, every
+draft mutation (fields, searches, preview/gallery, Undo) is disabled and ignored. A 409 that newly
+locks gameplay adopts the server's gameplay fields but keeps the draft name, link and artwork of
+unchanged identities; if its refresh fails, **Gespeicherten Stand prüfen** retries only that read.
 
 ### ManaBox links
 

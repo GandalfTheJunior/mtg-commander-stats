@@ -103,6 +103,29 @@ function payloadOf(draft: Draft, saved?: Deck): DeckInput {
     ...(draft.format !== baseline.format ? { format: draft.format } : {}),
     ...(commandersChanged ? { commanders } : {}), ...(companionChanged ? { companion } : {}) }
 }
+/**
+ * Adopt an authoritative deck whose gameplay fields became permanently locked: gameplay comes from the
+ * server, while the still-editable name, link and artwork choices of unchanged identities are kept.
+ */
+function reconcileLocked(fresh: Deck, current: Draft): Draft {
+  const base = draftOf(fresh)
+  return { ...base, name: current.name, manaBoxUrl: current.manaBoxUrl,
+    commanders: base.commanders.map((slot, index) => {
+      const mine = current.commanders[index]
+      return mine?.art && mine.choice.name === slot.choice.name ? { ...slot, art: mine.art } : slot
+    }),
+    companion: base.companion && current.companion?.art && current.companion.choice.name === base.companion.choice.name
+      ? { ...base.companion, art: current.companion.art } : base.companion }
+}
+/** Fill default (not yet chosen) artwork of a draft with the saved artwork of the same identities. */
+function withSavedArt(saved: Deck, current: Draft): Draft {
+  const base = draftOf(saved)
+  return { ...current,
+    commanders: current.commanders.map((slot, index) => !slot.art && base.commanders[index]?.choice.name === slot.choice.name
+      ? { ...slot, art: base.commanders[index].art } : slot),
+    companion: current.companion && !current.companion.art && base.companion?.choice.name === current.companion.choice.name
+      ? { ...current.companion, art: base.companion.art } : current.companion }
+}
 /** Whether an authoritative deck reflects an attempted draft (printings may differ after artwork changes). */
 function reflects(deck: Deck, attempt: Draft) {
   const fresh = draftOf(deck)
@@ -155,7 +178,7 @@ export type DeckFormContext = {
 }
 
 type Phase = { kind: 'idle' | 'saving' | 'checking' } | { kind: 'failed'; title: string; detail: string; retry: boolean }
-  | { kind: 'uncertain' } | { kind: 'unavailable' }
+  | { kind: 'uncertain' } | { kind: 'unavailable' } | { kind: 'reconciled'; detail: string }
 
 function LockIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" focusable="false">
@@ -236,7 +259,12 @@ export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogo
   const pending = useRef(false)
   const idempotencyKey = useRef<string | null>(null)
   const attempt = useRef<{ draft: Draft; input: DeckInput } | null>(null)
+  // What "Gespeicherten Stand prüfen" resolves: the last unconfirmed write, or a failed conflict refresh.
+  const recheck = useRef<'write' | 'refresh'>('write')
   const busy = phase.kind === 'saving' || phase.kind === 'checking'
+  // A pending request has captured its payload: no draft change may happen until it settles. A contextual
+  // create cannot update a deck afterwards, so it also freezes the draft until an unknown outcome is resolved.
+  const frozen = busy || (Boolean(context) && phase.kind === 'uncertain')
   const dirty = keyOf(draft) !== keyOf(baseline)
   const releaseGuard = useEditorGuard(!completed && (dirty || busy), busy, guardOptions)
   const gameplayLocked = Boolean(confirmed?.everUsed)
@@ -249,7 +277,7 @@ export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogo
     return () => { controller.abort() }
   }, [])
   useLayoutEffect(() => { heading.current?.focus() }, [])
-  useLayoutEffect(() => { if (phase.kind === 'failed' || phase.kind === 'uncertain') banner.current?.focus() }, [phase])
+  useLayoutEffect(() => { if (phase.kind === 'failed' || phase.kind === 'uncertain' || phase.kind === 'reconciled') banner.current?.focus() }, [phase])
   // Keep the active Commander field at its viewport position when the preview is inserted above it.
   const hasPreview = draft.commanders.length > 0
   useLayoutEffect(() => {
@@ -271,6 +299,7 @@ export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogo
 
   /** Apply a draft change; dependent selections that become invalid are removed with one coherent Undo. */
   function change(update: (current: Draft) => Draft, removalNotice?: string) {
+    if (frozen) return
     const next = update(draft)
     const removed: string[] = []
     let commanders = next.commanders
@@ -282,9 +311,10 @@ export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogo
     if (removed.length) setUndo({ draft, message: `${removed.join(' und ')} entfernt, da ${removed.length > 1 ? 'sie nicht mehr kompatibel sind' : 'er nicht mehr kompatibel ist'}.` })
     else if (removalNotice) setUndo({ draft, message: removalNotice })
     setServerErrors({})
-    if (phase.kind === 'failed') setPhase({ kind: 'idle' })
+    if (phase.kind === 'failed' || phase.kind === 'reconciled') setPhase({ kind: 'idle' })
   }
   function selectFirst(choice: CommanderChoice) {
+    if (frozen) return
     if (!draft.commanders.length && commanderSection.current) anchor.current = commanderSection.current.getBoundingClientRect().top
     change(current => ({ ...current, commanders: [{ choice, chosenColor: null, art: null }, ...current.commanders.slice(1)] }))
     setSearching(value => ({ ...value, first: false, second: !choice.canBeSoleCommander }))
@@ -306,13 +336,13 @@ export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogo
       if (signal.aborted) return
       const fresh = decks.find(item => item.id === confirmed?.id)
       if (!fresh) { setPhase({ kind: 'unavailable' }); return }
-      if (fresh.everUsed && !confirmed?.everUsed) setDraft(current => ({ ...draftOf(fresh), name: current.name, manaBoxUrl: current.manaBoxUrl }))
+      if (fresh.everUsed && !confirmed?.everUsed) setDraft(current => reconcileLocked(fresh, current))
       setConfirmed(fresh); setBaseline(draftOf(fresh))
-      setPhase({ kind: 'failed', title: 'Deck wurde zwischenzeitlich geändert', detail: `${detail} Der aktuelle Serverstand ist geladen; prüfe deinen Entwurf und speichere erneut.`, retry: false })
+      setPhase({ kind: 'failed', title: 'Deck wurde zwischenzeitlich geändert', detail: `${detail} Der aktuelle Serverstand ist geladen; prüfe deinen Entwurf und speichere erneut.`.trim(), retry: false })
     } catch (error) {
       if (signal.aborted) return
       if (error instanceof ApiError && error.status === 401) onUnauthorized()
-      else setPhase({ kind: 'uncertain' })
+      else { recheck.current = 'refresh'; setPhase({ kind: 'uncertain' }) }
     }
   }
 
@@ -348,14 +378,26 @@ export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogo
         return
       }
       // Network failures, other 5xx and malformed successes may have committed: reconcile before any retry.
+      recheck.current = 'write'
       setPhase({ kind: 'uncertain' })
     }
   }
   /** Authoritative status check after an unknown outcome; never a blind repeat of an unkeyed write. */
   async function check() {
-    if (pending.current || !attempt.current) return
+    if (pending.current) return
     const signal = operation.current!.signal
+    if (recheck.current === 'refresh') {
+      // A destructive conflict whose refresh failed: retry only the authoritative read.
+      pending.current = true
+      setPhase({ kind: 'checking' })
+      await refreshAfterConflict(signal, '')
+      if (!signal.aborted) pending.current = false
+      return
+    }
+    if (!attempt.current) return
     const { draft: attempted, input } = attempt.current
+    // Edits made after the uncertain write are newer than that write and must survive its confirmation.
+    const newer = keyOf(draft) !== keyOf(attempted)
     pending.current = true
     setPhase({ kind: 'checking' })
     try {
@@ -363,16 +405,27 @@ export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogo
         // The keyed repeat returns the deck if the first request committed; it never creates a duplicate.
         const saved = await (context?.create ?? createDeck)(input, signal, idempotencyKey.current!)
         if (signal.aborted) return
-        await finish(`${saved.name} wurde erstellt.`, saved)
+        if (!newer) { await finish(`${saved.name} wurde erstellt.`, saved); return }
+        pending.current = false
+        idempotencyKey.current = null
+        setConfirmed(saved); setBaseline(draftOf(saved)); setDraft(current => withSavedArt(saved, current))
+        setPhase({ kind: 'reconciled', detail: `${saved.name} wurde erstellt. Deine späteren Änderungen sind noch nicht gespeichert.` })
         return
       }
       const decks = await listDecks(signal)
       if (signal.aborted) return
       const fresh = decks.find(item => item.id === confirmed.id)
       if (!fresh) { pending.current = false; setPhase({ kind: 'unavailable' }); return }
-      if (reflects(fresh, attempted)) { await finish(`${fresh.name} wurde gespeichert.`, fresh); return }
+      if (reflects(fresh, attempted)) {
+        if (!newer) { await finish(`${fresh.name} wurde gespeichert.`, fresh); return }
+        pending.current = false
+        if (fresh.everUsed && !confirmed.everUsed) setDraft(current => reconcileLocked(fresh, current))
+        setConfirmed(fresh); setBaseline(draftOf(fresh))
+        setPhase({ kind: 'reconciled', detail: 'Der vorherige Stand wurde gespeichert. Deine späteren Änderungen sind noch nicht gespeichert.' })
+        return
+      }
       pending.current = false
-      if (fresh.everUsed && !confirmed.everUsed) setDraft(current => ({ ...draftOf(fresh), name: current.name, manaBoxUrl: current.manaBoxUrl }))
+      if (fresh.everUsed && !confirmed.everUsed) setDraft(current => reconcileLocked(fresh, current))
       setConfirmed(fresh); setBaseline(draftOf(fresh))
       setPhase({ kind: 'failed', title: 'Nicht gespeichert', detail: 'Der gespeicherte Stand wurde geprüft: Deine Änderungen wurden nicht übernommen. Dein Entwurf bleibt erhalten; du kannst erneut speichern.', retry: false })
     } catch (error) {
@@ -400,7 +453,13 @@ export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogo
       setDestructive(null)
       if (error instanceof ApiError && error.status === 401) { onUnauthorized(); return }
       if (error instanceof ApiError && (error.status === 403 || error.status === 404)) { setPhase({ kind: 'unavailable' }); return }
-      if (error instanceof ApiError && error.status === 409) { setPhase({ kind: 'checking' }); await refreshAfterConflict(signal, message(error)); return }
+      if (error instanceof ApiError && error.status === 409) {
+        pending.current = true
+        setPhase({ kind: 'checking' })
+        await refreshAfterConflict(signal, message(error))
+        if (!signal.aborted) pending.current = false
+        return
+      }
       setPhase({ kind: 'failed', title: kind === 'archive' ? 'Archivieren fehlgeschlagen' : 'Löschen fehlgeschlagen',
         detail: `${message(error)} Prüfe bei Bedarf die Deckübersicht, bevor du es erneut versuchst.`, retry: false })
     }
@@ -414,7 +473,7 @@ export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogo
   const archived = Boolean(confirmed?.archived)
   const actions = confirmed ? [...(!archived ? ['archive' as const] : []), ...(!confirmed.everUsed ? ['delete' as const] : [])] : []
   const hidden = phase.kind === 'unavailable'
-  const restricted = busy
+  const restricted = frozen
   const previewCards: PreviewCard[] = draft.commanders.map((slot, index) => ({ key: `commander-${index}`, name: slot.choice.name,
     label: `Artwork für ${slot.choice.name} wählen`, selectionRef: slot.choice.selectionRef, art: slot.art }))
   const companionPreview: PreviewCard | null = draft.companion ? { key: 'companion', name: draft.companion.choice.name,
@@ -426,7 +485,7 @@ export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogo
     requestAnimationFrame(() => { if (trigger?.isConnected) trigger.focus() })
   }
   const chooseArt = (artwork: Artwork) => {
-    if (!gallery) return
+    if (!gallery || frozen) return
     const art = savedArt(artwork)
     const target = gallery.target
     change(current => target.kind === 'companion' ? { ...current, companion: current.companion && { ...current.companion, art } }
@@ -445,7 +504,7 @@ export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogo
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography ref={heading} tabIndex={-1} component="h2" variant="h4" id="deck-editor-heading"
           sx={{ fontSize: { xs: '1.75rem', sm: '2.125rem' }, '&:focus': { outline: 'none' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'interaction.focus', outlineOffset: 4 } }}>
-          {context?.title ?? (deck ? 'Deck bearbeiten' : 'Deck erstellen')}</Typography>
+          {context?.title ?? (confirmed ? 'Deck bearbeiten' : 'Deck erstellen')}</Typography>
         {archived && <Typography variant="body2" sx={{ color: 'text.secondary' }}>Archiviertes Deck</Typography>}
       </Box>
       {actions.length > 0 && !hidden && <IconButton ref={overflow} disabled={restricted} aria-label="Deckaktionen" aria-haspopup="menu"
@@ -454,6 +513,7 @@ export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogo
       </IconButton>}
     </Stack>
 
+    {phase.kind === 'reconciled' && <Alert ref={banner} tabIndex={-1} severity="info" role="status">{phase.detail}</Alert>}
     {(phase.kind === 'failed' || phase.kind === 'uncertain' || phase.kind === 'checking') && <Box>
       <Alert ref={banner} tabIndex={-1} severity={phase.kind === 'failed' ? 'error' : 'warning'} role="alert"
         sx={{ '&:focus': { outline: '2px solid', outlineColor: 'interaction.focus' }, '& .MuiAlert-message': { width: '100%' } }}>
@@ -497,12 +557,12 @@ export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogo
         </Box>
       </Box>
 
-      {hasPreview && <DeckArtworkPreview commanders={previewCards} companion={companionPreview}
+      {hasPreview && <DeckArtworkPreview commanders={previewCards} companion={companionPreview} disabled={restricted}
         onEdit={(card, trigger) => setGallery({ trigger, target: card.key === 'companion' ? { kind: 'companion' } : { kind: 'commander', index: Number(card.key.split('-')[1]) } })} />}
 
       <Box ref={commanderSection} sx={{ display: 'grid', gap: 2, minWidth: 0 }}>
         {(!first || searching.first) ? <Box component="section" aria-label={second || pairRequired ? 'Commander 1' : 'Commander'} sx={{ display: 'grid', gap: 1 }}>
-          <CardSearch key={`first-${draft.format}`} label={second ? 'Commander 1' : 'Commander'} name="commander-1" search={commanderSearch()} context={draft.format}
+          <CardSearch disabled={restricted} key={`first-${draft.format}`} label={second ? 'Commander 1' : 'Commander'} name="commander-1" search={commanderSearch()} context={draft.format}
             autoFocus={Boolean(searching.first)} onUnauthorized={onUnauthorized} onSelect={selectFirst}
             onCancel={first ? () => setSearching(value => ({ ...value, first: false })) : undefined} />
           {!first && <Box sx={{ p: 2, border: '1px dashed', borderColor: 'interaction.border', borderRadius: 1, color: 'text.secondary', textAlign: 'center' }}>Kein Commander ausgewählt</Box>}
@@ -521,7 +581,7 @@ export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogo
             onChange={chosenColor => change(current => ({ ...current, commanders: current.commanders.map((slot, index) => index === 1 ? { ...slot, chosenColor } : slot) }))} />}
         </CardRow> : ((searching.second && supportsPair(first.choice)) || pairRequired) && !gameplayLocked ? <Box component="section" aria-label="Commander 2" sx={{ display: 'grid', gap: 1 }}>
           {pairRequired && !second && <Typography sx={{ color: 'text.secondary' }}>{first.choice.name} benötigt einen kompatiblen zweiten Commander.</Typography>}
-          <CardSearch key={`second-${refKey(first.choice)}-${draft.format}`} label={isDoctorOnly(first.choice) ? "Doctor's companion" : 'Zweiter Commander'} name="commander-2"
+          <CardSearch disabled={restricted} key={`second-${refKey(first.choice)}-${draft.format}`} label={isDoctorOnly(first.choice) ? "Doctor's companion" : 'Zweiter Commander'} name="commander-2"
             search={commanderSearch(first.choice)} context={`${refKey(first.choice)}|${draft.format}`} autoFocus={Boolean(searching.second)}
             immediate={first.choice.pairing.partnerWith.length > 0 && !second} onUnauthorized={onUnauthorized}
             onSelect={choice => {
@@ -533,7 +593,8 @@ export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogo
           onClick={() => setSearching(value => ({ ...value, second: true }))}
           sx={{ justifyContent: 'flex-start', minHeight: 56, borderColor: 'interaction.border' }}>+ {isDoctorOnly(first.choice) ? "Doctor's companion hinzufügen" : 'Zweiten Commander hinzufügen'}</Button>)}
 
-        {undo && <Alert severity="info" role="status" action={<Button color="inherit" variant="outlined" onClick={() => {
+        {undo && <Alert severity="info" role="status" action={<Button color="inherit" variant="outlined" disabled={restricted} onClick={() => {
+          if (frozen) return
           setDraft(undo.draft); setUndo(null); setSearching({})
         }}>Rückgängig</Button>} onClose={() => setUndo(null)} slotProps={{ closeButton: { 'aria-label': 'Hinweis schließen' } }}>{undo.message}</Alert>}
       </Box>
@@ -544,7 +605,7 @@ export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogo
         onRemove={() => change(current => ({ ...current, companion: null }), 'Companion entfernt.')}>
         {serverErrors.companion && <Typography color="error" role="alert">{serverErrors.companion}</Typography>}
       </CardRow> : searching.companion && !gameplayLocked ? <Box component="section" aria-label="Companion" sx={{ display: 'grid', gap: 1 }}>
-        <CardSearch label="Companion" name="companion" search={searchCompanions}
+        <CardSearch disabled={restricted} label="Companion" name="companion" search={searchCompanions}
           autoFocus onUnauthorized={onUnauthorized}
           filter={identityComplete(draft.commanders) ? choice => choice.colorIdentity.every(color => identity.includes(color)) : undefined}
           hint="Nur Companions, deren Farben zur Farbidentität deiner Commander passen."
@@ -563,7 +624,7 @@ export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogo
 
       <Stack sx={{ gap: 1.5 }}>
         <Button variant="contained" type="submit" size="large" disabled={!canSave} sx={{ minHeight: 52 }}>
-          {busy ? 'Wird gespeichert…' : phase.kind === 'uncertain' ? 'Speichern erst nach Statusprüfung' : deck ? 'Änderungen speichern' : 'Deck erstellen'}</Button>
+          {busy ? 'Wird gespeichert…' : phase.kind === 'uncertain' ? 'Speichern erst nach Statusprüfung' : confirmed ? 'Änderungen speichern' : 'Deck erstellen'}</Button>
         <Button variant="outlined" color="inherit" type="button" size="large" disabled={busy} onClick={exit} sx={{ minHeight: 52, borderColor: 'interaction.border' }}>Abbrechen</Button>
       </Stack>
     </Box>}
