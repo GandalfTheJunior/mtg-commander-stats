@@ -108,7 +108,7 @@ test('an ambiguous write gives no success and keeps the draft', async () => {
   expect(screen.queryByText('Spiel erfolgreich gespeichert.')).not.toBeInTheDocument()
 })
 
-test.each(['MEMBER', 'ADMIN'])('a direct edit route refuses a cross-creator %s edit', async role => {
+test.each(['MEMBER'])('a direct edit route refuses a cross-creator %s edit', async role => {
   const { api } = setup([recorded({ creatorId: uid(3) })])
   api.next(`/api/groups/${group.id}`, () => response({ ...group, role }))
   renderApp(<App />, `${gamesPath}/${uid(20)}/edit`)
@@ -191,4 +191,14 @@ test.each(['visible Back', 'browser Back'] as const)('dirty new-game %s requires
     expect(window.location.pathname).toBe(editorPath)
     expect(screen.getByRole('combobox', { name: 'Spieler 1' })).toHaveValue('')
   }
+})
+
+
+test('an active ADMIN can open a cross-creator game edit with saved assignments', async () => {
+  const { api } = setup([recorded({ creatorId: uid(3) })])
+  api.next(`/api/groups/${group.id}`, () => response({ ...group, role: 'ADMIN' }))
+  renderApp(<App />, `${gamesPath}/${uid(20)}/edit`)
+  await screen.findByRole('form', { name: 'Spiel bearbeiten' })
+  expect(screen.getByText('Deck 2')).toBeInTheDocument()
+  expect(screen.getByText('Deck 3')).toBeInTheDocument()
 })

@@ -26,7 +26,7 @@ function deck(index: number) {
 const group = { id: uid(10), name: 'Friday games', role: 'OWNER', members: [1, 2, 3, 4].map(n => ({
   userId: uid(n), username: `Player ${n}`, role: n === 1 ? 'OWNER' : 'MEMBER',
 })) }
-const game = { id: uid(20), groupId: group.id, creatorId: uid(1), recordedAt: '2026-11-06T12:00:00Z',
+const game = { id: uid(20), groupId: group.id, creatorId: uid(1), playedOn: null, recordedAt: '2026-11-06T12:00:00Z',
   result: 'DRAW', alternateWinCon: false, winnerUserId: null, participants: [1, 2, 3, 4].map((n) => ({
     startPosition: n, placement: null, stillInGame: true, userId: uid(n), username: `Player ${n}`, deckId: deck(n).id, deck: deck(n),
   })) }

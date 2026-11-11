@@ -439,8 +439,8 @@ No frontend changes are included in backend issue #228.
   without selecting or submitting inferred ranks, including when editing an
   existing game. Its transport/read parser must allow explicit null WIN ranks.
 - #195 must render null as unknown, omit numeric place/indentation claims for that
-  participant, and highlight the winner using `winnerUserId`. The current details
-  sorting/indentation assumes numeric WIN ranks and needs that adjustment.
+  participant, and highlight the winner using `winnerUserId`. Details always
+  sort by saved start seat without rank indentation.
 - #196 must discard all optional ranks and alternate opponent statuses when the
   user confirms saving without placements. #195 must display unknown alternate
   survival without an invented alive/dead status or rank 2.
@@ -474,18 +474,38 @@ recovery, live match tracking or partial historical-game correction is provided.
 
 ## Read-only game details presentation
 
-Game details show one artwork card per participant in a vertical stack on mobile
-and desktop. WIN uses effective GET placement, then saved start seat for ties;
-equal ranks have equal indentation. DRAW uses only saved start seats, without
-finish ranks or a winner. Cards label seats, placements, survival and the sole WIN
-winner explicitly, retaining archived-deck and former-member information.
+The group-scoped Spieldetails view follows the approved #195 wireframes. One
+compact card per participant is stacked vertically on mobile and desktop,
+strictly ascending by saved `startPosition` for every result. This supersedes
+#134's placement-first ordering, rank indentation and artwork-background layout.
+Effective GET placements are independent labels, including competition ties;
+unknown placements omit the label. DRAW has one subtle note below the play date,
+no ranks and no highlighted winner. Only `winnerUserId` identifies the WIN card:
+a normal victory has a trophy and secondary accent; an alternate victory has a
+distinct sparkle icon and info accent. Activating either icon explains the win
+kind without inventing a specific cause.
 
-Each card uses the currently associated deck's saved Commander artwork from the
-GET response, with equal adjacent panels for two Commanders. Images use a cover
-crop and names over a dark gradient. Missing, unsafe or failed sources fall back;
-changing the Commander/source resets image failure state. A fresh details load
-reflects current deck assignment and saved artwork, without provider lookups or
-separate game-level artwork storage. Artwork selection remains in deck editing.
+Player name, equally prominent saved Commander names and the smaller deck name
+form the primary hierarchy. Compact saved artworks sit left of text: two
+Commanders have equal adjacent foreground images; an actual Companion has a
+smaller image offset downward behind them. Its icon beside the first Commander
+name reveals the saved Companion name. Artwork opens the shared full-card viewer.
+Missing, unsafe and broken sources use fallbacks; no provider lookup is performed.
+A fresh details load reflects the associated decks' saved snapshots. Survivor
+facts, colors, archived decks and former-member indicators remain secondary.
+
+The top date uses nullable `playedOn` (DD.MM.YYYY), or exactly
+`Spieldatum unbekannt`; immutable `recordedAt` appears as `Erfasst am` after the
+participants. A permitted valid ManaBox URL from the fresh authorized detail
+response has an external-link icon immediately beside the deck name, opening
+directly in a safe new tab. Suppressed links are never reconstructed.
+
+Only the active original creator or active group OWNER/ADMIN sees adjacent
+bottom `Spiel bearbeiten` and `Spiel löschen` buttons. Deletion requires explicit
+confirmation, supports cancellation and returns to freshly loaded group history
+only after confirmed success. Server authorization, auth/CSRF checks and retired
+request fencing remain authoritative. Informational icons support click, touch,
+keyboard activation, dismissal and Escape.
 
 ## Persisted deck format in reads
 

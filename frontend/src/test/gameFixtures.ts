@@ -13,7 +13,7 @@ export const members: GroupMember[] = [
 export const group: GroupDetails = { id: uid(10), name: 'Friday games', role: 'OWNER', members }
 export const deckFor = (n: number): DeckSelection => ({ id: uid(100 + n), name: `Deck ${n}`, commanders: [savedCommander(`Commander ${n}`)], colorIdentity: ['R'] })
 export function recorded(overrides: Partial<Game> = {}): Game {
-  return { id: uid(20), groupId: group.id, creatorId: uid(2), recordedAt: '2026-10-16T08:00:00.123456Z',
+  return { id: uid(20), groupId: group.id, creatorId: uid(2), playedOn: null, recordedAt: '2026-10-16T08:00:00.123456Z',
     result: 'WIN', alternateWinCon: false, winnerUserId: uid(2), participants: [2, 3].map((n) => ({
       startPosition: n - 1, placement: overrides.result === 'DRAW' ? null : n - 1, stillInGame: overrides.result === 'DRAW' || n === 2, userId: uid(n), username: 'Same name', deckId: deckFor(n).id, deck: { ...deckFor(n), archived: false },
     })), ...overrides }

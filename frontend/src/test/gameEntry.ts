@@ -25,9 +25,7 @@ export async function openGameDetails() {
 export async function gameAction(name: 'Bearbeiten' | 'Löschen', open = true) {
   if (open) await openGameDetails()
   const details = within(await screen.findByRole('region', { name: 'Spieldetails' }))
-  fireEvent.click(await details.findByRole('button', { name: 'Spielaktionen' }))
-  const menu = within(await screen.findByRole('menu', { name: 'Spielaktionen' }))
-  fireEvent.click(menu.getByRole('menuitem', { name }))
+  fireEvent.click(await details.findByRole('button', { name: name === 'Bearbeiten' ? 'Spiel bearbeiten' : 'Spiel löschen' }))
 }
 
 // Select explicit final ranks using the editor's visible per-card controls.

@@ -48,9 +48,10 @@ function useVisibleCardImages(card: SavedCard, target: RefObject<Element | null>
   }, [urls, target, preload])
 }
 
-export function FullCardView({ card, artwork = false, preloadTarget, preload = 'visible' }: {
+export function FullCardView({ card, artwork = false, compact = false, preloadTarget, preload = 'visible' }: {
   card: SavedCard
   artwork?: boolean
+  compact?: boolean
   preloadTarget?: RefObject<Element | null>
   preload?: 'visible' | 'immediate'
 }) {
@@ -60,7 +61,7 @@ export function FullCardView({ card, artwork = false, preloadTarget, preload = '
   return <Box ref={target} sx={{ minWidth: 0, ...(artwork ? { width: '100%', height: '100%' } : {}) }}>
     {artwork ? <ButtonBase aria-label={`Karte anzeigen: ${card.name}`} aria-haspopup="dialog" onClick={() => setOpen(true)}
       sx={{ width: '100%', height: '100%', '&.Mui-focusVisible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: -3 } }}>
-      <CommanderArtwork commander={card} />
+      <CommanderArtwork commander={card} compact={compact} />
     </ButtonBase> : <Button aria-label={`Karte anzeigen: ${card.name}`} aria-haspopup="dialog" onClick={() => setOpen(true)}>
       Karte anzeigen: {card.name}
     </Button>}

@@ -132,7 +132,7 @@ test('App refreshes history after own-deck archival', async () => {
   await screen.findByText('Deck 1 wurde archiviert.')
   await open()
   await openGameDetails()
-  await screen.findByText('Archiviertes Deck')
+  await screen.findByText(/Archiviertes Deck/)
 })
 
 test.each([200, 401])('late history from a previous selected group (%s) cannot restore it or expire the new view', async (status) => {

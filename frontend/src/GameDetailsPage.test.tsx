@@ -85,10 +85,10 @@ test.each([false, true])('direct details verify session, group and game in order
   expect(screen.queryByText('Deck 2')).not.toBeInTheDocument()
   await act(async () => membership.resolve(response(group)))
   await waitFor(() => expect(api.calls(gamePath)).toHaveLength(1))
-  expect(screen.queryByRole('button', { name: 'Spielaktionen' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Spiel löschen' })).not.toBeInTheDocument()
   await act(async () => game.resolve(response(recorded())))
   expect(await screen.findByRole('heading', { name: 'Spieldetails' })).toHaveFocus()
-  expect(screen.getByText('Commander: Commander 2')).toBeInTheDocument()
+  expect(screen.getByText('Commander 2')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('link', { name: 'Zur Spielehistorie' }))
   await waitFor(() => expect(window.location.pathname).toBe(groupUrl(group.id, 'games')))
   await waitFor(() => expect(api.calls(`${groupPath}/games/history`).length).toBeGreaterThan(0))
@@ -150,7 +150,7 @@ test.each([403, 404])('game %s rechecks membership and distinguishes lost group 
   api.next(gamePath, () => response({}, status)); show()
   await screen.findByText(groupUnavailable)
   expect(api.calls(groupPath)).toHaveLength(2)
-  expect(screen.queryByRole('article')).not.toBeInTheDocument()
+  expect(screen.queryByRole('list', { name: 'Teilnehmende und Decks' })).not.toBeInTheDocument()
 })
 
 test.each(['group', 'game', 'malformed', 'wrong-group', 'wrong-game', 'network', 'forbidden'] as const)('unavailable/invalid %s keeps private data hidden until explicit safe retry', async failure => {
@@ -165,19 +165,17 @@ test.each(['group', 'game', 'malformed', 'wrong-group', 'wrong-game', 'network',
   })
   show()
   fireEvent.click(await screen.findByRole('button', { name: 'Spieldetails erneut prüfen' }))
-  expect(screen.queryByRole('article')).not.toBeInTheDocument()
+  expect(screen.queryByRole('list', { name: 'Teilnehmende und Decks' })).not.toBeInTheDocument()
   await screen.findByRole('heading', { name: 'Spieldetails' })
-  expect(screen.getByRole('button', { name: 'Spielaktionen' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Spiel löschen' })).toBeInTheDocument()
 })
 
-test.each([['OWNER', 1, true], ['MEMBER', 2, true], ['MEMBER', 3, false], ['ADMIN', 1, false]] as const)('fresh %s viewer %s has actions only when entitled', async (role, actor, allowed) => {
+test.each([['OWNER', 1, true], ['MEMBER', 2, true], ['MEMBER', 3, false], ['ADMIN', 1, true]] as const)('fresh %s viewer %s has actions only when entitled', async (role, actor, allowed) => {
   const api = setup(); api.server.details = { ...group, role }; api.server.user = { id: uid(actor), username: 'Viewer' }; show()
   await screen.findByRole('heading', { name: 'Spieldetails' })
-  expect(Boolean(screen.queryByRole('button', { name: 'Spielaktionen' }))).toBe(allowed)
-  if (allowed) {
-    fireEvent.click(screen.getByRole('button', { name: 'Spielaktionen' }))
-    expect((await screen.findAllByRole('menuitem')).map(item => item.textContent)).toEqual(['Bearbeiten', 'Löschen'])
-  }
+  expect(Boolean(screen.queryByRole('button', { name: 'Spiel löschen' }))).toBe(allowed)
+  expect(Boolean(screen.queryByRole('button', { name: 'Spiel bearbeiten' }))).toBe(allowed)
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
 })
 
 test('historical names/ordered assignments, duplicate names, archived and colorless decks and neutral creator fallback are truthful', async () => {
@@ -188,7 +186,7 @@ test('historical names/ordered assignments, duplicate names, archived and colorl
   api.state.history = [game]
   api.server.details = { ...group, members: group.members.filter(person => person.userId !== uid(2)) }
   show()
-  await screen.findByRole('heading', { name: 'Unentschieden' })
+  await screen.findByText('Unentschieden')
   const assignments = within(screen.getByRole('list', { name: 'Teilnehmende und Decks' })).getAllByRole('listitem')
   expect(assignments[0]).toHaveTextContent('Same name (…0002)')
   expect(assignments[0]).toHaveTextContent('Ehemaliges Mitglied')
@@ -261,7 +259,7 @@ test('cancel/Escape/backdrop send zero DELETEs and restore a reachable actions t
     else if (cancelBy === 'escape') fireEvent.keyDown(dialog, { key: 'Escape' })
     else { const backdrop = document.querySelector('.MuiDialog-container')!; fireEvent.mouseDown(backdrop); fireEvent.click(backdrop) }
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Spielaktionen' })).toHaveFocus())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Spiel löschen' })).toHaveFocus())
   }
   expect(api.calls(gamePath, 'DELETE')).toHaveLength(0)
 })
@@ -273,7 +271,7 @@ test('DELETE guards CSRF and write lifetime, accepts only 204, replaces detail e
   api.next(gamePath, () => write.promise, 'DELETE')
   const confirm = screen.getByRole('button', { name: 'Endgültig löschen' })
   fireEvent.click(confirm); fireEvent.click(confirm)
-  expect(screen.queryByRole('article')).not.toBeInTheDocument()
+  expect(screen.queryByRole('list', { name: 'Teilnehmende und Decks' })).not.toBeInTheDocument()
   expect(screen.queryByText(/Spiel gelöscht/)).not.toBeInTheDocument()
   await act(async () => csrf.resolve(response({ headerName: 'X-CSRF-TOKEN', token: 'token' })))
   await waitFor(() => expect(api.calls(gamePath, 'DELETE')).toHaveLength(1))
@@ -293,12 +291,12 @@ test.each([200, 400, 403, 404, 409, 500, 'network'] as const)('unacknowledged DE
   api.next(groupPath, () => check.promise)
   fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
   await waitFor(() => expect(api.calls(groupPath)).toHaveLength(2))
-  expect(screen.queryByRole('article')).not.toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Spielaktionen' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('list', { name: 'Teilnehmende und Decks' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Spiel löschen' })).not.toBeInTheDocument()
   expect(screen.queryByText(/Spiel gelöscht/)).not.toBeInTheDocument()
   await act(async () => check.resolve(response({ ...group, role: 'MEMBER' })))
   await screen.findByRole('heading', { name: 'Spieldetails' })
-  expect(screen.queryByRole('button', { name: 'Spielaktionen' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Spiel löschen' })).not.toBeInTheDocument()
   expect(screen.getByText(/Die Löschung wurde nicht bestätigt/)).toBeInTheDocument()
   expect(api.calls(gamePath, 'DELETE')).toHaveLength(1)
   expect(api.calls(gamePath)).toHaveLength(2)
@@ -310,7 +308,7 @@ test.each(['csrf', 'write'])('current %s 401 expires the session without exposin
   api.next(stage === 'csrf' ? '/api/csrf' : gamePath, () => response({}, 401), stage === 'csrf' ? 'GET' : 'DELETE')
   fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
   await screen.findByRole('heading', { name: 'Sign in' })
-  expect(screen.queryByRole('article')).not.toBeInTheDocument()
+  expect(screen.queryByRole('list', { name: 'Teilnehmende und Decks' })).not.toBeInTheDocument()
   expect(screen.queryByText(/Spiel gelöscht/)).not.toBeInTheDocument()
 })
 
@@ -320,7 +318,7 @@ test('ambiguous committed delete is inspected as gone and never automatically re
   fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
   await screen.findByText('Spiel nicht mehr verfügbar')
   expect(window.location.pathname).toBe(detailUrl)
-  expect(screen.queryByRole('article')).not.toBeInTheDocument()
+  expect(screen.queryByRole('list', { name: 'Teilnehmende und Decks' })).not.toBeInTheDocument()
   expect(api.calls(gamePath, 'DELETE')).toHaveLength(1)
   expect(screen.queryByText(/Spiel gelöscht/)).not.toBeInTheDocument()
 })
@@ -460,10 +458,10 @@ test.each([1, 4])('LAN HTTP logout and login as %s retire a game draft and its h
 })
 
 test.each([
-  { mode: 'normal', ranks: [2, 4, 1, 2], seats: [4, 2, 3, 1], order: [3, 4, 1, 2] },
-  { mode: 'alternate', ranks: [4, 2, 4, 1, 2], seats: [2, 4, 5, 3, 1], order: [4, 5, 2, 1, 3] },
+  { mode: 'normal', ranks: [2, 4, 1, 2], seats: [4, 2, 3, 1], order: [4, 2, 3, 1] },
+  { mode: 'alternate', ranks: [4, 2, 4, 1, 2], seats: [2, 4, 5, 3, 1], order: [5, 1, 4, 2, 3] },
   { mode: 'draw', ranks: [null, null, null, null], seats: [4, 2, 3, 1], order: [4, 2, 3, 1] },
-])('$mode orders by effective rank/start seat and labels results explicitly', async ({ mode, ranks, seats, order }) => {
+])('$mode orders strictly by saved start seat and labels results independently', async ({ mode, ranks, seats, order }) => {
   const api = setup()
   const participants = ranks.map((placement, i) => ({ ...recorded().participants[0], userId: uid(i + 1), username: `Player ${i + 1}`,
     placement, startPosition: seats[i], stillInGame: mode === 'draw' ? i % 2 === 0 : placement === 1 || (mode === 'alternate' && placement === 2),
@@ -474,17 +472,18 @@ test.each([
   const list = await screen.findByRole('list', { name: 'Teilnehmende und Decks' })
   const cards = within(list).getAllByRole('listitem')
   expect(cards.map(card => within(card).getByRole('heading').textContent)).toEqual(order.map(i => `Player ${i}`))
-  cards.forEach((card, i) => expect(card).toHaveTextContent(`Startplatz: ${seats[order[i] - 1]}`))
+  cards.forEach((card, i) => expect(card).toHaveTextContent(`Startplatz ${seats[order[i] - 1]}`))
   if (mode === 'draw') {
-    expect(within(list).queryByText(/Platzierung:/)).not.toBeInTheDocument()
+    expect(within(list).queryByText(/^Platz \d/)).not.toBeInTheDocument()
     expect(within(list).queryByText(/Sieg/)).not.toBeInTheDocument()
     expect(within(list).getAllByText('Noch im Spiel')).toHaveLength(2)
     expect(within(list).getAllByText('Ausgeschieden')).toHaveLength(2)
   } else {
-    expect(within(list).getAllByText('🏆 Sieg')).toHaveLength(1)
-    expect(within(cards[1]).getByText('Platzierung: 2')).toBeInTheDocument()
-    expect(within(cards[2]).getByText('Platzierung: 2')).toBeInTheDocument()
-    expect(getComputedStyle(cards[1]).marginLeft).toBe(getComputedStyle(cards[2]).marginLeft)
+    expect(within(list).getAllByRole('button', { name: mode === 'alternate' ? 'Alternative Siegbedingung' : 'Normaler Sieg' })).toHaveLength(1)
+    cards.forEach((card, i) => {
+      expect(within(card).getByText(`Platz ${ranks[order[i] - 1]}`)).toBeInTheDocument()
+      expect(getComputedStyle(card).marginLeft).not.toMatch(/[1-9]/)
+    })
   }
 })
 
@@ -504,7 +503,7 @@ test('fresh details use current deck snapshots, including one to two commanders 
   show()
   expect(await screen.findByRole('img', { name: 'Illustration für New first' })).toHaveAttribute('src', 'https://cards.scryfall.io/new.jpg')
   expect(screen.getByRole('img', { name: 'Keine Illustration für New second verfügbar' })).toBeInTheDocument()
-  expect(screen.queryByText('Commander: Commander 2')).not.toBeInTheDocument()
+  expect(screen.queryByText('Commander 2')).not.toBeInTheDocument()
   expect(api.fetchMock.mock.calls.some(([path]) => path.includes('scryfall'))).toBe(false)
 })
 
@@ -529,7 +528,7 @@ test.each([2, 4, 6])('associates exactly one safe independent ManaBox action wit
     expect(link.closest('button')).toBeNull()
     expect(link.closest('a')).toBe(link)
   })
-  expect(within(cards[1]).getByText('Archiviertes Deck')).toBeInTheDocument()
+  expect(within(cards[1]).getByText(/Archiviertes Deck/)).toBeInTheDocument()
   fireEvent.click(within(cards[0]).getByRole('link'))
   expect(window.location.pathname).toBe(detailUrl)
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -547,7 +546,7 @@ test('mixed availability preserves archived/former-member history while omitting
   const former = within(list).getAllByRole('listitem')[5]
   expect(former).toHaveTextContent('Ehemaliges Mitglied')
   expect(former).toHaveTextContent('Deck 6')
-  expect(former).toHaveTextContent('Platzierung: 6')
+  expect(former).toHaveTextContent('Platz 6')
   expect(within(former).queryByRole('link')).not.toBeInTheDocument()
 })
 
@@ -638,4 +637,64 @@ test.each(['edit', 'delete'].flatMap(action => [true, false].map(confirmed => ({
   else await screen.findByRole('table', { name: 'Spielerstatistiken' })
   expect(api.calls(`${groupPath}/statistics`)).toHaveLength(2)
   expect(api.calls(gamePath, action === 'edit' ? 'PUT' : 'DELETE')).toHaveLength(confirmed ? 1 : 0)
+})
+
+test.each([null, '2026-10-31'])('uses the real nullable play date %s separately from recording metadata', async playedOn => {
+  const api = setup(); api.state.history = [recorded({ playedOn })]; show()
+  await screen.findByRole('heading', { name: 'Spieldetails' })
+  if (playedOn) expect(screen.getByText('31.10.2026').closest('p')).toHaveTextContent('Gespielt am 31.10.2026')
+  else expect(screen.getByText('Spieldatum unbekannt')).toBeInTheDocument()
+  const list = screen.getByRole('list', { name: 'Teilnehmende und Decks' })
+  expect(list.compareDocumentPosition(screen.getByText(/Erfasst am/)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(screen.queryByText(/Gewonnen:/)).not.toBeInTheDocument()
+})
+
+test.each([false, true])('unknown ranks and status stay unknown with alternate=%s and winner in seat four', async alternateWinCon => {
+  const api = setup(), game = linkedGame()
+  game.alternateWinCon = alternateWinCon
+  game.winnerUserId = game.participants[3].userId
+  game.participants.forEach((person, index) => { person.placement = index === 3 ? 1 : null; person.stillInGame = index === 3 ? true : alternateWinCon ? null : false })
+  api.state.history = [game]; show()
+  const list = await screen.findByRole('list', { name: 'Teilnehmende und Decks' })
+  expect(within(list).getAllByText(/^Platz \d/)).toHaveLength(1)
+  const cards = within(list).getAllByRole('listitem')
+  const label = alternateWinCon ? 'Alternative Siegbedingung' : 'Normaler Sieg'
+  fireEvent.click(within(cards[3]).getByRole('button', { name: label }))
+  const dialog = await screen.findByRole('dialog', { name: label })
+  expect(within(dialog).getByText(label)).toBeInTheDocument()
+  fireEvent.keyDown(dialog, { key: 'Escape' })
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
+
+test('a real Companion reveals only its saved name beside the first of two Commanders and artwork uses the shared viewer', async () => {
+  const api = setup(), game = recorded(), deck = game.participants[0].deck
+  deck.commanders.push({ ...deck.commanders[0], name: 'Second Commander', oracleId: uid(777), position: 2 })
+  deck.companion = { ...deck.commanders[0], name: 'Saved Companion' }
+  api.state.history = [game]; show()
+  const icon = await screen.findByRole('button', { name: 'Companion anzeigen' })
+  expect(icon.parentElement).toHaveTextContent('Commander 2')
+  expect(screen.queryByText('Saved Companion')).not.toBeInTheDocument()
+  fireEvent.click(icon)
+  const dialog = await screen.findByRole('dialog', { name: 'Companion anzeigen' })
+  expect(within(dialog).getByText('Saved Companion')).toBeInTheDocument()
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Schließen' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  fireEvent.click(screen.getByRole('button', { name: 'Karte anzeigen: Saved Companion' }))
+  expect(await screen.findByRole('dialog', { name: 'Saved Companion' })).toHaveTextContent('Kein Kartenbild gespeichert.')
+})
+
+test('returning focus refreshes roles and links before exposing details again', async () => {
+  const api = setup(); api.state.history = [linkedGame()]; show()
+  await screen.findByRole('link', { name: /Deck 1:.*ManaBox/ })
+  api.server.details = { ...group, role: 'MEMBER' }
+  api.state.history = [recorded()]
+  const pending = deferred()
+  api.next(groupPath, () => pending.promise)
+  fireEvent(window, new Event('focus'))
+  expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Spiel löschen' })).not.toBeInTheDocument()
+  await act(async () => pending.resolve(response(api.server.details)))
+  await screen.findByRole('heading', { name: 'Spieldetails' })
+  expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Spiel bearbeiten' })).not.toBeInTheDocument()
 })
