@@ -5,14 +5,15 @@ mobile wireframes** in [issue #197](https://github.com/GandalfTheJunior/mtg-comm
 (Playgroup Statistics landing page, chooser, and four focused reports).
 The approved issue specification and original GitHub attachments remain
 authoritative. Repository copies help coding agents visually inspect the
-images when GitHub issue attachments are inaccessible.
+actual images when GitHub issue attachments are inaccessible.
 
 ## Approved wireframes
 
-The uploaded PNGs retain their original filenames. These files are present
-on `docs/197-wireframes` and linked here in approved issue order.
+All seven original files were uploaded by the Product Owner with their
+existing filenames. This table maps each approved scenario to the actual
+repository file in issue order.
 
-| Approved scenario | Repository PNG | Original issue attachment | Verified dimensions |
+| Approved scenario | Repository PNG | Original issue attachment | PNG dimensions |
 | --- | --- | --- | --- |
 | 01 — Statistics landing, v2 | [`issue197_wireframe_01_statistik_startseite_mobile_v2.png`](issue197_wireframe_01_statistik_startseite_mobile_v2.png) | [Original 01](https://github.com/user-attachments/assets/a82e7b92-1f49-40bd-b632-6da998a63811) | 780 × 2736 |
 | 02 — All Statistics chooser, collapsed v1 | [`issue197_wireframe_02_alle_statistiken_mobile_v1.png`](issue197_wireframe_02_alle_statistiken_mobile_v1.png) | [Original 02](https://github.com/user-attachments/assets/62a9c131-68e7-491a-a2f8-f4a696eff899) | 780 × 1688 |
@@ -24,22 +25,18 @@ on `docs/197-wireframes` and linked here in approved issue order.
 
 ## Verification and delivery
 
-- **Present:** all seven PNGs on the `docs/197-wireframes` branch.
-- **Verified:** PNG file signatures, image dimensions, and all seven visual
-  scenarios against the issue's approved descriptions, using the actual
-  repository files.
-- **Not verified:** binary byte-for-byte identity with the original external
-  GitHub issue attachments; the external originals may not be accessible from
-  restricted clients.
-- **Claude Code preflight:** the intended implementer must individually open
-  and **visually inspect all seven repository PNGs**. Filenames, dimensions,
-  metadata and README text are not sufficient to satisfy this requirement.
-- **Before merging:** complete independent review and required CI verification
-  on the current PR HEAD. The PO retains merge authority.
-- **After merging:** a separate, explicit PO implementation authorization is
-  still required to implement #197 from `main` on a dedicated feature branch.
+- **Present:** all seven PNG files on branch `docs/197-wireframes`.
+- **Verified:** PNG signatures, image dimensions, and the visual content
+  of each scenario were inspected from the actual repository files.
+- **Not independently verified:** byte-for-byte identity with the original
+  external issue attachments, which may be inaccessible in restricted clients.
+- **Required preflight for the intended agent:** open and visually inspect
+  each of the seven repository PNG files inside the Claude Code environment.
+  File listings, Markdown descriptions, and image metadata alone do not count.
+- **Before merging:** review the documentation-only diff and verify required
+  GitHub checks on the current HEAD; the Product Owner retains merge authority.
 
-These images govern functional layout and hierarchy, **not** exact pixels,
-decorative styling or illustrative statistics. The source of truth remains
-[issue #197](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/197)
-and the repository workflow in `AGENTS.md`.
+Once this archive is merged, a separately PO-authorized implementer may use
+these PNGs on `main` for #197. This documentation PR does **not** authorize
+feature implementation, change the specification, or supersede `AGENTS.md`
+and [initiative #172](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/172).
