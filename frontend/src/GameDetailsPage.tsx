@@ -85,19 +85,6 @@ export default function GameDetailsPage({ currentUser, onUnauthorized, onNotice,
     return () => { controller.abort(); request.current?.abort() }
   }, [groupId, gameId, load])
   useEffect(() => { if (state.status === 'ready') heading.current?.focus() }, [state])
-  useEffect(() => {
-    const refresh = () => {
-      if (pending.current || !validId.test(groupId) || !validId.test(gameId)) return
-      request.current?.abort()
-      const controller = new AbortController()
-      request.current = controller
-      setConfirm(false)
-      setState({ status: 'checking' })
-      void load(controller.signal)
-    }
-    window.addEventListener('focus', refresh)
-    return () => window.removeEventListener('focus', refresh)
-  }, [groupId, gameId, load])
 
   function retry() {
     request.current?.abort()
@@ -168,7 +155,7 @@ export default function GameDetailsPage({ currentUser, onUnauthorized, onNotice,
             minWidth: 0, p: 1.5, border: '2px solid', borderColor: isWinner ? accent : 'divider',
           }}>
             <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, minWidth: 0 }}>
-              <Box aria-label="Gespeicherte Kartenillustrationen" sx={{ position: 'relative', flexShrink: 0,
+              <Box role="group" aria-label="Gespeicherte Kartenillustrationen" sx={{ position: 'relative', flexShrink: 0,
                 width: person.deck.commanders.length === 2 ? { xs: 92, sm: 136 } : { xs: 56, sm: 80 },
                 pb: person.deck.companion ? '44px' : 0 }}>
                 {person.deck.companion && <Box sx={{ position: 'absolute', bottom: 0, left: '25%', width: { xs: 44, sm: 56 }, height: { xs: 64, sm: 80 }, zIndex: 0,

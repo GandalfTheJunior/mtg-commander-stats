@@ -683,18 +683,36 @@ test('a real Companion reveals only its saved name beside the first of two Comma
   expect(await screen.findByRole('dialog', { name: 'Saved Companion' })).toHaveTextContent('Kein Kartenbild gespeichert.')
 })
 
-test('returning focus refreshes roles and links before exposing details again', async () => {
-  const api = setup(); api.state.history = [linkedGame()]; show()
-  await screen.findByRole('link', { name: /Deck 1:.*ManaBox/ })
-  api.server.details = { ...group, role: 'MEMBER' }
-  api.state.history = [recorded()]
-  const pending = deferred()
-  api.next(groupPath, () => pending.promise)
+test.each(['details', 'delete', 'victory', 'companion'])('window refocus preserves the loaded %s view and focus without another read', async mode => {
+  const api = setup(), game = linkedGame()
+  game.participants[0].deck.companion = { ...game.participants[0].deck.commanders[0], name: 'Saved Companion' }
+  api.state.history = [game]; show()
+  const link = await screen.findByRole('link', { name: /Deck 1:.*ManaBox/ })
+  const list = screen.getByRole('list', { name: 'Teilnehmende und Decks' })
+  expect(within(list).getAllByRole('group', { name: 'Gespeicherte Kartenillustrationen' })).toHaveLength(4)
+  let dialog: HTMLElement | null = null
+  if (mode === 'delete') {
+    await gameAction('Löschen', false)
+    dialog = await screen.findByRole('dialog', { name: 'Spiel endgültig löschen?' })
+    await waitFor(() => expect(within(dialog!).getByRole('button', { name: 'Abbrechen' })).toHaveFocus())
+  } else if (mode !== 'details') {
+    const label = mode === 'victory' ? 'Normaler Sieg' : 'Companion anzeigen'
+    fireEvent.click(screen.getByRole('button', { name: label }))
+    dialog = await screen.findByRole('dialog', { name: label })
+    act(() => within(dialog!).getByRole('button', { name: 'Schließen' }).focus())
+  } else act(() => link.focus())
+  const focused = document.activeElement
+  // An unavailable service must not turn a routine app/tab switch into an error.
+  api.next(groupPath, () => { throw new Error('offline') })
   fireEvent(window, new Event('focus'))
-  expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Spiel löschen' })).not.toBeInTheDocument()
-  await act(async () => pending.resolve(response(api.server.details)))
-  await screen.findByRole('heading', { name: 'Spieldetails' })
-  expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Spiel bearbeiten' })).not.toBeInTheDocument()
+  await act(async () => { await Promise.resolve() })
+  expect(document.activeElement).toBe(focused)
+  expect(list.isConnected).toBe(true)
+  expect(link.isConnected).toBe(true)
+  if (dialog) expect(dialog).toBeVisible()
+  expect(screen.queryByText('Gruppenberechtigung und Spiel werden geprüft…')).not.toBeInTheDocument()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  expect(api.calls(groupPath)).toHaveLength(1)
+  expect(api.calls(gamePath)).toHaveLength(1)
+  expect(api.calls(gamePath, 'DELETE')).toHaveLength(0)
 })

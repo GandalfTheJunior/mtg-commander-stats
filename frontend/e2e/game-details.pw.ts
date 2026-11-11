@@ -9,6 +9,8 @@ const card = (name: string, position = 1) => ({ name, position, oracleId: id(400
 for (const width of [320, 1280]) for (const mode of ['normal', 'alternate', 'draw', 'readonly']) {
   test(`${mode} details at ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 900 })
+    const directory = process.env.MTG_SCREENSHOTS ?? info.outputPath('screenshots')
+    await mkdir(directory, { recursive: true })
     const group = { id: id(10), name: 'Friday Night Commander', role: mode === 'readonly' ? 'MEMBER' : 'ADMIN', members: [1, 2, 3, 4].map(n => ({ userId: id(n), username: `Player ${n}`, role: 'MEMBER' })) }
     const game = { id: id(20), groupId: group.id, creatorId: id(2), recordedAt: '2026-11-01T08:14:00Z', playedOn: mode === 'draw' ? null : '2026-10-31',
       result: mode === 'draw' ? 'DRAW' : 'WIN', winnerUserId: mode === 'draw' ? null : id(4), alternateWinCon: mode === 'alternate',
@@ -19,8 +21,10 @@ for (const width of [320, 1280]) for (const mode of ['normal', 'alternate', 'dra
           commanders: n === 4 ? [card('Tymna the Weaver'), card('Kraum, Ludevic’s Opus', 2)] : [card('A saved Commander name')],
           companion: n === 4 ? card('Jegantha, the Wellspring') : null } })),
     }
+    let privateReads = 0
     await page.route('**/api/**', route => {
       const pathname = new URL(route.request().url()).pathname
+      if (pathname === `/api/groups/${group.id}` || pathname.endsWith(`/games/${game.id}`)) privateReads++
       const json = pathname === '/api/me' ? { id: id(1), username: 'Demo viewer' }
         : pathname === `/api/groups/${group.id}` ? group : pathname.endsWith(`/games/${game.id}`) ? game : []
       return route.fulfill({ json })
@@ -48,6 +52,19 @@ for (const width of [320, 1280]) for (const mode of ['normal', 'alternate', 'dra
     expect(companionArt.y).toBeGreaterThan(firstArt.y)
     expect(companionArt.height).toBeLessThan(firstArt.height)
 
+    const refocus = async () => {
+      const before = await page.evaluate(() => ({ y: scrollY }))
+      const reads = privateReads
+      await page.evaluate(() => {
+        const active = document.activeElement
+        const y = scrollY
+        window.dispatchEvent(new FocusEvent('focus'))
+        if (document.activeElement !== active || scrollY !== y) throw new Error('Window focus changed focus or scroll')
+      })
+      await expect(page.getByRole('heading', { name: 'Spieldetails', includeHidden: true })).toBeAttached()
+      expect(privateReads).toBe(reads)
+      expect(await page.evaluate(() => scrollY)).toBe(before.y)
+    }
     if (mode === 'draw') {
       await expect(page.getByText('Spieldatum unbekannt')).toBeVisible()
       await expect(list.getByText(/^Platz \d/)).toHaveCount(0)
@@ -57,15 +74,38 @@ for (const width of [320, 1280]) for (const mode of ['normal', 'alternate', 'dra
       const winner = list.getByRole('button', { name: label })
       await winner.focus(); await page.keyboard.press('Enter')
       await expect(page.getByRole('dialog', { name: label })).toBeVisible()
+      await refocus()
+      await expect(page.getByRole('dialog', { name: label })).toBeVisible()
       await page.keyboard.press('Escape')
       await expect(winner).toBeFocused()
     }
     const companion = page.getByRole('button', { name: 'Companion anzeigen' })
     await companion.tap()
     await expect(page.getByRole('dialog', { name: 'Companion anzeigen' })).toHaveText(/Jegantha, the Wellspring/)
+    await refocus()
+    await expect(page.getByRole('dialog', { name: 'Companion anzeigen' })).toBeVisible()
+    if (mode === 'alternate') await page.screenshot({ path: `${directory}/details-companion-refocus-${width}.png`, fullPage: true })
     await page.keyboard.press('Escape')
-    const directory = process.env.MTG_SCREENSHOTS ?? info.outputPath('screenshots')
-    await mkdir(directory, { recursive: true })
+    await expect(page.getByRole('dialog', { name: 'Companion anzeigen' })).toHaveCount(0)
+    const manaBox = list.getByRole('link', { name: /ManaBox/ })
+    await manaBox.focus()
+    await refocus()
+    await expect(manaBox).toBeFocused()
+    if (mode === 'normal') {
+      await page.context().route('https://manabox.app/**', route => route.fulfill({ contentType: 'text/html', body: '<title>Synthetic ManaBox tab</title>' }))
+      await manaBox.scrollIntoViewIfNeeded()
+      const reads = privateReads
+      const opened = page.waitForEvent('popup')
+      await manaBox.click()
+      const tab = await opened
+      const y = await page.evaluate(() => scrollY)
+      await tab.waitForLoadState('domcontentloaded')
+      await tab.close()
+      await page.bringToFront()
+      await expect(manaBox).toBeFocused()
+      expect(await page.evaluate(() => scrollY)).toBe(y)
+      expect(privateReads).toBe(reads)
+    }
     await page.screenshot({ path: `${directory}/details-${mode}-${width}.png`, fullPage: true })
     if (mode === 'alternate') {
       await edit.click()
@@ -76,6 +116,11 @@ for (const width of [320, 1280]) for (const mode of ['normal', 'alternate', 'dra
     }
     if (mode === 'normal') {
       await remove.click()
+      const confirmation = page.getByRole('dialog', { name: 'Spiel endgültig löschen?' })
+      await expect(confirmation.getByRole('button', { name: 'Abbrechen' })).toBeFocused()
+      await refocus()
+      await expect(confirmation).toBeVisible()
+      await page.screenshot({ path: `${directory}/details-confirm-refocus-${width}.png`, fullPage: true })
       await page.getByRole('button', { name: 'Abbrechen' }).click()
       await expect(page.getByRole('dialog')).toHaveCount(0)
     }

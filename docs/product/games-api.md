@@ -505,7 +505,9 @@ bottom `Spiel bearbeiten` and `Spiel löschen` buttons. Deletion requires explic
 confirmation, supports cancellation and returns to freshly loaded group history
 only after confirmed success. Server authorization, auth/CSRF checks and retired
 request fencing remain authoritative. Informational icons support click, touch,
-keyboard activation, dismissal and Escape.
+keyboard activation, dismissal and Escape. Window refocus does not reload details or
+reset focus, scroll, popovers or deletion confirmation. Fresh authorization is
+checked on load/retry and by the server for each mutation.
 
 ## Persisted deck format in reads
 
