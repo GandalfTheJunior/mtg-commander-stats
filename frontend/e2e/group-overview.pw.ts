@@ -77,7 +77,7 @@ for (const width of [320, 390, 1280]) {
     await expect(list).toBeVisible()
     await page.getByRole('link', { name: 'Spiel erfassen', exact: true }).click()
     await expect(page).toHaveURL(`${url}/games/new`)
-    await expect(page.getByRole('heading', { name: 'Commander-Spiel erfassen' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Spiel erfassen', exact: true })).toBeVisible()
     mode = 'empty'
     await page.goto(url)
     await expect(page.getByText('Die Archive erscheinen unvollständig… Absolviert mehr Spiele, um eure Statistiken zu sehen.')).toBeVisible()

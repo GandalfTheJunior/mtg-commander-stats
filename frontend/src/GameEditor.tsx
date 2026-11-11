@@ -9,7 +9,7 @@ import {
 } from './api'
 import { CommanderArtwork } from './CommanderArtwork'
 import { DeckForm, type DeckFormContext } from './DeckEditor'
-import { EditorGuard, useEditorGuard, type EditorGuardOptions } from './editorGuard'
+import { EditorGuard, EditorLeave, useEditorGuard, type EditorGuardOptions } from './editorGuard'
 import {
   checkOutcome, gameMode, localToday, outcomeFields, outcomeValue, savedOutcome, withOutcome,
   type OutcomeDraft, type OutcomeMode, type OutcomeValue,
@@ -104,12 +104,14 @@ export default function GameEditor({ group, game, currentUserId, initialMembers,
   const dragKey = useRef<number | null>(null)
   const dragMoved = useRef(false)
   const lifetime = useRef<AbortController | null>(null)
+  const profileOperation = useRef<object | null>(null)
   useLayoutEffect(() => {
     const controller = new AbortController()
     lifetime.current = controller
     return () => controller.abort()
   }, [])
-  useEditorGuard(!completed && (material(rows, mode, playedOn) !== baseline || busy || nestedGuard.blocked), busy || nestedGuard.pending)
+  // A pending quick-profile POST is an unacknowledged write: protect navigation like a save.
+  useEditorGuard(!completed && (material(rows, mode, playedOn) !== baseline || busy || nestedGuard.blocked || profile.busy), busy || nestedGuard.pending || profile.busy)
   useLayoutEffect(() => {
     if (focusNext.current) {
       document.getElementById(focusNext.current)?.focus()
@@ -119,10 +121,19 @@ export default function GameEditor({ group, game, currentUserId, initialMembers,
   useLayoutEffect(() => { if (writeError) document.getElementById('game-write-error')?.focus() }, [writeError])
   const loaded = useCallback((userId: string, choice: Choice) => setChoices(previous => ({ ...previous, [userId]: choice })), [])
   // The nested deck editor reports its own dirty/pending state; the match guard covers both.
+  const nestedBlocked = useRef(false)
   const nestedRegister = useCallback((blocked: boolean, pending = false, _options?: EditorGuardOptions) => {
     void _options
+    nestedBlocked.current = blocked
     setNestedGuard(current => current.blocked === blocked && current.pending === pending ? current : { blocked, pending })
-    return () => setNestedGuard({ blocked: false, pending: false })
+    return () => { nestedBlocked.current = false; setNestedGuard({ blocked: false, pending: false }) }
+  }, [])
+  // Contextual Back/Cancel inside the nested deck form only discards the deck draft,
+  // so it asks about that draft alone; the match itself stays in the editor.
+  const [nestedLeave, setNestedLeave] = useState<(() => void) | null>(null)
+  const askNestedLeave = useCallback((leave: () => void) => {
+    if (!nestedBlocked.current) leave()
+    else setNestedLeave(() => leave)
   }, [])
 
   const original = (userId: string) => game?.participants.find(p => sameId(p.userId, userId))
@@ -169,7 +180,7 @@ export default function GameEditor({ group, game, currentUserId, initialMembers,
   }
   function openMemberPicker(key: number) {
     update(key, row => ({ ...row, expanded: true }))
-    setProfile({ busy: false, error: '' })
+    setProfile(current => current.busy ? current : { busy: false, error: '' })
     setPicker({ kind: 'member', key })
   }
   function closeMemberPicker() {
@@ -202,17 +213,27 @@ export default function GameEditor({ group, game, currentUserId, initialMembers,
   async function addQuickProfile(key: number) {
     const signal = lifetime.current?.signal
     if (profile.busy || !signal) return
+    // The member picker cannot be dismissed while pending; the operation token
+    // additionally fences any response that no longer belongs to the open slot.
+    const operation = {}
+    profileOperation.current = operation
     setProfile({ busy: true, error: '' })
     try {
       const created = await createQuickProfile(group.id, signal)
       if (signal.aborted) return
+      // A saved profile always joins the roster, even if its slot was superseded.
       setAddedMembers(current => [...current, created])
+      if (profileOperation.current !== operation || !rowsRef.current.some(row => row.key === key && !row.userId)) {
+        setProfile({ busy: false, error: '' })
+        return
+      }
       update(key, row => ({ ...row, userId: created.userId, deckId: '', outcome: {}, expanded: true, added: false }))
       setPicker(null)
       setNested({ key, userId: created.userId })
       setProfile({ busy: false, error: '' })
     } catch (error) {
       if (signal.aborted) return
+      if (profileOperation.current === operation) profileOperation.current = null
       if (error instanceof ApiError && [401, 403, 404].includes(error.status)) { onAccessError(error); return }
       setProfile({ busy: false, error: 'Das Schnellprofil wurde nicht bestätigt und könnte bereits gespeichert sein. Prüfe die Mitglieder der Playgroup, bevor du es erneut versuchst.' })
     }
@@ -287,8 +308,24 @@ export default function GameEditor({ group, game, currentUserId, initialMembers,
     return <Stack sx={{ gap: 2, minWidth: 0 }}>
       <Typography sx={{ color: 'text.secondary' }}>Deine Spielangaben bleiben erhalten. Nach dem Erstellen wird das Deck für {name} ausgewählt.</Typography>
       <EditorGuard.Provider value={nestedRegister}>
-        <DeckForm context={context} onUnauthorized={() => onAccessError(new ApiError('Session expired.', 401))} />
+        <EditorLeave.Provider value={askNestedLeave}>
+          <DeckForm context={context} onUnauthorized={() => onAccessError(new ApiError('Session expired.', 401))} />
+        </EditorLeave.Provider>
       </EditorGuard.Provider>
+      <Dialog open={nestedLeave !== null} onClose={() => setNestedLeave(null)} aria-labelledby="nested-discard-title" aria-describedby="nested-discard-description">
+        <DialogTitle id="nested-discard-title">Änderungen verwerfen?</DialogTitle>
+        <DialogContent><DialogContentText id="nested-discard-description">
+          Das neue Deck wird nicht gespeichert. Deine Spielangaben bleiben erhalten.
+        </DialogContentText></DialogContent>
+        <DialogActions sx={{ flexWrap: 'wrap' }}>
+          <Button autoFocus color="secondary" onClick={() => setNestedLeave(null)}>Im Editor bleiben</Button>
+          <Button color="error" disabled={nestedLeave === null} onClick={() => {
+            const leave = nestedLeave
+            setNestedLeave(null)
+            leave?.()
+          }}>Verwerfen und zurück</Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   }
 
@@ -562,17 +599,17 @@ function useOverflow(content: string) {
   return [ref, overflow] as const
 }
 
-function PickerDialog({ id, title, subtitle, hint, search, onClose, children, actions }: {
-  id: string; title: string; subtitle: string; hint: string; search?: ReactNode; onClose: () => void; children: ReactNode; actions?: ReactNode
+function PickerDialog({ id, title, subtitle, hint, search, onClose, children, actions, locked = false }: {
+  id: string; title: string; subtitle: string; hint: string; search?: ReactNode; onClose: () => void; children: ReactNode; actions?: ReactNode; locked?: boolean
 }) {
-  return <Dialog open onClose={onClose} aria-labelledby={`${id}-title`} aria-describedby={`${id}-subtitle`} fullWidth maxWidth="xs" scroll="paper" disableRestoreFocus>
+  return <Dialog open onClose={() => { if (!locked) onClose() }} aria-labelledby={`${id}-title`} aria-describedby={`${id}-subtitle`} fullWidth maxWidth="xs" scroll="paper" disableRestoreFocus>
     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, p: 2, pb: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography component="h2" variant="h6" id={`${id}-title`}>{title}</Typography>
         <Typography id={`${id}-subtitle`} sx={{ color: 'text.secondary' }}>{subtitle}</Typography>
         <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>{hint}</Typography>
       </Box>
-      <IconButton aria-label="Schließen" onClick={onClose} sx={{ width: 48, height: 48 }}>
+      <IconButton aria-label="Schließen" disabled={locked} onClick={onClose} sx={{ width: 48, height: 48 }}>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
       </IconButton>
     </Box>
@@ -592,7 +629,7 @@ function MemberPicker({ groupName, slot, people, busy, error, onClose, onChoose,
   const [content, overflow] = useOverflow(`${people.length}:${error}`)
   const shown = people.filter(person => person.name.toLocaleLowerCase('de').includes(query.trim().toLocaleLowerCase('de')))
   return <PickerDialog id="member-picker" title="Gruppenmitglied auswählen" subtitle={`${groupName} · Spieler ${slot}`}
-    hint="Mitglied antippen öffnet direkt die Deckauswahl." onClose={onClose}
+    hint="Mitglied antippen öffnet direkt die Deckauswahl." onClose={onClose} locked={busy}
     search={overflow && <TextField type="search" size="small" fullWidth label="Mitglied suchen" value={query} onChange={event => setQuery(event.target.value)} />}
     actions={<Button variant="outlined" color="secondary" disabled={busy} onClick={onCreateProfile}>
       <Box component="span" aria-hidden="true" sx={{ mr: 1 }}>+</Box>{busy ? 'Schnellprofil wird erstellt…' : 'Schnellprofil erstellen'}

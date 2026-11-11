@@ -33,8 +33,11 @@ export default function GroupPage({ tab, currentUser, onUnauthorized, onNotice }
   const { groupId = '' } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const [savedToken, setSavedToken] = useState(() => tab === 'games' ? handoffToken(location.state, 'gameSaved') : undefined)
-  const savedMembers = readHandoff(savedToken, 'saved', currentUser.id, groupId)
+  // Capture the post-save panel for this mount only and retire its token at once,
+  // so leaving and traversing back to this history entry cannot restore it.
+  const [savedToken] = useState(() => tab === 'games' ? handoffToken(location.state, 'gameSaved') : undefined)
+  const [savedMembers, setSavedMembers] = useState(() => readHandoff(savedToken, 'saved', currentUser.id, groupId))
+  useEffect(() => { forgetHandoff(savedToken) }, [savedToken])
   const [details, setDetails] = useState<GroupDetails | null>(null)
   const [checkingAccess, setCheckingAccess] = useState(false)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -152,14 +155,12 @@ export default function GroupPage({ tab, currentUser, onUnauthorized, onNotice }
       {(tab === 'games' || tab === 'statistics') && <GameManager group={details} tab={tab}
         savedPanel={savedMembers && <SavedGamePanel
           onAgain={() => {
-            forgetHandoff(savedToken)
             const repeatGame = offerHandoff({ kind: 'repeat', userId: currentUser.id, groupId, memberIds: savedMembers })
             void navigate(`${groupUrl(groupId, 'games')}/new`, { state: { repeatGame } })
           }}
-          onOverview={() => { forgetHandoff(savedToken); void navigate(groupUrl(groupId)) }}
+          onOverview={() => { void navigate(groupUrl(groupId)) }}
           onDismiss={() => {
-            forgetHandoff(savedToken)
-            setSavedToken(undefined)
+            setSavedMembers(undefined)
             void navigate(location.pathname, { replace: true, state: null })
             heading.current?.focus()
           }} />}

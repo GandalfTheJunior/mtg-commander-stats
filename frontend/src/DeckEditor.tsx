@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
@@ -20,7 +20,7 @@ import RadioGroup from '@mui/material/RadioGroup'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import { colorNames } from './deckColors'
 import { ManaColorPicker } from './ManaColorPicker'
-import { useEditorGuard } from './editorGuard'
+import { EditorLeave, useEditorGuard } from './editorGuard'
 import { safeManaBoxUrl } from './manaBoxUrl'
 
 export type DeckOverview = '/dashboard' | '/decks'
@@ -96,7 +96,9 @@ export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogo
   // Capture once per form mount without coupling create entry to a list request.
   const returnTo = useRef<DeckOverview | null>(null)
   useLayoutEffect(() => { returnTo.current ??= getReturnTo?.() ?? '/decks' }, [getReturnTo])
-  const exit = () => { if (context) context.onExit(); else void navigate(returnTo.current ?? '/decks', { replace: true }) }
+  const leave = useContext(EditorLeave)
+  // Contextual exits change no URL, so they ask through the local leave guard.
+  const exit = () => { if (context) leave(() => context.onExit()); else void navigate(returnTo.current ?? '/decks', { replace: true }) }
   const [confirmed, setConfirmed] = useState(deck)
   const [baseline, setBaseline] = useState(() => inputOf(deck))
   const [draft, setDraft] = useState(() => inputOf(deck))

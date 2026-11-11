@@ -56,7 +56,9 @@ That navigation replaces the editor entry with Games and an opaque history-state
 token for the #196 success panel. `gameHandoff.ts` keeps saved/repeat handoffs in
 memory only, bound to user and group, and clears them on every session change;
 **Noch ein Spiel – gleiche Spieler** consumes a second one-use token for the new
-editor. A reload or traversal to a consumed token shows no panel and a blank form.
+editor. Each destination captures its handoff on mount and retires the token at
+once, so a reload, leaving the view or a later Back/Forward traversal shows no
+panel and a blank form.
 
 The header shows username with only **Abmelden** in its menu. Global destinations
 are Dashboard, Playgroups, Decks. Group main views alone show Overview, Games,
@@ -132,8 +134,14 @@ never gain another deck choice. Backend validation remains final.
 Nested quick-profile/own deck creation renders the shared `DeckForm` with a
 `DeckFormContext` inside the still-mounted editor, so match state is never
 serialized. Its dirty/pending guard registers through a nested `EditorGuard`
-provider and is combined with the match guard. Quick-profile creation is a single
-unrepeated POST; an unacknowledged attempt asks the user to check the members.
+provider and is combined with the match guard for route exits. Its contextual
+Back/Cancel changes no URL and asks through a nested `EditorLeave` provider about
+the deck draft only: staying keeps it, discarding returns to the member's deck
+picker. Quick-profile creation is a single unrepeated POST. While it is pending the
+member picker cannot be dismissed or used, navigation is guarded like a pending
+save, and an operation token binds the response to its still-empty slot (a saved
+profile always joins the roster). An unacknowledged attempt asks the user to check
+the members.
 
 Focused game routes show no group tabs. The header back arrow, global navigation
 and supported browser exits use `EditorNavigation`/`useEditorGuard`. Dirty drafts
