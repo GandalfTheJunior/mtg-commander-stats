@@ -188,7 +188,7 @@ for (const logoutFails of [false, true]) {
       if (resource === 'deck mutation') {
         await screen.findByText(deck.name)
         fireEvent.change(await openNewDeck(), { target: { value: deck.name } })
-        fireEvent.change(screen.getByLabelText(/Commander/), { target: { value: deck.commanders[0].name } })
+        fireEvent.change(screen.getByRole('combobox', { name: /Commander/ }), { target: { value: deck.commanders[0].name } })
         fireEvent.focus(screen.getByRole('combobox', { name: /Commander/ }))
         fireEvent.click(await screen.findByRole('option', { name: 'Atraxa' }))
         fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
@@ -212,7 +212,7 @@ for (const logoutFails of [false, true]) {
         await signIn()
       }
       await goTo('Decks')
-      await screen.findByText('Noch keine Decks.')
+      await screen.findByText(/Noch keine Decks vorhanden/)
       await goTo('Playgroups')
       await screen.findByText('Du bist noch keiner Playgroup beigetreten. Erstelle eine eigene Playgroup oder öffne einen Einladungslink.')
       await act(async () => {

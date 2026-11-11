@@ -3,22 +3,28 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { deck, deckApi, editDeck, showDeckApp } from './test/deckFixtures'
 import { savedCommander } from './test/commanderFixtures'
-import { deferred, response } from './test/gameFixtures'
+import { deferred, response, uid } from './test/gameFixtures'
 import { scryfallUnavailable } from './api'
 
-const field = () => screen.getByRole('combobox', { name: /^Commander/ })
+const fblthp = "Just like Fblthp, the card you're looking for seems to have gotten lost!"
+const field = () => screen.getByRole('combobox', { name: 'Commander' })
 const type = (value: string) => { fireEvent.change(field(), { target: { value } }); fireEvent.focus(field()) }
-const save = () => fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
+const saveButton = () => screen.getByRole('button', { name: 'Deck erstellen' })
 const request = (name: string) => `/api/scryfall/commanders?q=${encodeURIComponent(name)}`
 const piper = { ...savedCommander('The Prismatic Piper', ['U']), requiresChosenColor: true, thumbnailUrl: null }
-const searches = (api: ReturnType<typeof deckApi>) => api.fetchMock.mock.calls.filter(([path]) => path.startsWith('/api/scryfall'))
+const searches = (api: ReturnType<typeof deckApi>) => api.fetchMock.mock.calls.filter(([path]) => path.startsWith('/api/scryfall/commanders'))
+async function create() {
+  const api = deckApi(); showDeckApp('/decks/new'); await screen.findByRole('textbox', { name: /Deckname/ })
+  fireEvent.change(screen.getByRole('textbox', { name: /Deckname/ }), { target: { value: 'Search deck' } })
+  return api
+}
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); window.history.replaceState(null, '', '/') })
 
-test('debounces, distinguishes neutral from colorless, and requires an explicit keyboard selection', async () => {
-  const api = deckApi(); showDeckApp('/decks/new'); await screen.findByRole('textbox', { name: /Deckname/ })
-  expect(screen.queryByText('Farblos')).not.toBeInTheDocument()
+test('starts at two characters after a debounce and commits only an explicit keyboard selection', async () => {
+  const api = await create()
+  expect(field()).not.toHaveFocus()
   vi.useFakeTimers()
-  for (const query of ['K', '\u0085\u001c', ' \u00a0K\u202f']) {
+  for (const query of ['K', '\u0085\u001c', '  K ']) {
     type(query)
     await act(async () => { await vi.advanceTimersByTimeAsync(400) })
     expect(searches(api)).toHaveLength(0)
@@ -28,95 +34,133 @@ test('debounces, distinguishes neutral from colorless, and requires an explicit 
   expect(searches(api)).toHaveLength(0)
   await act(async () => { await vi.advanceTimersByTimeAsync(1) })
   expect(searches(api)).toHaveLength(1)
-  const option = screen.getByRole('option', { name: 'Karn' })
-  expect(option).toHaveTextContent(/^Karn$/)
-  expect(within(option).queryByRole('img')).not.toBeInTheDocument()
-  fireEvent.keyDown(field(), { key: 'ArrowDown' }); fireEvent.keyDown(field(), { key: 'Enter' })
-  expect(screen.getByText('Farblos')).toBeInTheDocument()
-  type('Karn ')
-  expect(screen.queryByText('Farblos')).not.toBeInTheDocument()
-  type('Karn')
-  await act(async () => { await vi.advanceTimersByTimeAsync(300) })
-  save()
-  expect(screen.getByText('Bitte einen Commander aus den Suchergebnissen wählen.')).toBeInTheDocument()
+  vi.useRealTimers()
+  // Suggestion rows show name and colors, no thumbnail artwork.
+  const option = await screen.findByRole('option', { name: 'Karn' })
+  expect(option).toHaveAccessibleDescription('Farbidentität: Farblos')
+  expect(option.querySelector('img')).toBeNull()
+  expect(saveButton()).toBeDisabled()
+  fireEvent.keyDown(field(), { key: 'ArrowDown' })
+  fireEvent.keyDown(field(), { key: 'Enter' })
+  const row = screen.getByRole('region', { name: 'Commander' })
+  expect(row).toHaveTextContent('Karn')
+  expect(within(row).getByRole('img', { name: 'Farbidentität: Farblos' })).toBeInTheDocument()
+  expect(screen.queryByRole('combobox', { name: 'Commander' })).not.toBeInTheDocument()
+  expect(saveButton()).toBeEnabled()
   expect(api.writes()).toHaveLength(0)
 })
 
-test('separate mandatory single-color picker combines base identity, resets on typing, and submits only selectionRef/chosenColor', async () => {
-  const api = deckApi(); showDeckApp('/decks/new'); await screen.findByRole('textbox', { name: /Deckname/ })
-  api.next(request(piper.name), () => response([piper]))
-  type(piper.name); fireEvent.click(await screen.findByRole('option', { name: piper.name }))
-  expect(screen.queryByText('Farblos')).not.toBeInTheDocument()
-  expect(screen.getAllByRole('radio')).toHaveLength(5)
-  expect(screen.getAllByRole('radio').every(radio => !(radio as HTMLInputElement).checked)).toBe(true)
-  save(); expect(screen.getByText('Bitte eine Farbe wählen.')).toBeInTheDocument()
-  fireEvent.click(screen.getByRole('radio', { name: 'Rot' }))
-  expect(screen.getByRole('button', { name: 'Blau (U)' })).toHaveAttribute('aria-pressed', 'true')
-  expect(screen.getByRole('button', { name: 'Rot (R)' })).toHaveAttribute('aria-pressed', 'true')
-  expect(screen.getByRole('button', { name: 'Rot (R)' })).toBeDisabled()
-  type('The Prismatic Pipe')
-  expect(screen.queryByRole('radio')).not.toBeInTheDocument()
-  expect(screen.queryAllByRole('button', { pressed: true })).toHaveLength(0)
-  api.next(request(piper.name), () => response([piper]))
-  type(piper.name); fireEvent.click(await screen.findByRole('option', { name: piper.name }))
-  expect(screen.getAllByRole('radio').every(radio => !(radio as HTMLInputElement).checked)).toBe(true)
-  fireEvent.click(screen.getByRole('radio', { name: 'Grün' }))
-  fireEvent.change(screen.getByRole('textbox', { name: /Deckname/ }), { target: { value: 'Piper Deck' } })
-  save(); await waitFor(() => expect(api.writes()).toHaveLength(1))
-  expect(JSON.parse(api.writes()[0][1]!.body as string)).toEqual({ name: 'Piper Deck', commanders: [{ selectionRef: piper.selectionRef, chosenColor: 'G' }] })
+test('at most five suggestions are visible in an internally scrolling list; dismissing keeps the typed text', async () => {
+  const api = await create()
+  api.next(request('Niv'), () => response(Array.from({ length: 7 }, (_, index) => ({ ...savedCommander(`Niv ${index}`, ['U', 'R']),
+    selectionRef: { scryfallCardId: uid(600 + index) }, scryfallCardId: uid(600 + index), thumbnailUrl: null }))))
+  type('Niv')
+  const list = await screen.findByRole('listbox', { name: 'Commander: Vorschläge' })
+  expect(within(list).getAllByRole('option')).toHaveLength(7)
+  expect(list).toHaveStyle({ overflowY: 'auto', maxHeight: '280px' })
+  fireEvent.keyDown(field(), { key: 'Escape' })
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  expect(field()).toHaveValue('Niv')
+  fireEvent.blur(field())
+  expect(field()).toHaveValue('Niv')
+  expect(screen.getByText('Kein Commander ausgewählt')).toBeInTheDocument()
+  expect(api.writes()).toHaveLength(0)
 })
 
-test('empty success and provider failure have exactly the agreed copy; retry uses current query and stale work stays retired', async () => {
-  const api = deckApi(); showDeckApp('/decks/new'); await screen.findByRole('textbox', { name: /Deckname/ })
+test('Ändern reopens the search in place; leaving it without a selection keeps the previous card', async () => {
+  const api = await create()
+  type('Karn'); fireEvent.click(await screen.findByRole('option', { name: 'Karn' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Commander ändern' }))
+  expect(field()).toHaveFocus()
+  type('Other')
+  await screen.findByRole('option', { name: 'Other' })
+  fireEvent.click(screen.getByRole('button', { name: 'Auswahl beibehalten' }))
+  expect(screen.getByRole('region', { name: 'Commander' })).toHaveTextContent('Karn')
+  fireEvent.click(saveButton())
+  await waitFor(() => expect(api.writes()).toHaveLength(1))
+  expect(JSON.parse(api.writes()[0][1]!.body as string).commanders).toEqual([{ selectionRef: deck.commanders[0].selectionRef }])
+})
+
+test('a required chosen color appears directly under its Commander and is submitted with the reference only', async () => {
+  const api = await create()
+  api.next(request(piper.name), () => response([piper]))
+  type(piper.name); fireEvent.click(await screen.findByRole('option', { name: piper.name }))
+  const row = screen.getByRole('region', { name: 'Commander' })
+  const colors = within(row).getByRole('radiogroup', { name: `Farbe vor Spielbeginn – ${piper.name}` })
+  expect(within(colors).getAllByRole('radio')).toHaveLength(5)
+  expect(within(colors).getAllByRole('radio').every(radio => !(radio as HTMLInputElement).checked)).toBe(true)
+  expect(saveButton()).toBeDisabled()
+  fireEvent.click(within(colors).getByRole('radio', { name: 'Rot' }))
+  expect(within(row).getByRole('img', { name: 'Farbidentität: Blau, Rot' })).toBeInTheDocument()
+  fireEvent.click(saveButton()); await waitFor(() => expect(api.writes()).toHaveLength(1))
+  expect(JSON.parse(api.writes()[0][1]!.body as string)).toEqual({ name: 'Search deck', format: 'COMMANDER',
+    commanders: [{ selectionRef: piper.selectionRef, chosenColor: 'R' }] })
+})
+
+test('empty success and provider failure have exactly the agreed copy; retry repeats the current query and stale work stays retired', async () => {
+  const api = await create()
   const old = deferred()
   api.next(request('Old'), () => old.promise)
   type('Old'); await waitFor(() => expect(searches(api)).toHaveLength(1))
-  expect(screen.getByRole('progressbar', { name: 'Commander werden gesucht' })).toBeInTheDocument()
+  expect(screen.getByRole('progressbar', { name: 'Commander: Suche läuft' })).toBeInTheDocument()
   api.next(request('Empty'), () => response([])); type('Empty')
-  const empty = "Just like Fblthp, the card you're looking for seems to have gotten lost!"
-  await screen.findByText(empty)
+  await screen.findByText(fblthp)
   await act(async () => old.resolve(response([{ ...savedCommander('Old'), thumbnailUrl: null }])))
   expect(screen.queryByRole('option', { name: 'Old' })).not.toBeInTheDocument()
   api.next(request('Fail'), () => response({}, 503)); type('Fail')
-  expect(screen.queryByText(empty)).not.toBeInTheDocument()
+  expect(screen.queryByText(fblthp)).not.toBeInTheDocument()
   await screen.findByText(scryfallUnavailable)
-  expect(screen.queryByText('Scryfall ist gerade nicht erreichbar')).not.toBeInTheDocument()
   api.next(request('Fail'), () => response([]))
   fireEvent.click(screen.getByRole('button', { name: 'Erneut versuchen' }))
-  await screen.findByText(empty)
+  await screen.findByText(fblthp)
   expect(field()).toHaveValue('Fail')
-  type(''); expect(screen.queryByText(empty)).not.toBeInTheDocument()
+  type(''); expect(screen.queryByText(fblthp)).not.toBeInTheDocument()
   expect(screen.queryByText(scryfallUnavailable)).not.toBeInTheDocument()
 })
 
-test('a partner-only result requires a counterpart and reversible references pass through without technical face controls', async () => {
-  const api = deckApi(); showDeckApp('/decks/new'); await screen.findByRole('textbox', { name: /Deckname/ })
-  api.next(request('Face'), () => response([{ ...savedCommander('Background'), canBeSoleCommander: false, pairing: { roles: ['BACKGROUND'], partnerWith: [], variants: [] }, thumbnailUrl: null },
-    { ...savedCommander('Face Commander'), selectionRef: { scryfallCardId: deck.commanders[0].scryfallCardId, gameplayFaceIndex: 1 }, thumbnailUrl: null }]))
+test('a partner-only result requires a counterpart and reversible references pass through without face controls', async () => {
+  const api = await create()
+  api.next(request('Face'), () => response([{ ...savedCommander('Background'), canBeSoleCommander: false, pairing: { roles: ['BACKGROUND'], partnerWith: [], variants: [] }, thumbnailUrl: null }]))
   type('Face')
-  const background = await screen.findByRole('option', { name: 'Background' })
-  expect(background).toHaveAttribute('aria-disabled', 'false')
-  fireEvent.click(background)
-  expect(field()).toHaveValue('Background')
-  save(); expect(api.writes()).toHaveLength(0)
+  fireEvent.click(await screen.findByRole('option', { name: 'Background' }))
+  expect(screen.getByText('Background benötigt einen kompatiblen zweiten Commander.')).toBeInTheDocument()
+  expect(saveButton()).toBeDisabled()
+  expect(screen.queryByRole('button', { name: 'Commander 2 entfernen' })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Commander 1 ändern' }))
   api.next(request('Face'), () => response([{ ...savedCommander('Face Commander'), selectionRef: { scryfallCardId: deck.commanders[0].scryfallCardId, gameplayFaceIndex: 1 }, thumbnailUrl: null }]))
   type('Face')
-  await screen.findByRole('option', { name: 'Face Commander' })
-  fireEvent.click(screen.getByRole('option', { name: 'Face Commander' }))
-  fireEvent.change(screen.getByRole('textbox', { name: /Deckname/ }), { target: { value: 'Face Deck' } })
-  save(); await waitFor(() => expect(api.writes()).toHaveLength(1))
+  fireEvent.click(await screen.findByRole('option', { name: 'Face Commander' }))
+  expect(screen.queryByRole('combobox', { name: 'Zweiter Commander' })).not.toBeInTheDocument()
+  fireEvent.click(saveButton()); await waitFor(() => expect(api.writes()).toHaveLength(1))
   expect(JSON.parse(api.writes()[0][1]!.body as string).commanders[0].selectionRef.gameplayFaceIndex).toBe(1)
+})
+
+test('Pauper Commander searches use the selected format', async () => {
+  const api = await create()
+  fireEvent.click(screen.getByRole('radio', { name: 'Pauper Commander' }))
+  expect(screen.getByRole('radio', { name: 'Pauper Commander' })).toHaveAttribute('aria-checked', 'true')
+  type('Karn'); fireEvent.click(await screen.findByRole('option', { name: 'Karn' }))
+  expect(searches(api).map(([path]) => path)).toEqual(['/api/scryfall/commanders?q=Karn&format=PAUPER_COMMANDER'])
+  expect(screen.queryByRole('button', { name: /Companion hinzufügen/ })).not.toBeInTheDocument()
+  fireEvent.click(saveButton()); await waitFor(() => expect(api.writes()).toHaveLength(1))
+  expect(JSON.parse(api.writes()[0][1]!.body as string)).toMatchObject({ format: 'PAUPER_COMMANDER' })
 })
 
 test.each([false, true])('saved choice restores without lookup and name-only edits omit Commanders (used=%s)', async everUsed => {
   const api = deckApi([{ ...deck, everUsed, commanders: [{ ...piper, chosenColor: 'R', effectiveColorIdentity: ['U', 'R'] }], colorIdentity: ['U', 'R'] }])
   showDeckApp(); await editDeck()
   expect(screen.getByRole('radio', { name: 'Rot' })).toBeChecked()
-  expect(screen.getByRole('radio', { name: 'Rot' })).toHaveProperty('disabled', everUsed)
+  if (everUsed) expect(screen.getByRole('radiogroup', { name: /Farbe vor Spielbeginn/ })).toHaveAttribute('aria-readonly', 'true')
+  else expect(screen.getByRole('radiogroup', { name: /Farbe vor Spielbeginn/ })).not.toHaveAttribute('aria-readonly')
+  if (everUsed) {
+    fireEvent.click(screen.getByRole('radio', { name: 'Grün' }))
+    expect(await screen.findByText('Feld gesperrt – dieses Deck wurde bereits gespielt.')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Rot' })).toBeChecked()
+  }
   fireEvent.change(screen.getByRole('textbox', { name: /Deckname/ }), { target: { value: 'Offline rename' } })
   fireEvent.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
   await screen.findByText('Offline rename wurde gespeichert.')
-  expect(searches(api)).toHaveLength(0)
+  expect(api.fetchMock.mock.calls.some(([path]) => path.startsWith('/api/scryfall'))).toBe(false)
   expect(JSON.parse(api.writes()[0][1]!.body as string)).toEqual({ name: 'Offline rename' })
 })
 

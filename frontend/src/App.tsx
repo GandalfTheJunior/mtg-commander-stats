@@ -15,7 +15,7 @@ import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { AppShell } from './AppShell'
-import DeckManager from './DeckManager'
+import DeckManager, { type CollectionMemory } from './DeckManager'
 import DeckEditor, { type DeckOverview } from './DeckEditor'
 import { EditorNavigation } from './EditorNavigation'
 import GroupManager from './GroupManager'
@@ -46,6 +46,10 @@ export default function App() {
   }, [location.pathname, location.search, navigate])
   const editorOrigin = useRef<{ token: string; version: number; path: string; overview: DeckOverview } | null>(null)
   useEffect(() => { if (editorOrigin.current?.path !== location.pathname) editorOrigin.current = null }, [location.pathname])
+  // Collection search/archive/scroll context survives only a visit to the deck editor.
+  const collectionMemory = useRef<CollectionMemory | null>(null)
+  useEffect(() => { if (!location.pathname.startsWith('/decks')) collectionMemory.current = null }, [location.pathname])
+  const takeCollectionMemory = useCallback(() => { const memory = collectionMemory.current; collectionMemory.current = null; return memory }, [])
   const sessionVersionRef = useRef(0)
   const [sessionVersion, setSessionVersion] = useState(0)
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
@@ -140,6 +144,7 @@ export default function App() {
         () => {
           if (version !== sessionVersionRef.current) return
           editorOrigin.current = null
+          collectionMemory.current = null
           forgetAllHandoffs()
           version = ++sessionVersionRef.current
           setSessionVersion(version)
@@ -170,6 +175,7 @@ export default function App() {
     if (sessionStatus !== 'authenticated') return
     // Retire old requests immediately, including while DELETE or its recovery GET is pending.
     editorOrigin.current = null
+    collectionMemory.current = null
     forgetAllHandoffs()
     const version = ++sessionVersionRef.current
     setSessionVersion(version)
@@ -211,6 +217,7 @@ export default function App() {
   async function checkSession() {
     if (loggingIn || sessionStatus !== 'unverified') return
     editorOrigin.current = null
+    collectionMemory.current = null
     forgetAllHandoffs()
     const version = ++sessionVersionRef.current
     setSessionVersion(version)
@@ -236,6 +243,7 @@ export default function App() {
     // Check synchronously: an old response can arrive before effect cleanup.
     if (sessionVersion !== sessionVersionRef.current) return
     editorOrigin.current = null
+    collectionMemory.current = null
     forgetAllHandoffs()
     setSessionVersion(++sessionVersionRef.current)
     setCurrentUser(null)
@@ -281,7 +289,8 @@ export default function App() {
               }} />
             } />
             <Route path="/decks" element={
-              <DeckManager key={`decks-${sessionVersion}`} onUnauthorized={sessionExpired} onOpen={id => openEditor('/decks', id)} />
+              <DeckManager key={`decks-${sessionVersion}`} onUnauthorized={sessionExpired} takeMemory={takeCollectionMemory}
+                onOpen={(id, memory) => { collectionMemory.current = memory; openEditor('/decks', id) }} />
             } />
             <Route path="/decks/new" element={editor} />
             <Route path="/decks/:deckId/edit" element={editor} />

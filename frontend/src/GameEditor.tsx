@@ -306,7 +306,7 @@ export default function GameEditor({ group, game, currentUserId, initialMembers,
     const quick = Boolean(member(nested.userId)?.quickProfile)
     const context: DeckFormContext = {
       title: `Deck für ${name} erstellen`,
-      create: quick ? (input, signal) => createQuickProfileDeck(group.id, nested.userId, input, signal) : createDeck,
+      create: quick ? (input, signal, key) => createQuickProfileDeck(group.id, nested.userId, input, signal, key) : createDeck,
       list: quick ? signal => listQuickProfileDecks(group.id, nested.userId, signal) : listDecks,
       onExit: finishNestedDeck,
     }

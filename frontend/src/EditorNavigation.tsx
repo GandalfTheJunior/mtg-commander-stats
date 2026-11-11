@@ -19,6 +19,7 @@ export function EditorNavigation({ children, onLogout }: { children: ReactNode; 
   const requestPending = useRef(false)
   const stayButton = useRef<HTMLButtonElement>(null)
   const [writePending, setWritePending] = useState(false)
+  const [copy, setCopy] = useState<EditorGuardOptions['copy']>(undefined)
   const pending = useRef<(() => void) | null>(null)
   const restoring = useRef(false)
   const allowingPop = useRef(false)
@@ -32,6 +33,7 @@ export function EditorNavigation({ children, onLogout }: { children: ReactNode; 
     focus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     pending.current = leave
     setWritePending(requestPending.current)
+    setCopy(guardOptions.current?.copy)
     setConfirming(true)
   }, [])
   const register = useCallback((value: boolean, pending = false, options?: EditorGuardOptions) => {
@@ -120,10 +122,10 @@ export function EditorNavigation({ children, onLogout }: { children: ReactNode; 
         slotProps={{ transition: { onEntered: () => stayButton.current?.focus(), onExited: () => { if (focus.current?.isConnected) focus.current.focus() } } }}>
         <DialogTitle id="discard-title">Änderungen verwerfen?</DialogTitle>
         <DialogContent><DialogContentText id="discard-description">
-          Ungespeicherte Änderungen gehen verloren.{writePending && ' Ein bereits gesendeter Vorgang kann den Server trotzdem erreicht haben.'}
+          {copy?.description ?? 'Ungespeicherte Änderungen gehen verloren.'}{writePending && ' Ein bereits gesendeter Vorgang kann den Server trotzdem erreicht haben.'}
         </DialogContentText></DialogContent>
         <DialogActions sx={{ flexWrap: 'wrap' }}>
-          <Button ref={stayButton} disabled={!confirming} autoFocus color="secondary" onClick={stay}>Im Editor bleiben</Button>
+          <Button ref={stayButton} disabled={!confirming} autoFocus color="secondary" onClick={stay}>{copy?.stay ?? 'Im Editor bleiben'}</Button>
           <Button color="inherit" onClick={onLogout}>Log out</Button>
           <Button color="error" disabled={!confirming} onClick={() => {
             const leave = pending.current
@@ -135,7 +137,7 @@ export function EditorNavigation({ children, onLogout }: { children: ReactNode; 
             guardOptions.current?.onDiscard?.()
             setConfirming(false)
             leave?.()
-          }}>Verwerfen und verlassen</Button>
+          }}>{copy?.discard ?? 'Verwerfen und verlassen'}</Button>
         </DialogActions>
       </Dialog>
     </UNSAFE_NavigationContext.Provider>

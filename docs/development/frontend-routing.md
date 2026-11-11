@@ -276,51 +276,63 @@ upgrading React/Router. MemoryRouter tests use the wrapped navigator for in-app
 exits; browser-history tests use the production AppRouter. No Data Router,
 loaders, router-mode migration or new runtime dependency is needed.
 
-The five named WUBRG buttons use `aria-pressed`, check marks and theme focus/border
-states; swatches are supplementary. All five controls are read-only. They are
-neutral until a valid Commander (and any required chosen color) is selected; only
-a complete empty identity means Farblos. `CommanderSearch` debounces name queries
-for 300 ms, uses the backend's complete selectionRef, and separates typed text
-from selected metadata. Typing invalidates the reference/colors/choice immediately;
-only explicit suggestion selection restores them. Abort and generation guards
-retire stale responses on typing, selection, navigation and unmount. Suggestions
-contain only a thumbnail/neutral placeholder and English name. Loading, exact
-Fblthp empty-result copy and Moon outage/retry feedback stay inline. Partner-only
-options may be selected first but require an explicitly selected legal counterpart
-before saving unless standalone-eligible. Pairing metadata reveals an empty second
-search, scoped by the first full selectionRef. Only reciprocal Partner with has an
-immediate clickable, dismissible suggestion, never a committed default. Ordinary
-Partner needs typed input. Doctor-first uses the optional companion label. Changing
-the first selection clears the second and retires its responses. Both slots
-contribute their known effective colors. Each qualifying slot has a separate
-mandatory single-choice radio group with no default. Saved selections restore from snapshots. DisplayText blank checks
-match Unicode White_Space plus U+001C–U+001F; payload text is sent unchanged so the
-server owns boundary trimming. Permanently used decks show locked commander and
-colors/choice and omit `commanders` entirely for name/link changes, as do unchanged unused-deck selections. Overflow availability
-and named confirmations follow the [deck lifecycle](../product/decks-api.md).
-Archiving with any unsaved changes additionally announces that all changes will
-be discarded and requires explicit discard-and-archive confirmation; cancel
-retains the draft and restores focus without sending a write.
+The #201 editor (`DeckEditor.tsx`) is one scrolling form in the order Deckname → Deckformat
+→ artwork preview → Commander(s) → Companion → ManaBox-Link → actions, following the
+[approved wireframes](../product/wireframes/201/README.md). Opening it focuses only the heading,
+never a text field. `CardSearch` is the shared inline autocomplete for Commander, partner and
+Companion choices: 300 ms debounce from two non-whitespace characters (Unicode White_Space
+plus U+001C–U+001F normalized like the backend), an internally scrolling `listbox` of up to
+five visible name-and-WUBRG rows without thumbnails, `aria-activedescendant` keyboard
+navigation, and inline exact Fblthp/Moon copy with retry. Typed text never changes the draft;
+only an explicitly activated option is committed. Escape or an outside tap closes the list but
+keeps the typed text, and leaving a reopened search keeps the previous card. Abort and
+generation guards retire stale responses on typing, context change, navigation and unmount.
+Commander searches carry the selected `format`; partner searches carry the first full
+`selectionRef`; Companion suggestions are filtered by the complete effective identity.
+
+The draft holds format, ordered Commander slots (choice, chosen color, artwork) and the
+optional Companion. Field values are compared with the initial/last authoritative draft, so
+reverting is clean; edit Save is enabled only for a valid, changed draft and create Save only
+for a valid draft. Name and ManaBox messages appear after the field is left. Replacing the
+first Commander, changing a chosen color or switching to Pauper Commander removes only
+dependent selections that the saved pairing metadata/WUBRG subset marks as incompatible
+(Pauper always removes the Companion) and offers one inline Undo of the previous draft.
+Locked (used) controls stay in place with `aria-disabled`/`aria-readonly` and show a top
+notice when activated. The artwork preview appears only after the first Commander, reserves
+its height and keeps the Commander section at its viewport position through explicit scroll
+adjustment. A new selection's preview uses the selected printing's artwork from the read-only
+artworks route; editor gallery choices only change the draft.
+
+Create sends one POST with an `Idempotency-Key` generated from `getRandomValues` (LAN HTTP
+compatible), including `format`, Commanders, an optional Companion and any explicit `artwork`.
+Update sends only changed parts: `manaBoxUrl` (`null` to clear), `format`, the full
+`commanders` array when any identity, chosen color or artwork changed, and `companion`
+(`null` for an explicit removal). Overflow availability and confirmations follow the
+[deck lifecycle](../product/decks-api.md); the editor menu offers only valid actions. Archiving
+or deleting with a dirty draft states that unsaved changes are discarded; cancel retains the
+draft and restores focus without a write. The shared discard dialog uses the deck-specific
+**Weiter bearbeiten** / **Änderungen verwerfen** wording through `EditorGuardOptions.copy`.
 
 Writes are guarded against duplicates through CSRF and the unsafe request, abort
 on retirement and ignore retired outcomes. Only exact acknowledged API statuses
 navigate. 401 invokes epoch-fenced session expiration. 403/404 hides protected
-fields until a fresh list confirms access. 409 automatically rechecks the owned
-list but retains the draft for explicit review; newly permanent fields reconcile
-only after that review. Network/5xx/unexpected/malformed successes require an
-explicit server recheck before a manual retry. Creation recovery lists current
-decks so a possibly committed request can be inspected. No write is auto-retried.
+fields. 409 rechecks the owned list, adopts newly permanent fields while keeping the
+draft name/link, and explains the conflict. Confirmed 4xx/503 failures keep the full draft
+and artwork (503 offers **Erneut versuchen**). Network/other 5xx/unexpected/malformed
+successes show **Speicherstatus unklar** and block Save until **Gespeicherten Stand prüfen**:
+create repeats the identical keyed POST, which the backend answers with the already
+committed deck instead of a duplicate; edit compares a fresh owned list with the attempted
+draft. No unkeyed write is automatically repeated.
 
 ### ManaBox links
 
-The optional localized ManaBox-Link field sits beside the deck name in both
-editors. It remains editable on used and archived decks without unlocking gameplay
+The optional localized ManaBox-Link field is the last form field before the actions. It remains editable on used and archived decks without unlocking gameplay
 fields. Null starts empty. Link text participates in baseline/dirty comparison,
 navigation/cancel protection and pending-write guards. POST without a link omits
 it; PUT omits an unchanged link, sends null for a deliberately cleared saved
 link, and otherwise sends the replacement verbatim. Nonempty whitespace is an
-invalid value, never a removal. Client validation and server 400 feedback remain
-associated with the field and preserve the draft. Helper text explains that
+invalid value, never a removal. Client validation (shown after leaving the field) and server
+400 feedback remain associated with the field and preserve the draft. Helper text explains that
 changes inside ManaBox may require refreshing the shared version there; no
 freshness check or changed share URL is promised.
 
@@ -329,9 +341,10 @@ explicit inspection before manual retry. Reconciliation preserves the draft link
 and name even if gameplay fields have become permanently locked. No ambiguous
 write is automatically repeated.
 
-`SavedDeckCard` opts into an independent `ManaBoxLink` only in Meine Decks,
-including used/archived decks; Dashboard retains the default with no action.
-The anchor is outside the edit action and artwork/gallery triggers. The dedicated
+`SavedDeckCard` shows an independent compact `ManaBoxLink` icon beside the deck name in
+Meine Decks, including used/archived decks; Dashboard has no deck cards. The anchor is a
+positioned sibling above the stretched editor target, never inside it or the artwork/gallery
+triggers. The dedicated
 game details view uses only each participant's freshly authorized optional link,
 without consulting owner APIs or inferring permissions from the member list.
 Omitted links replace old availability; route/session retirement, denial and
@@ -356,43 +369,37 @@ it does not establish live-backend, physical-device or screen-reader acceptance.
 
 ## Responsive presentation
 
-### Saved deck artwork
+### Saved deck artwork and Meine Decks (#201)
 
-Meine Decks uses `SavedDeckCard`; Dashboard has no deck cards (#191). Each card renders the saved
-`artCropUrl` snapshots in a separate area beside the text. Two Commanders use
-approximately 80% of the single-image size, with slot 1 upper-left/in front and
-20% horizontal overlap. A container query stacks the entire image/credit area
-above the text on cards at most 560px wide; both images retain the same relative
-overlap and shrink together. Names wrap without truncation. WUBRG comes from the
-persisted deck `colorIdentity`, including pregame choices, and the existing
-Unbenutzt / Bereits gespielt / Archiviert lifecycle remains visible.
+`DeckManager.tsx` renders Meine Decks with compact `SavedDeckCard`s; Dashboard has no deck
+cards (#191). A card reserves a fixed artwork cluster on the left: one Commander image, two
+equal side-by-side images, and a smaller offset Companion image. Each image is its own gallery
+trigger with a pencil marker, each card has its own **Karte anzeigen** eye control for the
+shared read-only `FullCardView`, and the remaining text column is one stretched editor
+target. Commander names are prominent, the deck name and optional Companion line quieter, and
+WUBRG comes from the persisted deck `colorIdentity` as read-only mana symbols. Archived cards
+look like active ones; the section heading is the only status. Names wrap without truncation.
+The browser loads only the saved image URL; failures fall back without changing the choice.
+Artist credit is the image `title`, and one Wizards of the Coast/Scryfall notice closes the list.
 
-Images and accessible missing/broken-image fallbacks are noninteractive. The
-text area opens the existing editor; saved artist credits and safe Scryfall
-source links are independent siblings, never nested inside its action. Credits
-use the displayed illustration's snapshot, including back-side art. The browser
-loads only the saved image URL, without transforming it or requesting Scryfall
-metadata. Browser failures do not change the saved choice or remove its credit;
-refetched artwork replaces the previous image/failure state. Gallery activation
-and artwork-only writes remain owned by #105.
+Active decks precede the collapsed **Archivierte Decks** section, both sorted by name
+(`localeCompare('de')`, base sensitivity) and full UUID. Loading shows card skeletons; a failed
+first load shows an inline error with **Erneut versuchen** rather than an empty state; a failed
+reload keeps already valid content. `collectionLayout.ts` decides once per visit whether the
+complete unfiltered collection (collapsed archived cards estimated by a measured card height)
+exceeds the viewport minus the fixed phone navigation; only then the search appears and then
+stays. Search is case-insensitive over deck and Commander names in both sections, temporarily
+expands an archive with matches and restores the prior state when cleared. Opening the editor
+stores query, archive state, search visibility and scroll position in App memory; the next
+collection mount after the editor consumes it (cleared on leaving `/decks*` and on any
+session change), re-filters fresh data and restores scroll. Archiving never forces the archive
+open.
 
-The repeatable layout check uses Python Playwright with an installed Chromium
-and a running frontend (`npm run dev -- --host 127.0.0.1`):
-
-```bash
-python tools/ui/verify-saved-deck-art.py
-```
-
-Install Playwright in your Python environment if needed (`pip install playwright`).
-`CHROMIUM_PATH`, `MTG_UI_URL`, and `MTG_SCREENSHOTS` override the executable,
-running app URL, and screenshot output directory. It intercepts API/image reads
-with non-sensitive saved DTOs and clearly marked synthetic image fixtures,
-without a live account/provider dependency. It checks both routes at 1280, 600,
-375 and 320px, plus a 300px card in a desktop viewport: overlap geometry/paint
-order, separate text, long names, single/missing/failed images, source keyboard
-activation and absence of metadata reads. Screenshots cover desktop/mobile for
-both routes. Live provider imagery and physical-device Safari remain outside
-this deterministic browser check.
+With Vite running, `python tools/ui/verify-personal-decks.py` checks the collection, search,
+archive, card geometry/target isolation, editor preview, locks, dialogs and create flow at
+1280, 390 and 320px using intercepted synthetic API and SVG image fixtures (`CHROMIUM_PATH`,
+`MTG_UI_URL`, `MTG_SCREENSHOTS` override defaults; requires Python Playwright). It does not
+establish live-backend, physical-device or screen-reader acceptance.
 
 `AppShell.tsx` uses the shared theme for the shell, wordmark, top-right account,
 feedback and one navigation element. Each destination is a real link with an
@@ -436,8 +443,9 @@ All sampled ordinary text clears AA 4.5:1 and focus clears 3:1. Cards communicat
 role, lifecycle and colors through text, not color alone. Existing CTA/refresh
 button and disabled-state contrast follows the [theme verification](frontend-theme.md#rendered-contrast-verification).
 
-### Deck editor browser evidence
+### Deck editor browser evidence (before #201)
 
+Historical evidence for the previous editor layout; see `verify-personal-decks.py` for #201.
 Headless Chrome with intercepted API fixtures checked 320, 390 and 1280px.
 Create/edit direct loads, fresh values after reload, Dashboard-origin return,
 clean cancellation, dirty stay, native Back interception, history cleanup after

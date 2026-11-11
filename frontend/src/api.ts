@@ -16,7 +16,14 @@ export type Deck = {
   archived: boolean
   manaBoxUrl: string | null
   companion?: SavedCompanion | null
+  /** Persisted format; legacy responses without it are regular Commander decks. */
+  format?: DeckFormat
 }
+export const deckFormats = ['COMMANDER', 'PAUPER_COMMANDER'] as const
+export type DeckFormat = (typeof deckFormats)[number]
+export type CompanionChoice = { selectionRef: CommanderSelectionRef; name: string; colorIdentity: MagicColor[]; thumbnailUrl: string | null }
+/** Printing-local artwork selector accepted by atomic deck writes (#241). */
+export type ArtworkSelection = { scryfallCardId: string; artworkFaceIndex?: number }
 
 export type CommanderSelectionRef = { scryfallCardId: string; gameplayFaceIndex?: number }
 export type PairingCapabilities = { roles: string[]; partnerWith: string[]; variants: string[] }
@@ -32,7 +39,11 @@ export type SavedCommander = Omit<CommanderChoice, 'thumbnailUrl'> & {
   position: number; oracleId: string; chosenColor: MagicColor | null; effectiveColorIdentity: MagicColor[]
   artworkFaceIndex: number | null; artCropUrl: string | null; illustrationId: string | null; artist: string | null; scryfallUri: string | null
 }
-export type DeckInput = { name: string; manaBoxUrl?: string | null; commanders?: { selectionRef: CommanderSelectionRef; chosenColor?: MagicColor }[] }
+export type DeckInput = {
+  name: string; manaBoxUrl?: string | null; format?: DeckFormat
+  commanders?: { selectionRef: CommanderSelectionRef; chosenColor?: MagicColor; artwork?: ArtworkSelection }[]
+  companion?: { selectionRef: CommanderSelectionRef; artwork?: ArtworkSelection } | null
+}
 export const commanderNames = (deck: { commanders: { name: string }[] }) => deck.commanders.map(card => card.name).join(' / ')
 export const scryfallUnavailable = 'Scryfall is currently imprisoned in the moon… Please try again later.'
 
@@ -125,7 +136,13 @@ function deckFrom(value: unknown): Deck {
     archived: value.archived,
     ...('companion' in value ? { companion: companionFrom(value.companion) } : {}),
     manaBoxUrl: 'manaBoxUrl' in value && typeof value.manaBoxUrl === 'string' ? value.manaBoxUrl : null,
+    ...('format' in value && value.format !== undefined ? { format: formatFrom(value.format) } : {}),
   }
+}
+
+function formatFrom(value: unknown): DeckFormat {
+  if (!deckFormats.includes(value as DeckFormat)) throw new Error('The server returned an invalid deck format.')
+  return value as DeckFormat
 }
 
 async function deckResponse(response: Response, fallback: string, status: number): Promise<Deck> {
@@ -173,7 +190,7 @@ async function getCsrf(signal?: AbortSignal): Promise<CsrfToken> {
   return { headerName: csrf.headerName, token: csrf.token }
 }
 
-async function unsafeRequest(method: 'POST' | 'PUT' | 'DELETE', path: string, input?: object, signal?: AbortSignal) {
+async function unsafeRequest(method: 'POST' | 'PUT' | 'DELETE', path: string, input?: object, signal?: AbortSignal, extraHeaders: Record<string, string> = {}) {
   const csrf = await getCsrf(signal)
   signal?.throwIfAborted()
   return fetch(path, {
@@ -182,6 +199,7 @@ async function unsafeRequest(method: 'POST' | 'PUT' | 'DELETE', path: string, in
     ...(signal ? { signal } : {}),
     headers: {
       ...(input ? { 'Content-Type': 'application/json' } : {}),
+      ...extraHeaders,
       [csrf.headerName]: csrf.token,
     },
     ...(input ? { body: JSON.stringify(input) } : {}),
@@ -234,8 +252,10 @@ export async function listDecks(signal?: AbortSignal): Promise<Deck[]> {
   return body.map(deckFrom)
 }
 
-export async function createDeck(input: DeckInput, signal?: AbortSignal): Promise<Deck> {
-  return deckResponse(await unsafeRequest('POST', '/api/decks', input, signal), 'Could not create the deck.', 201)
+/** A keyed repeat returns 200 with the already created deck instead of creating another one. */
+export async function createDeck(input: DeckInput, signal?: AbortSignal, idempotencyKey?: string): Promise<Deck> {
+  const response = await unsafeRequest('POST', '/api/decks', input, signal, idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {})
+  return deckResponse(response, 'Could not create the deck.', idempotencyKey && response.status === 200 ? 200 : 201)
 }
 
 export async function updateDeck(id: string, input: DeckInput, signal?: AbortSignal): Promise<Deck> {
@@ -353,8 +373,9 @@ export async function listQuickProfileDecks(groupId: string, userId: string, sig
   return body.map(deckFrom)
 }
 
-export async function createQuickProfileDeck(groupId: string, userId: string, input: DeckInput, signal?: AbortSignal): Promise<Deck> {
-  return deckResponse(await unsafeRequest('POST', quickProfileDecksPath(groupId, userId), input, signal), 'Could not create the deck.', 201)
+export async function createQuickProfileDeck(groupId: string, userId: string, input: DeckInput, signal?: AbortSignal, idempotencyKey?: string): Promise<Deck> {
+  const response = await unsafeRequest('POST', quickProfileDecksPath(groupId, userId), input, signal, idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {})
+  return deckResponse(response, 'Could not create the deck.', idempotencyKey && response.status === 200 ? 200 : 201)
 }
 
 export async function getJoinCode(id: string, regenerate = false, signal?: AbortSignal): Promise<string> {
@@ -755,13 +776,26 @@ function commandersFrom(value: unknown): SavedCommander[] {
   if (new Set(result.map(card => card.oracleId)).size !== result.length) throw new Error('The server returned duplicate Commanders.')
   return result
 }
-export async function searchCommanders(query: string, signal?: AbortSignal, partnerOf?: CommanderSelectionRef): Promise<CommanderChoice[]> {
-  const context = partnerOf ? `&partnerOf=${encodeURIComponent(partnerOf.scryfallCardId)}${partnerOf.gameplayFaceIndex !== undefined ? `&partnerGameplayFaceIndex=${partnerOf.gameplayFaceIndex}` : ''}` : ''
+export async function searchCommanders(query: string, signal?: AbortSignal, partnerOf?: CommanderSelectionRef, format?: DeckFormat): Promise<CommanderChoice[]> {
+  const context = (partnerOf ? `&partnerOf=${encodeURIComponent(partnerOf.scryfallCardId)}${partnerOf.gameplayFaceIndex !== undefined ? `&partnerGameplayFaceIndex=${partnerOf.gameplayFaceIndex}` : ''}` : '') +
+    (format && format !== 'COMMANDER' ? `&format=${format}` : '')
   const response = await fetch(`/api/scryfall/commanders?q=${encodeURIComponent(query)}${context}`, { ...requestDefaults, signal })
   if (!response.ok) throw new ApiError(scryfallUnavailable, response.status)
   const body: unknown = await response.json()
   if (!Array.isArray(body) || body.length > 20) throw new Error(scryfallUnavailable)
   return body.map(choiceFrom)
+}
+
+export async function searchCompanions(query: string, signal?: AbortSignal): Promise<CompanionChoice[]> {
+  const response = await fetch(`/api/scryfall/companions?q=${encodeURIComponent(query)}`, { ...requestDefaults, signal })
+  if (!response.ok) throw new ApiError(scryfallUnavailable, response.status)
+  const body: unknown = await response.json()
+  if (!Array.isArray(body) || body.length > 20) throw new Error(scryfallUnavailable)
+  return body.map((value: unknown): CompanionChoice => {
+    if (!isRecord(value) || typeof value.name !== 'string' || !value.name) throw new Error('The server returned an invalid Companion choice.')
+    return { selectionRef: referenceFrom(value.selectionRef), name: value.name, colorIdentity: colorsFrom(value.colorIdentity),
+      thumbnailUrl: typeof value.thumbnailUrl === 'string' && /^https:\/\//.test(value.thumbnailUrl) ? value.thumbnailUrl : null }
+  })
 }
 
 export type Artwork = Pick<SavedCommander, 'scryfallCardId' | 'artworkFaceIndex' | 'artCropUrl' | 'illustrationId' | 'artist' | 'scryfallUri'>
@@ -793,5 +827,14 @@ export async function updateCommanderArtwork(deckId: string, commander: SavedCom
   if (deck.id !== deckId || slot?.oracleId !== commander.oracleId || slot.scryfallCardId !== artwork.scryfallCardId || slot.artworkFaceIndex !== artwork.artworkFaceIndex) {
     throw new Error('The artwork save could not be confirmed.')
   }
+  return deck
+}
+
+export async function updateCompanionArtwork(deckId: string, companion: SavedCompanion, artwork: Artwork, signal?: AbortSignal): Promise<Deck> {
+  const deck = await deckResponse(await unsafeRequest('PUT', `/api/decks/${encodeURIComponent(deckId)}/companion/artwork`,
+    { scryfallCardId: artwork.scryfallCardId, ...(artwork.artworkFaceIndex === null ? {} : { artworkFaceIndex: artwork.artworkFaceIndex }) }, signal),
+  'Artwork konnte nicht gespeichert werden.', 200)
+  if (deck.id !== deckId || deck.companion?.oracleId !== companion.oracleId || deck.companion.scryfallCardId !== artwork.scryfallCardId ||
+    deck.companion.artworkFaceIndex !== artwork.artworkFaceIndex) throw new Error('The artwork save could not be confirmed.')
   return deck
 }

@@ -97,7 +97,7 @@ test('own paired decks retain the gallery action and open each card independentl
   vi.stubGlobal('fetch', fetchMock)
   const second = { ...savedCommander('Partner'), position: 2 }
   render(<SavedDeckCard deck={{ ...deck, commanders: [card, second], companion: { ...savedCommander('Companion'), cardFaces: faces } }}
-    overview onOpen={onOpen} onOpenArtwork={onOpenArtwork} />)
+    onOpen={onOpen} onOpenArtwork={onOpenArtwork} />)
   fireEvent.click(screen.getByRole('button', { name: `Artwork für ${card.name} ändern` }))
   expect(onOpenArtwork).toHaveBeenCalledOnce()
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()

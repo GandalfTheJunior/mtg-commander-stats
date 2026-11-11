@@ -19,6 +19,9 @@ const updated = (position = 1): Deck => ({ ...pair, commanders: pair.commanders.
 }) })
 function deferred<T>() { let resolve!: (value: T) => void; let reject!: (error: Error) => void; const promise = new Promise<T>((ok, fail) => { resolve = ok; reject = fail }); return { promise, resolve, reject } }
 async function open(name = 'First') {
+  // The fixture deck is archived; its cards live in the collapsed archive section.
+  const archive = await screen.findByRole('button', { name: 'Archivierte Decks' })
+  if (archive.getAttribute('aria-expanded') === 'false') fireEvent.click(archive)
   const trigger = await screen.findByRole('button', { name: `Artwork für ${name} ändern` })
   fireEvent.click(trigger)
   return { trigger, dialog: await screen.findByRole('dialog') }
@@ -56,6 +59,7 @@ test.each(['/decks'])('%s opens each slot independently and commits exactly once
   await screen.findByRole('heading', { name: 'Dashboard' })
   expect(screen.queryByRole('img', { name: 'Illustration für Second' })).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('link', { name: 'Decks' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Archivierte Decks' }))
   expect(await screen.findByRole('img', { name: 'Illustration für Second' })).toHaveAttribute('src', option.artCropUrl)
   api.next(galleryPath(), () => response([{ ...option, artworkFaceIndex: null }]))
   await open()
@@ -162,10 +166,11 @@ test.each(['/decks'].flatMap(path => ['deleted', 'replaced', 'slot removed'].map
     expect(within(dialog).queryByRole('button', { name: 'Gespeicherten Stand prüfen' })).not.toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Schließen' })).toBeEnabled()
     // The server result is already reflected behind the still-dismissible dialog.
-    expect(screen.queryByRole('heading', { name: pair.name, hidden: true })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: `${pair.name} bearbeiten`, hidden: true })).not.toBeInTheDocument()
     if (conflict !== 'deleted') {
-      const card = screen.getByRole('heading', { name: 'Fresh deck', hidden: true }).closest('li')!
-      expect(within(card).getByText(/^Commander:/)).toHaveTextContent(conflict === 'replaced' ? 'Replacement Commander / Second' : 'Commander: First')
+      const editor = screen.getByRole('button', { name: 'Fresh deck bearbeiten', hidden: true })
+      const card = editor.closest('li')!
+      expect(editor).toHaveTextContent(conflict === 'replaced' ? 'Replacement CommanderSecond' : 'First')
       if (conflict === 'slot removed') expect(within(card).queryByLabelText('Artwork für Second ändern')).not.toBeInTheDocument()
     }
     fireEvent.click(choice)

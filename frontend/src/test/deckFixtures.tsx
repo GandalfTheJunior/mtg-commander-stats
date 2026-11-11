@@ -1,7 +1,7 @@
 import { savedCommander } from './commanderFixtures'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { AppRouter as BrowserRouter } from '../AppRouter'
-import { vi } from 'vitest'
+import { expect, vi } from 'vitest'
 import App from '../App'
 import { AppThemeProvider } from '../theme/AppThemeProvider'
 import type { CurrentUser, Deck } from '../api'
@@ -20,7 +20,7 @@ export function deckApi(initial = [deck]) {
     const method = init?.method ?? 'GET'
     const reply = replies.get(`${method} ${path}`)?.shift()
     if (reply) return reply()
-    if (path.startsWith('/api/scryfall/commanders?')) return response([{ ...savedCommander(decodeURIComponent(path.split('=')[1])), thumbnailUrl: null }])
+    if (path.startsWith('/api/scryfall/commanders?')) return response([{ ...savedCommander(new URLSearchParams(path.split('?')[1]).get('q')!), thumbnailUrl: null }])
     if (path === '/api/me') return response(state.user ?? {}, state.user ? 200 : 401)
     if (path === '/api/csrf') return response({ headerName: 'X-CSRF-TOKEN', token: 'deck-token' })
     if (path === '/api/session') {
@@ -66,8 +66,18 @@ export async function newDeck() {
   fireEvent.click(await screen.findByRole('button', { name: 'Deck erstellen' }))
   return screen.findByRole('textbox', { name: /Deckname/ })
 }
+/** Opens a deck card's editor, first expanding the collapsed archive section when the deck is archived. */
 export async function editDeck(name = deck.name) {
-  fireEvent.click(await screen.findByRole('button', { name: `${name} bearbeiten` }))
+  const label = `${name} bearbeiten`
+  let targets: HTMLElement[] = []
+  await waitFor(() => {
+    targets = screen.queryAllByRole('button').filter(button => button.getAttribute('aria-label') === label ||
+      (button.getAttribute('aria-expanded') === 'false' && button.textContent?.includes('Archivierte Decks')))
+    expect(targets.length).toBeGreaterThan(0)
+  })
+  const card = targets.find(button => button.getAttribute('aria-label') === label)
+  if (!card) fireEvent.click(targets[0])
+  fireEvent.click(card ?? await screen.findByRole('button', { name: label }))
   return screen.findByRole('textbox', { name: /Deckname/ })
 }
 export async function changeDeck(name = 'Changed', commander?: string) {

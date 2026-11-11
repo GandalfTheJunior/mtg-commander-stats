@@ -3,6 +3,8 @@ import { createContext, useContext, useLayoutEffect } from 'react'
 export type EditorGuardOptions = {
   allows?: (destination: URL) => boolean
   onDiscard?: () => void
+  /** Surface-specific wording for the shared discard dialog. */
+  copy?: { description: string; stay: string; discard: string }
 }
 export const EditorGuard = createContext<(blocked: boolean, pending?: boolean, options?: EditorGuardOptions) => () => void>(() => () => {})
 // Local actions (cancel, refresh) retire a draft without changing the URL.
