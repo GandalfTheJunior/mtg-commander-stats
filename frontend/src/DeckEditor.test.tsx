@@ -414,3 +414,12 @@ test.each(['/decks'] as const)('LAN HTTP creates and edits from %s with function
   expect(window.location.pathname).toBe(origin)
   expect(api.writes().map(([, init]) => init?.method)).toEqual(['POST', 'PUT'])
 })
+
+test('deck editor dialogs offer exactly the two approved actions without a logout button', async () => {
+  deckApi([{ ...deck, everUsed: true }]); showDeckApp(); await editDeck(); await changeDeck('Unsaved')
+  const buttons = (dialog: HTMLElement) => within(dialog).getAllByRole('button').map(button => button.textContent)
+  fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+  expect(buttons(await screen.findByRole('dialog', { name: 'Änderungen verwerfen?' }))).toEqual(['Weiter bearbeiten', 'Änderungen verwerfen'])
+  await stay()
+  expect(buttons(await menuAction('Archivieren'))).toEqual(['Abbrechen', 'Deck archivieren'])
+})

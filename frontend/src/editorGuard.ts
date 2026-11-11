@@ -5,6 +5,8 @@ export type EditorGuardOptions = {
   onDiscard?: () => void
   /** Surface-specific wording for the shared discard dialog. */
   copy?: { description: string; stay: string; discard: string }
+  /** Omit the dialog's logout escape where the approved design shows only stay/discard (#201). */
+  hideLogout?: boolean
 }
 export const EditorGuard = createContext<(blocked: boolean, pending?: boolean, options?: EditorGuardOptions) => () => void>(() => () => {})
 // Local actions (cancel, refresh) retire a draft without changing the URL.

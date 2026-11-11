@@ -77,7 +77,7 @@ const lockedNotice = 'Feld gesperrt – dieses Deck wurde bereits gespielt.'
 const guardOptions: EditorGuardOptions = { copy: {
   description: 'Du hast ungespeicherte Änderungen. Wenn du den Editor verlässt, gehen sie verloren – auch deine Artwork-Auswahl.',
   stay: 'Weiter bearbeiten', discard: 'Änderungen verwerfen',
-} }
+}, hideLogout: true }
 
 /** Build the explicit write: unchanged parts are omitted, removals are explicit (never implicit server clearing). */
 function payloadOf(draft: Draft, saved?: Deck): DeckInput {
@@ -137,8 +137,8 @@ function reflects(deck: Deck, attempt: Draft) {
     && (!attempt.companion || sameArt(attempt.companion.art, fresh.companion?.art ?? null))
 }
 
-export default function DeckEditor({ onUnauthorized, getReturnTo, onFinished, onLogout }: {
-  onUnauthorized: () => void; getReturnTo: () => DeckOverview; onLogout: () => void; onFinished: (message: string, destination: DeckOverview) => void
+export default function DeckEditor({ onUnauthorized, getReturnTo, onFinished }: {
+  onUnauthorized: () => void; getReturnTo: () => DeckOverview; onFinished: (message: string, destination: DeckOverview) => void
 }) {
   const { deckId } = useParams()
   const [state, setState] = useState<{ status: 'loading' | 'ready' | 'error'; deck?: Deck }>({ status: 'loading' })
@@ -158,14 +158,14 @@ export default function DeckEditor({ onUnauthorized, getReturnTo, onFinished, on
     })
     return () => { current = false; controller.abort() }
   }, [deckId, onUnauthorized, revision])
-  if (!deckId) return <DeckForm getReturnTo={getReturnTo} onUnauthorized={onUnauthorized} onFinished={onFinished} onLogout={onLogout} />
+  if (!deckId) return <DeckForm getReturnTo={getReturnTo} onUnauthorized={onUnauthorized} onFinished={onFinished} />
   if (state.status === 'loading') return <Typography role="status">Deck wird geladen…</Typography>
   if (state.status === 'error') return <Stack sx={{ gap: 2 }}>
     <Alert severity="error">Dieses Deck ist nicht verfügbar oder konnte nicht sicher geladen werden.</Alert>
     <Button component={Link} color="secondary" to="/decks" replace>Zur Deckübersicht</Button>
     <Button color="secondary" onClick={() => { setState({ status: 'loading' }); setRevision(value => value + 1) }}>Erneut prüfen</Button>
   </Stack>
-  return <DeckForm deck={state.deck} getReturnTo={getReturnTo} onUnauthorized={onUnauthorized} onFinished={onFinished} onLogout={onLogout} />
+  return <DeckForm deck={state.deck} getReturnTo={getReturnTo} onUnauthorized={onUnauthorized} onFinished={onFinished} />
 }
 
 /** Contextual deck creation for another owner (#196): the caller keeps its own
@@ -226,8 +226,8 @@ function ChosenColor({ slot, index, locked, disabled, error, onChange, onLocked 
   </Box>
 }
 
-export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogout, context }: {
-  deck?: Deck; getReturnTo?: () => DeckOverview; onUnauthorized: () => void; onLogout?: () => void
+export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, context }: {
+  deck?: Deck; getReturnTo?: () => DeckOverview; onUnauthorized: () => void
   onFinished?: (message: string, destination: DeckOverview) => void; context?: DeckFormContext
 }) {
   const navigate = useNavigate()
@@ -653,7 +653,6 @@ export function DeckForm({ deck, getReturnTo, onUnauthorized, onFinished, onLogo
         <Button variant="contained" autoFocus disabled={busy} onClick={() => setDestructive(null)}>Abbrechen</Button>
         <Button variant="outlined" color="inherit" disabled={busy} onClick={() => { if (destructive) void destroy(destructive) }}>
           {busy ? 'Bitte warten…' : destructive === 'delete' ? 'Deck löschen' : 'Deck archivieren'}</Button>
-        {onLogout && <Button color="inherit" size="small" onClick={onLogout}>Log out</Button>}
       </DialogActions>
     </Dialog>}
   </Stack>

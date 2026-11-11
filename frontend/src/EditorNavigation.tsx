@@ -20,6 +20,7 @@ export function EditorNavigation({ children, onLogout }: { children: ReactNode; 
   const stayButton = useRef<HTMLButtonElement>(null)
   const [writePending, setWritePending] = useState(false)
   const [copy, setCopy] = useState<EditorGuardOptions['copy']>(undefined)
+  const [hideLogout, setHideLogout] = useState(false)
   const pending = useRef<(() => void) | null>(null)
   const restoring = useRef(false)
   const allowingPop = useRef(false)
@@ -34,6 +35,7 @@ export function EditorNavigation({ children, onLogout }: { children: ReactNode; 
     pending.current = leave
     setWritePending(requestPending.current)
     setCopy(guardOptions.current?.copy)
+    setHideLogout(Boolean(guardOptions.current?.hideLogout))
     setConfirming(true)
   }, [])
   const register = useCallback((value: boolean, pending = false, options?: EditorGuardOptions) => {
@@ -126,7 +128,7 @@ export function EditorNavigation({ children, onLogout }: { children: ReactNode; 
         </DialogContentText></DialogContent>
         <DialogActions sx={{ flexWrap: 'wrap' }}>
           <Button ref={stayButton} disabled={!confirming} autoFocus color="secondary" onClick={stay}>{copy?.stay ?? 'Im Editor bleiben'}</Button>
-          <Button color="inherit" onClick={onLogout}>Log out</Button>
+          {!hideLogout && <Button color="inherit" onClick={onLogout}>Log out</Button>}
           <Button color="error" disabled={!confirming} onClick={() => {
             const leave = pending.current
             // The closing MUI dialog remains mounted during its exit transition.

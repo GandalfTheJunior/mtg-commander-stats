@@ -264,7 +264,7 @@ export default function App() {
     return pending && pending.version === sessionVersion && pending.path === location.pathname &&
       pending.token === editorToken ? pending.overview : '/decks'
   }, [sessionVersion, location.pathname, editorToken])
-  const editor = <DeckEditor key={`editor-${sessionVersion}-${location.pathname}`} onUnauthorized={sessionExpired} getReturnTo={getReturnTo} onLogout={logOut}
+  const editor = <DeckEditor key={`editor-${sessionVersion}-${location.pathname}`} onUnauthorized={sessionExpired} getReturnTo={getReturnTo}
     onFinished={(message, destination) => {
       if (sessionVersion !== sessionVersionRef.current) return
       editorOrigin.current = null

@@ -254,7 +254,7 @@ intercepts native document links, and registers a native `beforeunload` warning
 while dirty or pending. Actual field values are compared with the initial/last
 reviewed values; changing a value back is clean. Native warning presentation is
 browser-controlled. App's session-retirement and confirmed-write navigation
-bypass the guard; logout is reachable even in discard/destructive dialogs.
+bypass the guard. The game editor's discard dialog keeps a logout escape; the personal deck editor's discard, archive and delete dialogs show only their two approved actions (#201), so logout there uses the account menu after closing the dialog.
 
 `AppRouter.tsx` installs a POP dispatcher before BrowserRouter's history listener,
 using the insertion phase before layout effects. This ordering is required:
