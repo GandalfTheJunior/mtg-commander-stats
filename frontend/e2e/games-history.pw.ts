@@ -21,7 +21,7 @@ const games = Array.from({ length: 4 }, (_, i) => ({
 
 
 for (const width of [320, 1280]) {
-  test(`Games history pagination and states at ${width}px`, async ({ page }) => {
+  test(`Games history pagination and states at ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 800 })
     let mode = 'populated'
     let pages = 0
@@ -40,7 +40,8 @@ for (const width of [320, 1280]) {
     })
     const capture = async (state: string) => {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-      await page.screenshot({ path: `/workspace/shared/194/games-${state}-${width}.png`, fullPage: true })
+      await page.screenshot({ path: info.outputPath(`games-${state}-${width}.png`), fullPage: true })
+      if (process.env.MTG_SCREENSHOTS) await page.screenshot({ path: `${process.env.MTG_SCREENSHOTS}/games-${state}-${width}.png`, fullPage: true })
     }
     await page.goto(`/playgroups/${group.id}/games`)
     await expect(page.getByRole('tab', { name: 'Games', selected: true })).toBeVisible()

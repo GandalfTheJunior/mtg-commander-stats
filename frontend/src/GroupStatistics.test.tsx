@@ -369,8 +369,10 @@ test('numeric ties use the backend order rather than the prior text sort or reve
   expect(sortedIds(playerTable())).toEqual([uid(1), uid(2), uid(9)])
 })
 
-test('both table choices re-sort fresh server rows on statistics refresh', async () => {
-  const api = gameApi(); api.state.statistics = statistics(); show()
+test('both table choices re-sort fresh server rows on statistics refresh and games retry', async () => {
+  const api = gameApi()
+  api.next(`/api/groups/${group.id}/games/history`, () => response({}, 503))
+  api.state.statistics = statistics(); show()
   await stats()
   await screen.findByRole('table', { name: 'Spielerstatistiken' })
   fireEvent.click(within(playerTable()).getByRole('button', { name: 'Siegrate' }))
@@ -383,7 +385,15 @@ test('both table choices re-sort fresh server rows on statistics refresh', async
   await stats()
   await waitFor(() => expect(sortedIds(playerTable())).toEqual([uid(9), uid(1), uid(2)]))
   expect(sortedIds(deckTable())).toEqual([uid(109), uid(101), uid(102)])
-
+  api.state.statistics = statistics()
+  await games()
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh games' }))
+  await stats()
+  await waitFor(() => expect(sortedIds(playerTable())).toEqual([uid(1), uid(2), uid(9)]))
+  expect(within(playerTable()).getByRole('columnheader', { name: 'Siegrate' })).toHaveAttribute('aria-sort', 'descending')
+  expect(within(deckTable()).getByRole('columnheader', { name: 'Siege' })).toHaveAttribute('aria-sort', 'descending')
+  expect(sortedIds(deckTable())).toEqual([uid(101), uid(102), uid(109)])
+  expect(statsCalls(api)).toHaveLength(3)
 })
 
 test.each(['close', 'switch', 'session'] as const)('%s discards previous sort choices along with protected statistics', async action => {
