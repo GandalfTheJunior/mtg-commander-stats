@@ -51,12 +51,37 @@ test('independent controls, sparse wall, keyboard focus and motion lifecycle', a
   await page.screenshot({ path: info.outputPath('hall-reduced.png'), fullPage: true })
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await expect(hall).toHaveAttribute('data-animated', 'true')
-  const levels = await hall.evaluate(async el => {
-    const values: number[] = []
-    for (let i=0; i<20; i++) { await new Promise(r => setTimeout(r, 100)); values.push(parseFloat((el as HTMLElement).style.getPropertyValue('--warm-a'))) }
-    return values
-  })
-  expect(Math.max(...levels) - Math.min(...levels)).toBeGreaterThan(.001)
+  // #268: Firelight advances its random signal by at most 64ms per rendered frame.
+  // Headless WebKit paints this hall at ~2fps, so a fixed wall-clock window covers
+  // too little signal time for any amplitude bound. Observe the light paints and
+  // browser frames themselves; Firelight.test.tsx asserts amplitude with a seed.
+  const light = await hall.evaluate(el => new Promise<{ levels: number[]; frames: number; maxGap: number; ms: number; visibility: string }>(resolve => {
+    const room = el as HTMLElement, levels: number[] = [], start = performance.now()
+    let frames = 0, last = start, maxGap = 0, done = false
+    const finish = () => {
+      if (done) return
+      done = true; observer.disconnect(); clearTimeout(deadline)
+      resolve({ levels, frames, maxGap: Math.round(maxGap), ms: Math.round(performance.now() - start), visibility: document.visibilityState })
+    }
+    const observer = new MutationObserver(() => {
+      const level = parseFloat(room.style.getPropertyValue('--warm-a'))
+      if (level !== levels.at(-1)) levels.push(level)
+      if (levels.length >= 6) finish()
+    })
+    observer.observe(room, { attributes: true, attributeFilter: ['style'] })
+    // Bound only the wait for paints. CI-image WebKit took 2.3-2.7s for six (#268).
+    const deadline = setTimeout(finish, 10_000)
+    const frame = (now: number) => { frames++; maxGap = Math.max(maxGap, now - last); last = now; if (!done) requestAnimationFrame(frame) }
+    requestAnimationFrame(frame)
+  }))
+  const diagnostics = JSON.stringify(light)
+  info.annotations.push({ type: 'firelight-paints', description: diagnostics })
+  // 24 frames span >=200ms even at 120Hz, enough for six 30Hz paints: fewer levels
+  // then mean the fire loop stopped; fewer frames mean the browser stalled.
+  const cause = light.frames >= 24 ? 'fire light stopped changing while the browser kept rendering' : 'browser rendered too few frames for six light paints'
+  expect(light.levels, `${cause}: ${diagnostics}`).toHaveLength(6)
+  // Strong light is .34 ± .125 (soft-compressed); NaN or out-of-range writes are defects.
+  for (const level of light.levels) { expect(level, diagnostics).toBeGreaterThan(.215); expect(level, diagnostics).toBeLessThan(.465) }
   await page.getByRole('button', { name: 'Die Farben des Manas', exact: true }).click()
   await expect(hall).toHaveCount(0)
   expect(external).toEqual([])
