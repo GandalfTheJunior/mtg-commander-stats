@@ -32,7 +32,9 @@ async function instrument(page: Page) {
     document.addEventListener('pointerdown', e => { window.activePointerId = e.pointerId }, true)
     let recording = false
     document.addEventListener('pointerup', () => {
-      if (!document.querySelector('.drag-overlay') || document.querySelector('.settling-overlay')) return
+      // Diagnostic only: a release before React rendered the held overlay has no pose to land from.
+      if (!document.querySelector('.drag-overlay')) { window.sampleLanding('pointerup-without-overlay'); return }
+      if (document.querySelector('.settling-overlay')) return
       window.sampleLanding('release'); recording = true
     }, true)
     const frame = () => {
@@ -58,6 +60,12 @@ async function begin(page: Page, name: string) {
   return { grip, x: g.x + 20 }
 }
 
+// A pointermove only schedules React's overlay commit. Release after the held, valid
+// overlay is rendered; this precedes and is excluded from the measured landing window.
+async function holdOverlay(page: Page) {
+  await expect(page.locator('.drag-overlay:not(.settling-overlay) .overlay-label')).toHaveText('Hier einfügen')
+}
+
 async function evidence(page: Page, info: TestInfo, expected: string[]) {
   // Observe inside the browser without repeated locator/trace DOM snapshots in
   // the 260ms motion window. Those snapshots stalled cold WebKit for 202ms in CI.
@@ -74,8 +82,14 @@ async function evidence(page: Page, info: TestInfo, expected: string[]) {
   const tracePath = info.outputPath('frame-position-trace.json')
   await writeFile(tracePath, JSON.stringify(rows, null, 2))
   await info.attach('frame-position-trace', { path: tracePath, contentType: 'application/json' })
-  const release = rows.find(r => r.kind === 'release')!, start = rows.find(r => r.kind === 'animation-start')!
-  expect(release?.overlay).not.toBeNull(); expect(start?.overlay).not.toBeNull()
+  const sequence = rows.map(r => r.kind).join(' → ') || 'no samples'
+  const sample = (kind: string) => {
+    const row = rows.find(r => r.kind === kind)
+    expect(row, `missing ${kind} sample; recorded: ${sequence}`).toBeDefined()
+    expect(row!.overlay, `${kind} sample has no overlay; recorded: ${sequence}`).not.toBeNull()
+    return row!
+  }
+  const release = sample('release'), start = sample('animation-start')
   expect(Math.hypot(start.overlay!.x - release.overlay!.x, start.overlay!.y - release.overlay!.y)).toBeLessThan(.6)
   const dragged = await page.evaluate(() => window.draggedName)
   for (const [name, before] of Object.entries(release.cards)) {
@@ -122,6 +136,7 @@ test('terminal pointer coordinates cannot teleport the last displayed overlay', 
   const { grip, x } = await begin(page, 'Mira')
   const list = (await page.locator('.table-cards').boundingBox())!
   await page.mouse.move(x, list.y + list.height - 30)
+  await holdOverlay(page)
   // Reproduce a final-coordinate change without another rendered move. Real
   // browser layout/WAAPI are untouched; only this terminal input is synthesized.
   await grip.dispatchEvent('pointerup', { pointerId: await page.evaluate(() => window.activePointerId), clientX: x - 60, clientY: list.y + list.height - 30, button: 0 })
@@ -141,6 +156,7 @@ test('post-release scroll and stale capture cancellation do not reveal the card 
   const { grip, x } = await begin(page, 'Mira')
   const r = (await page.locator('.table-cards').boundingBox())!
   await page.mouse.move(x, Math.min(1000, r.y + r.height - 30))
+  await holdOverlay(page)
   await page.mouse.up()
   await expect(page.locator('.settling-overlay')).toHaveCount(1)
   await grip.dispatchEvent('pointercancel', { pointerId: 1 })
@@ -161,6 +177,7 @@ test('unchanged insertion preserves confirmation; reduced motion has no landing'
   await page.getByRole('button', { name: 'Auswahl bestätigen' }).click()
   const { x } = await begin(page, 'Mira'), r = (await page.locator('.table-cards').boundingBox())!
   await page.mouse.move(x, r.y + 30)
+  await holdOverlay(page)
   await page.mouse.up()
   await evidence(page, info, ['Mira', 'Orin', 'Lumi', 'Fenn'])
   await expect(page.getByRole('button', { name: 'Spiel starten' })).toBeEnabled()
@@ -193,11 +210,13 @@ test('a second drag during landing cleans the first effects and lands without gh
   await page.setViewportSize({ width: 1280, height: 1500 })
   const first = await begin(page, 'Mira'), r = (await page.locator('.table-cards').boundingBox())!
   await page.mouse.move(first.x, r.y + r.height - 30)
+  await holdOverlay(page)
   await page.mouse.up()
   await expect(page.locator('.settling-overlay')).toHaveCount(1)
   const next = await begin(page, 'Mira')
   await expect(page.locator('.settling-overlay')).toHaveCount(0)
   await page.mouse.move(next.x, r.y + 40)
+  await holdOverlay(page)
   await page.mouse.up()
   await evidence(page, info, ['Mira', 'Orin', 'Lumi', 'Fenn'])
 })
@@ -227,6 +246,7 @@ test('a stalled browser frame does not consume the visible landing', async ({ pa
   await page.setViewportSize({ width: 1280, height: 1500 })
   const { x } = await begin(page, 'Mira'), r = (await page.locator('.table-cards').boundingBox())!
   await page.mouse.move(x, r.y + r.height - 30)
+  await holdOverlay(page)
   await page.mouse.up()
   // Reproduce the observed mobile rendering gap without changing animation
   // timing in the harness. The application's clock must handle the real stall.
