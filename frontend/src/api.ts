@@ -679,14 +679,20 @@ export async function deleteGame(groupId: string, gameId: string, signal?: Abort
     204, 'Could not delete the game.')
 }
 
-export async function memberDecks(groupId: string, userId: string, signal?: AbortSignal): Promise<DeckSelection[]> {
+/** Group-scoped read of an active member's unarchived decks (#199, #238). `manaBoxUrl` is present only when the server
+ * authorized and returned a stored link; callers must still validate it before rendering. */
+export type MemberDeck = DeckSelection & { manaBoxUrl?: string }
+
+/** `includeManaBox` is only for the read-only member deck view (#199); the game-editor picker never retains links. */
+export async function memberDecks(groupId: string, userId: string, signal?: AbortSignal, includeManaBox = false): Promise<MemberDeck[]> {
   const response = await checkedResponse(await fetch(
     `/api/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}/decks`,
     { ...requestDefaults, ...(signal ? { signal } : {}) },
   ), 200, 'Could not load eligible decks.')
   const body: unknown = await response.json()
   if (!Array.isArray(body)) throw new Error('The server returned an invalid deck selection list.')
-  const decks = body.map(selectionFrom)
+  const decks = body.map((value: unknown): MemberDeck => ({ ...selectionFrom(value),
+    ...(includeManaBox && isRecord(value) && typeof value.manaBoxUrl === 'string' ? { manaBoxUrl: value.manaBoxUrl } : {}) }))
   if (new Set(decks.map((deck) => deck.id)).size !== decks.length) throw new Error('The server returned duplicate decks.')
   return decks
 }

@@ -25,7 +25,7 @@ import GameDetailsPage from './GameDetailsPage'
 import { groupUrl } from './groupNavigation'
 import { isProtectedPath, isPublicPath, returnDestination } from './appRoutes'
 import GameEditorPage from './GameEditorPage'
-import PendingGroupView from './PendingGroupView'
+import MemberDecksPage from './MemberDecksPage'
 import QuickProfileDeckPage from './QuickProfileDeckPage'
 import { navigationToken } from './navigationToken'
 import { forgetAllHandoffs } from './gameHandoff'
@@ -328,7 +328,7 @@ export default function App() {
               element={<GroupPage key={`group-${sessionVersion}-${location.pathname}`} tab="statistics" statisticsView={view} currentUser={currentUser}
                 onUnauthorized={sessionExpired} onNotice={setSessionNotice} />} />)}
             <Route path="/playgroups/:groupId/members/:memberId/decks"
-              element={<PendingGroupView key={`${sessionVersion}-${location.pathname}`} onUnauthorized={sessionExpired} onNotice={setSessionNotice} />} />
+              element={<MemberDecksPage key={`${sessionVersion}-${location.pathname}`} onUnauthorized={sessionExpired} onNotice={setSessionNotice} />} />
             <Route path="/playgroups/:groupId/members/:memberId/decks/new"
               element={<QuickProfileDeckPage key={`${sessionVersion}-${location.pathname}`} onUnauthorized={sessionExpired} onNotice={setSessionNotice} />} />
           </Routes> : <Navigate to="/dashboard" replace />}

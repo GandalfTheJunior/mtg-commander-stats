@@ -48,8 +48,10 @@ function useVisibleCardImages(card: SavedCard, target: RefObject<Element | null>
   }, [urls, target, preload])
 }
 
-export function FullCardView({ card, artwork = false, compact = false, preloadTarget, preload = 'visible', eye }: {
+export function FullCardView({ card, artwork = false, compact = false, preloadTarget, preload = 'visible', eye, label }: {
   card: SavedCard
+  /** Accessible trigger name; defaults to "Karte anzeigen: <name>". */
+  label?: string
   artwork?: boolean
   compact?: boolean
   preloadTarget?: RefObject<Element | null>
@@ -59,18 +61,19 @@ export function FullCardView({ card, artwork = false, compact = false, preloadTa
 }) {
   const [open, setOpen] = useState(false)
   const target = useRef<HTMLDivElement>(null)
+  const name = label ?? `Karte anzeigen: ${card.name}`
   useVisibleCardImages(card, preloadTarget ?? target, preload)
   return <Box ref={target} sx={{ minWidth: 0, ...(artwork ? { width: '100%', height: '100%' } : {}) }}>
-    {eye ? <Button variant="outlined" color="inherit" aria-label={`Karte anzeigen: ${card.name}`} aria-haspopup="dialog" onClick={() => setOpen(true)}
+    {eye ? <Button variant="outlined" color="inherit" aria-label={name} aria-haspopup="dialog" onClick={() => setOpen(true)}
       sx={{ width: '100%', minWidth: 0, minHeight: 44, px: 0.5, gap: 0.5, borderColor: 'interaction.border', fontSize: '0.75rem', lineHeight: 1.1,
         '&.Mui-focusVisible, &:focus-visible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: 2 } }}>
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true" focusable="false">
         <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" />
       </svg>{eye === 'labelled' && 'Karte anzeigen'}
-    </Button> : artwork ? <ButtonBase aria-label={`Karte anzeigen: ${card.name}`} aria-haspopup="dialog" onClick={() => setOpen(true)}
+    </Button> : artwork ? <ButtonBase aria-label={name} aria-haspopup="dialog" onClick={() => setOpen(true)}
       sx={{ width: '100%', height: '100%', '&.Mui-focusVisible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: -3 } }}>
       <CommanderArtwork commander={card} compact={compact} />
-    </ButtonBase> : <Button aria-label={`Karte anzeigen: ${card.name}`} aria-haspopup="dialog" onClick={() => setOpen(true)}>
+    </ButtonBase> : <Button aria-label={name} aria-haspopup="dialog" onClick={() => setOpen(true)}>
       Karte anzeigen: {card.name}
     </Button>}
     {open && <CardDialog key={JSON.stringify(card)} card={card} onClose={() => setOpen(false)} />}

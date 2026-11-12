@@ -134,8 +134,9 @@ export default function MembersDirectory({ groupId, details, currentUser, transf
   }
   function openDecks(member: GroupMember, create = false) {
     remember()
+    // Both destinations return through history so Back restores the remembered directory presentation.
     void navigate(`${groupUrl(groupId, 'members')}/${encodeURIComponent(member.userId)}/decks${create ? '/new' : ''}`,
-      create ? { state: { fromMembers: true } } : undefined)
+      { state: { fromMembers: true } })
   }
 
   /** Writes only report success after confirmation; anything else is reconciled by an authoritative read. */

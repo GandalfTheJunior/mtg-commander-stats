@@ -22,7 +22,7 @@ not force scroll reset. The fixed collection Back link targets `/playgroups`.
 | `/playgroups/:groupId/games/:gameId/edit` | Focused game edit after fresh permission check |
 | `/playgroups/:groupId/statistics/reports` | #197 All Statistics chooser |
 | `/playgroups/:groupId/statistics/reports/{players,decks,starting-seats,mana-colors}` | #197 focused read-only reports |
-| `/playgroups/:groupId/members/:memberId/decks` | Guarded child host; #199 read-only member decks pending |
+| `/playgroups/:groupId/members/:memberId/decks` | #199 read-only member deck overview |
 | `/playgroups/:groupId/members/:memberId/decks/new` | #198 focused quick-profile deck editor (reuses the #196 `DeckForm` context) |
 | `/decks`, `/decks/new`, `/decks/:deckId/edit` | Personal collection and focused editors |
 | `/invite/:code`, `/claim/:code` | Public placeholders before the auth gate; #200/#247 own preview and transactions |
@@ -145,7 +145,7 @@ retires the group with the standard access-loss notice.
   would exceed the bounded list area (measured row height × roster size against
   the list's max height; eight rows when layout cannot be measured) or a term
   is entered. Duplicate names use the #192 `displaySuffixes` UUID prefixes.
-- Whole-row activation opens `/members/:memberId/decks`. Before pushing, the
+- Whole-row activation opens `/members/:memberId/decks` (#199). Before pushing, the
   directory stores its filter, search and list/page scroll in memory
   (`membersModel.ts`), bound to the current user and group, and writes only an
   opaque `membersDirectory` token into its own history entry. Back restores it;
@@ -183,6 +183,39 @@ retires the group with the standard access-loss notice.
 
 `frontend/e2e/members.pw.ts` covers 320/375/390/1280px layouts, touch targets,
 horizontal overflow, sticky search and Back restoration with synthetic API data.
+
+## Member decks (#199)
+
+`MemberDecksPage` is the read-only, group-scoped deck overview of one active
+member, for every role and also for the viewer's own row; it never becomes the
+#201 editor. It reads `GET /api/groups/{groupId}` and
+`GET /api/groups/{groupId}/members/{userId}/decks` together. The fresh roster
+decides group access, the heading name, the #192 duplicate-name suffix and
+whether the target is still active. Only the member-deck view asks `memberDecks`
+to keep `manaBoxUrl` (`includeManaBox`); the game-editor picker still drops it.
+
+- Decks are shown in the server's name/UUID order and never re-sorted. Cards use
+  `SavedDeckCard` with `readOnly`: Commander and Companion artwork open the
+  shared #222 `FullCardView` dialog, the ManaBox icon (only for a valid
+  `safeManaBoxUrl`) is the only other target, and nothing else is clickable.
+- The deck region takes the viewport height left by the content above and
+  below it (minimum 240px) and scrolls internally. The search field appears
+  above it only once the complete unsearched list overflows that region (six
+  cards when layout cannot be measured) and then stays. It matches deck and
+  Commander names locally, case-insensitively and by substring.
+- States: `200 []` shows **Keine verfügbaren Decks**; a target missing from the
+  fresh roster, an invalid member ID, or a deck `404` confirmed by re-reading the
+  group shows **Mitglied nicht mehr verfügbar**. A `403`, or a group `404`,
+  retires the view and returns to Playgroups with the standard access-loss
+  notice. `401` expires the session; other failures show **Erneut versuchen**.
+  Route changes abort and ignore older responses.
+- Opening from a Members row passes `fromMembers`, so **Zurück zu Mitglieder**
+  returns through history and the directory restores its filter, search and
+  scroll. A direct link replaces the entry with the Members route.
+
+`frontend/e2e/member-decks.pw.ts` covers 320/390/1280px layouts, the
+overflow-dependent search, card viewer, empty/unavailable/access-loss states
+and Back restoration with synthetic API data and generated artwork.
 
 ## Game history and Spieldetails
 
