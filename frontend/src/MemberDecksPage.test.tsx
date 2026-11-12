@@ -231,6 +231,46 @@ test.each([
   expect(screen.queryByText('Drachenpakt')).not.toBeInTheDocument()
 })
 
+test('a deck 403 retires the view even when the fresh roster no longer contains the target', async () => {
+  api({ ...groupReads(roster.filter(member => member !== klaus)), [`GET ${decksPath(klaus)}`]: () => response({}, 403) })
+  const { notice, unauthorized } = show(deckUrl(klaus))
+  expect(await screen.findByText('Route /playgroups')).toBeInTheDocument()
+  expect(notice).toHaveBeenCalledWith({ kind: 'error', message: 'Du hast keinen Zugriff mehr auf diese Playgroup.' })
+  expect(notice).toHaveBeenCalledTimes(1)
+  expect(unauthorized).not.toHaveBeenCalled()
+  expect(screen.queryByText('Mitglied nicht mehr verfügbar')).not.toBeInTheDocument()
+  expect(screen.queryByText('Playgroup: Commander-Runde')).not.toBeInTheDocument()
+})
+
+test('a group 500 does not hide a deck 401: session recovery runs instead of retry', async () => {
+  api({ [`GET ${base}`]: () => response({}, 500), [`GET ${decksPath(frodo)}`]: () => response({}, 401) })
+  const { notice, unauthorized } = show(deckUrl(frodo))
+  await waitFor(() => expect(unauthorized).toHaveBeenCalledTimes(1))
+  expect(notice).not.toHaveBeenCalled()
+  expect(screen.queryByText('Die Decks konnten nicht geladen werden.')).not.toBeInTheDocument()
+})
+
+test('a deck 403 is handled while the group read stalls, and the late group response cannot restore content', async () => {
+  const stalled = deferred()
+  api({ [`GET ${base}`]: () => stalled.promise, [`GET ${decksPath(frodo)}`]: () => response({}, 403) })
+  const { notice } = show(deckUrl(frodo))
+  expect(await screen.findByText('Route /playgroups')).toBeInTheDocument()
+  await act(async () => { stalled.resolve(response(details())) })
+  expect(screen.getByText('Route /playgroups')).toBeInTheDocument()
+  expect(notice).toHaveBeenCalledTimes(1)
+})
+
+test('a deck 401 while the group read stalls expires the session once and nothing renders afterwards', async () => {
+  const stalled = deferred()
+  api({ [`GET ${base}`]: () => stalled.promise, [`GET ${decksPath(frodo)}`]: () => response({}, 401) })
+  const { notice, unauthorized } = show(deckUrl(frodo))
+  await waitFor(() => expect(unauthorized).toHaveBeenCalledTimes(1))
+  await act(async () => { stalled.resolve(response({}, 403)) })
+  expect(unauthorized).toHaveBeenCalledTimes(1)
+  expect(notice).not.toHaveBeenCalled()
+  expect(screen.queryByText('Frodos Decks')).not.toBeInTheDocument()
+})
+
 test('401 follows session recovery instead of membership loss', async () => {
   api({ [`GET ${base}`]: () => response(details()), [`GET ${decksPath(frodo)}`]: () => response({}, 401) })
   const { notice, unauthorized } = show(deckUrl(frodo))

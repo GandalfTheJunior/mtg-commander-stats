@@ -208,7 +208,9 @@ to keep `manaBoxUrl` (`includeManaBox`); the game-editor picker still drops it.
   group shows **Mitglied nicht mehr verfügbar**. A `403`, or a group `404`,
   retires the view and returns to Playgroups with the standard access-loss
   notice. `401` expires the session; other failures show **Erneut versuchen**.
-  Route changes abort and ignore older responses.
+  A deck `401`/`403` is handled as soon as it arrives, independent of the
+  roster read and target lookup, and a retired view is never replaced by a
+  later response. Route changes abort and ignore older responses.
 - Opening from a Members row passes `fromMembers`, so **Zurück zu Mitglieder**
   returns through history and the directory restores its filter, search and
   scroll. A direct link replaces the entry with the Members route.

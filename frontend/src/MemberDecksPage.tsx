@@ -55,52 +55,70 @@ export default function MemberDecksPage({ onUnauthorized, onNotice }: { onUnauth
 
   useEffect(() => {
     let active = true
+    /** Set once the view is retired (access lost or session expired); no later result may replace that state. */
+    let retired = false
     const controller = new AbortController()
     const { signal } = controller
+    const status = (error: unknown) => error instanceof ApiError ? error.status : undefined
+    const current = () => active && !retired
     function lose() {
+      if (!current()) return
+      retired = true
       setView({ status: 'lost' })
       callbacks.current.onNotice({ kind: 'error', message: groupUnavailable })
       void callbacks.current.navigate('/playgroups', { replace: true, state: null })
     }
-    /** Shared handling for errors that are never target-specific. */
-    function fail(error: unknown) {
-      if (error instanceof ApiError && error.status === 401) callbacks.current.onUnauthorized()
-      else if (error instanceof ApiError && error.status === 403) lose()
-      else setView({ status: 'error' })
+    function expire() {
+      if (!current()) return
+      retired = true
+      callbacks.current.onUnauthorized()
     }
+    /** Authorization failures retire the view whichever read reports them; returns whether it did. */
+    function authorization(error: unknown) {
+      if (status(error) === 401) expire()
+      else if (status(error) === 403) lose()
+      else return false
+      return true
+    }
+    function show(next: View) { if (current()) setView(next) }
     if (!validId.test(groupId)) { lose(); return () => { active = false } }
-    const target = validId.test(memberId)
-    // Both reads start together; the fresh roster decides group access and the target before any deck is shown.
-    const decks: Promise<Outcome> | null = target
-      ? memberDecks(groupId, memberId, signal, true).then(value => ({ ok: true as const, decks: value }), (error: unknown) => ({ ok: false as const, error }))
+    // Both reads start together. A deck 401/403 is handled as soon as it arrives, independent of the roster;
+    // the fresh roster still decides the target before any deck is shown.
+    const decks: Promise<Outcome> | null = validId.test(memberId)
+      ? memberDecks(groupId, memberId, signal, true).then(value => ({ ok: true as const, decks: value }), (error: unknown) => {
+        if (active) authorization(error)
+        return { ok: false as const, error }
+      })
       : null
     void (async () => {
       let group: GroupDetails
       try {
         group = await getGroup(groupId, signal)
       } catch (error) {
-        if (!active) return
-        if (error instanceof ApiError && error.status === 404) lose()
-        else fail(error)
+        if (!current() || authorization(error)) return
+        if (status(error) === 404) { lose(); return }
+        // An ordinary group failure must not hide a pending deck authorization failure.
+        if (decks) await decks
+        show({ status: 'error' })
         return
       }
-      if (!active) return
+      if (!current()) return
       const member = group.members.find(candidate => same(candidate.userId, memberId))
-      if (!decks || !member) { controller.abort(); setView({ status: 'unavailable', group }); return }
+      // The deck read keeps running so a late 401/403 still retires this state.
+      if (!decks || !member) { show({ status: 'unavailable', group }); return }
       const result = await decks
-      if (!active) return
-      if (result.ok) { setView({ status: 'ready', group, member, decks: result.decks }); return }
-      if (!(result.error instanceof ApiError && result.error.status === 404)) { fail(result.error); return }
+      if (!current()) return
+      if (result.ok) { show({ status: 'ready', group, member, decks: result.decks }); return }
+      if (status(result.error) !== 404) { show({ status: 'error' }); return }
       // 404 means the target (or the group) is no longer available: revalidate before choosing the state.
       try {
         const fresh = await getGroup(groupId, signal)
-        if (!active) return
-        setView(fresh.members.some(candidate => same(candidate.userId, memberId))
+        show(fresh.members.some(candidate => same(candidate.userId, memberId))
           ? { status: 'error' } : { status: 'unavailable', group: fresh })
       } catch (error) {
-        if (!active) return
-        if (error instanceof ApiError && error.status === 404) lose()
-        else fail(error)
+        if (!current() || authorization(error)) return
+        if (status(error) === 404) lose()
+        else show({ status: 'error' })
       }
     })()
     return () => { active = false; controller.abort() }
