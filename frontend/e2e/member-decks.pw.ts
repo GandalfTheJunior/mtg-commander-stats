@@ -64,7 +64,15 @@ async function mockApi(page: Page, decks: Record<string, DeckReply>, members = r
 }
 async function shot(page: Page, info: TestInfo, name: string) {
   await page.evaluate(() => Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => undefined))))
-  await page.evaluate(() => Promise.all([...document.images].map(image => image.complete ? undefined : image.decode().catch(() => undefined))))
+  // Wait only for artwork inside the viewport. Lazy images below a scroll region never load, and WebKit's decode()
+  // on such an image never settles; load/error events with a bound keep the capture deterministic in both engines.
+  await page.evaluate(() => Promise.all([...document.images].filter(image => {
+    const box = image.getBoundingClientRect()
+    return !image.complete && box.bottom > 0 && box.top < innerHeight && box.width > 0
+  }).map(image => Promise.race([
+    new Promise(done => { image.addEventListener('load', done, { once: true }); image.addEventListener('error', done, { once: true }) }),
+    new Promise(done => setTimeout(done, 5000)),
+  ]))))
   await page.screenshot({ path: info.outputPath(`${name}.png`) })
   if (process.env.MTG_SCREENSHOTS) await page.screenshot({ path: `${process.env.MTG_SCREENSHOTS}/${name}.png` })
 }
