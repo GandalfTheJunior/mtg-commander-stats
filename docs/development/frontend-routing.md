@@ -158,6 +158,14 @@ retires the group with the standard access-loss notice.
   withdraws with the request ID, without a second dialog. The target ADMIN sees a
   banner above the tabs on every group tab; decline is immediate, accept needs
   the final confirmation. Every response uses the held request ID.
+  All reads and confirmed writes that set transfer state share one ordering
+  counter, so an earlier response never replaces a later confirmed state. Only
+  an authoritative 404 (or a MEMBER role) clears it; a failed status read keeps
+  the last confirmed transfer, blocks new offers and offers **Erneut versuchen**.
+- An ambiguous rename (network, 5xx, malformed response) keeps the typed name and
+  awaits an authoritative read before any retry. If the read shows the new name,
+  the rename counts as confirmed; if it fails, saving stays blocked behind
+  **Stand erneut prüfen**.
 - Durable outcome notices are read on each group route mount, shown once each
   as a toast, acknowledged only after presentation, and re-read until drained.
   A failed read or acknowledgement stops draining and stays retryable.

@@ -57,12 +57,15 @@ export default function GroupPage({ tab, statisticsView = 'landing', currentUser
   const [transferDialog, setTransferDialog] = useState<'info' | 'accept' | null>(null)
   const [transferBusy, setTransferBusy] = useState(false)
   const [transferError, setTransferError] = useState<string | null>(null)
+  // True while the latest transfer-status read failed: the last confirmed status is kept but cannot be trusted for new offers.
+  const [transferStale, setTransferStale] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const toastKey = useRef(0)
   const [restoring] = useState(() => tab === 'members' && directoryMemory(location.state) !== null)
   const request = useRef<AbortController | null>(null)
   const life = useRef<AbortController | null>(null)
-  const refreshGeneration = useRef(0)
+  /** Shared ordering for every read or confirmed write that sets transfer state; older results are discarded. */
+  const transferGeneration = useRef(0)
   const drained = useRef(false)
   const heading = useRef<HTMLHeadingElement>(null)
   const generation = useRef(0)
@@ -108,13 +111,17 @@ export default function GroupPage({ tab, statisticsView = 'landing', currentUser
       setDetails(group)
       setStatus('ready')
       // Pending transfer status is only visible to the OWNER requester and its ADMIN target.
-      if (group.role !== 'MEMBER') void getOwnershipTransfer(groupId, controller.signal).then(pending => {
-        if (alive.current && version === generation.current && !controller.signal.aborted) setTransfer(pending)
-      }).catch(error => {
-        if (!alive.current || version !== generation.current || controller.signal.aborted) return
-        if (error instanceof ApiError && error.status === 401) handleError(error)
-        else setTransfer(null)
-      })
+      if (group.role !== 'MEMBER') {
+        const order = ++transferGeneration.current
+        const current = () => alive.current && version === generation.current && order === transferGeneration.current && !controller.signal.aborted
+        void getOwnershipTransfer(groupId, controller.signal).then(pending => {
+          if (current()) { setTransfer(pending); setTransferStale(false) }
+        }).catch(error => {
+          if (!current()) return
+          if (error instanceof ApiError && error.status === 401) handleError(error)
+          else setTransferStale(true)
+        })
+      }
     }).catch(error => {
       if (alive.current && version === generation.current && !controller.signal.aborted) handleError(error)
     })
@@ -125,22 +132,34 @@ export default function GroupPage({ tab, statisticsView = 'landing', currentUser
   const refresh = useCallback(async (): Promise<GroupDetails | null> => {
     const signal = life.current?.signal
     if (!signal || signal.aborted) return null
-    const version = ++refreshGeneration.current
+    const version = ++transferGeneration.current
+    const current = () => !signal.aborted && version === transferGeneration.current
+    let group: GroupDetails
     try {
-      const group = await getGroup(groupId, signal)
-      let pending: OwnershipTransfer | null = null
-      if (group.role !== 'MEMBER') {
-        try { pending = await getOwnershipTransfer(groupId, signal) } catch (error) {
-          if (error instanceof ApiError && error.status === 401) throw error
-        }
-      }
-      if (signal.aborted || version !== refreshGeneration.current) return null
-      setDetails(group)
+      group = await getGroup(groupId, signal)
+    } catch (error) {
+      if (current() && error instanceof ApiError && [401, 403, 404].includes(error.status)) handleError(error)
+      return null
+    }
+    if (!current()) return null
+    setDetails(group)
+    if (group.role === 'MEMBER') {
+      // An ordinary member can neither request nor receive a transfer: authoritative absence.
+      setTransfer(null)
+      setTransferStale(false)
+      return group
+    }
+    try {
+      const pending = await getOwnershipTransfer(groupId, signal)
+      if (!current()) return null
       setTransfer(pending)
+      setTransferStale(false)
       return group
     } catch (error) {
-      if (signal.aborted || version !== refreshGeneration.current) return null
-      if (error instanceof ApiError && [401, 403, 404].includes(error.status)) handleError(error)
+      if (!current()) return null
+      // Only an authoritative 404 clears the transfer; keep the last confirmed status otherwise.
+      if (error instanceof ApiError && error.status === 401) handleError(error)
+      else setTransferStale(true)
       return null
     }
   }, [groupId, handleError])
@@ -172,6 +191,13 @@ export default function GroupPage({ tab, statisticsView = 'landing', currentUser
     })()
   }, [status, groupId, showToast, handleError])
 
+  /** A server-confirmed transfer state supersedes every read issued before it. */
+  const confirmTransfer = useCallback((value: OwnershipTransfer | null) => {
+    transferGeneration.current++
+    setTransfer(value)
+    setTransferStale(false)
+  }, [])
+
   async function respond(answer: 'accept' | 'decline') {
     const pending = transfer
     const signal = life.current?.signal
@@ -183,7 +209,7 @@ export default function GroupPage({ tab, statisticsView = 'landing', currentUser
       await (answer === 'accept' ? acceptOwnership : declineOwnership)(groupId, pending.id, signal)
       if (signal.aborted) return
       setTransferDialog(null)
-      setTransfer(null)
+      confirmTransfer(null)
       showToast(answer === 'accept' ? 'Du bist jetzt Owner dieser Playgroup.' : 'Du hast das Angebot abgelehnt. Deine Rolle bleibt unverändert.')
       if (!await refresh() && !signal.aborted) setTransferError('Die Antwort wurde bestätigt, aber die Gruppe konnte nicht aktualisiert werden. Lade die Gruppe neu.')
     } catch (error) {
@@ -250,6 +276,10 @@ export default function GroupPage({ tab, statisticsView = 'landing', currentUser
         <TransferBanner transfer={transfer} busy={transferBusy} onInfo={() => setTransferDialog('info')}
           onDecline={() => { void respond('decline') }} onAccept={() => setTransferDialog('accept')} />}
       {transferError && <Alert severity="error" role="alert" onClose={() => setTransferError(null)}>{transferError}</Alert>}
+      {transferStale && details.role !== 'MEMBER' && <Alert severity="warning" role="status"
+        action={<Button color="inherit" size="small" onClick={() => { void refresh() }} sx={{ minHeight: 44 }}>Erneut versuchen</Button>}>
+        Der Status der Eigentümerübertragung konnte nicht geprüft werden.
+      </Alert>}
       <Tabs value={tab} variant="fullWidth" textColor="secondary" indicatorColor="secondary" aria-label="Playgroup-Bereiche"
         onChange={(_event, value: GroupTab) => { void navigate(groupUrl(groupId, value)) }}
         sx={{ '& .MuiTab-root': { minHeight: 48, minWidth: 0, px: 0.5, fontSize: { xs: '0.75rem', sm: '0.875rem' }, '&.Mui-focusVisible, &:focus-visible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: -3 } } }}>
@@ -266,8 +296,8 @@ export default function GroupPage({ tab, statisticsView = 'landing', currentUser
             : <StatisticsReportPage groupId={groupId} report={statisticsView} onAccessError={handleError} />}
       </Box>}
       {tab === 'members' && <Box role="tabpanel" id="group-panel-members" aria-labelledby="group-tab-members" sx={{ display: 'grid', gap: 3, minWidth: 0 }}>
-        <MembersDirectory groupId={groupId} details={details} currentUser={currentUser} transfer={transfer} refresh={refresh}
-          onAccessError={handleError} onToast={showToast} onTransfer={setTransfer} />
+        <MembersDirectory groupId={groupId} details={details} currentUser={currentUser} transfer={transfer} transferStale={transferStale} refresh={refresh}
+          onAccessError={handleError} onToast={showToast} onTransfer={confirmTransfer} />
         {canLeave(details) && <Box sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 2 }}>
           <Button color="secondary" disabled={busy} onClick={() => setConfirmLeave(true)} sx={{ minHeight: 48, px: 0 }}>Playgroup verlassen</Button>
         </Box>}

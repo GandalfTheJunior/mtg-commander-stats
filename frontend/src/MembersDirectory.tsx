@@ -40,14 +40,17 @@ export function CloseIcon() {
 }
 
 type Pending = { action: Exclude<MemberAction, 'deck' | 'rename'>; member: GroupMember }
-type Rename = { member: GroupMember; value: string; focused: boolean; error: string | null; created: boolean }
+/** `unverified`: an ambiguous rename could not be reconciled yet; saving stays blocked until a state check succeeds. */
+type Rename = { member: GroupMember; value: string; focused: boolean; error: string | null; created: boolean; unverified?: boolean }
 
-export default function MembersDirectory({ groupId, details, currentUser, transfer, refresh, onAccessError, onToast, onTransfer }: {
+export default function MembersDirectory({ groupId, details, currentUser, transfer, transferStale, refresh, onAccessError, onToast, onTransfer }: {
   groupId: string
   details: GroupDetails
   currentUser: CurrentUser
   /** The pending transfer visible to this viewer (OWNER requester or ADMIN target), if any. */
   transfer: OwnershipTransfer | null
+  /** The latest transfer-status read failed; no new offer may be started until it is confirmed again. */
+  transferStale: boolean
   /** Authoritative re-read of group details and transfer status; null when it could not be confirmed. */
   refresh: () => Promise<GroupDetails | null>
   onAccessError: (error: unknown) => void
@@ -209,7 +212,7 @@ export default function MembersDirectory({ groupId, details, currentUser, transf
   }
 
   async function saveRename() {
-    if (!rename || blank(rename.value) || pending.current || !life.current) return
+    if (!rename || rename.unverified || blank(rename.value) || pending.current || !life.current) return
     const { member, value, created: fromCreate } = rename
     const signal = life.current.signal
     pending.current = true
@@ -234,10 +237,43 @@ export default function MembersDirectory({ groupId, details, currentUser, transf
         setRename(null)
         await reconcile(error, 'Die Umbenennung wurde nicht bestätigt.')
       } else {
-        // Ambiguous outcome: keep the typed name and re-read before any retry.
-        setRename(current => current && { ...current, error: 'Die Umbenennung konnte nicht bestätigt werden. Prüfe den Namen in der Mitgliederliste und versuche es erneut.' })
-        void refresh()
+        // Ambiguous outcome: keep the typed name and reconcile before any retry is possible.
+        await reconcileRename(member, value, fromCreate, signal)
       }
+    } finally {
+      if (!signal.aborted) { pending.current = false; setBusy(false) }
+    }
+  }
+  /** Awaits an authoritative read after an ambiguous rename; the caller keeps writes blocked meanwhile. */
+  async function reconcileRename(member: GroupMember, value: string, fromCreate: boolean, signal: AbortSignal) {
+    const fresh = await refresh()
+    if (signal.aborted) return
+    if (!fresh) {
+      setRename(current => current && { ...current, unverified: true,
+        error: 'Die Umbenennung konnte nicht bestätigt werden und der aktuelle Stand konnte nicht geladen werden. Prüfe den Stand, bevor du erneut speicherst.' })
+      return
+    }
+    const current = fresh.members.find(candidate => candidate.userId.toLowerCase() === member.userId.toLowerCase())
+    if (!current?.quickProfile) {
+      setRename(null)
+      setFeedback('Dieses Schnellprofil ist nicht mehr aktiv. Die Mitgliederliste wurde aktualisiert.')
+    } else if (current.username === value) {
+      // The earlier write did reach the server.
+      onToast(`Schnellprofil umbenannt in „${current.username}“.`)
+      if (fromCreate) finishCreated(current)
+      else setRename(null)
+    } else {
+      setRename(existing => existing && { ...existing, member: current, unverified: false,
+        error: `Die Umbenennung wurde nicht übernommen. Der aktuelle Name ist „${current.username}“. Du kannst erneut speichern.` })
+    }
+  }
+  async function checkRename() {
+    if (!rename || pending.current || !life.current) return
+    const signal = life.current.signal
+    pending.current = true
+    setBusy(true)
+    try {
+      await reconcileRename(rename.member, rename.value, rename.created, signal)
     } finally {
       if (!signal.aborted) { pending.current = false; setBusy(false) }
     }
@@ -259,7 +295,7 @@ export default function MembersDirectory({ groupId, details, currentUser, transf
     void refresh()
   }
 
-  const menuActions = menu ? memberActions(details.role, currentUser.id, menu.member, Boolean(transfer)) : []
+  const menuActions = menu ? memberActions(details.role, currentUser.id, menu.member, Boolean(transfer) || transferStale) : []
   const confirmCopy = confirm && dialogCopy(confirm)
 
   return <Stack component="section" aria-labelledby="members-heading" sx={{ gap: 2, minWidth: 0 }}>
@@ -298,7 +334,7 @@ export default function MembersDirectory({ groupId, details, currentUser, transf
       : <Box component="ul" ref={list} aria-label="Aktive Mitglieder"
         sx={{ listStyle: 'none', p: 0, m: 0, maxHeight: 'max(320px, calc(100dvh - 300px))', overflowY: 'auto', overscrollBehavior: 'contain' }}>
         {visible.map(member => {
-          const actions = memberActions(details.role, currentUser.id, member, Boolean(transfer))
+          const actions = memberActions(details.role, currentUser.id, member, Boolean(transfer) || transferStale)
           const suffix = suffixes.get(member.userId)
           return <Box component="li" key={member.userId} data-member={member.userId}
             sx={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 1, minHeight: 72, py: 1, pl: 1, pr: 0.5,
@@ -363,7 +399,9 @@ export default function MembersDirectory({ groupId, details, currentUser, transf
         </DialogContent>
         <DialogActions sx={{ p: 3, pt: 1, gap: 1, '& .MuiButton-root': { flex: 1, minHeight: 48 } }}>
           <Button variant="outlined" color="secondary" onClick={closeRename} disabled={busy}>Abbrechen</Button>
-          <Button type="submit" variant="contained" disabled={busy || !rename || blank(rename.value)}>Speichern</Button>
+          {rename?.unverified
+            ? <Button variant="contained" disabled={busy} onClick={() => { void checkRename() }}>Stand erneut prüfen</Button>
+            : <Button type="submit" variant="contained" disabled={busy || !rename || blank(rename.value)}>Speichern</Button>}
         </DialogActions>
       </Box>
     </Dialog>

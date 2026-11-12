@@ -454,3 +454,77 @@ test('Deck erstellen opens the focused quick-profile deck editor; registered mem
   host(frodo.userId)
   expect(await screen.findByText('Für dieses Mitglied kann hier kein Deck erstellt werden.')).toBeInTheDocument()
 })
+
+test('review: a failed status re-read keeps the confirmed pending offer and blocks a second offer until retried', async () => {
+  const transfer = pendingTransfer()
+  api({ ...reads('OWNER', roster, transfer),
+    [`GET ${transferBase}`]: [() => response(transfer), () => response({}, 500), () => response(transfer)],
+    [`DELETE ${transferBase}`]: () => response({}, 500) })
+  show()
+  fireEvent.click(await screen.findByRole('button', { name: 'Anfrage zurückziehen' }))
+  expect(await screen.findByText(/Die Anfrage konnte nicht zurückgezogen werden\. Der aktuelle Stand konnte nicht geladen werden/)).toBeInTheDocument()
+  expect(screen.getByText('Eigentümerübertragung angefragt')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Anfrage zurückziehen' })).toBeEnabled()
+  expect(screen.getByText('Der Status der Eigentümerübertragung konnte nicht geprüft werden.')).toBeInTheDocument()
+  expect(await openMenu('Saruman')).toEqual(['Zum Mitglied zurückstufen'])
+  fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+  await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+  fireEvent.click(screen.getByRole('button', { name: 'Erneut versuchen' }))
+  await waitFor(() => expect(screen.queryByText('Der Status der Eigentümerübertragung konnte nicht geprüft werden.')).not.toBeInTheDocument())
+  expect(screen.getByText('Eigentümerübertragung angefragt')).toBeInTheDocument()
+})
+
+test('review: a late initial transfer read cannot overwrite a later confirmed offer', async () => {
+  const transfer = pendingTransfer()
+  let releaseInitial!: () => void
+  const initial = new Promise<Response>(resolve => { releaseInitial = () => resolve(response({}, 404)) })
+  api({ ...reads('OWNER'), [`GET ${transferBase}`]: [() => initial, () => response(transfer)],
+    [`POST ${transferBase}`]: () => response(transfer, 201) })
+  show()
+  await openMenu('Saruman')
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Eigentümerschaft übertragen' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Angebot senden' }))
+  expect(await screen.findByText('Eigentümerübertragung angefragt')).toBeInTheDocument()
+  await act(async () => releaseInitial())
+  expect(screen.getByText('Eigentümerübertragung angefragt')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Anfrage zurückziehen' })).toBeInTheDocument()
+})
+
+test('review: an ambiguous rename blocks retries until reconciliation confirms the current state', async () => {
+  let releaseRead!: (value: Response) => void
+  const heldRead = new Promise<Response>(resolve => { releaseRead = resolve })
+  const server = api({ ...reads('MEMBER'),
+    [`GET ${base}`]: [() => response(details('MEMBER')), () => heldRead, () => response(details('MEMBER'))],
+    [`PATCH ${base}/quick-profiles/${quick.userId}`]: [() => Promise.reject(new Error('offline')), () => response({ ...quick, username: 'Lena' })] })
+  show(frodo)
+  await openMenu('Flinker Waschbär')
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Schnellprofil umbenennen' }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Profilname' }), { target: { value: 'Lena' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
+  // While the reconciliation read is pending, no second PATCH can be sent.
+  await waitFor(() => expect(server.calls('GET', base)).toHaveLength(2))
+  expect(screen.getByRole('button', { name: 'Speichern' })).toBeDisabled()
+  fireEvent.submit(screen.getByRole('textbox', { name: 'Profilname' }).closest('form')!)
+  await act(async () => releaseRead(response({}, 503)))
+  expect(await screen.findByText(/der aktuelle Stand konnte nicht geladen werden/)).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Speichern' })).not.toBeInTheDocument()
+  expect(screen.getByRole('textbox', { name: 'Profilname' })).toHaveValue('Lena')
+  expect(server.calls('PATCH', `${base}/quick-profiles/${quick.userId}`)).toHaveLength(1)
+  fireEvent.click(screen.getByRole('button', { name: 'Stand erneut prüfen' }))
+  expect(await screen.findByText(/Die Umbenennung wurde nicht übernommen. Der aktuelle Name ist „Flinker Waschbär“/)).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
+  await waitFor(() => expect(server.calls('PATCH', `${base}/quick-profiles/${quick.userId}`)).toHaveLength(2))
+})
+
+test('review: reconciliation treats an ambiguous rename that reached the server as confirmed', async () => {
+  const renamed = { ...quick, username: 'Lena' }
+  api({ ...reads('MEMBER'), [`GET ${base}`]: [() => response(details('MEMBER')), () => response(details('MEMBER', roster.map(m => m === quick ? renamed : m)))],
+    [`PATCH ${base}/quick-profiles/${quick.userId}`]: () => response({}, 502) })
+  show(frodo)
+  await openMenu('Flinker Waschbär')
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Schnellprofil umbenennen' }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Profilname' }), { target: { value: 'Lena' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(await screen.findByText('Schnellprofil umbenannt in „Lena“.')).toBeInTheDocument()
+})
