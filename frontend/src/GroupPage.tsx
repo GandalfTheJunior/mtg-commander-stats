@@ -61,11 +61,14 @@ export default function GroupPage({ tab, statisticsView = 'landing', currentUser
   const [transferStale, setTransferStale] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const toastKey = useRef(0)
-  const [restoring] = useState(() => tab === 'members' && directoryMemory(location.state) !== null)
+  const [restoring] = useState(() => tab === 'members' && directoryMemory(location.state, currentUser.id, groupId) !== null)
   const request = useRef<AbortController | null>(null)
   const life = useRef<AbortController | null>(null)
   /** Shared ordering for every read or confirmed write that sets transfer state; older results are discarded. */
   const transferGeneration = useRef(0)
+  /** Set while the leave write is pending or confirmed: no late read may re-show or retire the group. */
+  const departing = useRef(false)
+  const refreshRef = useRef<() => Promise<GroupDetails | null>>(() => Promise.resolve(null))
   const drained = useRef(false)
   const heading = useRef<HTMLHeadingElement>(null)
   const generation = useRef(0)
@@ -119,6 +122,8 @@ export default function GroupPage({ tab, statisticsView = 'landing', currentUser
         }).catch(error => {
           if (!current()) return
           if (error instanceof ApiError && error.status === 401) handleError(error)
+          // 403 is authoritative (demoted or inactive): re-read the group at once instead of waiting for a retry.
+          else if (error instanceof ApiError && error.status === 403) void refreshRef.current()
           else setTransferStale(true)
         })
       }
@@ -129,40 +134,46 @@ export default function GroupPage({ tab, statisticsView = 'landing', currentUser
   }, [groupId, revision, accessLost, handleError])
 
   /** Authoritative re-read after writes, conflicts and stale responses; keeps the current view on transient failures. */
-  const refresh = useCallback(async (): Promise<GroupDetails | null> => {
-    const signal = life.current?.signal
-    if (!signal || signal.aborted) return null
-    const version = ++transferGeneration.current
-    const current = () => !signal.aborted && version === transferGeneration.current
-    let group: GroupDetails
-    try {
-      group = await getGroup(groupId, signal)
-    } catch (error) {
-      if (current() && error instanceof ApiError && [401, 403, 404].includes(error.status)) handleError(error)
-      return null
-    }
-    if (!current()) return null
-    setDetails(group)
-    if (group.role === 'MEMBER') {
-      // An ordinary member can neither request nor receive a transfer: authoritative absence.
-      setTransfer(null)
-      setTransferStale(false)
-      return group
-    }
-    try {
-      const pending = await getOwnershipTransfer(groupId, signal)
+  const refresh = useCallback(() => {
+    const read = async (afterDenial: boolean): Promise<GroupDetails | null> => {
+      const signal = life.current?.signal
+      if (!signal || signal.aborted || departing.current) return null
+      const version = ++transferGeneration.current
+      const current = () => !signal.aborted && !departing.current && version === transferGeneration.current
+      let group: GroupDetails
+      try {
+        group = await getGroup(groupId, signal)
+      } catch (error) {
+        if (current() && error instanceof ApiError && [401, 403, 404].includes(error.status)) handleError(error)
+        return null
+      }
       if (!current()) return null
-      setTransfer(pending)
-      setTransferStale(false)
-      return group
-    } catch (error) {
-      if (!current()) return null
-      // Only an authoritative 404 clears the transfer; keep the last confirmed status otherwise.
-      if (error instanceof ApiError && error.status === 401) handleError(error)
-      else setTransferStale(true)
-      return null
+      setDetails(group)
+      if (group.role === 'MEMBER') {
+        // An ordinary member can neither request nor receive a transfer: authoritative absence.
+        setTransfer(null)
+        setTransferStale(false)
+        return group
+      }
+      try {
+        const pending = await getOwnershipTransfer(groupId, signal)
+        if (!current()) return null
+        setTransfer(pending)
+        setTransferStale(false)
+        return group
+      } catch (error) {
+        if (!current()) return null
+        // Only an authoritative 404 clears the transfer; keep the last confirmed status otherwise.
+        if (error instanceof ApiError && error.status === 401) handleError(error)
+        // A 403 means the role or membership changed since the details read: re-read once authoritatively.
+        else if (error instanceof ApiError && error.status === 403 && !afterDenial) return read(true)
+        else setTransferStale(true)
+        return null
+      }
     }
+    return read(false)
   }, [groupId, handleError])
+  useEffect(() => { refreshRef.current = refresh }, [refresh])
 
   // The original requester sees each persisted ACCEPTED/DECLINED outcome once, then acknowledges it
   // explicitly; batches of up to 20 are read until drained. GET alone never consumes a notice.
@@ -186,7 +197,10 @@ export default function GroupPage({ tab, statisticsView = 'landing', currentUser
         }
       } catch (error) {
         // A failed read or acknowledgement stays safely retryable on the next visit.
-        if (!signal.aborted && error instanceof ApiError && error.status === 401) handleError(error)
+        if (signal.aborted || !(error instanceof ApiError)) return
+        if (error.status === 401) handleError(error)
+        // 403 means inactive membership: confirm authoritatively and retire the group if so.
+        else if (error.status === 403) void refreshRef.current()
       }
     })()
   }, [status, groupId, showToast, handleError])
@@ -238,6 +252,9 @@ export default function GroupPage({ tab, statisticsView = 'landing', currentUser
     if (busy || !confirmLeave || !canLeave(details)) return
     setBusy(true)
     setConfirmLeave(false)
+    // Retire every pending authoritative read before hiding private details.
+    departing.current = true
+    transferGeneration.current++
     setDetails(null)
     const controller = request.current!
     try {
@@ -247,6 +264,7 @@ export default function GroupPage({ tab, statisticsView = 'landing', currentUser
       void navigate('/playgroups', { replace: true, state: null })
     } catch (error) {
       if (!alive.current || controller.signal.aborted) return
+      departing.current = false
       if (error instanceof ApiError && error.status === 401) { handleError(error); return }
       callbacks.current.onNotice({ kind: 'error', message: 'Der Austritt wurde nicht bestätigt. Prüfe den aktuellen Gruppenzugriff vor einem erneuten Versuch.' })
       try {

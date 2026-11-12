@@ -146,9 +146,13 @@ retires the group with the standard access-loss notice.
   the list's max height; eight rows when layout cannot be measured) or a term
   is entered. Duplicate names use the #192 `displaySuffixes` UUID prefixes.
 - Whole-row activation opens `/members/:memberId/decks`. Before pushing, the
-  directory replaces its own history entry state with `membersDirectory`
-  (filter, search, list and page scroll), so Back restores it; `GroupPage` then
-  focuses the heading without scrolling. Creating a quick profile resets to
+  directory stores its filter, search and list/page scroll in memory
+  (`membersModel.ts`), bound to the current user and group, and writes only an
+  opaque `membersDirectory` token into its own history entry. Back restores it;
+  `GroupPage` then focuses the heading without scrolling. Like the game
+  handoffs, every session change (logout, login rotation, expiry, session
+  check) forgets all memories, so a reload, another tab or another account on
+  the same tab starts at the defaults. Creating a quick profile resets to
   Alle, clears search and reveals the new row; ordinary renames do not.
 - **Deck erstellen** opens the focused editor at `/members/:memberId/decks/new`
   for active quick profiles only. A confirmed save replaces the editor entry
@@ -162,10 +166,15 @@ retires the group with the standard access-loss notice.
   counter, so an earlier response never replaces a later confirmed state. Only
   an authoritative 404 (or a MEMBER role) clears it; a failed status read keeps
   the last confirmed transfer, blocks new offers and offers **Erneut versuchen**.
+  A 403 on the status or notices read is authoritative (demoted or inactive):
+  the group is re-read at once, which downgrades the role or retires the group.
+  A second 403 within one refresh marks the status unverified instead of looping.
 - An ambiguous rename (network, 5xx, malformed response) keeps the typed name and
   awaits an authoritative read before any retry. If the read shows the new name,
-  the rename counts as confirmed; if it fails, saving stays blocked behind
-  **Stand erneut prüfen**.
+  the rename counts as confirmed (compared in the server's canonical form: NFC,
+  boundary whitespace stripped); if it fails, saving stays blocked behind
+  **Stand erneut prüfen**. If the server reports the profile as gone, no rename or
+  creation dialog stays open.
 - Durable outcome notices are read on each group route mount, shown once each
   as a toast, acknowledged only after presentation, and re-read until drained.
   A failed read or acknowledgement stops draining and stays retryable.
@@ -297,7 +306,9 @@ The manual join form and reusable-code management screen are retired by #190.
 ### Departure lifetime
 
 Only a freshly authorized MEMBER or ADMIN can confirm departure, from the quiet
-**Playgroup verlassen** action below the Members directory. Cancel/Escape send no
+**Playgroup verlassen** action below the Members directory. Starting the write
+also retires every pending authoritative re-read, so a late response can neither
+re-show the roster nor turn a confirmed departure into an access-loss notice. Cancel/Escape send no
 DELETE. Starting the write hides private details. Exact HTTP 204 announces success
 and returns to the collection. Every other outcome rechecks membership without
 repeating DELETE or claiming success; 401 expires the session, lost access retires

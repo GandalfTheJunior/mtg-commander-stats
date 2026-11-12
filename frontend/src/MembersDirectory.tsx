@@ -8,7 +8,7 @@ import {
 } from './api'
 import { groupUrl } from './groupNavigation'
 import { displaySuffixes } from './groupSuffixes'
-import { actionLabels, blank, directoryMemory, fallbackOverflowRows, filters, matchesFilter, memberActions, normalized, roleLabel,
+import { actionLabels, blank, canonicalName, directoryMemory, offerDirectoryMemory, fallbackOverflowRows, filters, matchesFilter, memberActions, normalized, roleLabel,
   type DirectoryMemory, type MemberAction, type MemberFilter } from './membersModel'
 
 /** Shared confirmation layout for the approved #198 dialogs: title with X, body, quiet note, Cancel + primary. */
@@ -59,7 +59,7 @@ export default function MembersDirectory({ groupId, details, currentUser, transf
 }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const [restored] = useState(() => directoryMemory(location.state))
+  const [restored] = useState(() => directoryMemory(location.state, currentUser.id, groupId))
   const [filter, setFilter] = useState<MemberFilter>(restored?.filter ?? 'all')
   const [search, setSearch] = useState(restored?.search ?? '')
   const [overflowing, setOverflowing] = useState(false)
@@ -128,7 +128,9 @@ export default function MembersDirectory({ groupId, details, currentUser, transf
   function remember() {
     const memory: DirectoryMemory = { filter, search, listScroll: list.current?.scrollTop ?? 0, pageScroll: window.scrollY }
     const state = typeof location.state === 'object' && location.state !== null ? location.state as Record<string, unknown> : {}
-    void navigate(location.pathname, { replace: true, state: { ...state, membersDirectory: memory } })
+    // Only an opaque token enters history state; the presentation stays in memory for this user, group and session.
+    const token = offerDirectoryMemory(currentUser.id, groupId, memory, location.state)
+    void navigate(location.pathname, { replace: true, state: { ...state, membersDirectory: token } })
   }
   function openDecks(member: GroupMember, create = false) {
     remember()
@@ -234,7 +236,9 @@ export default function MembersDirectory({ groupId, details, currentUser, transf
           ? 'Der Name ist zu lang. Verwende höchstens 20 Zeichen.'
           : 'Der Name wurde nicht akzeptiert. Erlaubt sind Buchstaben, Ziffern 0–9, Satzzeichen und einzelne Leerzeichen zwischen Wörtern, keine Emojis.' })
       } else if (error instanceof ApiError && [401, 403, 404].includes(error.status)) {
+        // The profile (or access) is gone: never reopen the "Schnellprofil erstellt" dialog for it.
         setRename(null)
+        setCreated(null)
         await reconcile(error, 'Die Umbenennung wurde nicht bestätigt.')
       } else {
         // Ambiguous outcome: keep the typed name and reconcile before any retry is possible.
@@ -256,8 +260,9 @@ export default function MembersDirectory({ groupId, details, currentUser, transf
     const current = fresh.members.find(candidate => candidate.userId.toLowerCase() === member.userId.toLowerCase())
     if (!current?.quickProfile) {
       setRename(null)
+      setCreated(null)
       setFeedback('Dieses Schnellprofil ist nicht mehr aktiv. Die Mitgliederliste wurde aktualisiert.')
-    } else if (current.username === value) {
+    } else if (current.username === canonicalName(value)) {
       // The earlier write did reach the server.
       onToast(`Schnellprofil umbenannt in „${current.username}“.`)
       if (fromCreate) finishCreated(current)

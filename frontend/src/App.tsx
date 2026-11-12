@@ -29,6 +29,7 @@ import PendingGroupView from './PendingGroupView'
 import QuickProfileDeckPage from './QuickProfileDeckPage'
 import { navigationToken } from './navigationToken'
 import { forgetAllHandoffs } from './gameHandoff'
+import { forgetDirectoryMemories } from './membersModel'
 import { createStatisticsMemory, StatisticsMemoryContext, type StatisticsView } from './statisticsState'
 
 const statisticsRoutes: [string, StatisticsView][] = [['', 'landing'], ['/reports', 'chooser'],
@@ -155,6 +156,7 @@ export default function App() {
           editorOrigin.current = null
           collectionMemory.current = null
           forgetAllHandoffs()
+          forgetDirectoryMemories()
           version = ++sessionVersionRef.current
           setSessionVersion(version)
           setCurrentUser(null)
@@ -186,6 +188,7 @@ export default function App() {
     editorOrigin.current = null
     collectionMemory.current = null
     forgetAllHandoffs()
+    forgetDirectoryMemories()
     const version = ++sessionVersionRef.current
     setSessionVersion(version)
     setSessionStatus('logging-out')
@@ -228,6 +231,7 @@ export default function App() {
     editorOrigin.current = null
     collectionMemory.current = null
     forgetAllHandoffs()
+    forgetDirectoryMemories()
     const version = ++sessionVersionRef.current
     setSessionVersion(version)
     setSessionStatus('checking')
@@ -254,6 +258,7 @@ export default function App() {
     editorOrigin.current = null
     collectionMemory.current = null
     forgetAllHandoffs()
+    forgetDirectoryMemories()
     setSessionVersion(++sessionVersionRef.current)
     setCurrentUser(null)
     setSessionStatus('signed-out')

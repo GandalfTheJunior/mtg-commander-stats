@@ -1,4 +1,5 @@
 import type { GroupMember, GroupRole } from './api'
+import { navigationToken } from './navigationToken'
 
 export type MemberFilter = 'all' | 'registered' | 'quick'
 export type MemberAction = 'promote' | 'demote' | 'transfer' | 'remove' | 'rename' | 'deck' | 'delete'
@@ -37,17 +38,42 @@ export function memberActions(viewerRole: GroupRole, viewerId: string, target: G
   return []
 }
 
-export function directoryMemory(state: unknown): DirectoryMemory | null {
-  const value = typeof state === 'object' && state !== null ? (state as Record<string, unknown>).membersDirectory : undefined
-  if (typeof value !== 'object' || value === null) return null
-  const memory = value as Record<string, unknown>
-  const number = (field: unknown) => typeof field === 'number' && Number.isFinite(field) && field >= 0 ? field : 0
-  return {
-    filter: filters.some(option => option.value === memory.filter) ? memory.filter as MemberFilter : 'all',
-    search: typeof memory.search === 'string' ? memory.search.slice(0, 100) : '',
-    listScroll: number(memory.listScroll),
-    pageScroll: number(memory.pageScroll),
-  }
+/** In-memory directory memories (#198). History state carries only an opaque token; the presentation is bound to
+ * the user and group that created it and is forgotten on every session change, so a reload, another tab or another
+ * account never restores it. Tokens confer no permission: the roster is always freshly authorized. */
+const memories = new Map<string, { userId: string; groupId: string; memory: DirectoryMemory }>()
+const same = (left: string, right: string) => left.toLowerCase() === right.toLowerCase()
+const tokenOf = (state: unknown) => {
+  const token = typeof state === 'object' && state !== null ? (state as Record<string, unknown>).membersDirectory : undefined
+  return typeof token === 'string' ? token : undefined
+}
+
+export function offerDirectoryMemory(userId: string, groupId: string, memory: DirectoryMemory, previousState?: unknown) {
+  const previous = tokenOf(previousState)
+  if (previous) memories.delete(previous)
+  const token = navigationToken()
+  memories.set(token, { userId, groupId, memory: { ...memory } })
+  return token
+}
+
+export function directoryMemory(state: unknown, userId: string, groupId: string): DirectoryMemory | null {
+  const token = tokenOf(state)
+  const entry = token ? memories.get(token) : undefined
+  return entry && same(entry.userId, userId) && same(entry.groupId, groupId) ? { ...entry.memory } : null
+}
+
+export function forgetDirectoryMemories() {
+  memories.clear()
+}
+
+/** Mirrors the server's display-name canonical form (NFC, boundary whitespace and Java controls stripped). */
+export function canonicalName(value: string) {
+  const characters = Array.from(value.normalize('NFC'))
+  const boundary = (character: string) => /\p{White_Space}/u.test(character) ||
+    (character.codePointAt(0)! >= 0x1c && character.codePointAt(0)! <= 0x1f)
+  while (characters.length && boundary(characters[0])) characters.shift()
+  while (characters.length && boundary(characters[characters.length - 1])) characters.pop()
+  return characters.join('')
 }
 
 export const matchesFilter = (member: GroupMember, filter: MemberFilter) =>

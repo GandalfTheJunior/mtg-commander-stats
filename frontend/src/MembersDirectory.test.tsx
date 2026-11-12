@@ -1,11 +1,11 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import GroupPage from './GroupPage'
 import QuickProfileDeckPage from './QuickProfileDeckPage'
 import { AppThemeProvider } from './theme/AppThemeProvider'
 import { groupUrl } from './groupNavigation'
-import { memberActions } from './membersModel'
+import { forgetDirectoryMemories, memberActions, offerDirectoryMemory } from './membersModel'
 import { response, uid } from './test/gameFixtures'
 import type { GroupDetails, GroupMember, GroupRole } from './api'
 
@@ -168,7 +168,8 @@ test('quick-profile filter has its own empty state; search appears for long rost
 
 test('Back restores the remembered filter and search from the Members history entry', async () => {
   api(reads('OWNER'))
-  show(owner, { pathname: groupUrl(groupId, 'members'), state: { membersDirectory: { filter: 'quick', search: 'flink', listScroll: 0, pageScroll: 0 } } })
+  const token = offerDirectoryMemory(owner.userId, groupId, { filter: 'quick', search: 'flink', listScroll: 0, pageScroll: 0 })
+  show(owner, { pathname: groupUrl(groupId, 'members'), state: { membersDirectory: token } })
   await screen.findByRole('list', { name: 'Aktive Mitglieder' })
   expect(screen.getByRole('button', { name: 'Nur Schnellprofile' })).toHaveAttribute('aria-pressed', 'true')
   expect(screen.getByRole('searchbox', { name: 'Mitglieder suchen' })).toHaveValue('flink')
@@ -527,4 +528,144 @@ test('review: reconciliation treats an ambiguous rename that reached the server 
   fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(await screen.findByText('Schnellprofil umbenannt in „Lena“.')).toBeInTheDocument()
+})
+
+// Fable security review (P3) regressions.
+
+test('P3: directory memory is bound to user and session and never read from raw history data', async () => {
+  const memory = { filter: 'quick' as const, search: 'sar', listScroll: 0, pageScroll: 0 }
+  const entry = (state: unknown) => ({ pathname: groupUrl(groupId, 'members'), state })
+  const expectDefaults = async () => {
+    await screen.findByRole('list', { name: 'Aktive Mitglieder' })
+    expect(screen.getByRole('button', { name: 'Alle' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
+  }
+  api(reads('MEMBER'))
+  // Written by another account on the same tab: not restored for Frodo.
+  const foreign = offerDirectoryMemory(owner.userId, groupId, memory)
+  show(frodo, entry({ membersDirectory: foreign }))
+  await expectDefaults()
+  cleanup()
+  // Forgotten on a session change (logout, login rotation, expiry): not restored for the same user either.
+  const own = offerDirectoryMemory(frodo.userId, groupId, memory)
+  forgetDirectoryMemories()
+  show(frodo, entry({ membersDirectory: own }))
+  await expectDefaults()
+  cleanup()
+  // Plain presentation data in history state (e.g. from an older build) is ignored.
+  show(frodo, entry({ membersDirectory: memory }))
+  await expectDefaults()
+})
+
+test('P3: confirming departure retires a pending post-write read; a late 403 cannot replace the success notice', async () => {
+  let releaseRead!: (value: Response) => void
+  let releaseLeave!: (value: Response) => void
+  const heldRead = new Promise<Response>(resolve => { releaseRead = resolve })
+  const heldLeave = new Promise<Response>(resolve => { releaseLeave = resolve })
+  api({ ...reads('ADMIN'), [`GET ${base}`]: [() => response(details('ADMIN')), () => heldRead],
+    [`DELETE ${base}/members/${frodo.userId}`]: () => new Response(null, { status: 204 }),
+    [`DELETE ${base}/membership`]: () => heldLeave })
+  const { notice } = show(admin)
+  await openMenu('Frodo')
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Aus Gruppe entfernen' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Mitglied entfernen' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  fireEvent.click(screen.getByRole('button', { name: 'Playgroup verlassen' }))
+  fireEvent.click(within(screen.getByRole('dialog', { name: 'Playgroup verlassen?' })).getByRole('button', { name: 'Gruppe verlassen' }))
+  await waitFor(() => expect(screen.queryByText('Aragorn')).not.toBeInTheDocument())
+  // The post-write read now answers 403 because the departure was committed: it must be ignored.
+  await act(async () => releaseRead(response({}, 403)))
+  expect(screen.queryByText('Aragorn')).not.toBeInTheDocument()
+  expect(screen.queryByText('Commander-Runde')).not.toBeInTheDocument()
+  await act(async () => releaseLeave(new Response(null, { status: 204 })))
+  expect(await screen.findByText('Route /playgroups')).toBeInTheDocument()
+  expect(notice.mock.calls).toEqual([[{ kind: 'success', message: 'Du hast die Playgroup erfolgreich verlassen.' }]])
+})
+
+test('P3: a late successful post-write read cannot re-show the roster while departure is pending', async () => {
+  let releaseRead!: (value: Response) => void
+  const heldRead = new Promise<Response>(resolve => { releaseRead = resolve })
+  api({ ...reads('ADMIN'), [`GET ${base}`]: [() => response(details('ADMIN')), () => heldRead],
+    [`DELETE ${base}/members/${frodo.userId}`]: () => new Response(null, { status: 204 }),
+    [`DELETE ${base}/membership`]: () => new Promise<Response>(() => {}) })
+  show(admin)
+  await openMenu('Frodo')
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Aus Gruppe entfernen' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Mitglied entfernen' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  fireEvent.click(screen.getByRole('button', { name: 'Playgroup verlassen' }))
+  fireEvent.click(within(screen.getByRole('dialog', { name: 'Playgroup verlassen?' })).getByRole('button', { name: 'Gruppe verlassen' }))
+  await act(async () => releaseRead(response(details('ADMIN', roster.filter(m => m !== frodo)))))
+  // Let any late read chain (details, then transfer status) settle completely before asserting.
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 50)) })
+  expect(screen.queryByText('Aragorn')).not.toBeInTheDocument()
+  expect(screen.queryByText('Commander-Runde')).not.toBeInTheDocument()
+})
+
+test('P3: an initial transfer-status 403 re-reads the group at once and retires it on confirmed loss', async () => {
+  const server = api({ ...reads('ADMIN'), [`GET ${base}`]: [() => response(details('ADMIN')), () => response({}, 403)],
+    [`GET ${transferBase}`]: () => response({}, 403) })
+  const { notice } = show(admin)
+  expect(await screen.findByText('Route /playgroups')).toBeInTheDocument()
+  expect(notice).toHaveBeenCalledWith({ kind: 'error', message: 'Du hast keinen Zugriff mehr auf diese Playgroup.' })
+  expect(server.calls('GET', base)).toHaveLength(2)
+})
+
+test('P3: a transfer-status 403 after demotion re-reads the role and drops menus without user action', async () => {
+  api({ ...reads('ADMIN'), [`GET ${base}`]: [() => response(details('ADMIN')), () => response(details('MEMBER', roster.map(m => m === admin ? { ...m, role: 'MEMBER' as const } : m)))],
+    [`GET ${transferBase}`]: () => response({}, 403) })
+  show(admin)
+  await waitFor(() => expect(rowOf('Saruman')).toHaveTextContent('Mitglied'))
+  expect(within(rowOf('Frodo')).queryByRole('button', { name: /Aktionen/ })).not.toBeInTheDocument()
+  expect(screen.queryByText('Der Status der Eigentümerübertragung konnte nicht geprüft werden.')).not.toBeInTheDocument()
+})
+
+test('P3: a refresh whose transfer read answers 403 twice keeps the unverified warning instead of looping', async () => {
+  const server = api({ ...reads('OWNER'), [`GET ${transferBase}`]: [() => response({}, 404), () => response({}, 403)],
+    [`DELETE ${base}/members/${frodo.userId}`]: () => new Response(null, { status: 204 }) })
+  show()
+  await openMenu('Frodo')
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Aus Gruppe entfernen' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Mitglied entfernen' }))
+  expect(await screen.findByText('Der Status der Eigentümerübertragung konnte nicht geprüft werden.')).toBeInTheDocument()
+  // Initial read + post-write refresh + exactly one authoritative re-read after the 403.
+  expect(server.calls('GET', base)).toHaveLength(3)
+})
+
+test('P3: a notices 403 confirms membership and retires the group', async () => {
+  api({ ...reads('MEMBER'), [`GET ${base}`]: [() => response(details('MEMBER')), () => response({}, 403)],
+    [`GET ${transferBase}/notices`]: () => response({}, 403) })
+  const { notice } = show(frodo)
+  expect(await screen.findByText('Route /playgroups')).toBeInTheDocument()
+  expect(notice).toHaveBeenCalledWith({ kind: 'error', message: 'Du hast keinen Zugriff mehr auf diese Playgroup.' })
+})
+
+test('P3: the creation dialog does not reopen after the server reports the new profile as gone', async () => {
+  const created: GroupMember = { userId: uid(6), username: 'Mutiger Dachs', role: 'MEMBER', quickProfile: true }
+  api({ ...reads('MEMBER'), [`GET ${base}`]: [() => response(details('MEMBER')), () => response(details('MEMBER', [...roster, created])), () => response(details('MEMBER'))],
+    [`POST ${base}/quick-profiles`]: () => response(created, 201),
+    [`PATCH ${base}/quick-profiles/${created.userId}`]: () => response({}, 404) })
+  show(frodo)
+  await screen.findByRole('list', { name: 'Aktive Mitglieder' })
+  fireEvent.click(screen.getByRole('button', { name: /Schnellprofil erstellen/ }))
+  fireEvent.click(within(await screen.findByRole('dialog', { name: 'Schnellprofil erstellt' })).getByRole('button', { name: 'Namen ändern' }))
+  fireEvent.change(await screen.findByRole('textbox', { name: 'Profilname' }), { target: { value: 'Lena' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Dieses Mitglied ist nicht mehr aktiv.')
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(screen.queryByText('Mutiger Dachs')).not.toBeInTheDocument()
+})
+
+test('P3: ambiguous-rename reconciliation compares the server canonical name (trailing space, NFC)', async () => {
+  const decomposed = 'Rene\u0301 '
+  const canonical = 'Ren\u00e9'
+  api({ ...reads('MEMBER'), [`GET ${base}`]: [() => response(details('MEMBER')), () => response(details('MEMBER', roster.map(m => m === quick ? { ...quick, username: canonical } : m)))],
+    [`PATCH ${base}/quick-profiles/${quick.userId}`]: () => Promise.reject(new Error('offline')) })
+  show(frodo)
+  await openMenu('Flinker Waschbär')
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Schnellprofil umbenennen' }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Profilname' }), { target: { value: decomposed } })
+  fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(await screen.findByText(`Schnellprofil umbenannt in „${canonical}“.`)).toBeInTheDocument()
 })
