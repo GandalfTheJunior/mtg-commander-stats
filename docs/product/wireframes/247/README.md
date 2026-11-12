@@ -2,7 +2,7 @@
 
 This directory contains repository-local copies of **seven Product Owner-approved mobile functional wireframes** from [issue #247](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/247), covering quick-profile claim invitation management, share/QR, preview, confirmation and error states.
 
-**Archive status:** all seven scenario images have been uploaded and **individually visually inspected**. **Two files (01 and 02) are JPEG, not PNG.** The five remaining files are PNG. Issue #247 describes seven approved original attachments; the original external attachment bytes were not independently retrieved, so neither the exact original encoding nor byte-for-byte equality is established. The current images match their scenario descriptions and version labels. If strict archival preservation of original PNG files is required, replace JPEG 01 and 02 with verified original PNGs before treating this archive as a byte-preserving copy.
+**Archive status: PO-approved visual archive (2026-11-13).** All seven scenario images are uploaded and individually visually inspected. **The Product Owner explicitly accepts the two committed JPEGs for wireframes 01 and 02 as sufficient visual documentation**; images 03–07 remain PNG. No replacement or format conversion is required for this visual archive. The original external GitHub attachment bytes were not independently retrieved, so this acceptance **does not claim byte-for-byte identity, original PNG encoding or lossless archival preservation**.
 
 The approved written specification in #247 remains authoritative for runtime behavior, security and error handling. These functional wireframes govern hierarchy, controls, grouping and navigation, not pixel-perfect styling or decorative design.
 
@@ -30,7 +30,8 @@ All image files below are the **actual committed filenames**. Every file was ind
 - **Verified:** Markdown relative links exactly match the committed filenames.
 - **Not verified:** external original attachment byte equality; no claim that JPEG 01/02 are original PNG binaries or losslessly preserved.
 - **Not run:** application builds, unit/integration tests or browser tests (documentation-only).
-- **Before archive merge:** PO/reviewer must decide whether the two JPEG images are an acceptable visual archive or original PNGs are required, and verify required CI on the final PR HEAD. The PO alone may merge.
+- **PO decision (2026-11-13):** JPEGs 01 and 02 are accepted for this **visual wireframe archive**; no PNG replacement is required. This explicitly resolves the prior format decision without changing the original external-attachment provenance limitation.
+- **Before archive merge:** Verify required CI on the final PR HEAD and complete independent review. The PO alone may merge.
 
 ## Implementation preflight and scope
 
