@@ -50,10 +50,13 @@ export const scryfallUnavailable = 'Scryfall is currently imprisoned in the moon
 
 export class ApiError extends Error {
   readonly status: number
+  /** Stable problem `code` (or the first field error code), when the server provides one. */
+  readonly code?: string
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code?: string) {
     super(message)
     this.status = status
+    if (code) this.code = code
   }
 }
 
@@ -77,21 +80,25 @@ const requestDefaults = {
   credentials: 'same-origin' as const,
 }
 
-async function errorMessage(response: Response, fallback: string) {
+async function problemOf(response: Response, fallback: string): Promise<{ message: string; code?: string }> {
   try {
     const problem: unknown = await response.json()
-    if (
-      typeof problem === 'object' &&
-      problem !== null &&
-      'detail' in problem &&
-      typeof problem.detail === 'string'
-    ) {
-      return problem.detail
+    if (typeof problem === 'object' && problem !== null) {
+      const record = problem as Record<string, unknown>
+      const firstError = Array.isArray(record.errors) ? record.errors[0] as unknown : undefined
+      const code = typeof record.code === 'string' ? record.code
+        : typeof firstError === 'object' && firstError !== null && typeof (firstError as Record<string, unknown>).code === 'string'
+          ? (firstError as Record<string, string>).code : undefined
+      return { message: typeof record.detail === 'string' ? record.detail : fallback, ...(code ? { code } : {}) }
     }
   } catch {
     // Use the stable, operation-specific fallback for non-JSON responses.
   }
-  return fallback
+  return { message: fallback }
+}
+
+async function errorMessage(response: Response, fallback: string) {
+  return (await problemOf(response, fallback)).message
 }
 
 async function currentUserFrom(response: Response): Promise<CurrentUser> {
@@ -190,7 +197,7 @@ async function getCsrf(signal?: AbortSignal): Promise<CsrfToken> {
   return { headerName: csrf.headerName, token: csrf.token }
 }
 
-async function unsafeRequest(method: 'POST' | 'PUT' | 'DELETE', path: string, input?: object, signal?: AbortSignal, extraHeaders: Record<string, string> = {}) {
+async function unsafeRequest(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, input?: object, signal?: AbortSignal, extraHeaders: Record<string, string> = {}) {
   const csrf = await getCsrf(signal)
   signal?.throwIfAborted()
   return fetch(path, {
@@ -297,7 +304,8 @@ function groupFrom(value: unknown): GroupSummary {
 
 async function checkedResponse(response: Response, status: number, fallback: string) {
   if (!response.ok) {
-    throw new ApiError(await errorMessage(response, fallback), response.status)
+    const problem = await problemOf(response, fallback)
+    throw new ApiError(problem.message, response.status, problem.code)
   }
   if (response.status !== status) throw new Error('The server returned an unexpected response.')
   return response
@@ -360,6 +368,98 @@ export async function createQuickProfile(groupId: string, signal?: AbortSignal):
   const profile = memberFrom(await response.json())
   if (!profile.quickProfile) throw new Error('The server returned an invalid quick profile.')
   return profile
+}
+
+const groupPath = (groupId: string) => `/api/groups/${encodeURIComponent(groupId)}`
+const quickProfilePath = (groupId: string, userId: string) => `${groupPath(groupId)}/quick-profiles/${encodeURIComponent(userId)}`
+
+/** Renames a quick profile; 409 carries `QUICK_PROFILE_NAME_TAKEN` (#223). */
+export async function renameQuickProfile(groupId: string, userId: string, name: string, signal?: AbortSignal): Promise<GroupMember> {
+  const response = await checkedResponse(await unsafeRequest('PATCH', quickProfilePath(groupId, userId), { name }, signal),
+    200, 'Das Schnellprofil konnte nicht umbenannt werden.')
+  const profile = memberFrom(await response.json())
+  if (!profile.quickProfile || profile.userId.toLowerCase() !== userId.toLowerCase()) throw new Error('The server returned an invalid quick profile.')
+  return profile
+}
+
+export async function deleteQuickProfile(groupId: string, userId: string, signal?: AbortSignal): Promise<void> {
+  await checkedResponse(await unsafeRequest('DELETE', quickProfilePath(groupId, userId), undefined, signal), 204, 'Das Schnellprofil konnte nicht gelöscht werden.')
+}
+
+/** OWNER-only promotion/demotion of a registered member (#185). */
+export async function changeMemberRole(groupId: string, userId: string, role: 'ADMIN' | 'MEMBER', signal?: AbortSignal): Promise<GroupMember> {
+  const response = await checkedResponse(await unsafeRequest('PATCH', `${groupPath(groupId)}/members/${encodeURIComponent(userId)}/role`, { role }, signal),
+    200, 'Die Rolle konnte nicht geändert werden.')
+  const member = memberFrom(await response.json())
+  if (member.userId.toLowerCase() !== userId.toLowerCase() || member.role !== role) throw new Error('The server did not confirm the role change.')
+  return member
+}
+
+export async function removeMember(groupId: string, userId: string, signal?: AbortSignal): Promise<void> {
+  await checkedResponse(await unsafeRequest('DELETE', `${groupPath(groupId)}/members/${encodeURIComponent(userId)}`, undefined, signal), 204, 'Das Mitglied konnte nicht entfernt werden.')
+}
+
+export type TransferState = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELLED'
+export type OwnershipTransfer = {
+  id: string; groupId: string; requesterId: string; requesterUsername: string
+  targetUserId: string; targetUsername: string; state: TransferState
+}
+const transferPath = (groupId: string) => `${groupPath(groupId)}/ownership-transfer`
+
+function transferFrom(value: unknown, groupId: string): OwnershipTransfer {
+  if (!isRecord(value) || !isUuid(value.id) || !isUuid(value.groupId) || value.groupId.toLowerCase() !== groupId.toLowerCase() ||
+    !isUuid(value.requesterId) || !isUuid(value.targetUserId) || typeof value.requesterUsername !== 'string' || !value.requesterUsername ||
+    typeof value.targetUsername !== 'string' || !value.targetUsername ||
+    !['PENDING', 'ACCEPTED', 'DECLINED', 'CANCELLED'].includes(value.state as string)) {
+    throw new Error('The server returned an invalid ownership transfer.')
+  }
+  return { id: value.id, groupId: value.groupId, requesterId: value.requesterId, requesterUsername: value.requesterUsername,
+    targetUserId: value.targetUserId, targetUsername: value.targetUsername, state: value.state as TransferState }
+}
+
+/** Pending request visible to the current OWNER or its named ADMIN; `null` when none is visible (404). */
+export async function getOwnershipTransfer(groupId: string, signal?: AbortSignal): Promise<OwnershipTransfer | null> {
+  const response = await fetch(transferPath(groupId), { ...requestDefaults, cache: 'no-store', ...(signal ? { signal } : {}) })
+  if (response.status === 404) return null
+  const transfer = transferFrom(await (await checkedResponse(response, 200, 'Der Status der Eigentümerübertragung konnte nicht geladen werden.')).json(), groupId)
+  if (transfer.state !== 'PENDING') throw new Error('The server returned a resolved transfer as pending.')
+  return transfer
+}
+
+export async function offerOwnership(groupId: string, targetUserId: string, signal?: AbortSignal): Promise<OwnershipTransfer> {
+  const transfer = transferFrom(await (await checkedResponse(await unsafeRequest('POST', transferPath(groupId), { targetUserId }, signal),
+    201, 'Das Angebot konnte nicht gesendet werden.')).json(), groupId)
+  if (transfer.state !== 'PENDING' || transfer.targetUserId.toLowerCase() !== targetUserId.toLowerCase()) throw new Error('The server did not confirm the offer.')
+  return transfer
+}
+
+async function respondToTransfer(groupId: string, requestId: string, answer: 'accept' | 'decline', signal?: AbortSignal) {
+  const transfer = transferFrom(await (await checkedResponse(await unsafeRequest('POST', `${transferPath(groupId)}/${answer}`, { requestId }, signal),
+    200, 'Die Antwort konnte nicht bestätigt werden.')).json(), groupId)
+  if (transfer.id.toLowerCase() !== requestId.toLowerCase() || transfer.state !== (answer === 'accept' ? 'ACCEPTED' : 'DECLINED')) {
+    throw new Error('The server did not confirm the response.')
+  }
+  return transfer
+}
+export const acceptOwnership = (groupId: string, requestId: string, signal?: AbortSignal) => respondToTransfer(groupId, requestId, 'accept', signal)
+export const declineOwnership = (groupId: string, requestId: string, signal?: AbortSignal) => respondToTransfer(groupId, requestId, 'decline', signal)
+
+export async function withdrawOwnership(groupId: string, requestId: string, signal?: AbortSignal): Promise<void> {
+  await checkedResponse(await unsafeRequest('DELETE', transferPath(groupId), { requestId }, signal), 204, 'Die Anfrage konnte nicht zurückgezogen werden.')
+}
+
+/** Up to 20 unacknowledged ACCEPTED/DECLINED outcomes for the original requester; GET never consumes them. */
+export async function listOwnershipNotices(groupId: string, signal?: AbortSignal): Promise<OwnershipTransfer[]> {
+  const response = await checkedResponse(await fetch(`${transferPath(groupId)}/notices`, { ...requestDefaults, cache: 'no-store', ...(signal ? { signal } : {}) }),
+    200, 'Could not load ownership notices.')
+  const body: unknown = await response.json()
+  if (!Array.isArray(body)) throw new Error('The server returned invalid ownership notices.')
+  return body.map(value => transferFrom(value, groupId)).filter(notice => notice.state === 'ACCEPTED' || notice.state === 'DECLINED')
+}
+
+export async function acknowledgeOwnershipNotice(groupId: string, noticeId: string, signal?: AbortSignal): Promise<void> {
+  await checkedResponse(await unsafeRequest('POST', `${transferPath(groupId)}/notices/${encodeURIComponent(noticeId)}/acknowledge`, undefined, signal),
+    204, 'Could not acknowledge the ownership notice.')
 }
 
 const quickProfileDecksPath = (groupId: string, userId: string) =>

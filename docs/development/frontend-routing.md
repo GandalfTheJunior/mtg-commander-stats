@@ -16,13 +16,14 @@ not force scroll reset. The fixed collection Back link targets `/playgroups`.
 | `/playgroups/:groupId` | Freshly authorized Overview |
 | `/playgroups/:groupId/games` | Games history |
 | `/playgroups/:groupId/statistics` | #197 statistics landing with three fixed teasers |
-| `/playgroups/:groupId/members` | Active members |
+| `/playgroups/:groupId/members` | #198 Members directory and administration |
 | `/playgroups/:groupId/games/new` | Focused game creation |
 | `/playgroups/:groupId/games/:gameId` | Freshly authorized game details |
 | `/playgroups/:groupId/games/:gameId/edit` | Focused game edit after fresh permission check |
 | `/playgroups/:groupId/statistics/reports` | #197 All Statistics chooser |
 | `/playgroups/:groupId/statistics/reports/{players,decks,starting-seats,mana-colors}` | #197 focused read-only reports |
-| `/playgroups/:groupId/members/:memberId/decks` and `/playgroups/:groupId/members/:memberId/decks/new` | Guarded child hosts; #198/#199/#196 integration pending |
+| `/playgroups/:groupId/members/:memberId/decks` | Guarded child host; #199 read-only member decks pending |
+| `/playgroups/:groupId/members/:memberId/decks/new` | #198 focused quick-profile deck editor (reuses the #196 `DeckForm` context) |
 | `/decks`, `/decks/new`, `/decks/:deckId/edit` | Personal collection and focused editors |
 | `/invite/:code`, `/claim/:code` | Public placeholders before the auth gate; #200/#247 own preview and transactions |
 
@@ -125,6 +126,63 @@ guards reject late responses even when a transport ignores abort. Session epochs
 still fence callbacks across logout and same-UUID or different-UUID login.
 Aborting a request cannot undo a write the server has already received; returning
 to the section reloads server state and never automatically retries a write.
+
+## Members directory and administration (#198)
+
+`GroupPage` owns group details, the pending ownership transfer and short toasts;
+`MembersDirectory` renders the Members tab. Only `GET /api/groups/{groupId}`
+supplies the roster in server order (role, name, UUID); no separate list read.
+`membersModel.ts` holds the actor/target action matrix, which only decides the
+offered affordances. A row without an authorized action has no three-dot
+trigger. The server stays authoritative: every confirmed write is followed by
+an authoritative re-read of details and transfer status, and failed or
+ambiguous writes (403/404/409, network, 5xx) are reconciled by that read and
+never reported as success. 401 expires the session; a re-read that is denied
+retires the group with the standard access-loss notice.
+
+- Filter **Alle | Nur registrierte Nutzer | Nur Schnellprofile** and the name
+  search are presentation only. The search appears when the unfiltered roster
+  would exceed the bounded list area (measured row height × roster size against
+  the list's max height; eight rows when layout cannot be measured) or a term
+  is entered. Duplicate names use the #192 `displaySuffixes` UUID prefixes.
+- Whole-row activation opens `/members/:memberId/decks`. Before pushing, the
+  directory stores its filter, search and list/page scroll in memory
+  (`membersModel.ts`), bound to the current user and group, and writes only an
+  opaque `membersDirectory` token into its own history entry. Back restores it;
+  `GroupPage` then focuses the heading without scrolling. Like the game
+  handoffs, every session change (logout, login rotation, expiry, session
+  check) forgets all memories, so a reload, another tab or another account on
+  the same tab starts at the defaults. Creating a quick profile resets to
+  Alle, clears search and reveals the new row; ordinary renames do not.
+- **Deck erstellen** opens the focused editor at `/members/:memberId/decks/new`
+  for active quick profiles only. A confirmed save replaces the editor entry
+  with the member-decks route; cancel returns through history.
+- Ownership transfer: GET status is read only for OWNER/ADMIN viewers (404 means
+  none visible). The OWNER requester sees a compact pending status in Members and
+  withdraws with the request ID, without a second dialog. The target ADMIN sees a
+  banner above the tabs on every group tab; decline is immediate, accept needs
+  the final confirmation. Every response uses the held request ID.
+  All reads and confirmed writes that set transfer state share one ordering
+  counter, so an earlier response never replaces a later confirmed state. Only
+  an authoritative 404 (or a MEMBER role) clears it; a failed status read keeps
+  the last confirmed transfer, blocks new offers and offers **Erneut versuchen**.
+  A 403 on the status or notices read is authoritative (demoted or inactive):
+  the group is re-read at once, which downgrades the role or retires the group.
+  A second 403 within one refresh marks the status unverified instead of looping.
+- An ambiguous rename (network, 5xx, malformed response) keeps the typed name and
+  awaits an authoritative read before any retry. If the read shows the new name,
+  the rename counts as confirmed (compared in the server's canonical form: NFC,
+  boundary whitespace stripped); if it fails, saving stays blocked behind
+  **Stand erneut prüfen**. If the server reports the profile as gone, no rename or
+  creation dialog stays open.
+- Durable outcome notices are read on each group route mount, shown once each
+  as a toast, acknowledged only after presentation, and re-read until drained.
+  A failed read or acknowledgement stops draining and stays retryable.
+- **Spieler einladen** is shown for every role but only announces that
+  invitations are not yet available until #200 provides the sharing flow.
+
+`frontend/e2e/members.pw.ts` covers 320/375/390/1280px layouts, touch targets,
+horizontal overflow, sticky search and Back restoration with synthetic API data.
 
 ## Game history and Spieldetails
 
@@ -251,7 +309,10 @@ The manual join form and reusable-code management screen are retired by #190.
 
 ### Departure lifetime
 
-Only a freshly authorized MEMBER can confirm departure. Cancel/Escape send no
+Only a freshly authorized MEMBER or ADMIN can confirm departure, from the quiet
+**Playgroup verlassen** action below the Members directory. Starting the write
+also retires every pending authoritative re-read, so a late response can neither
+re-show the roster nor turn a confirmed departure into an access-loss notice. Cancel/Escape send no
 DELETE. Starting the write hides private details. Exact HTTP 204 announces success
 and returns to the collection. Every other outcome rechecks membership without
 repeating DELETE or claiming success; 401 expires the session, lost access retires

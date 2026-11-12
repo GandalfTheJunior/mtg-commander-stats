@@ -10,12 +10,16 @@ import { spotlightPlayers } from './statisticsOrder'
 import { recentGames } from './api'
 
 const base = `/api/groups/${group.id}`
+// #198 ownership-transfer status and notice reads are routed to their own spy, so the
+// Overview's own request order stays observable through the returned mock.
+const transferReads = vi.fn((path: string) => Promise.resolve(path.endsWith('/notices') ? response([]) : response({}, 404)))
 function setup(games: unknown[] = [{ ...recorded(), playedOn: '2026-11-01' }], stats = statistics()) {
   const mock = vi.fn((path: string, init?: RequestInit) => {
     void init
     return Promise.resolve(response(path === base ? group : path.endsWith('/history') ? { games, nextCursor: null } : stats))
   })
-  vi.stubGlobal('fetch', mock)
+  transferReads.mockClear()
+  vi.stubGlobal('fetch', vi.fn((path: string, init?: RequestInit) => path.includes('/ownership-transfer') ? transferReads(path) : mock(path, init)))
   return mock
 }
 function show(unauthorized = vi.fn(), notice = vi.fn()) {
@@ -43,6 +47,7 @@ test('Overview shows one compact spotlight and three games with group-scoped des
   expect(within(screen.getByRole('list', { name: 'Gesamtsiegquoten' })).getAllByRole('listitem')).toHaveLength(3)
   expect(screen.getByText('8,33 %')).toBeInTheDocument()
   expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([base, `${base}/games/history`, `${base}/statistics`])
+  await waitFor(() => expect(transferReads.mock.calls.map(([path]) => path).sort()).toEqual([`${base}/ownership-transfer`, `${base}/ownership-transfer/notices`]))
 })
 
 test('draws and unknown dates never invent a winner, deck or recording date', async () => {

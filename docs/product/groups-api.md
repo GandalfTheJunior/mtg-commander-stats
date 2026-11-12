@@ -144,7 +144,7 @@ retry. All active roles may create invitations.
 
 V11 extends the role CHECK constraint additively. Existing OWNER/MEMBER rows,
 the unique active OWNER index and deferred designated-owner checks are retained.
-The Members administration and invitation UI remain separate frontend work.
+The Members administration UI is implemented by #198; the invitation UI remains separate (#200).
 
 ## Status and error behavior
 
@@ -278,7 +278,7 @@ stored. Consumed and revoked rows remain for audit; a claimed profile's
 
 ## Ownership transfer
 
-Ownership transfer is a backend prerequisite for the future Members UI. All
+Ownership transfer backs the #198 Members UI. All
 routes below are under `/api/groups/{groupId}/ownership-transfer`. Session and
 CSRF requirements are unchanged. No frontend, email, push or live notification
 infrastructure is included.
@@ -333,7 +333,7 @@ including in existing sessions.
 
 ### Frontend handoff and durable outcomes
 
-The future frontend renders the pending banner only for the target ADMIN above
+The frontend (#198) renders the pending banner only for the target ADMIN above
 the group tabs, using requester display information. Acceptance requires an
 explicit confirmation dialog describing both role changes. The OWNER sees pending
 status and can withdraw using that request's ID. Decline needs no extra dialog.
@@ -354,4 +354,5 @@ outcomes. Acknowledging another recipient's or non-outcome ID returns 404.
 Withdrawal creates no notice. The incoming OWNER's immediate success toast uses
 the confirmed acceptance response; the former OWNER's next-open toast uses these
 persisted outcomes. Retain the request ID locally during actions and refresh
-authoritative state after conflicts. UI implementation remains separate.
+authoritative state after conflicts. See the
+[frontend routing notes](../development/frontend-routing.md#members-directory-and-administration-198).

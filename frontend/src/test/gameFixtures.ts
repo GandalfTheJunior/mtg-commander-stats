@@ -40,6 +40,9 @@ export function gameApi(initial: Game[] = []) {
     if (reply) return reply(init)
     if (path.endsWith('/statistics')) return response(state.statistics)
     if (path === '/api/csrf') return response({ headerName: 'X-CSRF-TOKEN', token: 'game-token' })
+    // #198 reads on every group route: no visible pending transfer and no outcome notices.
+    if (/^\/api\/groups\/[^/]+\/ownership-transfer$/.test(path) && method === 'GET') return response({}, 404)
+    if (/^\/api\/groups\/[^/]+\/ownership-transfer\/notices$/.test(path)) return response([])
     if (path === `/api/groups/${group.id}`) return response(group)
     if (path === `/api/groups/${group.id}/games/history`) return response({ games: state.history.map(game => ({ ...game, playedOn: null })), nextCursor: null })
     if (path === `/api/groups/${group.id}/games` && method === 'GET') return response(state.history)
