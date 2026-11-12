@@ -25,7 +25,8 @@ not force scroll reset. The fixed collection Back link targets `/playgroups`.
 | `/playgroups/:groupId/members/:memberId/decks` | #199 read-only member deck overview |
 | `/playgroups/:groupId/members/:memberId/decks/new` | #198 focused quick-profile deck editor (reuses the #196 `DeckForm` context) |
 | `/decks`, `/decks/new`, `/decks/:deckId/edit` | Personal collection and focused editors |
-| `/invite/:code`, `/claim/:code` | Public placeholders before the auth gate; #200/#247 own preview and transactions |
+| `/invite/:code` | #200 public invitation preview before the auth gate; explicit join after authentication |
+| `/claim/:code` | Public placeholder before the auth gate; #247 owns preview and claim |
 
 Protected routes confirm `/api/me` before mounting private content. Login resumes
 only an allowlisted in-app pathname and then authorizes its resource. Group IDs
@@ -178,8 +179,8 @@ retires the group with the standard access-loss notice.
 - Durable outcome notices are read on each group route mount, shown once each
   as a toast, acknowledged only after presentation, and re-read until drained.
   A failed read or acknowledgement stops draining and stays retryable.
-- **Spieler einladen** is shown for every role but only announces that
-  invitations are not yet available until #200 provides the sharing flow.
+- **Spieler einladen** opens the #200 invitation dialog for every active role;
+  see [single-use invitations](#single-use-invitations-200).
 
 `frontend/e2e/members.pw.ts` covers 320/375/390/1280px layouts, touch targets,
 horizontal overflow, sticky search and Back restoration with synthetic API data.
@@ -729,3 +730,47 @@ route/session cleanup ignores late responses. Browser fixtures cover populated,
 empty, loading and error states at 320/390/1280px, keyboard focus, overflow,
 long names, dual/missing/broken artwork and canonical destinations. These checks
 use intercepted non-sensitive data, not a live backend or physical-device test.
+
+## Single-use invitations (#200)
+
+- **Creation:** each deliberate **Spieler einladen** sends exactly one
+  `POST /api/groups/{groupId}/invitations` from the click handler (never from an
+  effect, so StrictMode cannot duplicate it). While it is pending the trigger is
+  `aria-disabled` but keeps focus, and repeats are ignored. Closing discards only
+  the presentation; reopening issues a new independent invitation. 401/403/404
+  reuse the group's session and access-loss handling; other failures show the
+  retry/close dialog without any link.
+- **Link:** `new URL('/invite/<code>', origin)`. The origin is the optional
+  build-time `VITE_PUBLIC_APP_URL` (only its origin is used) or the serving
+  origin. Share, copy and the QR code use this identical URL. The QR code is
+  rendered locally as SVG with `qrcode-generator` (error correction M, four-module
+  white quiet zone); no QR service or API is involved. Native share appears only
+  when `navigator.share` (and `canShare`, if present) allow it; otherwise
+  **Link kopieren** is primary. **Link kopiert** appears only after the clipboard
+  promise resolves; denial shows a selected read-only field with the link.
+- **Preview:** `/invite/:code` renders before the auth gate for checking,
+  signed-out and signed-in sessions. Malformed codes are unavailable without a
+  request. `GET /api/invitations/{code}` is sent with `credentials: 'omit'`,
+  `cache: 'no-store'` and `referrerPolicy: 'no-referrer'`; 400 means
+  unavailable, while network errors, 5xx and 429 are retryable with the same
+  token (429 disables the manual retry for `Retry-After`, default 60 s). The page
+  is keyed by session epoch and path, so login, logout and account switches
+  discard its state and revalidate the preview.
+- **Auth return:** **Anmelden**/**Registrieren** push the same `/invite/:code`
+  URL with history state `inviteAuth`, which shows the unchanged auth screen plus
+  a short invitation note and focuses the chosen form. History state survives
+  reload; Back returns to the preview. Login resumes the allowlisted invite path;
+  registration alone never signs in or joins.
+- **Join:** only **Playgroup beitreten** sends `POST /api/groups/join` with
+  `{ code }` and CSRF; a ref guard blocks concurrent submissions. 200 replaces the
+  invite entry with the group Overview and passes an in-memory single-use
+  `groupJoined` handoff for the success notice (a reload never replays it). 409
+  shows **Du bist bereits Mitglied**; 400 the shared unavailable state; 401 the
+  existing session-expiry handling; other failures stay retryable.
+- **Leakage:** `index.html` sets `<meta name="referrer" content="no-referrer">`
+  for the whole app. The Vite dev/preview servers send `Cache-Control: no-store`
+  and `Referrer-Policy: no-referrer` on `/invite/*`; production hosting must do
+  the same (see the [cutover runbook](invitation-cutover.md)).
+- **Tests:** `src/Invitation.test.tsx` (integration) and
+  `e2e/invitations.pw.ts` (320/375/390/1280px, Chromium and WebKit, decodes the
+  rendered QR code with the dev-only `jsqr`).

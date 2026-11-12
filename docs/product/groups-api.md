@@ -144,7 +144,7 @@ retry. All active roles may create invitations.
 
 V11 extends the role CHECK constraint additively. Existing OWNER/MEMBER rows,
 the unique active OWNER index and deferred designated-owner checks are retained.
-The Members administration UI is implemented by #198; the invitation UI remains separate (#200).
+The Members administration UI is implemented by #198; the invitation UI is implemented by #200.
 
 ## Status and error behavior
 

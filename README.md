@@ -318,6 +318,12 @@ starts automatically. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` for a system
 Chromium and `MTG_SCREENSHOTS` for an additional screenshot directory. The tests
 cover 320, 390 and 1280px widths; CI also runs them with WebKit.
 
+Single-use invitations #200 (Members dialog, QR code, public preview, auth return
+and join states) are covered by `frontend/e2e/invitations.pw.ts` with synthetic
+API responses, including decoding the rendered QR code. Shared invitation links
+use the serving origin unless `VITE_PUBLIC_APP_URL` is set at build time; see the
+[invitation cutover runbook](docs/development/invitation-cutover.md).
+
 Statistics browser checks use synthetic API responses:
 with Vite running, run `python tools/ui/verify-statistics.py` (Python Playwright
 and Chromium required). `MTG_UI_URL`, `CHROMIUM_PATH` and `MTG_SCREENSHOTS` override
