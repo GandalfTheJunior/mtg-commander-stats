@@ -3,9 +3,12 @@
 -- that temporary session records stay separate from application data in
 -- `public` (demo seeding, data-only exports, empty-database checks).
 -- Flyway owns this schema; Spring Session's own initializer is disabled.
-CREATE SCHEMA session_store;
+-- The session store is database-wide rather than relative to Flyway's default
+-- schema, so creation is idempotent when the migration chain is applied to an
+-- additional schema of the same database (as migration tests do).
+CREATE SCHEMA IF NOT EXISTS session_store;
 
-CREATE TABLE session_store.spring_session (
+CREATE TABLE IF NOT EXISTS session_store.spring_session (
     primary_id CHAR(36) NOT NULL,
     session_id CHAR(36) NOT NULL,
     creation_time BIGINT NOT NULL,
@@ -16,12 +19,12 @@ CREATE TABLE session_store.spring_session (
     CONSTRAINT spring_session_pk PRIMARY KEY (primary_id)
 );
 
-CREATE UNIQUE INDEX spring_session_ix1 ON session_store.spring_session (session_id);
+CREATE UNIQUE INDEX IF NOT EXISTS spring_session_ix1 ON session_store.spring_session (session_id);
 -- Supports the periodic bounded delete of expired rows.
-CREATE INDEX spring_session_ix2 ON session_store.spring_session (expiry_time);
-CREATE INDEX spring_session_ix3 ON session_store.spring_session (principal_name);
+CREATE INDEX IF NOT EXISTS spring_session_ix2 ON session_store.spring_session (expiry_time);
+CREATE INDEX IF NOT EXISTS spring_session_ix3 ON session_store.spring_session (principal_name);
 
-CREATE TABLE session_store.spring_session_attributes (
+CREATE TABLE IF NOT EXISTS session_store.spring_session_attributes (
     session_primary_id CHAR(36) NOT NULL,
     attribute_name VARCHAR(200) NOT NULL,
     attribute_bytes BYTEA NOT NULL,
