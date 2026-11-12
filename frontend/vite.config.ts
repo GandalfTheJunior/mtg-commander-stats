@@ -4,10 +4,10 @@ import { availableParallelism } from 'node:os'
 import { configDefaults, defineConfig } from 'vitest/config'
 import type { Connect, Plugin } from 'vite'
 
-// #200: token-bearing invitation pages must not be cached or leak via Referer.
+// #200/#247: token-bearing invitation and claim pages must not be cached or leak via Referer.
 // Production hosting must send the same headers (docs/development/invitation-cutover.md).
 const invitationPageHeaders: Connect.NextHandleFunction = (request, response, next) => {
-  if (request.url?.startsWith('/invite/')) {
+  if (request.url?.startsWith('/invite/') || request.url?.startsWith('/claim/')) {
     // Vite's HTML middleware later sets its own Cache-Control; keep no-store authoritative.
     const setHeader = response.setHeader.bind(response)
     response.setHeader = (name, value) => setHeader(name, name.toLowerCase() === 'cache-control' ? 'no-store' : value)

@@ -2,7 +2,7 @@ import type { GroupMember, GroupRole } from './api'
 import { navigationToken } from './navigationToken'
 
 export type MemberFilter = 'all' | 'registered' | 'quick'
-export type MemberAction = 'promote' | 'demote' | 'transfer' | 'remove' | 'rename' | 'deck' | 'delete'
+export type MemberAction = 'promote' | 'demote' | 'transfer' | 'remove' | 'rename' | 'deck' | 'delete' | 'claim'
 /** Directory presentation kept only in the Members history entry for Back restoration (#198). */
 export type DirectoryMemory = { filter: MemberFilter; search: string; listScroll: number; pageScroll: number }
 
@@ -19,6 +19,7 @@ export const actionLabels: Record<MemberAction, string> = {
   rename: 'Schnellprofil umbenennen',
   deck: 'Deck erstellen',
   delete: 'Schnellprofil löschen',
+  claim: 'Zur Profilübernahme einladen',
 }
 /** Rows above which the search appears when layout cannot be measured (e.g. without CSS layout). */
 export const fallbackOverflowRows = 8
@@ -28,7 +29,8 @@ export const roleLabel = (member: Pick<GroupMember, 'role' | 'quickProfile'>) =>
 
 /** The #198 permission matrix. The server stays authoritative; this only decides which affordances are offered. */
 export function memberActions(viewerRole: GroupRole, viewerId: string, target: GroupMember, transferPending: boolean): MemberAction[] {
-  if (target.quickProfile) return ['rename', 'deck', ...(viewerRole === 'MEMBER' ? [] : ['delete' as const])]
+  // #247: only OWNER/ADMIN manage claim invitations; the entry is appended after the #198 actions.
+  if (target.quickProfile) return ['rename', 'deck', ...(viewerRole === 'MEMBER' ? [] : ['delete' as const, 'claim' as const])]
   if (target.userId.toLowerCase() === viewerId.toLowerCase()) return []
   if (viewerRole === 'OWNER') {
     if (target.role === 'MEMBER') return ['promote', 'remove']

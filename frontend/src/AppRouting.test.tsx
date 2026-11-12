@@ -293,10 +293,12 @@ test('pending logout retires group details and browser Back cannot resurrect the
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
 })
 
-test('signed-in claim host has a safe exit', async () => {
-  setup(); show('/claim/token')
-  expect(await screen.findByRole('link', { name: 'Zum Dashboard' })).toHaveAttribute('href', '/dashboard')
-  expect(screen.getByRole('heading', { name: 'Profilübernahme' })).toBeInTheDocument()
+test('a malformed signed-in claim link is unavailable with a safe exit and no claim request', async () => {
+  const api = setup(); show('/claim/token')
+  expect(await screen.findByRole('heading', { name: 'Einladung nicht verfügbar' })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Zur Startseite' })).toHaveAttribute('href', '/dashboard')
+  expect(screen.getByRole('heading', { level: 1, name: 'Profilübernahme' })).toBeInTheDocument()
+  expect(api.fetchMock.mock.calls.some(([path]) => String(path).startsWith('/api/profile-invitations'))).toBe(false)
 })
 
 test('a malformed signed-in invitation link is unavailable without any invitation request', async () => {

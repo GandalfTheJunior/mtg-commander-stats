@@ -433,10 +433,13 @@ test('a group 401 expires the session and clears protected content', async () =>
 })
 
 test.each(['/claim/token-value'])('public %s stays outside the protected redirect gate', async path => {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 401)))
+  // #247 replaced the former placeholder with the public claim preview; a malformed code is unavailable without a request.
+  const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}, 401))
+  vi.stubGlobal('fetch', fetchMock)
   render(<App />, path)
-  expect(await screen.findByText('Dieser Link kann noch nicht angezeigt werden.')).toBeInTheDocument()
-  expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Einladung nicht verfügbar' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { level: 1, name: 'Profilübernahme' })).toBeInTheDocument()
+  expect(fetchMock.mock.calls.some(([request]) => String(request).startsWith('/api/profile-invitations'))).toBe(false)
   expect(screen.queryByRole('navigation', { name: 'Main navigation' })).not.toBeInTheDocument()
 })
 
