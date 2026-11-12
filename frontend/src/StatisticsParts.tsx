@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Alert, Box, Button, Card, Skeleton, Stack, Typography } from '@mui/material'
 import type { DeckStatistics, PlayerCount, SeatStatistics } from './api'
@@ -59,7 +59,14 @@ const playerCounts: (PlayerCount | undefined)[] = [undefined, 2, 3, 4, 5, 6]
  * keyboard arrows and screen-reader semantics. Narrow phones use 3 × 2. */
 export function PlayerCountControl({ value, onChange }: { value?: PlayerCount; onChange: (value: PlayerCount | undefined) => void }) {
   const name = useId()
-  return <Box component="fieldset" sx={{ border: 0, p: 0, m: 0, minWidth: 0 }}>
+  // WebKit can drop :focus-visible when native arrows move between radios. As in the
+  // approved Playground pattern, keyboard input in the group keeps the ring on the
+  // focused option until pointer input or focus leaves the group.
+  const [keyboardFocus, setKeyboardFocus] = useState(false)
+  return <Box component="fieldset" data-keyboard-focus={keyboardFocus} sx={{ border: 0, p: 0, m: 0, minWidth: 0 }}
+    onKeyDown={event => { if (event.key.startsWith('Arrow') || event.key === ' ' || event.key === 'Tab') setKeyboardFocus(true) }}
+    onPointerDown={() => setKeyboardFocus(false)}
+    onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setKeyboardFocus(false) }}>
     <Typography component="legend" variant="body2" sx={{ color: 'text.secondary', mb: 0.5, p: 0 }}>Spielerzahl</Typography>
     <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 0.5, p: 0.5, border: '1px solid', borderColor: 'interaction.border', borderRadius: 2, bgcolor: 'background.paper',
       '@media (max-width: 360px)': { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' } }}>
@@ -67,7 +74,8 @@ export function PlayerCountControl({ value, onChange }: { value?: PlayerCount; o
         const checked = value === count
         return <Box component="label" key={count ?? 'all'} sx={{ position: 'relative', display: 'grid', placeItems: 'center', minHeight: 44, minWidth: 0, borderRadius: 1.5, cursor: 'pointer',
           fontVariantNumeric: 'tabular-nums', fontWeight: checked ? 700 : 400, color: checked ? 'secondary.contrastText' : 'text.primary',
-          bgcolor: checked ? 'secondary.main' : 'transparent', '&:hover': checked ? undefined : { bgcolor: 'interaction.hover' }, '&:has(input:focus-visible)': focusRing }}>
+          bgcolor: checked ? 'secondary.main' : 'transparent', '&:hover': checked ? undefined : { bgcolor: 'interaction.hover' }, '&:has(input:focus-visible)': focusRing,
+          '[data-keyboard-focus=true] &:has(input:focus)': focusRing }}>
           <Box component="input" type="radio" name={name} value={count ?? ''} checked={checked} onChange={() => onChange(count)}
             sx={{ position: 'absolute', inset: 0, m: 0, opacity: 0, cursor: 'pointer' }} />
           {count ?? 'Alle'}

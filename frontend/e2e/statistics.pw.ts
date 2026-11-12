@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 // Synthetic, non-sensitive fixtures for the #197 statistics landing, chooser and reports.
 const id = (n: number) => `bbbbbbbb-bbbb-4bbb-8bbb-${String(n).padStart(12, '0')}`
@@ -46,6 +46,12 @@ async function serve(page: Page, mode: { failStatistics: boolean } = { failStati
   return errors
 }
 const base = `/playgroups/${group.id}/statistics`
+async function expectKeyboardRing(radio: Locator) {
+  // Check real focus separately from :focus-visible, which WebKit can drop on native arrows.
+  await expect(radio).toBeFocused()
+  await expect(radio).toBeChecked()
+  await expect(radio.locator('xpath=..')).toHaveCSS('outline-style', 'solid')
+}
 async function capture(page: Page, name: string, width: number, full = true) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   for (const select of await page.locator('select').all()) {
@@ -84,11 +90,16 @@ for (const width of [320, 375, 390, 1280]) {
     await expect(page.getByRole('heading', { name: 'Gesamtsiegquote pro Spieler', level: 3 })).toBeVisible()
     const alle = page.getByRole('radio', { name: 'Alle' })
     await expect(alle).toBeChecked()
-    await alle.focus()
+    // Real keyboard entry: Tab from the preceding Back link into the group, then arrows.
+    await page.getByRole('link', { name: 'Zurück zu Statistiken' }).focus()
+    await page.keyboard.press('Tab')
+    await expectKeyboardRing(alle)
     await page.keyboard.press('ArrowRight')
-    await expect(page.getByRole('radio', { name: '2' })).toBeChecked()
-    expect(await page.locator('label:has(input:focus-visible)').evaluate(el => getComputedStyle(el).outlineStyle)).toBe('solid')
-    await page.getByRole('radio', { name: 'Alle' }).check()
+    await expectKeyboardRing(page.getByRole('radio', { name: '2' }))
+    // Pointer selection shows no keyboard ring.
+    await page.getByRole('radio', { name: 'Alle' }).click()
+    await expect(alle).toBeChecked()
+    await expect(alle.locator('xpath=..')).toHaveCSS('outline-style', 'none')
     await expect(page.getByRole('button', { name: /Kennung anzeigen/ })).toHaveCount(2)
     for (const option of await page.getByRole('radio').all()) {
       const box = (await option.locator('xpath=..').boundingBox())!
