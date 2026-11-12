@@ -236,6 +236,7 @@ The JSON login controller invokes Spring's `AuthenticationManager`, then
 `ChangeSessionIdAuthenticationStrategy` and `CsrfAuthenticationStrategy` before
 explicitly saving the security context in `HttpSessionSecurityContextRepository`.
 This preserves session-fixation protection and clears the pre-login CSRF token.
+Login then starts the authenticated session lifetime (see below).
 `GET /api/me` reads that principal. Logout runs behind authorization and CSRF
 filters and delegates to `CsrfLogoutHandler` and `SecurityContextLogoutHandler`
 to remove the token, clear the context, and invalidate the session.
@@ -244,10 +245,44 @@ CSRF uses `HttpSessionCsrfTokenRepository` and Spring's default masked token
 handler. `GET /api/csrf` resolves the deferred token and returns `{headerName,
 token}`, creating an anonymous session if needed. Clients retain the session
 cookie, submit the returned token in the named header, and bootstrap again after
-login or logout. Security responses are not cacheable. Session cookies retain
-framework defaults (including HttpOnly); deployment-specific settings remain
-externally configurable through Spring Boot's `server.servlet.session.*`
-properties. No shared session store or additional persistence is introduced.
+login or logout. Security responses are not cacheable.
+
+**Persistent browser sessions (#303).** Servlet sessions are stored durably in the application's PostgreSQL database
+through Spring Boot's Spring Session JDBC integration, replacing the earlier
+in-memory, process-local Tomcat sessions. The authenticated security context,
+the CSRF token and session metadata therefore survive browser closes and backend
+restarts while the database and site origin are preserved. Flyway migration V27
+creates the official Spring Session tables in the dedicated `session_store`
+schema, separate from application data in `public` (demo seeding and data-only
+exports ignore it); Spring Session's own schema initializer is disabled.
+Attributes use Spring Session's Java serialization; an unreadable attribute
+(corruption or an incompatible class after an upgrade) reads as absent, and no
+principal-name index is stored.
+
+`AuthenticatedSessionLifetime` owns the server-side policy. A successful password
+login records the server time of that login in the session and sets a 7-day
+max-inactive interval. A filter in the Spring Security chain, after CSRF
+validation and before the deferred security context is resolved, runs on every
+request with a session: it invalidates the session at or after 30 days since that
+login, and caps the idle interval by the remaining absolute lifetime so stored
+expiry times never exceed it. Authenticated state with a missing or unreadable
+login timestamp or security context is invalidated (fail closed). Spring Session
+enforces the sliding idle limit on every read, independently of its periodic
+cleanup job (default: every minute, deleting rows by the indexed `expiry_time`).
+Ordinary requests and CSRF bootstrap renew only the idle deadline; only another
+password login starts a new 30-day lifetime, for that browser session alone.
+Anonymous CSRF-bootstrap sessions keep a 30-minute idle timeout. An invalid
+session yields an anonymous request (`401` for protected APIs); a session-store
+failure propagates as a server error rather than a `401`/`403` or a confirmed logout.
+
+The `SESSION` cookie holds only the opaque session ID. It is persistent
+(`Max-Age` 30 days, set when the session ID changes at login), host-only,
+`Path=/`, `HttpOnly` and `SameSite=Lax`. `Secure` follows `request.isSecure()`;
+forwarded headers are not trusted, so HTTPS-fronted deployments set
+`server.servlet.session.cookie.secure=true` (Codespaces does so via its
+devcontainer environment). Other deployment settings remain configurable through
+Spring Boot's `server.servlet.session.*` and `spring.session.*` properties. The
+session store is the same database; no additional infrastructure is introduced.
 
 Unexpected registration and authentication service failures produce ERROR
 application diagnostics with exception types and root-cause stack frames.

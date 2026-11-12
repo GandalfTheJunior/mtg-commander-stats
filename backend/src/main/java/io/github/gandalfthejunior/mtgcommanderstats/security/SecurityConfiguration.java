@@ -1,8 +1,10 @@
 package io.github.gandalfthejunior.mtgcommanderstats.security;
 
+import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -23,6 +25,7 @@ import org.springframework.security.web.authentication.session.SessionAuthentica
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CsrfAuthenticationStrategy;
+import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
@@ -34,7 +37,7 @@ public class SecurityConfiguration {
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, SecurityContextRepository contexts,
-            CsrfTokenRepository csrfTokens) throws Exception {
+            CsrfTokenRepository csrfTokens, AuthenticatedSessionLifetime lifetime) throws Exception {
         RequestMatcher registration = PathPatternRequestMatcher.withDefaults()
                 .matcher(HttpMethod.POST, "/api/users");
         http.authorizeHttpRequests(authorize -> authorize
@@ -46,6 +49,8 @@ public class SecurityConfiguration {
                 org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER)));
         http.csrf(csrf -> csrf.csrfTokenRepository(csrfTokens).ignoringRequestMatchers(registration));
         http.securityContext(context -> context.securityContextRepository(contexts));
+        // Runs before the deferred security context is resolved by anonymous/authorization filters.
+        http.addFilterAfter(new AuthenticatedSessionLifetimeFilter(lifetime), CsrfFilter.class);
         http.requestCache(AbstractHttpConfigurer::disable);
         http.formLogin(AbstractHttpConfigurer::disable);
         http.httpBasic(AbstractHttpConfigurer::disable);
@@ -63,6 +68,11 @@ public class SecurityConfiguration {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider(users);
         provider.setPasswordEncoder(passwords);
         return new ProviderManager(provider);
+    }
+
+    @Bean
+    AuthenticatedSessionLifetime authenticatedSessionLifetime(ObjectProvider<Clock> clock) {
+        return new AuthenticatedSessionLifetime(clock.getIfAvailable(Clock::systemUTC));
     }
 
     @Bean

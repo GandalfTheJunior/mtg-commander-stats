@@ -56,6 +56,15 @@ branches can use the configuration on `main` when their branch contains it.
 - To opt out for future *new* Codespaces, change/remove `MTG_CODESPACE_DEMO_DATA` in `.devcontainer/devcontainer.json` before creation; existing Codespace data is never deleted by turning this off. The first seed may extend cold startup due to an additional Maven package build and separate demo backend.
 - Each Codespace retains its own PostgreSQL volume. A different feature-branch Codespace starts with independent baseline data and cannot see manual edits made in other Codespaces. Creating a fresh Codespace discards none of the old one until explicitly deleted.
 
+## Sign-in sessions
+
+Sign-ins are stored in the Codespace's PostgreSQL volume and survive backend
+restarts (#303). Because the app is reached over HTTPS forwarding while Vite
+proxies to the backend over local HTTP, the devcontainer sets
+`SERVER_SERVLET_SESSION_COOKIE_SECURE=true` so the session cookie is `Secure`
+without trusting forwarded headers. Codespaces created before this setting
+existed need a rebuild to pick it up.
+
 ## Build and resource availability
 
 Codespaces starts the ordinary backend with a completed Maven `package` followed

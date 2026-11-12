@@ -9,3 +9,23 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+  session:
+    # Default lifetime of anonymous (CSRF bootstrap) sessions. A successful
+    # password login switches its session to the authenticated policy
+    # (7-day idle, 30-day absolute; see AuthenticatedSessionLifetime).
+    timeout: 30m
+    jdbc:
+      # Flyway (V27) owns the session tables.
+      initialize-schema: never
+      table-name: session_store.spring_session
+server:
+  servlet:
+    session:
+      cookie:
+        # Persistent, host-only, HttpOnly, same-site cookie. Its lifetime never
+        # exceeds the 30-day authenticated limit; the server enforces both limits.
+        # Secure follows request.isSecure() unless an HTTPS-fronted deployment
+        # sets SERVER_SERVLET_SESSION_COOKIE_SECURE=true.
+        http-only: true
+        same-site: lax
+        max-age: 30d
