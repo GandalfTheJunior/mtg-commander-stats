@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { fulfillNoOwnershipTransfer } from './ownershipTransfer.ts'
 
 const id = (n: number) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(n).padStart(12, '0')}`
 function savedCommander(name: string) {
@@ -30,6 +31,7 @@ for (const width of [320, 1280]) {
       const url = new URL(route.request().url())
       if (url.pathname === '/api/me') return route.fulfill({ json: { id: id(2), username: 'Demo' } })
       if (url.pathname === `/api/groups/${group.id}`) return route.fulfill({ json: group })
+      if (await fulfillNoOwnershipTransfer(route)) return
       if (url.pathname.endsWith('/history')) {
         // StrictMode may abort and restart the initial effect; append must run exactly once.
         if (url.search) pages++

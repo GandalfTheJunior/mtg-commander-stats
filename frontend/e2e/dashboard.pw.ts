@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { fulfillNoOwnershipTransfer } from './ownershipTransfer.ts'
 
 const id = (value: number) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(value).padStart(12, '0')}`
 const groups = ['Playgroup A', 'Playgroup B', 'Playgroup C', 'Playgroup D'].map((name, index) => ({ id: id(index), name, role: 'MEMBER' }))
@@ -13,6 +14,7 @@ for (const width of [320, 390, 1280]) {
     await page.route('**/api/**', async route => {
       const path = new URL(route.request().url()).pathname
       calls.push(path)
+      if (await fulfillNoOwnershipTransfer(route)) return
       if (path === '/api/me') await route.fulfill({ json: { id: id(99), username: 'Demo' } })
       else if (path === '/api/groups') await route.fulfill({ status: failure ? 503 : 200, json: failure ? {} : list })
       else if (path === `/api/groups/${id(1)}`) await route.fulfill({ json: { ...groups[1], members: [{ userId: id(99), username: 'Demo', role: 'MEMBER' }] } })
