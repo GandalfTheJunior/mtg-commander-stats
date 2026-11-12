@@ -360,6 +360,30 @@ test('the grip reorders only starting seats by keyboard; the result follows its 
     .toEqual([[uid(3), 1, 1], [uid(1), 2, undefined], [uid(2), 3, undefined]])
 })
 
+test('pointer moves that arrive before the reorder renders keep the hovered seat', async () => {
+  gameApi(); show()
+  await fill(1, 2, 3)
+  const seats = () => [...document.querySelectorAll('[data-seat-key]')]
+  const firstSeat = seats()[0]
+  const grip = card(3).getByRole('button', { name: `${name(3)} verschieben` })
+  // Both moves hover the first seat. Inside one act React renders only afterwards,
+  // as when a browser delivers several pointermoves before the next commit.
+  // jsdom has no hit testing; this test supplies it and removes it afterwards.
+  Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => firstSeat })
+  try {
+    fireEvent.pointerDown(grip, { button: 0, pointerId: 1 })
+    act(() => {
+      fireEvent.pointerMove(grip, { pointerId: 1 })
+      fireEvent.pointerMove(grip, { pointerId: 1 })
+    })
+    fireEvent.pointerUp(grip, { pointerId: 1 })
+  } finally {
+    Reflect.deleteProperty(document, 'elementFromPoint')
+  }
+  expect(card(1).getByText('Deck 3')).toBeInTheDocument()
+  expect(screen.getByRole('status', { hidden: true })).toHaveTextContent(`${name(3)} an Position 1 verschoben.`)
+})
+
 test('edit keeps saved seats, results, unknown ranks and an unknown date; historical pairs stay valid', async () => {
   const api = gameApi()
   const saved = recorded({ participants: recorded().participants.map((p, i) => ({ ...p, placement: i ? null : 1 })) })

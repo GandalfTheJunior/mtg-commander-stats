@@ -418,11 +418,16 @@ export default function GameEditor({ group, game, currentUserId, initialMembers,
               onPointerMove={event => {
                 if (dragKey.current === null) return
                 const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-seat-key]')
-                const targetKey = target ? Number(target.getAttribute('data-seat-key')) : null
-                if (targetKey === null || targetKey === dragKey.current) return
+                if (!target?.parentElement) return
+                // Live movement: the dragged card takes the hovered seat immediately. Use the
+                // seat's rendered position, not the hovered player: several pointermoves can
+                // arrive before React renders the previous move, and the stale card's new
+                // index would move the dragged card back again.
+                const seat = Array.from(target.parentElement.querySelectorAll(':scope > [data-seat-key]')).indexOf(target)
+                const from = rowsRef.current.findIndex(candidate => candidate.key === dragKey.current)
+                if (seat < 0 || seat === from) return
                 dragMoved.current = true
-                // Live movement: the dragged card takes the hovered card's seat immediately.
-                move(dragKey.current, rowsRef.current.findIndex(candidate => candidate.key === targetKey), false)
+                move(dragKey.current, seat, false)
               }}
               onPointerUp={() => {
                 const key = dragKey.current

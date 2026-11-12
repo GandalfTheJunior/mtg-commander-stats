@@ -150,6 +150,10 @@ state and focus through insertion, removal and reordering. Picker dialogs are
 mounted only while open and do not restore focus themselves: the editor focuses
 the empty card, the member/deck action or the collapsed card's chevron explicitly.
 Validation focuses the first incomplete card's action or the error summary.
+Live pointer reordering moves the dragged card to the hovered card's rendered
+seat position, not to that player's current index: browsers can deliver several
+pointermoves before React renders the previous move, and the stale player's
+updated index would move the card back.
 
 Each selected active member has an independent abortable deck-selection lifetime
 and loading/error/retry state. A failed or malformed list is never an empty list.
