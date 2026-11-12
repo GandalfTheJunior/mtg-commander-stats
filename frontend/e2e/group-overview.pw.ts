@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { fulfillNoOwnershipTransfer } from './ownershipTransfer.ts'
 
 const id = (n: number) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(n).padStart(12, '0')}`
 function savedCommander(name: string) {
@@ -37,6 +38,8 @@ for (const width of [320, 390, 1280]) {
       const path = new URL(route.request().url()).pathname
       if (path === '/api/me') return route.fulfill({ json: { id: id(2), username: 'Demo' } })
       if (path === `/api/groups/${group.id}`) return route.fulfill({ json: group })
+      // The overview's loading/error modes target its own reads, not the group shell's transfer reads.
+      if (await fulfillNoOwnershipTransfer(route)) return
       if (mode === 'loading') await blocked
       if (mode === 'error') return route.fulfill({ status: 503, json: {} })
       if (path.endsWith('/history')) return route.fulfill({ json: { games: mode === 'empty' ? [] : games, nextCursor: null } })

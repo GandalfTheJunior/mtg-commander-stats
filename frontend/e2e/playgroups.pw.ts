@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { fulfillNoOwnershipTransfer } from './ownershipTransfer.ts'
 
 const id = (value: number) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(value).padStart(12, '0')}`
 const groups = Array.from({ length: 20 }, (_, index) => ({
@@ -9,6 +10,7 @@ const empty = 'Du bist noch keiner Playgroup beigetreten. Erstelle eine eigene P
 async function setup(page: Page, list = groups) {
   let writes = 0
   await page.route('**/api/**', async route => {
+    if (await fulfillNoOwnershipTransfer(route)) return
     const path = new URL(route.request().url()).pathname
     let body: unknown
     let status = 200

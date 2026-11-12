@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { fulfillNoOwnershipTransfer } from './ownershipTransfer.ts'
 
 // Synthetic, non-sensitive fixtures for the #197 statistics landing, chooser and reports.
 const id = (n: number) => `bbbbbbbb-bbbb-4bbb-8bbb-${String(n).padStart(12, '0')}`
@@ -36,6 +37,7 @@ async function serve(page: Page, mode: { failStatistics: boolean } = { failStati
     const url = new URL(route.request().url())
     if (url.pathname === '/api/me') return route.fulfill({ json: { id: id(2), username: 'Demo' } })
     if (url.pathname === `/api/groups/${group.id}`) return route.fulfill({ json: group })
+    if (await fulfillNoOwnershipTransfer(route)) return
     if (url.pathname.endsWith('/statistics')) {
       if (mode.failStatistics) return route.fulfill({ status: 503, json: {} })
       const size = url.searchParams.get('playerCount')
@@ -145,11 +147,15 @@ test('statistics failure offers retry without presenting numbers', async ({ page
   const mode = { failStatistics: true }
   const errors = await serve(page, mode)
   await page.goto(`${base}/reports/players`)
-  await expect(page.getByRole('alert')).toContainText('Die Statistiken konnten nicht geladen werden.')
+  // Retry belongs to the Statistics panel; the group shell may own other recovery controls.
+  const panel = page.getByRole('tabpanel', { name: 'Statistics' })
+  const alert = panel.getByRole('alert')
+  await expect(alert).toContainText('Die Statistiken konnten nicht geladen werden.')
   await expect(page.getByText('%')).toHaveCount(0)
   await capture(page, 'error', 390)
   mode.failStatistics = false
-  await page.getByRole('button', { name: 'Erneut versuchen' }).click()
-  await expect(page.getByRole('list', { name: 'Spielerstatistiken' })).toBeVisible()
+  await alert.getByRole('button', { name: 'Erneut versuchen' }).click()
+  await expect(panel.getByRole('list', { name: 'Spielerstatistiken' })).toBeVisible()
+  await expect(alert).toHaveCount(0)
   expect(errors).toEqual([])
 })
