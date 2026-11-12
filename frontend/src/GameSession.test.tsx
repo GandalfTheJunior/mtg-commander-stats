@@ -138,12 +138,12 @@ test.each([200, 401])('late history from a previous selected group (%s) cannot r
   expect(screen.getByRole('button', { name: 'Owner' })).toHaveTextContent('Owner')
 })
 
-test.each(['close', 'refresh'])('closing/reopening or refreshing group details retires requests (%s)', async (action) => {
+test.each(['close', 'tabs'])('closing/reopening or switching group tabs retires requests (%s)', async (action) => {
   const api = setup(); const late = deferred()
   api.next(`/api/groups/${group.id}/games/history`, () => late.promise)
   render(<App />); await open(); await screen.findByText('Spielehistorie wird geladen…')
   if (action === 'close') { fireEvent.click(screen.getByRole('link', { name: 'Zurück zu Playgroups' })); await open() }
-  else { await selectTab('Mitglieder'); fireEvent.click(await screen.findByRole('button', { name: 'Mitglieder aktualisieren' })); await screen.findByRole('tab', { name: 'Games' }); await selectTab('Spiele') }
+  else { await selectTab('Mitglieder'); await screen.findByRole('heading', { name: 'Mitglieder' }); await selectTab('Spiele') }
   await screen.findByText('Tamiyo hat noch keine Aufzeichnungen angefertigt. Sobald ihr ein paar Runden gespielt habt, seht ihr hier eure Historie.')
   await act(async () => late.resolve(response({ games: [{ ...recorded(), playedOn: null }], nextCursor: null })))
   expect(screen.queryByRole('article')).not.toBeInTheDocument()

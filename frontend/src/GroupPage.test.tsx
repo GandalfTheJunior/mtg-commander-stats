@@ -112,11 +112,11 @@ test('an ordinary member can confirm departure and return to the collection', as
   vi.stubGlobal('fetch', fetchMock)
   const notice = vi.fn()
   show(groupUrl(group.id, 'members'), vi.fn(), notice)
-  fireEvent.click(await screen.findByRole('button', { name: 'Gruppe verlassen' }))
-  expect(screen.getByRole('dialog', { name: 'Gruppe verlassen?' })).toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'Verlassen bestätigen' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Playgroup verlassen' }))
+  expect(screen.getByRole('dialog', { name: 'Playgroup verlassen?' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Gruppe verlassen' }))
   expect(await screen.findByText('Playgroups collection')).toBeInTheDocument()
-  expect(notice).toHaveBeenCalledWith({ kind: 'success', message: 'Du hast die Gruppe verlassen. Historische Spiele und Statistiken bleiben erhalten.' })
+  expect(notice).toHaveBeenCalledWith({ kind: 'success', message: 'Du hast die Playgroup erfolgreich verlassen.' })
   expect(fetchMock.mock.calls.filter(([path, init]) => path === `/api/groups/${group.id}/membership` && init?.method === 'DELETE')).toHaveLength(1)
 })
 
@@ -158,13 +158,13 @@ function departure(status: number | 'network' | 'abort', csrfStatus = 200, commi
   return { fetchMock, unauthorized, notice }
 }
 async function confirmDeparture() {
-  fireEvent.click(await screen.findByRole('button', { name: 'Gruppe verlassen' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Verlassen bestätigen' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Playgroup verlassen' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Gruppe verlassen' }))
 }
 test.each([200, 400, 403, 500, 'network', 'abort'] as const)('unconfirmed departure %s revalidates without success or repeated DELETE', async status => {
   const { fetchMock, notice } = departure(status)
   await confirmDeparture()
-  await screen.findByRole('button', { name: 'Gruppe verlassen' })
+  await screen.findByRole('button', { name: 'Playgroup verlassen' })
   expect(notice).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'success' }))
   expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(1)
   expect(fetchMock.mock.calls.filter(([path]) => path === `/api/groups/${group.id}`)).toHaveLength(2)
@@ -184,7 +184,7 @@ test.each(['csrf', 'delete'])('departure %s 401 expires the current session', as
 })
 test.each(['cancel', 'escape'])('departure %s sends no DELETE', async how => {
   const { fetchMock } = departure(204)
-  fireEvent.click(await screen.findByRole('button', { name: 'Gruppe verlassen' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Playgroup verlassen' }))
   const dialog = screen.getByRole('dialog')
   if (how === 'escape') fireEvent.keyDown(dialog, { key: 'Escape' })
   else fireEvent.click(within(dialog).getByRole('button', { name: 'Abbrechen' }))
