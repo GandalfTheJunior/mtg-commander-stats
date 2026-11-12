@@ -604,6 +604,8 @@ export type DeckStatistics = {
   deckId: string
   ownerUserId: string
   ownerUsername: string
+  ownerDeleted?: boolean
+  ownerDeletedNumber?: number | null
   name: string
   commanders: SavedCommander[]
   archived: boolean
@@ -635,6 +637,16 @@ function statisticsCounts(value: Record<string, unknown>) {
   return { games, wins, winRatePercent }
 }
 
+// Optional anonymization metadata: a deleted profile carries its stable per-group number.
+function deletedProfile<F extends string, N extends string>(deleted: unknown, number: unknown, flag: F, numberField: N) {
+  if (deleted !== undefined && typeof deleted !== 'boolean' ||
+    deleted === true && (typeof number !== 'number' || !Number.isSafeInteger(number) || number < 1) ||
+    deleted !== true && number !== undefined && number !== null) {
+    throw new Error('The server returned invalid deleted profile metadata.')
+  }
+  return (deleted === undefined ? {} : { [flag]: deleted, [numberField]: number as number | null }) as Partial<Record<F, boolean> & Record<N, number | null>>
+}
+
 export async function getGroupStatistics(groupId: string, signal?: AbortSignal, playerCount?: PlayerCount): Promise<GroupStatistics> {
   const response = await checkedResponse(await fetch(
     `/api/groups/${encodeURIComponent(groupId)}/statistics${playerCount === undefined ? '' : `?playerCount=${playerCount}`}`,
@@ -648,13 +660,7 @@ export async function getGroupStatistics(groupId: string, signal?: AbortSignal, 
     if (!isRecord(row) || !isUuid(row.userId) || typeof row.username !== 'string' || !row.username) {
       throw new Error('The server returned invalid player statistics.')
     }
-    if (row.deleted !== undefined && typeof row.deleted !== 'boolean' ||
-      row.deleted === true && (typeof row.deletedNumber !== 'number' || !Number.isSafeInteger(row.deletedNumber) || row.deletedNumber < 1) ||
-      row.deleted !== true && row.deletedNumber !== undefined && row.deletedNumber !== null) {
-      throw new Error('The server returned invalid deleted profile metadata.')
-    }
-    return { userId: row.userId, username: row.username,
-      ...(row.deleted !== undefined ? { deleted: row.deleted, deletedNumber: row.deletedNumber as number | null } : {}), ...statisticsCounts(row) }
+    return { userId: row.userId, username: row.username, ...deletedProfile(row.deleted, row.deletedNumber, 'deleted', 'deletedNumber'), ...statisticsCounts(row) }
   })
   const decks = body.decks.map((row: unknown): DeckStatistics => {
     if (!isRecord(row) || !isUuid(row.deckId) || !isUuid(row.ownerUserId) ||
@@ -664,7 +670,7 @@ export async function getGroupStatistics(groupId: string, signal?: AbortSignal, 
       throw new Error('The server returned invalid deck statistics.')
     }
     return { deckId: row.deckId, ownerUserId: row.ownerUserId, ownerUsername: row.ownerUsername,
-      name: row.name, commanders: commandersFrom(row.commanders), archived: row.archived, ...statisticsCounts(row) }
+      ...deletedProfile(row.ownerDeleted, row.ownerDeletedNumber, 'ownerDeleted', 'ownerDeletedNumber'), name: row.name, commanders: commandersFrom(row.commanders), archived: row.archived, ...statisticsCounts(row) }
   })
   if (new Set(players.map((row) => row.userId.toLowerCase())).size !== players.length ||
     new Set(decks.map((row) => row.deckId.toLowerCase())).size !== decks.length) {

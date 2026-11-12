@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
   login,
   logout,
@@ -28,6 +28,10 @@ import GameEditorPage from './GameEditorPage'
 import PendingGroupView from './PendingGroupView'
 import { navigationToken } from './navigationToken'
 import { forgetAllHandoffs } from './gameHandoff'
+import { createStatisticsMemory, StatisticsMemoryContext, type StatisticsView } from './statisticsState'
+
+const statisticsRoutes: [string, StatisticsView][] = [['', 'landing'], ['/reports', 'chooser'],
+  ...(['players', 'decks', 'starting-seats', 'mana-colors'] as const).map((report): [string, StatisticsView] => [`/reports/${report}`, report])]
 
 export type Notice = { kind: 'success' | 'error'; message: string } | null
 type SessionStatus = 'checking' | 'signed-out' | 'authenticated' | 'unverified' | 'logging-out'
@@ -49,9 +53,13 @@ export default function App() {
   // Collection search/archive/scroll context survives only a visit to the deck editor.
   const collectionMemory = useRef<CollectionMemory | null>(null)
   useEffect(() => { if (!location.pathname.startsWith('/decks')) collectionMemory.current = null }, [location.pathname])
+  // #197 report filter/sorts persist only within one group visit of one session.
+  const [statisticsMemory] = useState(createStatisticsMemory)
+  useEffect(() => { statisticsMemory.retain(location.pathname) }, [statisticsMemory, location.pathname])
   const takeCollectionMemory = useCallback(() => { const memory = collectionMemory.current; collectionMemory.current = null; return memory }, [])
   const sessionVersionRef = useRef(0)
   const [sessionVersion, setSessionVersion] = useState(0)
+  const statisticsContext = useMemo(() => ({ memory: statisticsMemory, session: sessionVersion }), [statisticsMemory, sessionVersion])
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('checking')
   const [registrationNotice, setRegistrationNotice] = useState<Notice>(null)
@@ -279,6 +287,7 @@ export default function App() {
       <Button component={Link} to="/dashboard">Zum Dashboard</Button>
     </Box>
     return (
+      <StatisticsMemoryContext.Provider value={statisticsContext}>
       <EditorNavigation key={`navigation-${sessionVersion}`} onLogout={logOut}>
         <AppShell user={currentUser} notice={sessionNotice} onLogout={logOut}>
           {isProtectedPath(location.pathname) ? <Routes>
@@ -305,18 +314,20 @@ export default function App() {
                   void navigate(`${groupUrl(groupId, 'games')}/${encodeURIComponent(gameId)}/edit`)
                 }} />
             } />
-            {(['overview', 'games', 'statistics', 'members'] as const).map(tab => <Route key={tab}
+            {(['overview', 'games', 'members'] as const).map(tab => <Route key={tab}
               path={tab === 'overview' ? '/playgroups/:groupId' : `/playgroups/:groupId/${tab}`}
               element={<GroupPage key={`group-${sessionVersion}-${location.pathname}`} tab={tab} currentUser={currentUser}
                 onUnauthorized={sessionExpired} onNotice={setSessionNotice} />} />)}
-            {['/playgroups/:groupId/statistics/reports', '/playgroups/:groupId/statistics/reports/players',
-              '/playgroups/:groupId/statistics/reports/decks', '/playgroups/:groupId/statistics/reports/starting-seats',
-              '/playgroups/:groupId/statistics/reports/mana-colors', '/playgroups/:groupId/members/:memberId/decks',
+            {statisticsRoutes.map(([path, view]) => <Route key={path} path={`/playgroups/:groupId/statistics${path}`}
+              element={<GroupPage key={`group-${sessionVersion}-${location.pathname}`} tab="statistics" statisticsView={view} currentUser={currentUser}
+                onUnauthorized={sessionExpired} onNotice={setSessionNotice} />} />)}
+            {['/playgroups/:groupId/members/:memberId/decks',
               '/playgroups/:groupId/members/:memberId/decks/new'].map(path => <Route key={path} path={path}
                 element={<PendingGroupView key={`${sessionVersion}-${location.pathname}`} onUnauthorized={sessionExpired} onNotice={setSessionNotice} />} />)}
           </Routes> : <Navigate to="/dashboard" replace />}
         </AppShell>
       </EditorNavigation>
+      </StatisticsMemoryContext.Provider>
     )
   }
 

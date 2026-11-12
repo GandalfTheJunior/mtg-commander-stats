@@ -1,19 +1,16 @@
 import { useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   ApiError, getGroup, gamesHistoryPage,
-  type GamePreview, type GroupDetails, type PlayerCount,
+  type GamePreview, type GroupDetails,
 } from './api'
 import { Alert, Box, Button, Stack, Typography } from '@mui/material'
 import { Link } from 'react-router'
 import { groupUrl } from './groupNavigation'
 import CompactGameCard from './CompactGameCard'
-import type { GroupTab } from './groupNavigation'
-import GroupStatistics, { type StatisticsSort, type StatisticsView } from './GroupStatistics'
 import { EditorLeave } from './editorGuard'
 
 type Props = {
   group: GroupDetails
-  tab?: GroupTab
   onUnauthorized: () => void
   onAccessLost: () => void
   onCheckingAccess: (checking: boolean) => void
@@ -29,7 +26,7 @@ function message(error: unknown) {
 // The parent keys this area by selected group; App keys the
 // entire group manager by confirmed session. Abort and generation checks retire
 // responses (including 401s) before they can affect a different lifetime.
-export default function GameManager({ group, tab = 'games', savedPanel, ...handlers }: Props) {
+export default function GameManager({ group, savedPanel, ...handlers }: Props) {
   const leave = useContext(EditorLeave)
   const id = group.id
   const callbacks = useRef(handlers)
@@ -39,26 +36,7 @@ export default function GameManager({ group, tab = 'games', savedPanel, ...handl
   const request = useRef<AbortController | null>(null)
   const [revision, setRevision] = useState(0)
   const [access, setAccess] = useState<'confirmed' | 'checking' | 'error'>('confirmed')
-  const [statisticsRevision, setStatisticsRevision] = useState(0)
-  const [statisticsBlocked, setStatisticsBlocked] = useState(false)
   const [state, setState] = useState<{ status: 'loading' | 'ready' | 'checking' | 'error'; games?: GamePreview[]; nextCursor?: string | null; error?: string }>({ status: 'loading' })
-  // Kept above the ready content so game refreshes and acknowledged writes
-  // retain presentation choices while the statistics request is remounted.
-  // First visit mounts one statistics view; tab switches only hide its panel.
-  const [statisticsVisited, setStatisticsVisited] = useState(tab === 'statistics')
-  if (tab === 'statistics' && !statisticsVisited) setStatisticsVisited(true)
-  const [statisticsPlayerCount, setStatisticsPlayerCount] = useState<PlayerCount | undefined>(undefined)
-  const [statisticsView, setStatisticsView] = useState<StatisticsView>('players')
-  const [focusStatistics, setFocusStatistics] = useState(false)
-  const statisticsRetry = useRef<HTMLButtonElement>(null)
-  const focusStatisticsRetry = useRef(false)
-  useEffect(() => {
-    if (statisticsBlocked && access === 'confirmed' && focusStatisticsRetry.current) {
-      focusStatisticsRetry.current = false
-      if (tab === 'statistics') statisticsRetry.current?.focus()
-    }
-  }, [statisticsBlocked, access, tab])
-  const [statisticsSort, setStatisticsSort] = useState<StatisticsSort>({ players: null, decks: null })
   const [recoveryMessage, setRecoveryMessage] = useState('')
   useEffect(() => {
     alive.current = true
@@ -89,11 +67,7 @@ export default function GameManager({ group, tab = 'games', savedPanel, ...handl
     setRecoveryMessage(explanation)
     setState({ status: 'checking' })
     setAccess('checking')
-    // Failed writes and access denials require explicit review/retry after the
-    // safe check. In particular, a persistent statistics 403 must not loop GETs.
-    focusStatisticsRetry.current = true
-    setStatisticsBlocked(true)
-    setStatisticsRevision(value => value + 1)
+    // Failed writes and access denials require explicit review/retry after the safe check.
     callbacks.current.onCheckingAccess(true)
     if (error instanceof ApiError && error.status === 401) {
       callbacks.current.onUnauthorized()
@@ -169,13 +143,13 @@ export default function GameManager({ group, tab = 'games', savedPanel, ...handl
     }
   }, [id, state, recover])
   useEffect(() => {
-    if (tab !== 'games' || state.status !== 'ready' || !state.nextCursor || pageStatus !== 'idle' || !sentinel.current) return
+    if (state.status !== 'ready' || !state.nextCursor || pageStatus !== 'idle' || !sentinel.current) return
     const observer = new IntersectionObserver(entries => {
       if (entries.some(entry => entry.isIntersecting)) void append()
     })
     observer.observe(sentinel.current)
     return () => observer.disconnect()
-  }, [append, state, tab, pageStatus])
+  }, [append, state, pageStatus])
 
   function refresh() {
     pagePending.current = false
@@ -185,15 +159,13 @@ export default function GameManager({ group, tab = 'games', savedPanel, ...handl
     generation.current++
     setState({ status: 'loading' })
     setAccess('checking')
-    setStatisticsBlocked(false)
-    setStatisticsRevision(value => value + 1)
     callbacks.current.onCheckingAccess(true)
     setRevision((value) => value + 1)
   }
 
   return <>
     {recoveryMessage && access !== 'confirmed' && <Alert severity="error">{recoveryMessage}</Alert>}
-    <div role="tabpanel" id="group-panel-games" aria-labelledby="group-tab-games" hidden={tab !== 'games'} tabIndex={0}>
+    <div role="tabpanel" id="group-panel-games" aria-labelledby="group-tab-games" tabIndex={0}>
       <section aria-labelledby={`games-${id}`}>
         <Button component={Link} to={`${groupUrl(group.id, 'games')}/new`} variant="contained"
           sx={{ mb: 2, minHeight: 48 }}>Spiel erfassen</Button>
@@ -218,13 +190,6 @@ export default function GameManager({ group, tab = 'games', savedPanel, ...handl
       <Alert severity="error">Group access could not be verified. Refresh games or members to try again.</Alert>
       <button type="button" onClick={() => leave(refresh)}>Refresh group access</button>
     </div>}
-    <Box sx={{ color: 'text.primary', bgcolor: 'background.default', minWidth: 0 }} role="tabpanel" id="group-panel-statistics" aria-labelledby="group-tab-statistics" hidden={tab !== 'statistics'} tabIndex={0}>
-      {statisticsVisited && access === 'confirmed' && (statisticsBlocked ? <div>
-        <p role="status">Gruppenzugriff bestätigt. Bitte Statistiken aktualisieren, um den Serverstand zu prüfen.</p>
-        <Button ref={statisticsRetry} color="secondary" onClick={() => { setFocusStatistics(true); setStatisticsBlocked(false) }}>Statistiken aktualisieren</Button>
-      </div> : <GroupStatistics key={statisticsRevision} groupId={id} onAccessError={recover} sort={statisticsSort} onSort={setStatisticsSort}
-        playerCount={statisticsPlayerCount} onPlayerCount={setStatisticsPlayerCount} view={statisticsView} onView={setStatisticsView} focusRefresh={focusStatistics && tab === 'statistics'} onRefreshFocused={() => setFocusStatistics(false)} />)}
-    </Box>
   </>
 }
 

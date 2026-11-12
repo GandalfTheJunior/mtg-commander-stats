@@ -4,6 +4,10 @@ import { Alert, Box, Button, Card, Dialog, DialogActions, DialogContent, DialogC
 import { ApiError, getGroup, leaveGroup, type CurrentUser, type GroupDetails, type GroupMember } from './api'
 import GameManager from './GameManager'
 import GroupOverview from './GroupOverview'
+import StatisticsLanding from './StatisticsLanding'
+import StatisticsChooser from './StatisticsChooser'
+import StatisticsReportPage from './StatisticsReportPage'
+import { statisticsUrl, type StatisticsView } from './statisticsState'
 import type { Notice } from './App'
 import { groupUnavailable, groupUrl, type GroupTab } from './groupNavigation'
 import { forgetHandoff, handoffToken, offerHandoff, readHandoff } from './gameHandoff'
@@ -24,8 +28,10 @@ function memberSuffix(member: GroupMember, members: GroupMember[]) {
   return member.userId.slice(-length)
 }
 
-export default function GroupPage({ tab, currentUser, onUnauthorized, onNotice }: {
+export default function GroupPage({ tab, statisticsView = 'landing', currentUser, onUnauthorized, onNotice }: {
   tab: GroupTab
+  /** Statistics landing, chooser or focused report (#197); only used with the Statistics tab. */
+  statisticsView?: StatisticsView
   currentUser: CurrentUser
   onUnauthorized: () => void
   onNotice: (notice: Notice) => void
@@ -133,10 +139,17 @@ export default function GroupPage({ tab, currentUser, onUnauthorized, onNotice }
       <Tabs value={tab} variant="fullWidth" textColor="secondary" indicatorColor="secondary" aria-label="Playgroup-Bereiche"
         onChange={(_event, value: GroupTab) => { void navigate(groupUrl(groupId, value)) }}
         sx={{ '& .MuiTab-root': { minHeight: 48, minWidth: 0, px: 0.5, fontSize: { xs: '0.75rem', sm: '0.875rem' }, '&.Mui-focusVisible, &:focus-visible': { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: -3 } } }}>
-        {tabs.map(({ value, label }) => <Tab key={value} value={value} label={label} id={`group-tab-${value}`} aria-controls={`group-panel-${value}`} />)}
+        {tabs.map(({ value, label }) => <Tab key={value} value={value} label={label} id={`group-tab-${value}`} aria-controls={`group-panel-${value}`}
+          // Deliberately selecting Statistics always lands on its teaser page, even from a report.
+          onClick={value === 'statistics' && tab === 'statistics' && statisticsView !== 'landing' ? () => { void navigate(statisticsUrl(groupId)) } : undefined} />)}
       </Tabs>
       {tab === 'overview' && <Box role="tabpanel" id="group-panel-overview" aria-labelledby="group-tab-overview">
         <GroupOverview groupId={groupId} onAccessError={handleError} />
+      </Box>}
+      {tab === 'statistics' && <Box role="tabpanel" id="group-panel-statistics" aria-labelledby="group-tab-statistics" sx={{ minWidth: 0 }}>
+        {statisticsView === 'landing' ? <StatisticsLanding groupId={groupId} onAccessError={handleError} />
+          : statisticsView === 'chooser' ? <StatisticsChooser groupId={groupId} />
+            : <StatisticsReportPage groupId={groupId} report={statisticsView} onAccessError={handleError} />}
       </Box>}
       {tab === 'members' && <Box role="tabpanel" id="group-panel-members" aria-labelledby="group-tab-members">
         <Button color="secondary" onClick={recheck} disabled={busy}>Mitglieder aktualisieren</Button>
@@ -152,7 +165,7 @@ export default function GroupPage({ tab, currentUser, onUnauthorized, onNotice }
         </Stack>
       </Box>}
       </>}
-      {(tab === 'games' || tab === 'statistics') && <GameManager group={details} tab={tab}
+      {tab === 'games' && <GameManager group={details}
         savedPanel={savedMembers && <SavedGamePanel
           onAgain={() => {
             const repeatGame = offerHandoff({ kind: 'repeat', userId: currentUser.id, groupId, memberIds: savedMembers })
