@@ -47,6 +47,10 @@ export default function GroupPage({ tab, statisticsView = 'landing', currentUser
   const [savedToken] = useState(() => tab === 'games' ? handoffToken(location.state, 'gameSaved') : undefined)
   const [savedMembers, setSavedMembers] = useState(() => readHandoff(savedToken, 'saved', currentUser.id, groupId))
   useEffect(() => { forgetHandoff(savedToken) }, [savedToken])
+  // #200: brief confirmation after an explicit invitation join, shown once on the Overview.
+  const [joinedToken] = useState(() => tab === 'overview' ? handoffToken(location.state, 'groupJoined') : undefined)
+  const [joined, setJoined] = useState(() => readHandoff(joinedToken, 'joined', currentUser.id, groupId) !== undefined)
+  useEffect(() => { forgetHandoff(joinedToken) }, [joinedToken])
   const [details, setDetails] = useState<GroupDetails | null>(null)
   const [checkingAccess, setCheckingAccess] = useState(false)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -306,6 +310,9 @@ export default function GroupPage({ tab, statisticsView = 'landing', currentUser
           onClick={value === 'statistics' && tab === 'statistics' && statisticsView !== 'landing' ? () => { void navigate(statisticsUrl(groupId)) } : undefined} />)}
       </Tabs>
       {tab === 'overview' && <Box role="tabpanel" id="group-panel-overview" aria-labelledby="group-tab-overview">
+        {joined && <Alert severity="success" role="status" onClose={() => setJoined(false)}
+          slotProps={{ closeButton: { 'aria-label': 'Hinweis schließen', sx: { width: 44, height: 44 } } }}
+          sx={{ mb: 2, alignItems: 'center', fontWeight: 600 }}>Du bist der Playgroup beigetreten.</Alert>}
         <GroupOverview groupId={groupId} onAccessError={handleError} />
       </Box>}
       {tab === 'statistics' && <Box role="tabpanel" id="group-panel-statistics" aria-labelledby="group-tab-statistics" sx={{ minWidth: 0 }}>

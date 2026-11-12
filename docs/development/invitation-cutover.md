@@ -3,8 +3,10 @@
 The single-use invitation backend (#187) was merged in PR #207, but **must not
 be deployed on its own**. The frontend integration in #200 remains a hard
 dependency for the coordinated release; merging the backend did not complete
-that release. There is no feature flag or dual acceptance period. The current
-frontend still calls removed reusable-code endpoints and cannot use V13.
+that release. There is no feature flag or dual acceptance period. The #200
+frontend consumes only the single-use endpoints (create, public preview, join);
+its legacy join-code client was removed. Implementation and local verification of
+#200 are not release verification: steps 2–6 still apply to the combined release.
 
 ## Required deployment sequence
 
@@ -20,8 +22,12 @@ frontend still calls removed reusable-code endpoints and cannot use V13.
    from using stale routes. Apply V13 with the new backend. It drops every legacy
    verifier and creates an empty invitation table; no legacy code is converted.
 4. Deploy #200 assets and the new backend together. Configure the frontend public
-   base URL for same-origin share links. Send `Cache-Control: no-store` and
-   `Referrer-Policy: no-referrer` on invitation pages as well as API responses.
+   base URL for same-origin share links: set `VITE_PUBLIC_APP_URL` (only its
+   origin is used) at build time, or serve the app from its public origin. Send
+   `Cache-Control: no-store` and `Referrer-Policy: no-referrer` on `/invite/*`
+   pages as well as API responses; the SPA fallback for `/invite/*` must return
+   `index.html` so direct opens and reloads work. The Vite dev/preview servers
+   already do this locally; the bundle also sets a global `no-referrer` meta tag.
    Exclude token-bearing routes and bodies from proxy/access logs, analytics and
    tracing. Keep request logging disabled. Configure aggregate edge rate limits
    for preview/join across replicas; the local bounded peer limit is supplemental

@@ -293,10 +293,17 @@ test('pending logout retires group details and browser Back cannot resurrect the
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
 })
 
-test.each(['/invite/token', '/claim/token'])('signed-in public host %s has a safe exit', async path => {
-  setup(); show(path)
+test('signed-in claim host has a safe exit', async () => {
+  setup(); show('/claim/token')
   expect(await screen.findByRole('link', { name: 'Zum Dashboard' })).toHaveAttribute('href', '/dashboard')
-  expect(screen.getByRole('heading', { name: path.startsWith('/claim/') ? 'Profilübernahme' : 'Einladung' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Profilübernahme' })).toBeInTheDocument()
+})
+
+test('a malformed signed-in invitation link is unavailable without any invitation request', async () => {
+  const api = setup(); show('/invite/token')
+  expect(await screen.findByRole('heading', { name: 'Einladung nicht verfügbar' })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Zu meinen Playgroups' })).toHaveAttribute('href', '/playgroups')
+  expect(api.fetchMock.mock.calls.some(([path]) => path.startsWith('/api/invitations') || path === '/api/groups/join')).toBe(false)
 })
 
 test.each([200, 401])('late group details %s cannot affect a different selected group', async status => {

@@ -7,6 +7,8 @@ import {
   type CurrentUser, type GroupDetails, type GroupMember, type OwnershipTransfer,
 } from './api'
 import { groupUrl } from './groupNavigation'
+import InvitationDialog from './InvitationDialog'
+import { useInvitationCreation } from './useInvitationCreation'
 import { displaySuffixes } from './groupSuffixes'
 import { actionLabels, blank, canonicalName, directoryMemory, offerDirectoryMemory, fallbackOverflowRows, filters, matchesFilter, memberActions, normalized, roleLabel,
   type DirectoryMemory, type MemberAction, type MemberFilter } from './membersModel'
@@ -58,6 +60,7 @@ export default function MembersDirectory({ groupId, details, currentUser, transf
   onTransfer: (transfer: OwnershipTransfer | null) => void
 }) {
   const navigate = useNavigate()
+  const invitation = useInvitationCreation(groupId, onAccessError)
   const location = useLocation()
   const [restored] = useState(() => directoryMemory(location.state, currentUser.id, groupId))
   const [filter, setFilter] = useState<MemberFilter>(restored?.filter ?? 'all')
@@ -308,7 +311,7 @@ export default function MembersDirectory({ groupId, details, currentUser, transf
     <Typography component="h3" variant="h5" id="members-heading" sx={{ fontWeight: 600 }}>Mitglieder</Typography>
     <Box component="span" id="member-row-hint" sx={{ display: 'none' }}>Öffnet die Decks dieses Mitglieds</Box>
     <Box sx={{ display: 'flex', gap: 1, alignItems: 'stretch' }}>
-      <Button variant="contained" onClick={() => onToast('Das Einladen von Spielern ist noch nicht verfügbar.')}
+      <Button variant="contained" aria-disabled={invitation.busy || undefined} onClick={invitation.create}
         sx={{ flex: '1.5 1 0', minWidth: 0, minHeight: 52, px: 1, overflowWrap: 'normal', fontSize: { xs: '0.9375rem', sm: '1.0625rem' } }}>
         <Box component="span" aria-hidden="true" sx={{ mr: 1 }}>+</Box>Spieler einladen
       </Button>
@@ -411,6 +414,7 @@ export default function MembersDirectory({ groupId, details, currentUser, transf
         </DialogActions>
       </Box>
     </Dialog>
+    {invitation.state && <InvitationDialog state={invitation.state} busy={invitation.busy} onRetry={invitation.create} onClose={invitation.close} />}
   </Stack>
 }
 

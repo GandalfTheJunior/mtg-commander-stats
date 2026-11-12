@@ -31,6 +31,8 @@ import { navigationToken } from './navigationToken'
 import { forgetAllHandoffs } from './gameHandoff'
 import { forgetDirectoryMemories } from './membersModel'
 import { createStatisticsMemory, StatisticsMemoryContext, type StatisticsView } from './statisticsState'
+import InvitationPage from './InvitationPage'
+import { inviteAuthIntent, inviteSegment } from './invitationLink'
 
 const statisticsRoutes: [string, StatisticsView][] = [['', 'landing'], ['/reports', 'chooser'],
   ...(['players', 'decks', 'starting-seats', 'mana-colors'] as const).map((report): [string, StatisticsView] => [`/reports/${report}`, report])]
@@ -72,6 +74,13 @@ export default function App() {
   const registrationPending = useRef(false)
   const loginPending = useRef(false)
   const [rechecking, setRechecking] = useState(false)
+  // #200: an invitation deep link is public; its auth detour keeps the exact invitation URL.
+  const invitation = inviteSegment(location.pathname)
+  const inviteAuth = invitation === null ? null : inviteAuthIntent(location.state)
+  useEffect(() => {
+    if (!inviteAuth || sessionStatus !== 'signed-out') return
+    document.getElementById(inviteAuth === 'login' ? 'auth-login-email' : 'auth-register-email')?.focus()
+  }, [inviteAuth, sessionStatus, location.key])
 
   useEffect(() => {
     let active = true
@@ -286,9 +295,16 @@ export default function App() {
       void navigate(destination, { replace: true, state: null })
     }} />
 
+  const authenticated = sessionStatus === 'authenticated' && currentUser !== null
+  if (invitation !== null && (authenticated || sessionStatus === 'checking' || (sessionStatus === 'signed-out' && !inviteAuth))) {
+    // Keyed by session: login, logout or an account switch discards all invitation presentation state.
+    return <InvitationPage key={`invite-${sessionVersion}-${location.pathname}`} segment={invitation} user={authenticated ? currentUser : null}
+      checking={sessionStatus === 'checking'} notice={sessionNotice} onUnauthorized={sessionExpired} />
+  }
+
   if (sessionStatus === 'authenticated' && currentUser) {
     if (isPublicPath(location.pathname)) return <Box component="main" sx={{ p: 3 }}>
-      <Typography component="h1" variant="h4">{location.pathname.startsWith('/claim/') ? 'Profilübernahme' : 'Einladung'}</Typography>
+      <Typography component="h1" variant="h4">Profilübernahme</Typography>
       <Typography>Dieser Link kann noch nicht angezeigt werden.</Typography>
       <Button component={Link} to="/dashboard">Zum Dashboard</Button>
     </Box>
@@ -358,7 +374,7 @@ export default function App() {
       }),
     }}>
       {location.pathname !== '/' && !isProtectedPath(location.pathname) && !isPublicPath(location.pathname) && <Navigate to="/" replace />}
-      {isPublicPath(location.pathname) && <Typography component="h2" variant="h5">Dieser Link kann noch nicht angezeigt werden.</Typography>}
+      {isPublicPath(location.pathname) && invitation === null && <Typography component="h2" variant="h5">Dieser Link kann noch nicht angezeigt werden.</Typography>}
       <Container maxWidth="md" disableGutters>
         <Stack spacing={3}>
           <Box component="header" sx={{ m: 0 }}>
@@ -372,6 +388,17 @@ export default function App() {
               A home for your Commander play group’s game statistics.
             </Typography>
           </Box>
+
+          {invitation !== null && <Card component="section" aria-labelledby="auth-invitation-heading" sx={{ p: { xs: 2, sm: 3 }, minWidth: 0 }}>
+            <Stack spacing={1}>
+              <Typography id="auth-invitation-heading" component="h2" variant="h6">Playgroup-Einladung</Typography>
+              <Typography>Nach der Anmeldung kehrst du zu dieser Einladung zurück.</Typography>
+              <Typography sx={{ color: 'text.secondary' }}>Nach der Registrierung ist eine Anmeldung erforderlich. Du trittst erst nach deiner Bestätigung bei.</Typography>
+              <Button component={Link} to={location.pathname} replace state={null} color="secondary" sx={{ alignSelf: 'flex-start', minHeight: 44 }}>
+                Zurück zur Einladung
+              </Button>
+            </Stack>
+          </Card>}
 
           <Card component="section" aria-labelledby="auth-session-heading" sx={{ p: { xs: 2, sm: 3 }, minWidth: 0 }}>
             <Stack spacing={2}>

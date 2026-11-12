@@ -52,11 +52,14 @@ export class ApiError extends Error {
   readonly status: number
   /** Stable problem `code` (or the first field error code), when the server provides one. */
   readonly code?: string
+  /** Seconds from a `Retry-After` header, when a rate-limited (429) response provides one. */
+  readonly retryAfterSeconds?: number
 
-  constructor(message: string, status: number, code?: string) {
+  constructor(message: string, status: number, code?: string, retryAfterSeconds?: number) {
     super(message)
     this.status = status
     if (code) this.code = code
+    if (retryAfterSeconds !== undefined) this.retryAfterSeconds = retryAfterSeconds
   }
 }
 
@@ -302,10 +305,20 @@ function groupFrom(value: unknown): GroupSummary {
   return { id: value.id, name: value.name, role: value.role }
 }
 
+/** Delay-seconds or HTTP-date `Retry-After` value; undefined when absent or unusable. */
+export function retryAfterSeconds(value: string | null, now = Date.now()): number | undefined {
+  if (!value) return undefined
+  const trimmed = value.trim()
+  if (/^\d+$/.test(trimmed)) return Number(trimmed)
+  const date = Date.parse(trimmed)
+  return Number.isNaN(date) ? undefined : Math.max(0, Math.ceil((date - now) / 1000))
+}
+
 async function checkedResponse(response: Response, status: number, fallback: string) {
   if (!response.ok) {
     const problem = await problemOf(response, fallback)
-    throw new ApiError(problem.message, response.status, problem.code)
+    throw new ApiError(problem.message, response.status, problem.code,
+      response.status === 429 ? retryAfterSeconds(response.headers.get('Retry-After')) : undefined)
   }
   if (response.status !== status) throw new Error('The server returned an unexpected response.')
   return response
@@ -332,8 +345,39 @@ export async function createGroup(name: string, signal?: AbortSignal): Promise<G
   return groupResponse(await unsafeRequest('POST', '/api/groups', { name }, signal), 201, 'Could not create the group.')
 }
 
+/** Explicit, authenticated, CSRF-protected redemption; the body is strictly `{ code }`. */
 export async function joinGroup(code: string, signal?: AbortSignal): Promise<GroupSummary> {
   return groupResponse(await unsafeRequest('POST', '/api/groups/join', { code }, signal), 200, 'Could not join. Check that the invitation code is current and valid.')
+}
+
+/** Single-use invitation secrets (#187): exactly 22 URL-safe Base64 characters. */
+export const invitationCodePattern = /^[A-Za-z0-9_-]{22}$/
+export type Invitation = { code: string; expiresAt: string }
+
+/** Issues a fresh, independent 24-hour invitation; never reuses an earlier one. */
+export async function createInvitation(groupId: string, signal?: AbortSignal): Promise<Invitation> {
+  const response = await checkedResponse(
+    await unsafeRequest('POST', `/api/groups/${encodeURIComponent(groupId)}/invitations`, undefined, signal),
+    201, 'Could not create the invitation.',
+  )
+  const body: unknown = await response.json()
+  if (!isRecord(body) || typeof body.code !== 'string' || !invitationCodePattern.test(body.code) ||
+    typeof body.expiresAt !== 'string' || Number.isNaN(Date.parse(body.expiresAt))) {
+    throw new Error('The server returned an invalid invitation.')
+  }
+  return { code: body.code, expiresAt: body.expiresAt }
+}
+
+/** Public, non-consuming preview. Sends no session cookie and keeps the token out of caches and referrers. */
+export async function previewInvitation(code: string, signal?: AbortSignal): Promise<{ groupName: string }> {
+  const response = await checkedResponse(await fetch(`/api/invitations/${encodeURIComponent(code)}`, {
+    credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer', ...(signal ? { signal } : {}),
+  }), 200, 'Could not load the invitation.')
+  const body: unknown = await response.json()
+  if (!isRecord(body) || typeof body.groupName !== 'string' || !body.groupName) {
+    throw new Error('The server returned an invalid invitation preview.')
+  }
+  return { groupName: body.groupName }
 }
 
 export async function getGroup(id: string, signal?: AbortSignal): Promise<GroupDetails> {
@@ -476,19 +520,6 @@ export async function listQuickProfileDecks(groupId: string, userId: string, sig
 export async function createQuickProfileDeck(groupId: string, userId: string, input: DeckInput, signal?: AbortSignal, idempotencyKey?: string): Promise<Deck> {
   const response = await unsafeRequest('POST', quickProfileDecksPath(groupId, userId), input, signal, idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {})
   return deckResponse(response, 'Could not create the deck.', idempotencyKey && response.status === 200 ? 200 : 201)
-}
-
-export async function getJoinCode(id: string, regenerate = false, signal?: AbortSignal): Promise<string> {
-  const path = `/api/groups/${encodeURIComponent(id)}/join-code`
-  const response = await checkedResponse(
-    regenerate ? await unsafeRequest('POST', path, undefined, signal) : await fetch(path, { ...requestDefaults, cache: 'no-store', ...(signal ? { signal } : {}) }),
-    200, regenerate ? 'Could not regenerate the invitation code.' : 'Could not load the invitation code.',
-  )
-  const body: unknown = await response.json()
-  if (!isRecord(body) || typeof body.code !== 'string' || !/^[A-Za-z0-9_-]{22}$/.test(body.code)) {
-    throw new Error('The server returned an invalid invitation code.')
-  }
-  return body.code
 }
 
 export async function leaveGroup(id: string, signal?: AbortSignal): Promise<void> {

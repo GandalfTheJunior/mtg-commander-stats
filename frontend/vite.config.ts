@@ -2,6 +2,25 @@ import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
 import { availableParallelism } from 'node:os'
 import { configDefaults, defineConfig } from 'vitest/config'
+import type { Connect, Plugin } from 'vite'
+
+// #200: token-bearing invitation pages must not be cached or leak via Referer.
+// Production hosting must send the same headers (docs/development/invitation-cutover.md).
+const invitationPageHeaders: Connect.NextHandleFunction = (request, response, next) => {
+  if (request.url?.startsWith('/invite/')) {
+    // Vite's HTML middleware later sets its own Cache-Control; keep no-store authoritative.
+    const setHeader = response.setHeader.bind(response)
+    response.setHeader = (name, value) => setHeader(name, name.toLowerCase() === 'cache-control' ? 'no-store' : value)
+    response.setHeader('Cache-Control', 'no-store')
+    response.setHeader('Referrer-Policy', 'no-referrer')
+  }
+  next()
+}
+const invitationHeaders = (): Plugin => ({
+  name: 'invitation-page-headers',
+  configureServer: server => { server.middlewares.use(invitationPageHeaders) },
+  configurePreviewServer: server => { server.middlewares.use(invitationPageHeaders) },
+})
 
 // These full UI flows approach their existing time budgets when competing for
 // two CPUs. Keep their App/router integration and give them a worker to themselves.
@@ -14,7 +33,7 @@ const interactiveSuites = [
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), invitationHeaders()],
   server: {
     proxy: {
       '/api': {
