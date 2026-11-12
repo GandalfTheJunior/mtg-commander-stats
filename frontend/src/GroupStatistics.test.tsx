@@ -16,12 +16,13 @@ const chooser = `${landing}/reports`
 const reportUrl = (report: string) => `${chooser}/${report}`
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
-const history = { navigate: (() => undefined) as ReturnType<typeof useNavigate>, path: '' }
+const history = { navigate: (() => undefined) as ReturnType<typeof useNavigate>, path: '', state: null as unknown }
 function HistoryProbe() {
   const navigate = useNavigate(), location = useLocation()
   useEffect(() => {
     history.navigate = navigate
     history.path = `${location.pathname}${location.search}`
+    history.state = location.state
   })
   return null
 }
@@ -447,4 +448,49 @@ test.each([200, 401])('leaving a loading report ignores a late status %s respons
   await act(async () => late.resolve(response(richStatistics(), status)))
   expect(screen.queryByText(/session expired/i)).not.toBeInTheDocument()
   expect(screen.queryByRole('table', { name: 'Spielerstatistiken' })).not.toBeInTheDocument()
+})
+
+test('rapid chooser toggles compose, so every opened category stays open and survives report Back', async () => {
+  setup()
+  show(chooser)
+  await screen.findByRole('heading', { name: 'Alle Statistiken' })
+  act(() => {
+    fireEvent.click(screen.getByRole('button', { name: 'Spieler' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Decks' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Gruppe' }))
+  })
+  for (const name of ['Spieler', 'Decks', 'Gruppe']) expect(screen.getByRole('button', { name })).toHaveAttribute('aria-expanded', 'true')
+  await waitFor(() => expect(history.state).toEqual({ statisticsChooser: ['players', 'decks', 'group'] }))
+  fireEvent.click(screen.getByRole('link', { name: 'Gesamtsiegquote pro Spieler' }))
+  await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  await back()
+  for (const name of ['Spieler', 'Decks', 'Gruppe']) expect(await screen.findByRole('button', { name })).toHaveAttribute('aria-expanded', 'true')
+})
+
+test('returning to an earlier filter before the intervening read resolves shows loading, not the retired result', async () => {
+  const api = setup()
+  show(reportUrl('players'))
+  await screen.findByRole('table', { name: 'Spielerstatistiken' })
+  const three = deferred(), alle = deferred()
+  api.next(apiPath, () => three.promise)
+  api.next(apiPath, () => alle.promise)
+  fireEvent.click(radio('3'))
+  await screen.findByText('Statistiken werden geladen…')
+  fireEvent.click(radio('Alle'))
+  expect(screen.getByText('Statistiken werden geladen…')).toBeInTheDocument()
+  expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  await act(async () => alle.resolve(response(emptyStatistics())))
+  expect(await screen.findByText(/Noch keine Spielerstatistiken/)).toBeInTheDocument()
+  await act(async () => three.resolve(response(emptyStatistics(3))))
+  expect(screen.queryByRole('table')).not.toBeInTheDocument()
+})
+
+test('colliding deck teaser identities get suffixes long enough to differ', async () => {
+  const data = richStatistics()
+  const twin = { ...data.decks[1], deckId: '11111111-1111-4111-8111-11111111abcd' }
+  data.decks = [twin, { ...twin, deckId: '22222222-2222-4222-8222-22222222abcd' }]
+  setup(data)
+  show()
+  const rows = within(await screen.findByRole('list', { name: 'Decks mit der höchsten Siegrate' })).getAllByRole('listitem')
+  expect(rows.map(row => row.textContent!.match(/\(…([0-9a-f-]+)\)/)![1])).toEqual(['1abcd', '2abcd'])
 })

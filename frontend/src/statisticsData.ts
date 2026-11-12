@@ -17,6 +17,13 @@ export function useGroupStatistics(groupId: string, playerCount: PlayerCount | u
   const [revision, setRevision] = useState(0)
   const key = `${groupId}|${playerCount ?? 'all'}|${revision}`
   const [result, setResult] = useState<{ key: string; load: StatisticsLoad } | null>(null)
+  // Every key transition retires the shown result, so returning to an earlier
+  // filter or retry cannot present its old data or error while a fresh read runs.
+  const [currentKey, setCurrentKey] = useState(key)
+  if (currentKey !== key) {
+    setCurrentKey(key)
+    setResult(null)
+  }
   const accessError = useRef(onAccessError)
   useEffect(() => { accessError.current = onAccessError })
   useEffect(() => {

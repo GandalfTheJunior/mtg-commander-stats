@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { Box, ButtonBase, Card, Stack, Typography } from '@mui/material'
 import { chooserExpanded, chooserState, originState, reportTitles, statisticsUrl, type ChooserCategory, type StatisticsReport } from './statisticsState'
@@ -15,11 +16,14 @@ const focus = { '&.Mui-focusVisible, &:focus-visible': { outline: '3px solid', o
 export default function StatisticsChooser({ groupId }: { groupId: string }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const expanded = chooserExpanded(location.state)
-  function toggle(category: ChooserCategory) {
-    const next = expanded.includes(category) ? expanded.filter(item => item !== category) : [...expanded, category]
-    void navigate(location.pathname, { replace: true, state: chooserState(next) })
-  }
+  // Local state composes rapid toggles; the effect then mirrors it into this history entry.
+  const [expanded, setExpanded] = useState(() => chooserExpanded(location.state))
+  useEffect(() => {
+    if (chooserExpanded(location.state).join() !== expanded.join()) void navigate(location.pathname, { replace: true, state: chooserState(expanded) })
+  }, [expanded, location.pathname, location.state, navigate])
+  // Normalized to the fixed category order, matching what history state restores.
+  const toggle = (category: ChooserCategory) => setExpanded(current =>
+    chooserExpanded(chooserState(current.includes(category) ? current.filter(item => item !== category) : [...current, category])))
   return <Stack component="section" aria-labelledby="statistics-chooser-heading" sx={{ gap: 2, minWidth: 0 }}>
     <BackLink to={statisticsUrl(groupId)}>Zurück zu Statistiken</BackLink>
     <Typography component="h3" variant="h5" id="statistics-chooser-heading">Alle Statistiken</Typography>

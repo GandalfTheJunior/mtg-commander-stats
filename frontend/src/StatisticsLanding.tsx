@@ -4,7 +4,7 @@ import { Box, Button, Card, CardActionArea, Chip, Divider, Stack, Typography } f
 import type { GroupStatistics } from './api'
 import { publicName } from './gamePresentation'
 import { countsText, formatRate, useGroupStatistics } from './statisticsData'
-import { deckIdentity, ownerLabel, playerLabel, sectionGames, spotlightPlayers, teaserDecks, teaserSection } from './statisticsOrder'
+import { deckIdentity, distinctSuffix, ownerLabel, playerLabel, sectionGames, spotlightPlayers, teaserDecks, teaserSection } from './statisticsOrder'
 import { originState, statisticsUrl, useStatisticsMemory, type StatisticsReport } from './statisticsState'
 import { CommanderTitle, LoadFeedback, RateBar, SeatLine, SkeletonLines } from './StatisticsParts'
 
@@ -86,14 +86,14 @@ function DeckRows({ data }: { data: GroupStatistics }) {
   const identities = decks.map(deckIdentity)
   return <Stack component="ul" aria-label="Decks mit der höchsten Siegrate" sx={rowList}>
     {decks.map((deck, index) => {
-      const collides = identities.filter(identity => identity === identities[index]).length > 1
+      const peers = decks.filter((_, other) => identities[other] === identities[index]).map(peer => peer.deckId)
       return <Box component="li" key={deck.deckId} sx={{ minWidth: 0 }}>
         <Stack direction="row" sx={{ gap: 1, justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <CommanderTitle deck={deck} />
           {deck.archived && <Chip size="small" label="Archiviert" variant="outlined" sx={{ flexShrink: 0, color: 'text.secondary' }} />}
         </Stack>
         <Typography variant="body2" sx={{ color: 'text.secondary', overflowWrap: 'anywhere' }}>
-          Deck: {deck.name} · {ownerLabel(deck)}{collides && ` (…${deck.deckId.slice(-4)})`}
+          Deck: {deck.name} · {ownerLabel(deck)}{peers.length > 1 && ` (…${distinctSuffix(deck.deckId, peers)})`}
         </Typography>
         <Stack direction="row" sx={{ gap: 1, justifyContent: 'space-between', alignItems: 'baseline', mt: 0.5 }}>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>{countsText(deck.games, deck.wins)}</Typography>

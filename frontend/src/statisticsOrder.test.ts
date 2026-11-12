@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { defaultDecks, defaultPlayers, rankedColors, sectionGames, spotlightPlayers, teaserSection } from './statisticsOrder'
+import { defaultDecks, defaultPlayers, distinctSuffix, rankedColors, sectionGames, spotlightPlayers, teaserSection } from './statisticsOrder'
 import type { ManaStatistics } from './api'
 
 test('ranks exact rates before participation ties and canonical order, with missing data last', () => {
@@ -38,4 +38,10 @@ test('player default order ranks most games, then localized display name, then U
   const ordered = spotlightPlayers([player(4, 'Zed', 9), player(3, 'Deleted profile', 9, 1), player(2, 'Bea', 9), player(1, 'Bea', 9), player(5, 'Ada', 20)])
   expect(ordered.map(row => Number(row.userId.slice(-1)))).toEqual([5, 1, 2])
   expect(defaultPlayers([player(3, 'Deleted profile', 9, 1), player(4, 'Zed', 9)]).map(row => row.userId.slice(-1))).toEqual(['3', '4'])
+})
+
+test('distinct suffixes grow past shared UUID tails', () => {
+  const a = '11111111-1111-4111-8111-11111111abcd', b = '22222222-2222-4222-8222-22222222abcd'
+  expect([distinctSuffix(a, [a, b]), distinctSuffix(b, [a, b])]).toEqual(['1abcd', '2abcd'])
+  expect(distinctSuffix(a, [a, '33333333-3333-4333-8333-33333333ffff'])).toBe('abcd')
 })

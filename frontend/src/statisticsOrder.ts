@@ -60,6 +60,13 @@ function collisions<Row>(rows: Row[], id: (row: Row) => string, identity: (row: 
 }
 export const ambiguousPlayers = (players: PlayerStatistics[]) => collisions(players, row => row.userId, playerLabel)
 export const deckIdentity = (deck: DeckStatistics) => JSON.stringify([deck.commanders.map(commander => commander.name), deck.name, ownerLabel(deck)])
+/** Shortest UUID tail distinguishing an ID from colliding peers (at least four characters). */
+export function distinctSuffix(id: string, peers: string[]) {
+  const others = peers.filter(peer => peer.toLowerCase() !== id.toLowerCase())
+  let length = 4
+  while (length < id.length && others.some(peer => peer.slice(-length).toLowerCase() === id.slice(-length).toLowerCase())) length++
+  return id.slice(-length)
+}
 export const ambiguousDecks = (decks: DeckStatistics[]) => collisions(decks, row => row.deckId, deckIdentity)
 
 type Section = GroupStatistics['startPositions'][number]
