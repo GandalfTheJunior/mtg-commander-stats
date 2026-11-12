@@ -207,6 +207,8 @@ export default function InvitationPage({ segment, user, checking, notice, onUnau
   }
 
   return <Box component="main" sx={{
+    // Override the legacy global main/header rules in index.css, like the auth screen does.
+    m: 0, width: '100%', maxWidth: 'none', '& header': { m: 0 },
     bgcolor: 'background.default', color: 'text.primary', minHeight: '100vh', '@supports (min-height: 100dvh)': { minHeight: '100dvh' },
     boxSizing: 'border-box', pl: 'max(16px, env(safe-area-inset-left, 0px))', pr: 'max(16px, env(safe-area-inset-right, 0px))',
     pt: 'max(8px, env(safe-area-inset-top, 0px))', pb: 'calc(24px + env(safe-area-inset-bottom, 0px))', overflowWrap: 'anywhere',
@@ -217,6 +219,7 @@ export default function InvitationPage({ segment, user, checking, notice, onUnau
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" focusable="false"><path d="m15 5-7 7 7 7" /></svg>
         </IconButton>
         <Typography component="h1" sx={{ fontWeight: 700, textAlign: 'center', fontSize: '1.125rem' }}>Playgroup-Einladung</Typography>
+        <Box aria-hidden="true" />
       </Box>
       {notice && <Typography role={notice.kind === 'error' ? 'alert' : 'status'}
         sx={{ textAlign: 'center', color: notice.kind === 'error' ? 'error.main' : 'success.main' }}>{notice.message}</Typography>}
