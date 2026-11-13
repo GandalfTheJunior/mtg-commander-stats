@@ -1,24 +1,30 @@
-# Approved mobile functional wireframe for #239
+# PO-approved mobile functional wireframe for #239
 
-> **Archive incomplete — image binary pending.** This directory is a documentation-only staging point for the single PO-approved mobile v1 full-card viewer wireframe from [issue #239](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/239). It is **not yet a repository-local wireframe archive** and must not be treated as ready for implementation evidence or merge.
+This directory contains the **repository-local image uploaded by the Product Owner** for the single mobile v1 full-card viewer wireframe approved in [#239](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/239) on 2026-11-09.
 
-## Authoritative source
+## Repository image and approval
 
-- **Owning specification:** [#239 — shared full-card viewer layout and interactions](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/239).
-- **Approved mobile v1 source attachment:** [GitHub issue attachment](https://github.com/user-attachments/assets/f258135b-c41c-4bd9-bb64-60374d68908c).
-- **Approval:** Product Owner approved the single mobile v1 wireframe on 2026-11-09, as recorded in #239.
-- **Desktop:** no separate desktop wireframe is required; #239 specifies desktop behavior in text.
-- **Authority:** the image governs layout hierarchy, grouping, control inventory and placement; #239's written contract governs dynamic states, accessibility, interaction, fallback behavior and exceptions.
+| Item | Reference |
+| --- | --- |
+| Repository file | [`IMG_2483.png`](IMG_2483.png) |
+| Direct image preview | ![#239 full-card dialog mobile v1 wireframe](IMG_2483.png) |
+| GitHub file metadata | `IMG_2483.png`, 68,390 bytes, Git blob `b02098247bf8100d28d2da856972f0ffdd852770` |
+| Approved original issue attachment | [Mobile v1 source](https://github.com/user-attachments/assets/f258135b-c41c-4bd9-bb64-60374d68908c) |
+| Binding behavior and acceptance criteria | [Issue #239](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/239) |
 
-## Required completion before review or merge
+The PO uploaded `IMG_2483.png` to the archive branch. GitHub confirms it is a file in the intended directory. **Its image contents and pixel dimensions have not been independently inspected in this tool environment**, which cannot decode repository image blobs; the `.png` extension is reported, not independently signature-verified. No byte-for-byte equality to the original issue attachment is asserted.
 
-1. Download the **actual approved attachment** from #239. Commit that **image file** under this directory without recreating, approximating or restyling the design. Use its true file format and extension, and keep the approved visual content unchanged.
-2. Add a relative Markdown link to the committed image here, recording its actual filename, format and pixel dimensions.
-3. Open the committed image **visually**, compare its contents to the approved issue attachment, and document what was verified. Do not claim byte-for-byte provenance unless independently established.
-4. Confirm that the PR includes only this documentation and the approved image binary. Complete independent review and verify required CI on the final HEAD before the Product Owner decides whether to merge.
+**Review gate:** Open and visually inspect the committed image in GitHub, compare its layout/control hierarchy with the approved mobile v1 attachment on #239, verify that the binary opens as a valid image and record the dimensions if useful. The PO's upload is not by itself proof of byte identity. Do not mark this check complete without inspecting the actual image.
 
-**Blocked in the current editing environment:** the public GitHub `user-attachments/assets` binary could not be fetched through the available repository connector or file-download tools. Only its source URL and the written approval are verified; **no image has been uploaded or visually checked in this PR**.
+## Design authority
 
-## Implementation handoff after this archive is complete
+- The approved mobile v1 wireframe governs **control inventory, grouping, visual hierarchy and interaction placement**, not exact pixels, color values, decorative styling or motion frames.
+- The written #239 specification governs dynamic interactions and edge cases, including complete uncropped saved card images, face switching, 350 ms 3D turn, reduced motion, accessible focus/close behavior, and responsive desktop two-column layout.
+- The PO expressly decided that **no separate desktop wireframe** is required for #239.
+- #235 related Commander tokens is an independently authorized later extension; this archive does not approve token UI under #239.
 
-For the separate, PO-authorized #239 implementation, read the full issue and open the committed image file itself. Reuse the existing `frontend/src/FullCardView.tsx` and saved snapshots from #222 for #195, #199 and #201. Do not add #235 token accordion behavior under #239; it remains an independent UI slice. This documentation PR does **not** authorize implementing #239 or merging this archive.
+## Implementation and handoff
+
+After this documentation PR has passed independent image review, final-HEAD CI and PO merge approval, the separate #239 Implementer should open `docs/product/wireframes/239/IMG_2483.png` and read the complete #239 issue. Reuse `frontend/src/FullCardView.tsx` and the completed #222 snapshot foundation across #195, #199 and #201. Do not introduce a second viewer, new card-metadata requests or decorative Cozy styling.
+
+This documentation-only PR neither modifies runtime code nor authorizes implementing #239, #235 or other work.
