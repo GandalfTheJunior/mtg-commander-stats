@@ -428,6 +428,36 @@ test('reaching the server expiry discards a created link without a countdown', a
   expect(document.body.textContent).not.toContain(code)
 })
 
+test.each(['completed', 'pending'] as const)('copy feedback (%s) for an expired link never carries over to the next link in the same dialog', async timing => {
+  const pending = deferred()
+  const writeText = vi.fn((text: string) => timing === 'pending' && text.includes(code) ? pending.promise.then(() => undefined) : Promise.resolve())
+  vi.stubGlobal('navigator', { ...navigator, share: undefined, canShare: undefined, clipboard: { writeText } })
+  const api = server()
+  const dialog = await openClaim()
+  const create = await within(dialog).findByRole('button', { name: 'Einladung erstellen' })
+  api.state.expiresAt = new Date(Date.now() + 1200).toISOString()
+  fireEvent.click(create)
+  expect(await within(dialog).findByLabelText('Einladungslink')).toHaveValue(link)
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Link kopieren' }))
+  if (timing === 'completed') expect(await within(dialog).findByText('Link kopiert')).toBeInTheDocument()
+  // Link A expires while the dialog stays open; a new link B is created deliberately.
+  expect(await within(dialog).findByText('Die Einladung ist abgelaufen.', {}, { timeout: 3000 })).toBeInTheDocument()
+  api.state.nextCode = secondCode
+  api.state.expiresAt = soon()
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Einladung erstellen' }))
+  expect(await within(dialog).findByLabelText('Einladungslink')).toHaveValue(`${window.location.origin}/claim/${secondCode}`)
+  // A copy of A that finishes only now is not reported for B.
+  await act(async () => pending.resolve(new Response(null)))
+  expect(within(dialog).queryByText('Link kopiert')).not.toBeInTheDocument()
+  expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
+  expect(writeText).toHaveBeenCalledTimes(1)
+  expect(writeText).toHaveBeenCalledWith(link)
+  // Copying B reports success for B only.
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Link kopieren' }))
+  expect(await within(dialog).findByText('Link kopiert')).toBeInTheDocument()
+  expect(writeText).toHaveBeenLastCalledWith(`${window.location.origin}/claim/${secondCode}`)
+})
+
 // ---------------------------------------------------------------- public preview and authentication
 
 test('a signed-out direct load shows only group and profile names and the existing auth choices', async () => {

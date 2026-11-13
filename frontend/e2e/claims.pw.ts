@@ -140,6 +140,7 @@ for (const width of [320, 375, 390, 1280]) {
     expect(api.creates).toBe(1)
     const expected = new URL(`/claim/${code}`, baseURL).href
     await expect(dialog.getByRole('textbox', { name: 'Einladungslink' })).toHaveValue(expected)
+    expect(await dialog.getByRole('textbox', { name: 'Einladungslink' }).evaluate(input => getComputedStyle(input).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
     await expect(dialog.getByText(/^Gültig bis \d\d\.\d\d\., \d\d:\d\d Uhr$/)).toBeVisible()
     const share = dialog.getByRole('button', { name: 'Teilen' })
     const copy = dialog.getByRole('button', { name: 'Link kopieren' })

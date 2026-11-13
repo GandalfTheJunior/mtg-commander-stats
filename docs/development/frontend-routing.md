@@ -749,7 +749,9 @@ use intercepted non-sensitive data, not a live backend or physical-device test.
   white quiet zone); no QR service or API is involved. Native share appears only
   when `navigator.share` (and `canShare`, if present) allow it; otherwise
   **Link kopieren** is primary. **Link kopiert** appears only after the clipboard
-  promise resolves; denial shows a selected read-only field with the link.
+  promise resolves, and only for the URL still shown (feedback and late completions
+  for a replaced or expired link are discarded); denial shows a selected read-only
+  field with the link.
 - **Preview:** `/invite/:code` renders before the auth gate for checking,
   signed-out and signed-in sessions. Malformed codes are unavailable without a
   request. `GET /api/invitations/{code}` is sent with `credentials: 'omit'`,

@@ -241,8 +241,6 @@ export default function ProfileClaimDialog({ groupId, profile, onClose, onUnauth
         <Typography component="label" htmlFor={linkId} variant="caption" sx={overline}>Einladungslink</Typography>
         <TextField id={linkId} inputRef={sharing.manualField} value={url} fullWidth size="small"
           onFocus={event => event.target.select()}
-          // The legacy global `input[readonly]` fill (index.css) would put cream text on a near-white field.
-          sx={{ '& input[readonly]': { backgroundColor: 'transparent' } }}
           slotProps={{ htmlInput: { readOnly: true, spellCheck: false, style: { textOverflow: 'ellipsis' } } }} />
       </Box>
       <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', '& > *': { flex: '1 1 120px', minHeight: 48 } }}>
