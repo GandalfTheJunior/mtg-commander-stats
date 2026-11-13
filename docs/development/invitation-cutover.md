@@ -1,12 +1,13 @@
 # Single-use invitation cutover (#187 / #200)
 
 The single-use invitation backend (#187) was merged in PR #207, but **must not
-be deployed on its own**. The frontend integration in #200 remains a hard
-dependency for the coordinated release; merging the backend did not complete
-that release. There is no feature flag or dual acceptance period. The #200
-frontend consumes only the single-use endpoints (create, public preview, join);
-its legacy join-code client was removed. Implementation and local verification of
-#200 are not release verification: steps 2–6 still apply to the combined release.
+be deployed on its own**. Frontend #200 was implemented and merged in PR #302:
+it creates and shares single-use invitations, shows public name-only previews,
+and requires explicit authenticated redemption. The supported `joinGroup()`
+client still calls `POST /api/groups/join`; the obsolete join-code client
+was removed. Implementation and local verification of both components do not
+establish a coordinated production release. There is no feature flag or dual
+acceptance period: steps 2–6 remain mandatory for joint deployment.
 
 ## Required deployment sequence
 
@@ -52,8 +53,8 @@ legacy column and an empty invitation table. `InvitationTest` checks removed
 routes, one-time redemption, preview privacy, expiry, rollback and concurrent
 admission on PostgreSQL. `GroupManagementTest` checks late expiry after initial
 validation, membership integrity, collision retries and actual group-lock waits.
-These backend tests do not establish that #200 is ready: execute the coordinated
-browser and operational checks above on the final combined release before
-merging the coordinated #200 frontend work or deploying the backend/frontend
+These backend tests and the merged #200 browser implementation do not establish
+production cutover readiness: execute the coordinated browser and operational
+checks above on the final combined release before deploying the backend/frontend
 pair. There is no background cleanup; expired/consumed verifier records remain
 inert, and cleanup must never restore their validity.

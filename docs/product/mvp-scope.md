@@ -27,10 +27,11 @@ username or email address) is deferred until after the MVP.
 - The result is either WIN with exactly one winner or DRAW with no winner.
 - The original MVP deferred placements; the approved #116 backend extension now
   records explicit start seats, competition ranks, alternate victories and DRAW
-  survival under the [Games API](games-api.md). The #117 browser editor records
-  complete outcomes; winner-only and unknown-placement frontend support remain
-  separate work in #196, #195 and related history/overview issues (see the
-  [Games API handoff](games-api.md#browser-integration-handoff-196-195)).
+  survival under the [Games API](games-api.md). The implemented #196 focused
+  browser editor supports winner-only and complete WIN outcomes, partial-result
+  confirmation, drawn-game survival and `playedOn` dates; #195 details display
+  unknown historical ranks without inferring missing positions (see the
+  [Games API browser handoff](games-api.md#browser-integration-handoff-196-195)).
 - An active group member creates the game and need not participate. Its creator
   may modify or delete it while they remain active. An active group OWNER or
   ADMIN may modify or delete games in that group.
@@ -40,8 +41,8 @@ Backend contracts and history/display rules are documented in the
 [Commander games API](games-api.md). Game identity, creator, group, and recording
 time remain fixed on edits. Active members can read history. The selected group's
 browser game area supports recording, editing with explicit historical assignment
-preservation, and confirmed deletion. Actions appear only for the active creator
-or OWNER; server authorization remains authoritative.
+preservation, and confirmed deletion. Actions are available to the active creator, OWNER or ADMIN; server
+authorization remains authoritative.
 
 ## Play groups and membership
 
@@ -171,26 +172,30 @@ The backend [group statistics API](statistics-api.md) provides games, wins, and
 win rate per player and deck within a group. Only entities appearing in current
 games are included; draws add games without wins. Former members and archived
 decks retain recorded results. Active membership is required to read statistics.
-Opened browser groups start on Spieler and offer a Spieler/Decks switch: one
-card per returned row on phones and one sortable table for the selected dataset
-on desktop. All existing player/deck sort fields and both directions are available;
-numeric fields start descending and text fields ascending. Standardreihenfolge
-restores received API order, with independent temporary sort choices and stable
-ties. Full stable player/deck/owner IDs are disclosed only on request. The subview
-and sorts survive same-group navigation, refresh and acknowledged writes, then
-reset with the group/session lifetime. These are presentation choices, not
-rankings or changes to API counts. Successful game changes and explicit refresh
-reload server statistics. Loading, local error/retry, subview-specific empty states
-and group/session access recovery keep retired rows hidden.
-One shared Spielerzahl filter (Alle, 2–6) reloads all four API datasets. Below the
-selected dataset, start-seat and Mana-color bar charts remain visible for both
-subviews, side by side on wide screens and stacked on phones. Start seats stay
-separated by table size; All hides unobserved sizes. Empty observations display
-“Keine Daten vorhanden”, whereas measured no-win rates display 0%. Color bars
-rank by exact rate, games, then WUBRG/C. Every bar exposes games, wins and the
-server percentage as text. Colors count full overlapping deck appearances;
-colorless is a separate gray category. No raw-game aggregation or date filter is
-added. Broader placement analytics and custom dashboards remain deferred.
+The [#197 browser statistics experience](../development/frontend-routing.md#group-statistics-197)
+opens with three fixed, unfiltered, linked teaser cards for player win rates,
+deck win rates and starting-seat performance. **Alle Statistiken anzeigen**
+opens a request-free category chooser. Four focused reports cover players,
+decks, starting seats and Mana colors. A shared Spielerzahl control
+(Alle, 2–6) filters each report. Player and deck reports show responsive
+row cards on phones and sortable semantic tables on desktop, with separate
+per-report column/direction choices; starting-seat and Mana-color reports
+show fixed-order lists without sorting. The statistics landing, chooser and
+reports retain the group heading, tabs and independently verified membership.
+
+Report sorts and the shared table-size filter are temporary in-memory
+presentation choices. They survive navigating between views of the **same
+group**, but not leaving the group, switching sessions or reloading. Teaser
+and Overview navigation reset only the filter. Neither the filter nor sort
+choices are transmitted as persistent preferences; only the selected
+`playerCount` filter changes the statistics API query. Each route entry
+fetches fresh server aggregates where required, with local loading/error/retry
+feedback and private-data retirement on access denial. Full identifiers are
+disclosed only for visible ambiguous names. Exact ratio comparisons,
+deterministic ties and server-provided game/win/rate numbers are retained;
+unobserved rates remain distinct from measured 0%. No raw-game aggregation
+or date filter is added. Broader placement analytics and configurable
+dashboards remain deferred.
 
 Play-group seasons and season-specific win-rate leaderboards are documented as a
 [post-MVP product concept](playgroup-seasons.md). This is a future feature and
