@@ -23,9 +23,9 @@ function message(error: unknown) {
   return error instanceof Error ? error.message : 'The game request failed.'
 }
 
-// The parent keys this area by selected group; App keys the
-// entire group manager by confirmed session. Abort and generation checks retire
-// responses (including 401s) before they can affect a different lifetime.
+// Route-keyed GroupPage mounts this manager only for Games. Retiring its route,
+// group or session aborts pending history pages; generation checks fence stale
+// responses (including 401s) from a former lifetime.
 export default function GameManager({ group, savedPanel, ...handlers }: Props) {
   const leave = useContext(EditorLeave)
   const id = group.id

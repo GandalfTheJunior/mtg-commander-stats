@@ -331,15 +331,24 @@ A separate, nonbinding post-MVP concept is captured in
 ## Browser group management
 
 The authenticated [browser shell and routing](../development/frontend-routing.md)
-mount `GroupManager` at `/playgroups`, dedicated `GroupPage` routes for group tabs
-and OWNER code management, and `DeckManager` at `/decks`, one destination at a time.
-Group membership is reverified on route entry. Spiele uses navigable MUI history
-cards and uses the focused game editor with drafts preserved across
-same-group tabs and guarded exits. Dedicated Spieldetails routes freshly verify group then game;
-see the routing guide for read recovery, one-use edit intents and deletion lifetimes. Deck creation and
-lifecycle actions use the dedicated MUI editor at `/decks/new` or
-`/decks/:deckId/edit`, with scoped drafts, origin-aware return and navigation
-protection described in the routing guide. GroupManager uses typed
+mount `GroupManager` at `/playgroups`, a route-keyed `GroupPage` for
+Overview, Games, Statistics and Members, and `DeckManager` at `/decks`.
+Opening `/playgroups/:groupId` starts at Overview; every group route
+reverifies membership. The Overview reads its fixed win-rate spotlight and
+three recent compact game previews. Games uses the shared compact cards for
+cursor-paginated history. Dedicated Spieldetails routes freshly verify group
+and game; focused `GameEditorPage` routes at
+`/playgroups/:groupId/games/new` and
+`/playgroups/:groupId/games/:gameId/edit` host the guarded editor. Dirty
+drafts remain intact when a navigation exit is rejected, but are not cached
+across completed route changes. Confirmed saves replace the editor URL with
+Games. A 400 validation error or non-403 unacknowledged write retains the draft;
+a write 403 hides it and requires a fresh permission check. The #196
+success handoff returns to Games with a one-use repeat-match option. See the routing
+guide for detailed editor guards, detail recovery and deletion lifetimes. Deck
+creation and lifecycle actions use the dedicated MUI editor at `/decks/new`
+or `/decks/:deckId/edit`, with scoped drafts, origin-aware return and
+navigation protection described in the routing guide. GroupManager uses typed
 operations in `frontend/src/api.ts` against the
 [play groups API](../product/groups-api.md); unsafe operations reuse the existing
 same-origin cookies and fresh CSRF bootstrap. Group responses are validated
@@ -347,132 +356,134 @@ before updating the UI. Failed CSRF preparation retains HTTP status information,
 so a 401 follows the same session-expiration path as a business-request 401.
 A 403 remains an access/CSRF error rather than asserting session expiration.
 
-The browser lifecycle below describes the legacy frontend pending #200. Its
-code retrieval/rotation controls are superseded by the invitation backend and
-must be replaced in the coordinated cutover; they cannot run against V13.
+The #190 route foundation retired the legacy OWNER code-management screen,
+manual join form and reusable-code navigation. The merged #200 invitation UI
+(PR #302) now provides single-use creation/sharing, public name-only preview
+at `/invite/:code`, explicit authenticated join, and login/registration
+return to that invitation. The supported `joinGroup()` client calls
+`POST /api/groups/join`; only the legacy `getJoinCode()` helper and
+reusable-code controls were removed. Implementation alone does not verify
+production release readiness: the coordinated
+[invitation cutover](../development/invitation-cutover.md) still requires
+joint deployment and operational checks.
 
 Protected browser state is scoped to each confirmed session lifetime, including
 when the same user signs in again. A successful login invalidates callbacks from
 the previous session before refreshing CSRF and confirming identity. Deck and
-group components remount for the new session; late results from their previous
-lifetime cannot update protected state or expire the new session. Group
-details/code state is also scoped to the selected group's component lifetime.
-Request cleanup aborts work and ignores late results after a route, group or
-identity change. Closing/reopening or explicitly refreshing details fetches
-active members again and discards any displayed invitation code. A 403 from a
-group action triggers a safe details GET to distinguish active membership from
-CSRF/authorization denial. Protected details/code are hidden during this check;
-a successful check restores only freshly authorized details, never a previous code.
-The dedicated OWNER screen offers a new explicit code GET. Failed or ambiguous
-regeneration clears the old code immediately and never repeats the POST.
-A details GET returning 403/404 confirms lost access, clears details/code and
-reloads the active group list. A failed check leaves protected data hidden and
-allows an explicit refresh without asserting membership loss. Only a
-confirmed OWNER gets code controls and code requests; the server remains the
-authorization boundary. MEMBER departure and code regeneration require visible
-confirmation. Identity changes and session expiration unmount protected group
-content. Browser logout advances the session version and unmounts both deck and
-group content before CSRF preparation and DELETE. Only `204` confirms completion;
-other statuses or network failures recheck `/api/me`. A valid identity remounts
-Dashboard and fresh destination views, an absent identity exposes signed-out controls without a success
-claim, and an unavailable check keeps protected content hidden until an explicit
-session check or login. Recovery and initial identity checks also respect the
-session version, so old results cannot restore retired state or invitation codes.
-The shell uses React Router Declarative Mode; no real-time infrastructure is added.
+group routes remount for the new session; late results from their previous
+lifetime cannot update protected state or expire the new session. Each group
+tab, Overview and detail route loads fresh authorization-bound details. Request
+cleanup aborts work and ignores late results after route, group or identity
+changes. An unavailable group read leaves protected content hidden and offers
+retry; confirmed group 403/404 loss clears private details and returns to
+`/playgroups` with an explicit access-loss notice. A MEMBER's leave action
+requires confirmation; exact `204` acknowledges departure, while ambiguous
+outcomes recheck membership without repeating DELETE or claiming success.
+Backend authorization remains authoritative. Identity changes and session
+expiration unmount protected content. Browser logout advances the session
+version and unmounts protected views before CSRF preparation and DELETE;
+only `204` confirms logout. Other statuses or network failures recheck
+`/api/me`. A valid identity remounts Dashboard and fresh destination views;
+an absent identity exposes signed-out controls, while an unavailable check
+keeps protected content hidden until explicit recovery. Session epochs fence
+old callbacks during recovery. The shell uses React Router Declarative Mode;
+no real-time infrastructure is added.
 
 ## Browser game recording and deck lifecycle
 
-`GameManager` is mounted inside confirmed group details for the current session
-identity. It loads validated compact history previews in backend date-first order
-from the bounded history endpoint. Games history appends cursor pages of at most
-20 entries when its bottom sentinel enters view, preserves loaded cards on
-recoverable page errors, and retires requests with the group/session lifetime.
-The Overview shares the same parser and compact card, displaying only its three
-recent entries. The current `GameEditor`
-submits participant/deck assignments with contiguous `startPosition` values,
-mode-specific `placement`, `winner` or `stillInGame` fields, `result`, and
-`alternateWinCon`. Server-owned game identity, group, creator, recording time,
-and membership roles are not writable payload fields. Winner-only and
-unknown-placement browser handling remain [follow-up work](../product/games-api.md#browser-integration-handoff-196-195).
-The winner label and historical participant/deck displays come from history
-responses, including archived decks and former members. Existing pairs
-are offered explicitly as recorded assignments. New choices come from the group's
-active-member list and read-only member deck-selection API, with independent
-loading/empty/error feedback. Backend validation and authorization remain final.
+`GameManager` mounts only for the authorized Games group route and consumes
+validated compact history previews in server-owned date-first order
+from the bounded history endpoint. Games appends cursor pages of at most 20
+entries when its bottom sentinel enters view, preserves loaded cards on
+recoverable page errors, and retires requests with the route/group/session
+lifetime. The Overview independently reads its three recent games using the
+same preview parser and `CompactGameCard`, plus `getGroupStatistics` for its
+win-rate spotlight without mounting `GroupStatistics`. Previews display
+public saved winner/participant/deck information; dedicated details fetch the
+full game. Focused `GameEditorPage` separately checks group access and, on
+edits, the saved game and edit permission before mounting `GameEditor`.
+The editor submits participant/deck assignments with contiguous `startPosition`
+values, mode-specific `placement`, `winner` or `stillInGame` fields,
+`result`, `alternateWinCon` and `playedOn`. Server-owned game identity, group, creator,
+recording time, and membership roles are not writable payload fields.
+The [#196 focused browser editor](../product/games-api.md#browser-game-editor)
+supports winner-only WIN, explicit partial-placement confirmation, and the
+saved `playedOn` date (including an unknown date on older games); it does not
+infer unknown opponent ranks.
+The complete game-detail and editor records preserve historical assignments,
+including archived decks and former members. Existing pairs may be retained
+explicitly as recorded; new choices come from the group's active-member list
+and read-only member deck-selection API, with independent loading/empty/error
+feedback. Backend validation and authorization remain final.
 
-The game area is scoped to the selected group within the route/session
-lifetime. Refreshing/closing details, membership loss, route or identity changes unmount
-it. AbortControllers and generation checks ignore late results and late 401s;
-unsafe game requests pass the abort signal through CSRF bootstrap and check it
-before sending the write. Refresh or recovery removes history, drafts and pending
-confirmations before any replacement data is accepted. A validation rejection
-keeps the editable game draft; a denied, conflicting or unacknowledged write
-retires it and rechecks group access with the existing safe details GET. Protected
-members/code are hidden during that check. Returning from Decks mounts fresh group
-details and game choices; a retired check cannot restore its prior details/code.
-A successful recovery
-check restores confirmed group details, with an explicit game refresh to inspect
-actual server state;
-403/404 from the details check establishes lost access, 401 expires the session,
-and an unavailable check keeps protected data hidden. Recovery does not retry
-writes or loop on authorization failure.
+The Games route and its paginated history are scoped to a confirmed
+group/session lifetime. Changing even to another tab of the same group remounts
+`GroupPage` and retires `GameManager` and its pending history pages; the
+focused editor has its own guarded route lifetime. Statistics filter and
+report-sorting preferences belong to a separate in-memory group/session scope
+rather than `GameManager`; they survive navigation within that group but
+are discarded on leaving its routes, session change or reload.
+AbortControllers, generation checks and session epochs ignore late responses,
+including obsolete 401s; unsafe game requests pass an abort signal through
+CSRF bootstrap and check it before a write. Explicit Games refresh rechecks
+group access and retires previous history requests without storing cross-route
+editor drafts. Statistics routes load their own data independently. A 400 validation error retains the editor's input, and
+non-403 unacknowledged writes retain the draft with a warning to inspect the
+server history before retrying. **A write 403 hides the editor and its draft**
+while safely rechecking group permission. Even when membership is confirmed,
+the editor remains in an error state and Retry loads a fresh form rather than
+restoring the old draft. Confirmed group 403/404 loss retires protected content;
+a 401 expires the session, and unavailable verification keeps private data
+hidden. Neither recovery nor navigation repeats writes automatically.
 
 Game writes use a pending guard and exact success statuses, with no optimistic
-persisted history. Edits and detail-screen deletion can be canceled without requests; destructive
-confirmations identify the game and manage keyboard focus. Successful game changes
-refresh history/statistics. Navigating to Decks reloads permanent usage from the
-server; returning to Playgroups reloads details, history and eligible choices
-after own-deck changes. My decks requires boolean lifecycle flags, shows archived state, preserves
+persisted history. Edits and detail-screen deletion can be canceled without
+requests; destructive confirmations identify the game and manage keyboard focus.
+Acknowledged saves and deletes replace the focused editor/detail route with
+Games, which reloads its initial compact history page; a successful save may
+show a one-use in-memory success/repeat panel above the history (#196).
+Statistics refetches server data on its next route visit. Navigating to Decks reloads permanent
+usage from the server; returning to Playgroups reloads group details, recent
+games and eligible choices after own-deck changes. My decks requires boolean lifecycle flags, shows archived state, preserves
 Commander snapshots in read DTOs and omits unchanged Commanders from name-only write payloads, and offers explicit
 confirmed archive for used decks. Failure/conflict states provide refresh without
 asserting a mutation succeeded. The controls consume the [Deck API](../product/decks-api.md);
 game assignments continue referencing stable deck IDs.
 
 ## Browser group statistics
+The route-keyed Statistics tab now hosts the [#197 statistics
+experience](../development/frontend-routing.md#group-statistics-197),
+independently of `GameManager` and Games history reads. `StatisticsLanding`
+fetches unfiltered group statistics for three fixed linked teasers: players by
+games played, decks by exact win rate, and starting seats for the most-observed
+table size. The separate playgroup Overview also fetches player win-rate
+spotlight data directly, without mounting the Statistics screens.
+`StatisticsChooser` shows report categories without an API request, while
+`StatisticsReportPage` hosts focused player, deck, starting-seat and Mana-color
+reports at `/playgroups/:groupId/statistics/reports/{players,decks,starting-seats,mana-colors}`.
 
-`GroupStatistics` mounts lazily when the Statistiken tab first opens within the
-selected group's `GameManager`, independently of history success and under
-confirmed group details and the current session lifetime. It remains hidden on other tabs, preserving sorting without
-duplicating the view or the game editor. It calls
-`getGroupStatistics` in `api.ts`, which validates status, public row fields, UUIDs,
-unique IDs, positive safe-integer game counts, wins within games, and finite
-percentages within 0–100. Only documented fields are retained. The component
-shows the selected Spieler or Decks dataset as a single semantic HTML table on
-wide viewports or a semantic card list on phones, initially in backend order.
-It formats returned percentages without computing statistics from history or
-membership. Each dataset has its own optional sort column/direction, held in
-`GameManager` alongside the selected subview above its remounted ready content.
-Statistics refreshes and acknowledged game writes therefore sort fresh arrays
-using the chosen settings. The existing keyed selected-group/session lifecycle
-discards previous choices when the view retires. Sorting copies arrays, compares
-raw numeric fields or English case-insensitive text (`Intl.Collator` with accent
-sensitivity), and keeps backend order for ties in both directions. On desktop,
-table heading buttons control sorting; the sorted column's header cell
-exposes `aria-sort`, and its button displays a visible arrow. A separate
-`Standardreihenfolge` button restores backend order. On phones, a labeled sort
-selector and direction button provide the same ordering. No sort preference is
-stored or sent to the API.
+The abortable `useGroupStatistics` reader validates the [statistics API](../product/statistics-api.md)
+response using `api.ts`; only server-supplied public rows, counts and rates
+are displayed, without deriving statistics from raw game history.
+Each focused report offers a shared Spielerzahl filter (Alle, 2–6);
+player and deck reports show sortable semantic tables with header-cell
+`aria-sort` on desktop or responsive cards with labeled sorting controls on
+phones. Starting-seat and compact Mana-color reports do not offer sorting.
+Full identifier disclosure is limited to ambiguous visible names. Teaser and
+report ordering use deterministic count/rate/name/UUID tie-breaks; exact rate
+comparisons use integer arithmetic rather than rounded display percentages.
 
-Game refresh/recovery unmounts statistics, aborting its request. Non-authorization
-history read failures stay local to Spiele and do not retire healthy statistics;
-a pending history GET does not prevent statistics loading. After explicit game
-refresh, successful access verification permits statistics to reload immediately,
-without waiting for replacement history. Successful game
-writes refresh that same area; detail refresh/reopen, selected-group/session
-changes and own-deck changes also remount it. Explicit statistics refresh clears
-previous displayed results and uses abort/generation guards to reject retired
-successes and errors. Network, server and malformed-response failures show a local retry.
-Statistics 401/403/404 responses delegate to the existing game/group recovery:
-401 expires the current session; 403/404 hides protected details while a safe
-group GET determines access. Confirmed membership permits explicit Refresh games
-or Refresh statistics to reload the respective area; automatic denial retries are
-blocked to avoid request loops. Failed checks keep both areas hidden. There are
-no client-side statistics counters. The shared player-count choice lives beside
-sort/view state in GameManager and is sent as the API v2 `playerCount` query.
-Changing it retires old results and requests before loading all four arrays.
-The API parser requires all table-size/seat and color categories, validates
-zero/null versus observed numeric rates, and strips extra fields. StatisticsCharts
-renders semantic labeled lists with decorative CSS bars, accessible counts and
-percentages, and responsive side-by-side/stacked layout. Empty seat sections are
-suppressed for display only. Mana ordering uses exact BigInt cross-products of
-counts; displayed percentages remain server-supplied.
+Filter and player/deck sorting preferences live in `statisticsState.ts`,
+not `GameManager` or URL/storage. They survive route navigation **within the
+same group** during the current session, but reset when leaving the group's
+routes, changing identity or reloading the app. Teaser/Overview entry resets
+the player-count filter without discarding the separate sort choices; the
+chooser's expanded sections use validated per-history-entry state. Entering a
+report fetches fresh server statistics for its group and filter; changed
+filters and retries retire stale requests. There is no manual statistics refresh
+and no cross-route `GroupStatistics` cache. Access-denial responses are delegated
+to the group's authorization boundary (401 expires the session, 403/404
+retires protected content). Other failures show a local retry without losing
+the group's authorization. Acknowledged game changes return to Games; a later
+Statistics visit fetches current server data. All report displays keep the
+API's distinction between unobserved/null rates and measured zero percent.
