@@ -242,7 +242,8 @@ export default function ClaimPage({ segment, user, checking, notice, onUnauthori
   }}>
     <Box sx={{ maxWidth: 480, mx: 'auto', display: 'grid', gap: 3 }}>
       <Box component="header" sx={{ display: 'grid', gap: 1 }}>
-        <Typography component="h1" variant="h4" sx={{ fontWeight: 700 }}>Profilübernahme</Typography>
+        {/* Sized so the long German word fits on one line at 320px instead of breaking mid-word. */}
+        <Typography component="h1" variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.75rem', sm: '2.125rem' }, overflowWrap: 'normal' }}>Profilübernahme</Typography>
         <Typography sx={{ color: 'text.secondary' }}>Einladung zu einer Playgroup</Typography>
       </Box>
       {notice && <Typography role={notice.kind === 'error' ? 'alert' : 'status'}
