@@ -94,8 +94,16 @@ public class ManageProfileInvitations {
         return invitations.preview(hash(code)).orElseThrow(InvalidProfileInvitationException::new);
     }
 
+    /**
+     * Merges the invited quick profile into {@code accountId}. {@code expectedAccountId} is the account the user saw
+     * and confirmed; a different session account (e.g. switched in another tab) is refused before the invitation is
+     * read, so nothing is merged and the code is not consumed (#247).
+     */
     @Transactional
-    public void accept(UUID accountId, String code) {
+    public void accept(UUID accountId, UUID expectedAccountId, String code) {
+        if (!accountId.equals(expectedAccountId)) {
+            throw new ProfileClaimAccountMismatchException();
+        }
         String hash = hash(code);
         UUID groupId = invitations.groupId(hash).orElseThrow(InvalidProfileInvitationException::new);
         groups.findByIdForUpdate(groupId).orElseThrow(InvalidProfileInvitationException::new);

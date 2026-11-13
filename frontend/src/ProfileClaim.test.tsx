@@ -41,6 +41,8 @@ function server(initial: CurrentUser | null = owner, role: GroupRole = 'OWNER') 
     user: initial, loginUser: visitor, role, members: [...roster],
     status: { active: false, expiresAt: null } as { active: boolean; expiresAt: string | null },
     nextCode: code, expiresAt: soon(),
+    /** Server clock minus device clock in ms: negative when the device clock runs ahead of the server. */
+    serverOffset: 0,
   }
   const queues = new Map<string, Reply[]>()
   const next = (key: string, ...replies: Reply[]) => queues.set(key, [...queues.get(key) ?? [], ...replies])
@@ -55,14 +57,22 @@ function server(initial: CurrentUser | null = owner, role: GroupRole = 'OWNER') 
       return method === 'DELETE' ? new Response(null, { status: 204 }) : response(state.user)
     }
     if (path === '/api/users' && method === 'POST') return response(state.loginUser, 201)
-    if (path === invitationPath && method === 'GET') return response(state.status)
+    // The server reports an invitation active only until its expiry by the server's own clock.
+    if (path === invitationPath && method === 'GET') return response(state.status.active && Date.parse(state.status.expiresAt!) > Date.now() + state.serverOffset
+      ? state.status : { active: false, expiresAt: null })
     if (path === invitationPath && method === 'POST') {
       state.status = { active: true, expiresAt: state.expiresAt }
       return response({ code: state.nextCode, expiresAt: state.expiresAt }, 201)
     }
     if (path === invitationPath && method === 'DELETE') { state.status = { active: false, expiresAt: null }; return new Response(null, { status: 204 }) }
     if (path === previewPath) return response({ groupName, profileName })
-    if (path === acceptPath) return new Response(null, { status: 204 })
+    if (path === acceptPath) {
+      // Like the backend (#247): only the confirmed account may claim; a switched session is refused before anything changes.
+      if (!state.user) return response({}, 401)
+      const expected = (JSON.parse(String(init?.body ?? 'null')) as { expectedAccountId?: string } | null)?.expectedAccountId
+      if (expected !== state.user.id) return response({ status: 409, code: 'PROFILE_CLAIM_ACCOUNT_MISMATCH' }, 409)
+      return new Response(null, { status: 204 })
+    }
     if (path === base) return response({ id: groupId, name: groupName, role: state.role, members: state.members })
     if (path === `${base}/ownership-transfer`) return response({}, 404)
     if (path === `${base}/ownership-transfer/notices`) return response([])
@@ -133,14 +143,17 @@ test('public preview omits credentials, caches and referrer and keeps only the t
   api.next(`GET ${previewPath}`, () => response({ groupName, profileName, groupId, decks: ['leak'] }))
   await expect(previewProfileInvitation(code)).resolves.toEqual({ groupName, profileName })
   expect(api.calls('GET', previewPath)[0][1]).toMatchObject({ credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer' })
-  await expect(acceptProfileInvitation(code)).resolves.toBeUndefined()
-  expect(accepts(api)[0][1]).toMatchObject({ method: 'POST', referrerPolicy: 'no-referrer', headers: { 'X-CSRF-TOKEN': 'csrf-token' } })
-  expect(accepts(api)[0][1]?.body).toBeUndefined()
+  api.state.user = visitor
+  await expect(acceptProfileInvitation(code, visitor.id)).resolves.toBeUndefined()
+  expect(accepts(api)[0][1]).toMatchObject({ method: 'POST', referrerPolicy: 'no-referrer', headers: { 'X-CSRF-TOKEN': 'csrf-token', 'Content-Type': 'application/json' } })
+  // The body is exactly the confirmed account (#247 account binding).
+  expect(JSON.parse(String(accepts(api)[0][1]?.body))).toEqual({ expectedAccountId: visitor.id })
   api.next(`POST ${acceptPath}`, () => new Response('{}', { status: 429, headers: { 'Retry-After': '9' } }),
     () => response({ code: 'PROFILE_CLAIM_SAME_GAME' }, 409), () => response({}, 200))
-  await expect(acceptProfileInvitation(code)).rejects.toMatchObject({ status: 429, retryAfterSeconds: 9 })
-  await expect(acceptProfileInvitation(code)).rejects.toMatchObject({ status: 409, code: 'PROFILE_CLAIM_SAME_GAME' })
-  await expect(acceptProfileInvitation(code)).rejects.not.toHaveProperty('status')
+  await expect(acceptProfileInvitation(code, visitor.id)).rejects.toMatchObject({ status: 429, retryAfterSeconds: 9 })
+  await expect(acceptProfileInvitation(code, visitor.id)).rejects.toMatchObject({ status: 409, code: 'PROFILE_CLAIM_SAME_GAME' })
+  await expect(acceptProfileInvitation(code, visitor.id)).rejects.not.toHaveProperty('status')
+  await expect(acceptProfileInvitation(code, other.id)).rejects.toMatchObject({ status: 409, code: 'PROFILE_CLAIM_ACCOUNT_MISMATCH' })
 })
 
 test('claim links are same-origin, distinct from Playgroup invitations, and segments are matched strictly', () => {
@@ -254,7 +267,8 @@ test('without native share, copying is primary and a denied clipboard selects th
   fireEvent.click(copy)
   expect(await within(dialog).findByRole('alert')).toHaveTextContent('Der Link konnte nicht automatisch kopiert werden.')
   expect(within(dialog).queryByText('Link kopiert')).not.toBeInTheDocument()
-  expect(within(dialog).getByLabelText('Einladungslink')).toHaveFocus()
+  // Focus moves in an effect after the alert renders.
+  await waitFor(() => expect(within(dialog).getByLabelText('Einladungslink')).toHaveFocus())
 })
 
 test('closing discards the one-time code; reopening shows only the active status', async () => {
@@ -417,15 +431,48 @@ test('a late creation result after logout never reveals a code to the next sessi
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
 
-test('reaching the server expiry discards a created link without a countdown', async () => {
+test('reaching the expiry instant only re-reads the status; a server-confirmed inactive invitation discards the code', async () => {
   const api = server()
   api.state.expiresAt = new Date(Date.now() + 300).toISOString()
   const dialog = await openClaim()
   fireEvent.click(await within(dialog).findByRole('button', { name: 'Einladung erstellen' }))
   expect(await within(dialog).findByLabelText('Einladungslink')).toHaveValue(link)
-  expect(await within(dialog).findByText('Die Einladung ist abgelaufen.', {}, { timeout: 3000 })).toBeInTheDocument()
+  const reads = api.calls('GET', invitationPath).length
+  expect(await within(dialog).findByText('Die Einladung ist nicht mehr aktiv.', {}, { timeout: 3000 })).toBeInTheDocument()
+  expect(api.calls('GET', invitationPath)).toHaveLength(reads + 1)
   expect(within(dialog).getByText('Keine aktive Einladung')).toBeInTheDocument()
   expect(document.body.textContent).not.toContain(code)
+  expect(writes(api)).toHaveLength(1)
+})
+
+test('a device clock running ahead never declares an active invitation expired or skips the replace confirmation', async () => {
+  const api = server()
+  // The device is ten minutes ahead: by its clock the link expired five minutes ago, but the server still has 5 minutes.
+  api.state.serverOffset = -600_000
+  api.state.status = { active: true, expiresAt: new Date(Date.now() - 300_000).toISOString() }
+  const dialog = await openClaim()
+  expect(await within(dialog).findByText('Aktive Einladung')).toBeInTheDocument()
+  // The immediate local "expiry" only triggered a read-only re-check; the server still reports the invitation active.
+  await waitFor(() => expect(api.calls('GET', invitationPath).length).toBeGreaterThanOrEqual(2))
+  expect(within(dialog).getByText('Aktive Einladung')).toBeInTheDocument()
+  expect(within(dialog).queryByText(/abgelaufen|nicht mehr aktiv/)).not.toBeInTheDocument()
+  expect(within(dialog).queryByRole('button', { name: 'Einladung erstellen' })).not.toBeInTheDocument()
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Neue Einladung erstellen' }))
+  expect(await screen.findByRole('dialog', { name: 'Einladung ersetzen?' })).toBeInTheDocument()
+  expect(writes(api)).toHaveLength(0)
+})
+
+test('a fresh link stays shown while the server still reports that same invitation active, despite a fast device clock', async () => {
+  const api = server()
+  api.state.serverOffset = -3_600_000 - 60_000
+  api.state.expiresAt = new Date(Date.now() - 1_000).toISOString()
+  const dialog = await openClaim()
+  fireEvent.click(await within(dialog).findByRole('button', { name: 'Einladung erstellen' }))
+  expect(await within(dialog).findByLabelText('Einladungslink')).toHaveValue(link)
+  await waitFor(() => expect(api.calls('GET', invitationPath).length).toBeGreaterThanOrEqual(2))
+  expect(within(dialog).getByLabelText('Einladungslink')).toHaveValue(link)
+  expect(within(dialog).queryByText(/abgelaufen|nicht mehr aktiv/)).not.toBeInTheDocument()
+  expect(writes(api)).toHaveLength(1)
 })
 
 test.each(['completed', 'pending'] as const)('copy feedback (%s) for an expired link never carries over to the next link in the same dialog', async timing => {
@@ -441,7 +488,7 @@ test.each(['completed', 'pending'] as const)('copy feedback (%s) for an expired 
   fireEvent.click(within(dialog).getByRole('button', { name: 'Link kopieren' }))
   if (timing === 'completed') expect(await within(dialog).findByText('Link kopiert')).toBeInTheDocument()
   // Link A expires while the dialog stays open; a new link B is created deliberately.
-  expect(await within(dialog).findByText('Die Einladung ist abgelaufen.', {}, { timeout: 3000 })).toBeInTheDocument()
+  expect(await within(dialog).findByText('Die Einladung ist nicht mehr aktiv.', {}, { timeout: 3000 })).toBeInTheDocument()
   api.state.nextCode = secondCode
   api.state.expiresAt = soon()
   fireEvent.click(within(dialog).getByRole('button', { name: 'Einladung erstellen' }))
@@ -687,6 +734,74 @@ test('Anderes Konto verwenden logs out, returns to the same link and the next ac
   expect(screen.queryByText(visitor.username)).not.toBeInTheDocument()
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   expect(accepts(api)).toHaveLength(0)
+})
+
+test('the accept carries the confirmed account and is preceded by a fresh identity check', async () => {
+  const api = server(visitor)
+  show(`/claim/${code}`)
+  fireEvent.click(await screen.findByRole('button', { name: 'Profil übernehmen' }))
+  const identityReads = api.calls('GET', '/api/me').length
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Jetzt übernehmen' }))
+  expect(await screen.findByText('Schnellprofil erfolgreich übernommen.')).toBeInTheDocument()
+  expect(api.calls('GET', '/api/me').length).toBeGreaterThan(identityReads)
+  expect(JSON.parse(String(accepts(api)[0][1]?.body))).toEqual({ expectedAccountId: visitor.id })
+})
+
+test('Bob/Carol: a session switched in another tab before Jetzt übernehmen sends no accept and needs a new confirmation', async () => {
+  // PR #309 security review: Bob confirms in tab 1; tab 2 of the same browser logs in as Carol.
+  const api = server(visitor)
+  show(`/claim/${code}`)
+  fireEvent.click(await screen.findByRole('button', { name: 'Profil übernehmen' }))
+  const confirm = await screen.findByRole('dialog', { name: 'Schnellprofil übernehmen?' })
+  expect(within(confirm).getByText(visitor.username)).toBeInTheDocument()
+  api.state.user = other
+  fireEvent.click(within(confirm).getByRole('button', { name: 'Jetzt übernehmen' }))
+  expect(await screen.findByText('Das angemeldete Konto hat sich geändert. Es wurde nichts übernommen. Prüfe das Konto und bestätige erneut.')).toBeInTheDocument()
+  expect(await screen.findByText(other.username)).toBeInTheDocument()
+  expect(screen.queryByText(visitor.username)).not.toBeInTheDocument()
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(screen.queryByText('Schnellprofil erfolgreich übernommen.')).not.toBeInTheDocument()
+  expect(accepts(api)).toHaveLength(0)
+  expect(window.location.pathname).toBe(`/claim/${code}`)
+  // Carol has to confirm explicitly for herself; the request then names Carol.
+  fireEvent.click(await screen.findByRole('button', { name: 'Profil übernehmen' }))
+  const carol = await screen.findByRole('dialog', { name: 'Schnellprofil übernehmen?' })
+  expect(within(carol).getByText(other.username)).toBeInTheDocument()
+  fireEvent.click(within(carol).getByRole('button', { name: 'Jetzt übernehmen' }))
+  expect(await screen.findByText('Schnellprofil erfolgreich übernommen.')).toBeInTheDocument()
+  expect(accepts(api).map(([, init]) => JSON.parse(String(init?.body)))).toEqual([{ expectedAccountId: other.id }])
+})
+
+test('Bob/Carol race: a switch after the client identity check is refused by the server without any success claim', async () => {
+  const api = server(visitor)
+  // The client re-reads /api/me and still sees Bob; the other tab switches to Carol before the POST reaches the server.
+  show(`/claim/${code}`)
+  fireEvent.click(await screen.findByRole('button', { name: 'Profil übernehmen' }))
+  const confirm = await screen.findByRole('dialog', { name: 'Schnellprofil übernehmen?' })
+  api.next('GET /api/me', () => { const seen = response(visitor); api.state.user = other; return seen })
+  fireEvent.click(within(confirm).getByRole('button', { name: 'Jetzt übernehmen' }))
+  expect(await screen.findByText('Das angemeldete Konto hat sich geändert. Es wurde nichts übernommen. Prüfe das Konto und bestätige erneut.')).toBeInTheDocument()
+  // Exactly one POST, naming Bob; the server refused it (no merge, no consumption) because the session is Carol's.
+  expect(accepts(api).map(([, init]) => JSON.parse(String(init?.body)))).toEqual([{ expectedAccountId: visitor.id }])
+  expect(await screen.findByText(other.username)).toBeInTheDocument()
+  expect(screen.queryByText(visitor.username)).not.toBeInTheDocument()
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(screen.queryByText('Schnellprofil erfolgreich übernommen.')).not.toBeInTheDocument()
+  expect(window.location.pathname).toBe(`/claim/${code}`)
+  // No automatic retry: the accept count stays at one until Carol confirms herself.
+  await new Promise(resolve => setTimeout(resolve, 50))
+  expect(accepts(api)).toHaveLength(1)
+})
+
+test('a failed identity re-check before the accept sends nothing', async () => {
+  const api = server(visitor)
+  show(`/claim/${code}`)
+  fireEvent.click(await screen.findByRole('button', { name: 'Profil übernehmen' }))
+  api.next('GET /api/me', () => response({}, 503))
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Jetzt übernehmen' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Die Übernahme wurde nicht ausgeführt. Es wurde nichts verändert.')
+  expect(accepts(api)).toHaveLength(0)
+  expect(screen.getByText(visitor.username)).toBeInTheDocument()
 })
 
 test('a late accept result after leaving the link is ignored', async () => {

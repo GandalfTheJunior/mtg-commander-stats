@@ -53,6 +53,12 @@ const Chevron = ({ up }: { up: boolean }) => <Box component="svg" aria-hidden="t
 
 const buttonSx = { minHeight: 48 } as const
 const longest = 2 ** 31 - 1
+/**
+ * While the device clock says expired but the server still reports the invitation active, re-check with backoff:
+ * 1 s, 2 s, 4 s … at most once a minute. A timer firing just before the server's instant thus costs about a second,
+ * and a badly skewed clock causes at most one read per minute.
+ */
+const expiryRecheckMs = (round: number) => Math.min(60_000, 1_000 * 2 ** (round - 1))
 
 /**
  * #247 issuer dialog for one active quick profile. Opening only reads the status (GET); creating, replacing and
@@ -133,17 +139,43 @@ export default function ProfileClaimDialog({ groupId, profile, onClose, onUnauth
     return () => controller.abort()
   }, [groupId, profile.userId, escalate])
 
-  // Server expiry is authoritative: once it passes, the link is unusable and its code is discarded (no countdown is shown).
+  /**
+   * Expiry is server-authoritative (#247 §2, PR #309 review): reaching `expiresAt` on the device clock only triggers a
+   * read-only status GET. The dialog shows what the server reports and never asserts expiry itself, so a skewed clock
+   * can neither hide a still-redeemable link nor turn a replacement into an unconfirmed POST. No countdown is shown.
+   */
   const expiresAt = phase.kind === 'created' ? phase.invitation.expiresAt : phase.kind === 'active' ? phase.expiresAt : null
+  const [expiryRound, setExpiryRound] = useState<{ at: string; round: number } | null>(null)
+  const round = expiryRound !== null && expiryRound.at === expiresAt ? expiryRound.round : 0
+  const checkExpiry = useCallback(async (at: string) => {
+    const again = () => setExpiryRound(current => ({ at, round: (current?.at === at ? current.round : 0) + 1 }))
+    const result = await run(signal => getProfileInvitation(groupId, profile.userId, signal))
+    // Another request is in flight: look again later instead of asserting anything now.
+    if (!result) { again(); return }
+    if (result.ok) {
+      const status = result.value
+      if (!status.active) {
+        setConfirm(null)
+        setPhase({ kind: 'inactive' })
+        setNotice('Die Einladung ist nicht mehr aktiv.')
+        return
+      }
+      // Still active on the server: keep the shown invitation (and its code) only if it is that same invitation.
+      setPhase(current => (current.kind === 'created' && current.invitation.expiresAt === status.expiresAt) ||
+        (current.kind === 'active' && current.expiresAt === status.expiresAt) ? current : { kind: 'active', expiresAt: status.expiresAt })
+      again()
+      return
+    }
+    if (escalate(result.error)) return
+    setConfirm(null)
+    setPhase({ kind: 'loadFailed' })
+  }, [run, escalate, groupId, profile.userId])
   useEffect(() => {
     if (!expiresAt) return
-    const timer = window.setTimeout(() => {
-      setConfirm(null)
-      setPhase({ kind: 'inactive' })
-      setNotice('Die Einladung ist abgelaufen.')
-    }, Math.min(longest, Math.max(0, Date.parse(expiresAt) - Date.now())))
+    const delay = round === 0 ? Math.min(longest, Math.max(0, Date.parse(expiresAt) - Date.now())) : expiryRecheckMs(round)
+    const timer = window.setTimeout(() => { void checkExpiry(expiresAt) }, delay)
     return () => window.clearTimeout(timer)
-  }, [expiresAt])
+  }, [expiresAt, round, checkExpiry])
 
   useEffect(() => { if (phase.kind === 'created' || phase.kind === 'uncertain') heading.current?.focus() }, [phase.kind])
 

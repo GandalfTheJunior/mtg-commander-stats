@@ -429,12 +429,17 @@ export async function previewProfileInvitation(code: string, signal?: AbortSigna
   return { groupName: body.groupName, profileName: body.profileName }
 }
 
-/** Explicit, authenticated and CSRF-protected merge; only 204 confirms it. Same-game conflict: 409 `PROFILE_CLAIM_SAME_GAME`. */
-export async function acceptProfileInvitation(code: string, signal?: AbortSignal): Promise<void> {
-  await checkedResponse(await unsafeRequest('POST', `/api/profile-invitations/${encodeURIComponent(code)}/accept`, undefined, signal, {}, tokenRequest),
+/**
+ * Explicit, authenticated and CSRF-protected merge; only 204 confirms it. `expectedAccountId` is the account the user
+ * saw and confirmed: the server refuses any other session account with 409 `PROFILE_CLAIM_ACCOUNT_MISMATCH` before
+ * reading the invitation (#247). Same-game conflict: 409 `PROFILE_CLAIM_SAME_GAME`.
+ */
+export async function acceptProfileInvitation(code: string, expectedAccountId: string, signal?: AbortSignal): Promise<void> {
+  await checkedResponse(await unsafeRequest('POST', `/api/profile-invitations/${encodeURIComponent(code)}/accept`, { expectedAccountId }, signal, {}, tokenRequest),
     204, 'Die Übernahme konnte nicht bestätigt werden.')
 }
 export const profileClaimSameGame = 'PROFILE_CLAIM_SAME_GAME'
+export const profileClaimAccountMismatch = 'PROFILE_CLAIM_ACCOUNT_MISMATCH'
 
 export async function getGroup(id: string, signal?: AbortSignal): Promise<GroupDetails> {
   const response = await checkedResponse(

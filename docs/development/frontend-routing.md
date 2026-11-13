@@ -793,9 +793,12 @@ helpers (`linkSharing.ts`, `InvitationQr`, `ShareFeedback`) and `retryWindow.ts`
   first open a named confirmation, and only **Neuen Link erstellen** /
   **Einladung widerrufen** in it write. A ref guard allows one request at a time;
   nothing is retried automatically. The one-time code exists only in the dialog's
-  state after a `201`: closing, expiry (server `expiresAt`, no countdown), a
-  roster change that removes the profile or the viewer's OWNER/ADMIN role, or a
-  session change discards it. The link is `new URL('/claim/<code>', origin)`;
+  state after a `201`: closing, a server-confirmed inactive status, a roster change
+  that removes the profile or the viewer's OWNER/ADMIN role, or a session change
+  discards it. Expiry is server-authoritative: when the device clock reaches
+  `expiresAt` (no countdown is shown), the dialog only re-reads the status. While
+  the server still reports that invitation active it keeps the state (and a fresh
+  code), re-checking every minute; replace and revoke keep their confirmations. The link is `new URL('/claim/<code>', origin)`;
   share, copy and the local QR code use that exact URL.
 - **Write outcomes:** 4xx responses are definite (nothing changed); network
   errors, 5xx and malformed responses are ambiguous and show
@@ -816,7 +819,11 @@ helpers (`linkSharing.ts`, `InvitationQr`, `ShareFeedback`) and `retryWindow.ts`
   detour (every other logout outcome is unchanged).
 - **Confirmation and success:** **Profil übernehmen** only opens
   **Schnellprofil übernehmen?**; only **Jetzt übernehmen** sends the CSRF-protected
-  accept `POST` (no body, no referrer). While pending, closing is disabled. An
+  accept `POST` (no referrer) with `{ expectedAccountId }` = the account shown. It
+  first re-reads `/api/me`: no session uses the 401 recovery; another account sends
+  nothing. That case, and the server's `409 PROFILE_CLAIM_ACCOUNT_MISMATCH` for a
+  switch after the check, retire the page, re-read the identity like a session
+  check and show the preview for the current account, which must confirm again. While pending, closing is disabled. An
   acknowledged `204` (from the current session and route) replaces the entry with
   `/playgroups`, which mounts fresh and re-reads the groups, and shows
   **Schnellprofil erfolgreich übernommen.**

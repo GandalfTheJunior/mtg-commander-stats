@@ -5,6 +5,7 @@ import java.net.URI;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupAccessDeniedException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupNotFoundException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.InvalidProfileInvitationException;
+import io.github.gandalfthejunior.mtgcommanderstats.group.application.ProfileClaimAccountMismatchException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.ProfileClaimConflictException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.QuickProfileNotFoundException;
 import org.springframework.dao.ConcurrencyFailureException;
@@ -24,6 +25,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice(assignableTypes = ProfileInvitationController.class)
 public class ProfileInvitationErrors {
     public static final String SAME_GAME = "PROFILE_CLAIM_SAME_GAME";
+    public static final String ACCOUNT_MISMATCH = "PROFILE_CLAIM_ACCOUNT_MISMATCH";
     private static final Logger LOG = LoggerFactory.getLogger(ProfileInvitationErrors.class);
 
     @ExceptionHandler(InvalidProfileInvitationException.class)
@@ -53,6 +55,16 @@ public class ProfileInvitationErrors {
                 "The account and profile participated in the same game.");
         detail.setInstance(URI.create("/api/profile-invitations"));
         detail.setProperty("code", SAME_GAME);
+        return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(CacheControl.noStore())
+                .header("Referrer-Policy", "no-referrer").body(detail);
+    }
+
+    @ExceptionHandler(ProfileClaimAccountMismatchException.class)
+    public ResponseEntity<ProblemDetail> accountMismatch() {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "The signed-in account is not the account confirmed for this claim.");
+        detail.setInstance(URI.create("/api/profile-invitations"));
+        detail.setProperty("code", ACCOUNT_MISMATCH);
         return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(CacheControl.noStore())
                 .header("Referrer-Policy", "no-referrer").body(detail);
     }

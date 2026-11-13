@@ -24,10 +24,12 @@ async function mockApi(page: Page, options: Options = {}) {
   const state = {
     user: options.user === undefined ? owner : options.user, active: options.active ?? false, expiresAt: '2026-11-13T18:45:00Z',
     previewStatus: options.preview ?? 200, creates: 0, revokes: 0, accepts: 0, previews: [] as Record<string, string>[], tokenUrls: [] as string[],
+    acceptedFor: [] as (string | undefined)[],
   }
   // Any request carrying the token is recorded to prove it never leaves the application's own API.
-  page.on('request', request => { if (request.url().includes(code) && !new URL(request.url()).pathname.startsWith('/claim/')) state.tokenUrls.push(request.url()) })
-  await page.route('**/api/**', async route => {
+  // Context-wide, so several tabs share one simulated server session (cross-tab scenarios).
+  page.context().on('request', request => { if (request.url().includes(code) && !new URL(request.url()).pathname.startsWith('/claim/')) state.tokenUrls.push(request.url()) })
+  await page.context().route('**/api/**', async route => {
     const request = route.request()
     const path = new URL(request.url()).pathname
     const method = request.method()
@@ -53,7 +55,12 @@ async function mockApi(page: Page, options: Options = {}) {
         : { status: result, json: {}, headers: options.retryAfter ? { 'Retry-After': options.retryAfter } : {} })
     } else if (path === `/api/profile-invitations/${code}/accept`) {
       state.accepts++
+      const expected = (request.postDataJSON() as { expectedAccountId?: string } | null)?.expectedAccountId
+      state.acceptedFor.push(expected)
       await new Promise(resolve => setTimeout(resolve, 150))
+      // Like the backend (#247): only the confirmed account may claim.
+      if (!state.user) { await route.fulfill({ status: 401, json: {} }); return }
+      if (expected !== state.user.id) { await route.fulfill({ status: 409, json: { status: 409, code: 'PROFILE_CLAIM_ACCOUNT_MISMATCH' } }); return }
       const result = state.accepts === 1 ? status(options.accept, 204) : 204
       if (result === 'abort') await route.abort('connectionreset')
       else await route.fulfill(result === 204 ? { status: 204 }
@@ -208,6 +215,21 @@ test('an ADMIN manages claims, a MEMBER never sees the entry; row navigation sta
   await expect(page).toHaveURL(new RegExp(`/members/${profileId}/decks$`))
 })
 
+test('a device clock past the expiry never hides an active invitation or skips the replace confirmation', async ({ page }) => {
+  // PR #309 review (P3): the device clock is one hour past the invitation's expiry; the server still reports it active.
+  await page.clock.install({ time: new Date('2026-11-13T19:45:00Z') })
+  const api = await mockApi(page, { active: true })
+  const dialog = await openIssuer(page)
+  await expect(dialog.getByText('Aktive Einladung')).toBeVisible()
+  await page.clock.runFor(1_000)
+  await expect(dialog.getByText('Aktive Einladung')).toBeVisible()
+  await expect(dialog.getByText(/abgelaufen|nicht mehr aktiv/)).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'Einladung erstellen', exact: true })).toHaveCount(0)
+  await dialog.getByRole('button', { name: 'Neue Einladung erstellen' }).click()
+  await expect(page.getByRole('dialog', { name: 'Einladung ersetzen?' })).toBeVisible()
+  expect(api.creates).toBe(0)
+})
+
 test('an ambiguous creation shows no link and recovers only through a status check', async ({ page }, info) => {
   await page.setViewportSize({ width: 390, height: 844 })
   const api = await mockApi(page, { active: true, create: 'abort' })
@@ -305,6 +327,42 @@ test('Nicht übernehmen, browser Back and reload never accept; keyboard reaches 
   await page.goForward()
   await expect(page).toHaveURL(/\/playgroups$/)
   expect(api.accepts).toBe(0)
+})
+
+test('Bob/Carol: a sign-in switch in another tab before Jetzt übernehmen sends no accept', async ({ page }, info) => {
+  // PR #309 security review, reproduced with two real tabs of one browser profile.
+  await page.setViewportSize({ width: 390, height: 844 })
+  const api = await mockApi(page)
+  await page.goto(`/claim/${code}`)
+  await page.getByRole('button', { name: 'Profil übernehmen' }).click()
+  const confirm = page.getByRole('dialog', { name: 'Schnellprofil übernehmen?' })
+  await expect(confirm.getByText(owner.username, { exact: true })).toBeVisible()
+
+  const other = await page.context().newPage()
+  await other.goto(`/claim/${code}`)
+  await other.getByRole('button', { name: 'Anderes Konto verwenden' }).click()
+  const login = other.locator('section', { has: other.getByRole('heading', { name: 'Sign in' }) })
+  await login.getByLabel('Email').fill('frodo@example.test')
+  await login.getByLabel('Password').fill('correct horse battery')
+  await login.getByRole('button', { name: 'Sign in' }).click()
+  await expect(other.getByText(guest.username, { exact: true })).toBeVisible()
+
+  await page.bringToFront()
+  await confirm.getByRole('button', { name: 'Jetzt übernehmen' }).click()
+  await expect(page.getByText('Das angemeldete Konto hat sich geändert. Es wurde nichts übernommen. Prüfe das Konto und bestätige erneut.')).toBeVisible()
+  await expect(page.getByText(guest.username, { exact: true })).toBeVisible()
+  await expect(page.getByText(owner.username, { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page).toHaveURL(new RegExp(`/claim/${code}$`))
+  expect(api.accepts).toBe(0)
+  expect(await noHorizontalOverflow(page)).toBe(true)
+  await shot(page, info, 'claim-account-changed-390')
+
+  // The new account confirms for itself; the request names that account.
+  await page.getByRole('button', { name: 'Profil übernehmen' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Jetzt übernehmen' }).click()
+  await expect(page.getByText('Schnellprofil erfolgreich übernommen.')).toBeVisible()
+  expect(api.acceptedFor).toEqual([guest.id])
 })
 
 test('Anderes Konto verwenden returns to the same link for another account', async ({ page }) => {

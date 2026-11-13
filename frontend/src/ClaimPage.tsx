@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Box, Button, Card, CircularProgress, Dialog, DialogContent, DialogTitle, IconButton, Typography } from '@mui/material'
-import { ApiError, acceptProfileInvitation, previewProfileInvitation, profileClaimSameGame, type CurrentUser } from './api'
+import { ApiError, acceptProfileInvitation, previewProfileInvitation, profileClaimAccountMismatch, profileClaimSameGame, restoreSession, type CurrentUser } from './api'
 import { inviteAuthKey, inviteCode, type InviteAuthIntent } from './invitationLink'
 import { CloseIcon } from './MembersDirectory'
 import { retryDelay, useRetryWindow } from './retryWindow'
@@ -49,7 +49,7 @@ function Account({ name }: { name: string }) {
  * App keys this page by session epoch and path: login, logout or an account switch discards every claim state
  * (names, open confirmation, in-flight requests), so a confirmation never carries over to another account.
  */
-export default function ClaimPage({ segment, user, checking, notice, onUnauthorized, onClaimed, onSwitchAccount }: {
+export default function ClaimPage({ segment, user, checking, notice, onUnauthorized, onClaimed, onSwitchAccount, onAccountChanged }: {
   /** Raw path segment from `/claim/:segment`. */
   segment: string
   user: CurrentUser | null
@@ -61,6 +61,11 @@ export default function ClaimPage({ segment, user, checking, notice, onUnauthori
   onClaimed: () => void
   /** Explicit logout that returns to this same claim link for another sign-in. */
   onSwitchAccount: () => void
+  /**
+   * The session now belongs to another account than the one shown (e.g. switched in another tab). Nothing was sent or
+   * merged; App re-establishes the current identity and remounts this page, so that account must confirm again.
+   */
+  onAccountChanged: () => void
 }) {
   const navigate = useNavigate()
   const code = inviteCode(segment)
@@ -109,7 +114,19 @@ export default function ClaimPage({ segment, user, checking, notice, onUnauthori
     setAccept('accepting')
     const signal = life.current?.signal
     try {
-      await acceptProfileInvitation(code, signal)
+      // Recheck the confirmed identity immediately before the irreversible POST (#247 §4). The server enforces the same
+      // binding through `expectedAccountId`, covering a switch that happens after this check.
+      let current: CurrentUser | null
+      try {
+        current = await restoreSession()
+      } catch {
+        if (!signal?.aborted) setAccept('rejected')
+        return
+      }
+      if (signal?.aborted) return
+      if (current === null) { onUnauthorized(); return }
+      if (current.id.toLowerCase() !== user.id.toLowerCase()) { onAccountChanged(); return }
+      await acceptProfileInvitation(code, user.id, signal)
       // Route or identity changed meanwhile: this page is retired and must not announce anything.
       if (signal?.aborted) return
       onClaimed()
@@ -120,6 +137,7 @@ export default function ClaimPage({ segment, user, checking, notice, onUnauthori
       const wait = retryDelay(error)
       if (error.status === 400) { setAccept('idle'); setPreview({ status: 'unavailable' }) }
       else if (wait !== null) { setAccept('idle'); setPreview({ status: 'limited', retryAfter: wait }) }
+      else if (error.status === 409 && error.code === profileClaimAccountMismatch) onAccountChanged()
       else if (error.status === 409 && error.code === profileClaimSameGame) setAccept('conflict')
       else if (error.status >= 500) { setAccept('uncertain'); setOutcomeUnknown(true) }
       else setAccept('rejected')

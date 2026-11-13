@@ -268,6 +268,33 @@ export default function App() {
     }
   }
 
+  /**
+   * #247: the shared session switched to another account (e.g. in another tab) while a claim was being confirmed.
+   * Retire everything bound to the old identity, then re-read the authoritative identity like a session check.
+   */
+  async function accountChanged(version: number) {
+    if (version !== sessionVersionRef.current) return
+    editorOrigin.current = null
+    collectionMemory.current = null
+    forgetAllHandoffs()
+    forgetDirectoryMemories()
+    const next = ++sessionVersionRef.current
+    setSessionVersion(next)
+    setCurrentUser(null)
+    setSessionStatus('checking')
+    try {
+      const user = await restoreSession()
+      if (next !== sessionVersionRef.current) return
+      setCurrentUser(user)
+      setSessionStatus(user ? 'authenticated' : 'signed-out')
+      setSessionNotice({ kind: 'error', message: 'Das angemeldete Konto hat sich geändert. Es wurde nichts übernommen. Prüfe das Konto und bestätige erneut.' })
+    } catch {
+      if (next !== sessionVersionRef.current) return
+      setSessionStatus('unverified')
+      setSessionNotice({ kind: 'error', message: 'Could not check your session. Try again or reload.' })
+    }
+  }
+
   const sessionExpired = useCallback(() => {
     // Check synchronously: an old response can arrive before effect cleanup.
     if (sessionVersion !== sessionVersionRef.current) return
@@ -314,6 +341,7 @@ export default function App() {
     return <ClaimPage key={`claim-${sessionVersion}-${location.pathname}`} segment={claim} user={authenticated ? currentUser : null}
       checking={sessionStatus === 'checking'} notice={sessionNotice} onUnauthorized={sessionExpired}
       onSwitchAccount={() => { void logOut(location.pathname) }}
+      onAccountChanged={() => { void accountChanged(version) }}
       onClaimed={() => {
         if (version !== sessionVersionRef.current) return
         setSessionNotice({ kind: 'success', message: claimSuccessMessage })
