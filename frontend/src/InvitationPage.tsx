@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { retryDelay, useRetryWindow } from './retryWindow'
 import { Link, useNavigate } from 'react-router'
 import { Box, Button, Card, CircularProgress, IconButton, Typography } from '@mui/material'
 import { ApiError, joinGroup, previewInvitation, type CurrentUser } from './api'
@@ -18,6 +17,27 @@ type Join =
   | { status: 'joining' }
   | { status: 'member' }
   | { status: 'failed'; retryAfter: number | null }
+
+const defaultRetryAfter = 60
+/** Retry-After seconds for a 429 (default one minute); null when another attempt is allowed at once. */
+function retryDelay(error: unknown): number | null {
+  return error instanceof ApiError && error.status === 429 ? Math.max(1, error.retryAfterSeconds ?? defaultRetryAfter) : null
+}
+const waitHint = (seconds: number) => seconds >= 60
+  ? `Bitte warte etwa ${Math.round(seconds / 60)} ${Math.round(seconds / 60) === 1 ? 'Minute' : 'Minuten'}, bevor du es erneut versuchst.`
+  : `Bitte warte etwa ${seconds} Sekunden, bevor du es erneut versuchst.`
+
+/** Keeps a manual retry disabled until its Retry-After window has passed; nothing is resent automatically. */
+function useRetryWindow(delay: number | null, attempt: unknown) {
+  const [elapsed, setElapsed] = useState<unknown>(null)
+  useEffect(() => {
+    if (delay === null) return
+    const timer = window.setTimeout(() => setElapsed(attempt), delay * 1000)
+    return () => window.clearTimeout(timer)
+  }, [delay, attempt])
+  const waiting = delay !== null && elapsed !== attempt
+  return { waiting, hint: waiting ? waitHint(delay) : null }
+}
 
 const iconSx = { width: 56, height: 56, color: 'text.secondary', justifySelf: 'center' } as const
 const GroupIcon = () => <Box component="svg" aria-hidden="true" focusable="false" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth={1.75} sx={iconSx}>

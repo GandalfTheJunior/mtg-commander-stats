@@ -57,19 +57,3 @@ browser and operational checks above on the final combined release before
 merging the coordinated #200 frontend work or deploying the backend/frontend
 pair. There is no background cleanup; expired/consumed verifier records remain
 inert, and cleanup must never restore their validity.
-
-## Quick-profile claim links (#247)
-
-The #247 frontend consumes the already merged #224 profile-invitation API and
-adds the public `/claim/:code` route. It needs no migration or separate cutover
-sequence, but every release that ships it must apply the same edge duties as
-`/invite/*`: serve `index.html` for `/claim/*` (direct opens, reloads, QR scans),
-send `Cache-Control: no-store` and `Referrer-Policy: no-referrer` on those pages,
-and exclude `/claim/*` paths and `/api/profile-invitations/*` paths from access
-logs, analytics, tracing and shared caches. Configure aggregate edge limits for
-preview/accept consistently with the local per-peer limit. Smoke-test with
-non-sensitive accounts that an OWNER/ADMIN link opens the name-only preview,
-preview and login never consume it, only the final confirmation claims it, a
-same-game conflict changes nothing, and the link expires after one hour.
-Implementation and local verification are not release verification.
-
