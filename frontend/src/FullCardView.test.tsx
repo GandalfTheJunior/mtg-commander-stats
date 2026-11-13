@@ -31,12 +31,97 @@ test('opens the saved artwork face without fetching, switches faces, closes with
   act(() => trigger.focus())
   expect(trigger).not.toHaveFocus()
   expect(dialog.contains(document.activeElement) || document.activeElement?.contains(dialog)).toBe(true)
-  fireEvent.click(within(dialog).getByRole('button', { name: '1: Front' }))
+  // #239: a single top-right X, no footer close, and one flip button instead of a face selector.
+  expect(within(dialog).getAllByRole('button', { name: 'Schließen' })).toHaveLength(1)
+  expect(within(dialog).queryByRole('group', { name: 'Kartenseite' })).not.toBeInTheDocument()
+  expect(within(dialog).getByText('Rückseite')).toBeInTheDocument()
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Vorderseite anzeigen' }))
   expect(within(dialog).getByRole('img', { name: 'Vollständige Karte: Front' })).toHaveAttribute('src', faces[0].imageUrl)
+  expect(within(dialog).getByRole('heading', { name: 'Front' })).toBeInTheDocument()
+  expect(within(dialog).getByText('Legendary Creature — Test')).toBeInTheDocument()
+  expect(within(dialog).getByText('Vorderseite')).toBeInTheDocument()
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Rückseite anzeigen' }))
+  expect(within(dialog).getByRole('img', { name: 'Vollständige Karte: Back' })).toBeInTheDocument()
+  // The dialog title keeps the saved card identity while faces change.
+  expect(screen.getByRole('dialog', { name: card.name })).toBe(dialog)
   fireEvent.keyDown(close, { key: 'Escape' })
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(trigger).toHaveFocus()
   expect(fetchMock).not.toHaveBeenCalled()
+})
+
+test('single-faced cards omit the flip row; more than two saved faces keep accessible face selection', () => {
+  const view = render(<FullCardView card={{ ...card, artworkFaceIndex: 0, cardFaces: [faces[0]] }} />)
+  fireEvent.click(screen.getByRole('button'))
+  expect(screen.getByRole('img', { name: 'Vollständige Karte: Front' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /seite anzeigen/ })).not.toBeInTheDocument()
+  expect(screen.queryByText('Vorderseite')).not.toBeInTheDocument()
+  view.unmount()
+  const third = { ...faces[0], faceIndex: 2, name: 'Third', oracleText: 'Third rules', imageUrl: 'https://cards.scryfall.io/normal/Third.jpg' }
+  render(<FullCardView card={{ ...card, artworkFaceIndex: 2, cardFaces: [...faces, third] }} />)
+  fireEvent.click(screen.getByRole('button'))
+  const group = screen.getByRole('group', { name: 'Kartenseite' })
+  expect(within(group).getByRole('button', { name: '3: Third' })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.queryByRole('button', { name: /seite anzeigen/ })).not.toBeInTheDocument()
+  fireEvent.click(within(group).getByRole('button', { name: '2: Back' }))
+  expect(screen.getByRole('img', { name: 'Vollständige Karte: Back' })).toBeInTheDocument()
+  expect(screen.getByText(/Back rules/)).toBeInTheDocument()
+})
+
+type FakeAnimation = { keyframes: Keyframe[]; finish: () => void; cancel: ReturnType<typeof vi.fn>; onfinish: (() => void) | null }
+function stubAnimate() {
+  const animations: FakeAnimation[] = []
+  const animate = vi.fn(function (this: HTMLElement, keyframes: Keyframe[]) {
+    const animation: FakeAnimation = { keyframes, cancel: vi.fn(), onfinish: null, finish: () => act(() => animation.onfinish?.()) }
+    animations.push(animation)
+    return animation as unknown as Animation
+  })
+  Object.defineProperty(HTMLElement.prototype, 'animate', { configurable: true, writable: true, value: animate })
+  return { animations, animate, restore: () => { delete (HTMLElement.prototype as Partial<HTMLElement>).animate } }
+}
+
+test('the flip turns the card wrapper, swaps image and text at the half-turn and ignores repeated activation', () => {
+  const { animations, animate, restore } = stubAnimate()
+  try {
+    render(<FullCardView card={card} />)
+    fireEvent.click(screen.getByRole('button'))
+    const flip = screen.getByRole('button', { name: 'Vorderseite anzeigen' })
+    fireEvent.click(flip)
+    expect(animate).toHaveBeenCalledOnce()
+    expect(animations[0].keyframes.at(-1)?.transform).toContain('rotateY(90deg)')
+    // Until the half-turn, image, text and labels still describe the same (old) face.
+    expect(screen.getByRole('img', { name: 'Vollständige Karte: Back' })).toBeInTheDocument()
+    expect(screen.getByText(/Back rules/)).toBeInTheDocument()
+    fireEvent.click(flip)
+    expect(animate).toHaveBeenCalledOnce()
+    animations[0].finish()
+    expect(screen.getByRole('img', { name: 'Vollständige Karte: Front' })).toBeInTheDocument()
+    expect(screen.getByText(/Front rules/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Rückseite anzeigen' })).toBeInTheDocument()
+    expect(animations[1].keyframes[0].transform).toContain('rotateY(-90deg)')
+    expect(animations[1].keyframes.at(-1)?.transform).toContain('rotateY(0deg)')
+    fireEvent.click(screen.getByRole('button', { name: 'Rückseite anzeigen' }))
+    expect(animate).toHaveBeenCalledTimes(2)
+    animations[1].finish()
+    fireEvent.click(screen.getByRole('button', { name: 'Rückseite anzeigen' }))
+    expect(animate).toHaveBeenCalledTimes(3)
+    // Closing mid-turn cancels the running animation.
+    fireEvent.click(screen.getByRole('button', { name: 'Schließen' }))
+    expect(animations[2].cancel).toHaveBeenCalled()
+  } finally { restore() }
+})
+
+test('reduced motion changes the face immediately without animating', () => {
+  const { animate, restore } = stubAnimate()
+  const original = window.matchMedia
+  window.matchMedia = ((query: string) => ({ ...original(query), matches: query.includes('prefers-reduced-motion') })) as typeof window.matchMedia
+  try {
+    render(<FullCardView card={card} />)
+    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByRole('button', { name: 'Vorderseite anzeigen' }))
+    expect(screen.getByRole('img', { name: 'Vollständige Karte: Front' })).toBeInTheDocument()
+    expect(animate).not.toHaveBeenCalled()
+  } finally { restore(); window.matchMedia = original }
 })
 
 test('an exceptional gameplay face takes precedence over the artwork face', () => {
@@ -92,7 +177,7 @@ test('only visible artworks preload every safe face, and unmount cancels unfinis
   expect(observers.every(observer => observer.disconnect.mock.calls.length >= 1)).toBe(true)
 })
 
-test('own paired decks retain the gallery action and open each card independently', () => {
+test('own paired decks retain the gallery action and open each card independently', async () => {
   const onOpen = vi.fn(), onOpenArtwork = vi.fn(), fetchMock = vi.fn()
   vi.stubGlobal('fetch', fetchMock)
   const second = { ...savedCommander('Partner'), position: 2 }
@@ -106,6 +191,11 @@ test('own paired decks retain the gallery action and open each card independentl
     expect(screen.getByRole('dialog', { name })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Schließen' }))
   }
+  // Backdrop dismissal closes only the viewer, never the gallery or the deck editor underneath.
+  fireEvent.click(screen.getByRole('button', { name: `Karte anzeigen: ${card.name}` }))
+  const backdrop = document.querySelector('.MuiBackdrop-root')!
+  fireEvent.mouseDown(backdrop); fireEvent.click(backdrop)
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(onOpenArtwork).toHaveBeenCalledOnce()
   expect(onOpen).not.toHaveBeenCalled()
   expect(fetchMock).not.toHaveBeenCalled()

@@ -62,6 +62,27 @@ async function capture(page: Page, info: TestInfo, label: string) {
   await info.attach(label, { path: file, contentType: 'image/png' })
 }
 
+/** #239: the complete card image is inside the viewport and below the sticky header at initial open. */
+async function expectWholeCardVisible(page: Page, dialog: ReturnType<Page['getByRole']>, faceName: string) {
+  const image = dialog.getByRole('img', { name: `Vollständige Karte: ${faceName}` })
+  await expect.poll(() => image.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0)).toBe(true)
+  const viewport = page.viewportSize()!
+  const box = (await image.boundingBox())!, header = (await dialog.locator('h2').boundingBox())!
+  expect(box.y).toBeGreaterThanOrEqual(header.y + header.height)
+  expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 0.5)
+  expect(box.x).toBeGreaterThanOrEqual(0)
+  expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 0.5)
+  // Native aspect ratio, never cropped or stretched.
+  expect(Math.abs(box.width / box.height - 488 / 680)).toBeLessThan(0.01)
+  return { image, box }
+}
+
+const turnerIdle = (page: Page) => page.evaluate(() => {
+  const img = document.querySelector('[role="dialog"] img')
+  const wrapper = img?.parentElement
+  return !!wrapper && wrapper.getAnimations().length === 0 && getComputedStyle(wrapper).transform === 'none'
+})
+
 test('own collection bounds preloading, keeps artwork editing separate and supports keyboard/fallback', async ({ page }, info) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   const { apiRequests, images } = await fixture(page)
@@ -79,18 +100,49 @@ test('own collection bounds preloading, keeps artwork editing separate and suppo
   await page.keyboard.press('Enter')
   const dialog = page.getByRole('dialog', { name })
   await expect(dialog).toBeVisible()
-  const image = dialog.getByRole('img', { name: 'Vollständige Karte: Esika, God of the Tree' })
-  await expect(image).toBeVisible()
-  await expect.poll(() => image.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0)).toBe(true)
-  await capture(page, info, 'card-desktop')
+  const { box } = await expectWholeCardVisible(page, dialog, 'Esika, God of the Tree')
+  // Wide layout: image left, real text right; flip button right-aligned directly above the image.
+  const heading = (await dialog.getByRole('heading', { name: 'Esika, God of the Tree', exact: true }).boundingBox())!
+  expect(heading.x).toBeGreaterThanOrEqual(box.x + box.width)
+  expect(heading.y).toBeLessThan(box.y + box.height)
+  const flip = dialog.getByRole('button', { name: 'Rückseite anzeigen' })
+  const flipBox = (await flip.boundingBox())!
+  expect(flipBox.y + flipBox.height).toBeLessThanOrEqual(box.y)
+  expect(Math.abs(flipBox.x + flipBox.width - (box.x + box.width))).toBeLessThanOrEqual(1)
+  await expect(dialog.getByText('Vorderseite', { exact: true })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Schließen' })).toHaveCount(1)
   const close = dialog.getByRole('button', { name: 'Schließen' })
-  await expect(close).toBeFocused()
+  await expect(close).toBeFocused() // Focus moves on the entered transition, so the capture is not mid-fade.
+  await capture(page, info, 'card-desktop')
   await page.keyboard.press('Tab')
-  await expect(dialog.getByRole('button', { name: '1: Esika, God of the Tree' })).toBeFocused()
+  await expect(flip).toBeFocused()
   await page.keyboard.press('Shift+Tab')
   await expect(close).toBeFocused()
-  await dialog.getByRole('button', { name: '2: The Prismatic Bridge' }).click()
+  // Record the real Web Animations calls of the card turn without changing their behavior.
+  await page.evaluate(() => {
+    const turns: { from: string; to: string; duration: number }[] = []
+    Object.assign(window, { turns })
+    const animate = Element.prototype.animate
+    Element.prototype.animate = function (this: Element, keyframes, options) {
+      const frames = keyframes as Keyframe[]
+      turns.push({ from: String(frames[0].transform), to: String(frames.at(-1)!.transform), duration: Number((options as KeyframeAnimationOptions).duration) })
+      return animate.call(this, keyframes, options)
+    }
+  })
+  await flip.focus()
+  await page.keyboard.press('Enter')
+  // Two ~175 ms halves (≈350 ms): turn out to edge-on, swap the face, turn the new face in. Never past 90° (no mirroring).
+  await expect.poll(() => page.evaluate(() => (window as unknown as { turns: unknown[] }).turns)).toEqual([
+    { from: 'perspective(1600px) rotateY(0deg)', to: 'perspective(1600px) rotateY(90deg)', duration: 175 },
+    { from: 'perspective(1600px) rotateY(-90deg)', to: 'perspective(1600px) rotateY(0deg)', duration: 175 },
+  ])
   await expect(dialog.getByText('Legendary Enchantment')).toBeVisible()
+  await expect(dialog.getByRole('img', { name: 'Vollständige Karte: The Prismatic Bridge' })).toBeVisible()
+  await expect(dialog.getByText('Rückseite', { exact: true })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Vorderseite anzeigen' })).toBeFocused()
+  // Stationary final state: no lingering animation or transform on the presentation wrapper.
+  await expect.poll(() => turnerIdle(page)).toBe(true)
+  await capture(page, info, 'card-desktop-back')
   expect(apiRequests).toHaveLength(requestsBefore)
   await page.keyboard.press('Escape')
   await expect(dialog).not.toBeVisible()
@@ -100,30 +152,81 @@ test('own collection bounds preloading, keeps artwork editing separate and suppo
   await page.getByRole('button', { name: 'Karte anzeigen: Legacy Commander' }).click()
   await expect(page.getByText('Kein Kartenbild gespeichert.')).toBeVisible()
   await expect(page.getByText('Regeltext nicht gespeichert.')).toBeVisible()
+  await expect(page.getByRole('dialog').getByRole('button', { name: 'Schließen' })).toBeFocused()
+  await expect(page.getByRole('dialog').getByRole('button', { name: /seite anzeigen/ })).toHaveCount(0)
   await capture(page, info, 'card-fallback')
+  // Backdrop dismissal closes only the viewer and does not open the gallery or editor underneath.
+  await page.mouse.click(4, 450)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page).toHaveURL(/\/decks$/)
 })
 
-test('game details preload all four cards and open the full card on a narrow viewport', async ({ page }, info) => {
-  await page.setViewportSize({ width: 390, height: 844 })
-  const { apiRequests, images } = await fixture(page)
+for (const [width, height] of [[320, 568], [375, 667], [390, 844]] as const) {
+  test(`game details open the complete card without initial scrolling at ${width}px`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height })
+    const { apiRequests, images } = await fixture(page)
+    await page.goto(`/playgroups/${group.id}/games/${game.id}`)
+    await expect(page.getByRole('heading', { name: 'Spieldetails' })).toBeVisible()
+    await expect.poll(() => new Set(images).size).toBe(8)
+    const requestsBefore = apiRequests.length
+    const trigger = page.getByRole('button', { name: `Karte anzeigen: ${name}` }).first()
+    await trigger.click()
+    const dialog = page.getByRole('dialog', { name })
+    await expect(dialog.getByRole('button', { name: 'Schließen' })).toBeFocused()
+    const { box } = await expectWholeCardVisible(page, dialog, 'Esika, God of the Tree')
+    // Mobile order: flip row (right-aligned) above the image, real text below it.
+    const flipBox = (await dialog.getByRole('button', { name: 'Rückseite anzeigen' }).boundingBox())!
+    expect(flipBox.y + flipBox.height).toBeLessThanOrEqual(box.y)
+    expect(flipBox.x + flipBox.width).toBeGreaterThan(width * 0.75)
+    const heading = (await dialog.getByRole('heading', { name: 'Esika, God of the Tree', exact: true }).boundingBox())!
+    expect(heading.y).toBeGreaterThanOrEqual(box.y + box.height)
+    if (width === 390) await capture(page, info, 'card-mobile')
+    if (width === 320) await capture(page, info, 'card-mobile-320')
+    // A single body scrolls; the header X stays reachable while the text is revealed.
+    const rules = dialog.getByText(/Other legendary creatures you control/)
+    await rules.scrollIntoViewIfNeeded()
+    await expect(rules).toBeInViewport()
+    await expect(dialog.getByRole('button', { name: 'Schließen' })).toBeInViewport()
+    if (width === 390) await capture(page, info, 'card-mobile-scrolled')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    expect(apiRequests).toHaveLength(requestsBefore)
+    await dialog.getByRole('button', { name: 'Schließen' }).click()
+    await expect(trigger).toBeFocused()
+  })
+}
+
+test('short landscape viewports keep the whole card, controls and text reachable; reduced motion flips instantly', async ({ page }, info) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.setViewportSize({ width: 844, height: 390 })
+  const { apiRequests } = await fixture(page)
   await page.goto(`/playgroups/${group.id}/games/${game.id}`)
-  await expect(page.getByRole('heading', { name: 'Spieldetails' })).toBeVisible()
-  await expect.poll(() => new Set(images).size).toBe(8)
-  const requestsBefore = apiRequests.length
-  const trigger = page.getByRole('button', { name: `Karte anzeigen: ${name}` }).first()
-  await trigger.click()
+  await page.getByRole('button', { name: `Karte anzeigen: ${name}` }).first().click()
   const dialog = page.getByRole('dialog', { name })
-  await dialog.getByRole('button', { name: '2: The Prismatic Bridge' }).click()
-  await expect(dialog.getByRole('button', { name: 'Schließen' })).toBeInViewport()
-  const bounds = (await dialog.boundingBox())!
-  expect(bounds.y).toBeGreaterThanOrEqual(0)
-  expect(bounds.y + bounds.height).toBeLessThanOrEqual(844)
-  const image = dialog.getByRole('img', { name: 'Vollständige Karte: The Prismatic Bridge' })
+  const requestsBefore = apiRequests.length
+  const image = dialog.getByRole('img', { name: 'Vollständige Karte: Esika, God of the Tree' })
   await expect.poll(() => image.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0)).toBe(true)
-  await expect(dialog.getByText(/At the beginning of your upkeep/)).toBeAttached()
+  const box = (await image.boundingBox())!
+  expect(Math.abs(box.width / box.height - 488 / 680)).toBeLessThan(0.01)
+  await expect(dialog.getByRole('button', { name: 'Schließen' })).toBeFocused()
+  await expect(dialog.getByRole('button', { name: 'Schließen' })).toBeInViewport()
+  await expect(dialog.getByRole('button', { name: 'Rückseite anzeigen' })).toBeInViewport()
+  await capture(page, info, 'card-landscape')
+  await page.evaluate(() => {
+    Object.assign(window, { turns: 0 })
+    const animate = Element.prototype.animate
+    Element.prototype.animate = function (this: Element, ...args) { (window as unknown as { turns: number }).turns++; return animate.apply(this, args) }
+  })
+  await dialog.getByRole('button', { name: 'Rückseite anzeigen' }).click()
+  // Reduced motion: the face changes immediately and nothing animates.
+  await expect(dialog.getByRole('img', { name: 'Vollständige Karte: The Prismatic Bridge' })).toBeVisible({ timeout: 100 })
+  expect(await turnerIdle(page)).toBe(true)
+  expect(await page.evaluate(() => (window as unknown as { turns: number }).turns)).toBe(0)
+  const rules = dialog.getByText(/At the beginning of your upkeep/)
+  await rules.scrollIntoViewIfNeeded()
+  await expect(rules).toBeInViewport()
+  await expect(dialog.getByRole('button', { name: 'Schließen' })).toBeInViewport()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   expect(apiRequests).toHaveLength(requestsBefore)
-  await capture(page, info, 'card-mobile')
-  await dialog.getByRole('button', { name: 'Schließen' }).click()
-  await expect(trigger).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
 })
