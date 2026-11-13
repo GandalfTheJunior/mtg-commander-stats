@@ -146,6 +146,8 @@ test('without native share, copying is primary and works or falls back truthfull
   } else {
     await expect(dialog.getByRole('textbox', { name: 'Einladungslink' })).toHaveValue(expected)
     await expect(dialog.getByText('Link kopiert')).toHaveCount(0)
+    // The read-only fallback keeps the themed dark surface instead of the legacy light read-only fill.
+    expect(await dialog.getByRole('textbox', { name: 'Einladungslink' }).evaluate(input => getComputedStyle(input).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
   }
   await shot(page, info, `invite-01c-copy-${browserName}`)
 })

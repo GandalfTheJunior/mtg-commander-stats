@@ -172,6 +172,9 @@ export const appTheme = createTheme({
           minWidth: 0,
           '&:focus': { outline: 'none' }, // Remove only this MUI input's legacy focus reset.
           '&.Mui-disabled': { WebkitTextFillColor: theme.palette.text.disabled, opacity: 1 },
+          // Overrides the legacy global `input[readonly]` light fill (index.css), which made read-only fields
+          // (e.g. invitation links) cream text on a near-white background; the root keeps the themed paper surface.
+          '&[readonly]': { backgroundColor: 'transparent' },
         }),
       },
     },
