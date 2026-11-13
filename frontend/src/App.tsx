@@ -32,8 +32,7 @@ import { forgetAllHandoffs } from './gameHandoff'
 import { forgetDirectoryMemories } from './membersModel'
 import { createStatisticsMemory, StatisticsMemoryContext, type StatisticsView } from './statisticsState'
 import InvitationPage from './InvitationPage'
-import ClaimPage, { claimSuccessMessage } from './ClaimPage'
-import { claimSegment, inviteAuthIntent, inviteAuthKey, inviteSegment } from './invitationLink'
+import { inviteAuthIntent, inviteSegment } from './invitationLink'
 
 const statisticsRoutes: [string, StatisticsView][] = [['', 'landing'], ['/reports', 'chooser'],
   ...(['players', 'decks', 'starting-seats', 'mana-colors'] as const).map((report): [string, StatisticsView] => [`/reports/${report}`, report])]
@@ -75,10 +74,9 @@ export default function App() {
   const registrationPending = useRef(false)
   const loginPending = useRef(false)
   const [rechecking, setRechecking] = useState(false)
-  // #200/#247: invitation and claim deep links are public; their auth detour keeps the exact link URL.
+  // #200: an invitation deep link is public; its auth detour keeps the exact invitation URL.
   const invitation = inviteSegment(location.pathname)
-  const claim = claimSegment(location.pathname)
-  const inviteAuth = invitation === null && claim === null ? null : inviteAuthIntent(location.state)
+  const inviteAuth = invitation === null ? null : inviteAuthIntent(location.state)
   useEffect(() => {
     if (!inviteAuth || sessionStatus !== 'signed-out') return
     document.getElementById(inviteAuth === 'login' ? 'auth-login-email' : 'auth-register-email')?.focus()
@@ -193,13 +191,8 @@ export default function App() {
     }
   }
 
-  /**
-   * Explicit logout. `resume` is only honored for a validated `/claim/:code` path (#247 “Anderes Konto verwenden”):
-   * after a confirmed 204 the visitor returns to that same link's sign-in detour; every other outcome is unchanged.
-   */
-  async function logOut(resume?: unknown) {
+  async function logOut() {
     if (sessionStatus !== 'authenticated') return
-    const claimReturn = typeof resume === 'string' && claimSegment(resume) !== null ? resume : null
     // Retire old requests immediately, including while DELETE or its recovery GET is pending.
     editorOrigin.current = null
     collectionMemory.current = null
@@ -219,7 +212,7 @@ export default function App() {
       setCurrentUser(null)
       setSessionStatus('signed-out')
       setSessionNotice({ kind: 'success', message: 'Logged out.' })
-      void navigate(claimReturn ?? '/', { replace: true, state: claimReturn ? { [inviteAuthKey]: 'login' } : null })
+      void navigate('/', { replace: true })
     } catch {
       try {
         const user = await restoreSession()
@@ -308,22 +301,13 @@ export default function App() {
     return <InvitationPage key={`invite-${sessionVersion}-${location.pathname}`} segment={invitation} user={authenticated ? currentUser : null}
       checking={sessionStatus === 'checking'} notice={sessionNotice} onUnauthorized={sessionExpired} />
   }
-  if (claim !== null && (authenticated || sessionStatus === 'checking' || (sessionStatus === 'signed-out' && !inviteAuth))) {
-    const version = sessionVersion
-    // Keyed by session: login, logout or an account switch discards names, confirmation and in-flight requests.
-    return <ClaimPage key={`claim-${sessionVersion}-${location.pathname}`} segment={claim} user={authenticated ? currentUser : null}
-      checking={sessionStatus === 'checking'} notice={sessionNotice} onUnauthorized={sessionExpired}
-      onSwitchAccount={() => { void logOut(location.pathname) }}
-      onClaimed={() => {
-        if (version !== sessionVersionRef.current) return
-        setSessionNotice({ kind: 'success', message: claimSuccessMessage })
-        // Replace the consumed link; the collection mounts fresh and re-reads this account's groups. The synchronous
-        // navigation commits together with the notice, so the claim page never renders the success message itself.
-        void navigate('/playgroups', { replace: true, state: null, flushSync: true })
-      }} />
-  }
 
   if (sessionStatus === 'authenticated' && currentUser) {
+    if (isPublicPath(location.pathname)) return <Box component="main" sx={{ p: 3 }}>
+      <Typography component="h1" variant="h4">Profilübernahme</Typography>
+      <Typography>Dieser Link kann noch nicht angezeigt werden.</Typography>
+      <Button component={Link} to="/dashboard">Zum Dashboard</Button>
+    </Box>
     return (
       <StatisticsMemoryContext.Provider value={statisticsContext}>
       <EditorNavigation key={`navigation-${sessionVersion}`} onLogout={logOut}>
@@ -390,6 +374,7 @@ export default function App() {
       }),
     }}>
       {location.pathname !== '/' && !isProtectedPath(location.pathname) && !isPublicPath(location.pathname) && <Navigate to="/" replace />}
+      {isPublicPath(location.pathname) && invitation === null && <Typography component="h2" variant="h5">Dieser Link kann noch nicht angezeigt werden.</Typography>}
       <Container maxWidth="md" disableGutters>
         <Stack spacing={3}>
           <Box component="header" sx={{ m: 0 }}>
@@ -404,13 +389,11 @@ export default function App() {
             </Typography>
           </Box>
 
-          {(invitation !== null || claim !== null) && <Card component="section" aria-labelledby="auth-invitation-heading" sx={{ p: { xs: 2, sm: 3 }, minWidth: 0 }}>
+          {invitation !== null && <Card component="section" aria-labelledby="auth-invitation-heading" sx={{ p: { xs: 2, sm: 3 }, minWidth: 0 }}>
             <Stack spacing={1}>
-              <Typography id="auth-invitation-heading" component="h2" variant="h6">{claim !== null ? 'Profilübernahme' : 'Playgroup-Einladung'}</Typography>
+              <Typography id="auth-invitation-heading" component="h2" variant="h6">Playgroup-Einladung</Typography>
               <Typography>Nach der Anmeldung kehrst du zu dieser Einladung zurück.</Typography>
-              <Typography sx={{ color: 'text.secondary' }}>{claim !== null
-                ? 'Nach der Registrierung ist eine Anmeldung erforderlich. Das Schnellprofil wird erst nach deiner ausdrücklichen Bestätigung übernommen.'
-                : 'Nach der Registrierung ist eine Anmeldung erforderlich. Du trittst erst nach deiner Bestätigung bei.'}</Typography>
+              <Typography sx={{ color: 'text.secondary' }}>Nach der Registrierung ist eine Anmeldung erforderlich. Du trittst erst nach deiner Bestätigung bei.</Typography>
               <Button component={Link} to={location.pathname} replace state={null} color="secondary" sx={{ alignSelf: 'flex-start', minHeight: 44 }}>
                 Zurück zur Einladung
               </Button>

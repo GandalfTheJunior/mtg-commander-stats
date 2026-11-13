@@ -35,15 +35,6 @@ export function publicOrigin(configured: unknown = import.meta.env.VITE_PUBLIC_A
 /** The single complete URL used for share, copy and QR alike. */
 export const invitationUrl = (code: string, origin = publicOrigin()) => new URL(invitePath(code), origin).href
 
-/** #247 quick-profile claim deep link; distinct from ordinary Playgroup invitations at `/invite/:code`. */
-export const claimPath = (code: string) => `/claim/${encodeURIComponent(code)}`
-/** The raw route segment of a claim deep link, or null for any other path. */
-export function claimSegment(pathname: string): string | null {
-  return /^\/claim\/([^/?#]+)$/.exec(pathname)?.[1] ?? null
-}
-/** The one URL shared, copied and encoded as QR for a claim invitation. */
-export const claimUrl = (code: string, origin = publicOrigin()) => new URL(claimPath(code), origin).href
-
 const expiryFormat = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 /** Server-authoritative expiry in the device's local time zone, e.g. `08.11., 19:40 Uhr`. */
 export const formatExpiry = (expiresAt: string) => `${expiryFormat.format(new Date(expiresAt))} Uhr`

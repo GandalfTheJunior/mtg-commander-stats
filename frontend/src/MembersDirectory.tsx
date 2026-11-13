@@ -8,7 +8,6 @@ import {
 } from './api'
 import { groupUrl } from './groupNavigation'
 import InvitationDialog from './InvitationDialog'
-import ProfileClaimDialog from './ProfileClaimDialog'
 import { useInvitationCreation } from './useInvitationCreation'
 import { displaySuffixes } from './groupSuffixes'
 import { actionLabels, blank, canonicalName, directoryMemory, offerDirectoryMemory, fallbackOverflowRows, filters, matchesFilter, memberActions, normalized, roleLabel,
@@ -42,7 +41,7 @@ export function CloseIcon() {
   return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6 6 18" /></svg>
 }
 
-type Pending = { action: Exclude<MemberAction, 'deck' | 'rename' | 'claim'>; member: GroupMember }
+type Pending = { action: Exclude<MemberAction, 'deck' | 'rename'>; member: GroupMember }
 /** `unverified`: an ambiguous rename could not be reconciled yet; saving stays blocked until a state check succeeds. */
 type Rename = { member: GroupMember; value: string; focused: boolean; error: string | null; created: boolean; unverified?: boolean }
 
@@ -71,7 +70,6 @@ export default function MembersDirectory({ groupId, details, currentUser, transf
   const [confirm, setConfirm] = useState<Pending | null>(null)
   const [created, setCreated] = useState<GroupMember | null>(null)
   const [rename, setRename] = useState<Rename | null>(null)
-  const [claim, setClaim] = useState<GroupMember | null>(null)
   const [reveal, setReveal] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
@@ -87,9 +85,6 @@ export default function MembersDirectory({ groupId, details, currentUser, transf
 
   const suffixes = displaySuffixes(details.members.map(member => ({ id: member.userId, name: member.username })))
   const isOwnRow = (member: GroupMember) => member.userId.toLowerCase() === currentUser.id.toLowerCase()
-  // The claim dialog exists only while the fresh roster still offers it: a demotion or a vanished profile retires it and its code.
-  const claimTarget = claim && details.role !== 'MEMBER'
-    ? details.members.find(member => member.quickProfile && member.userId.toLowerCase() === claim.userId.toLowerCase()) ?? null : null
   const ownerTransfer = transfer && details.role === 'OWNER' && transfer.requesterId.toLowerCase() === currentUser.id.toLowerCase() ? transfer : null
   const subset = details.members.filter(member => matchesFilter(member, filter))
   const term = normalized(search)
@@ -178,7 +173,6 @@ export default function MembersDirectory({ groupId, details, currentUser, transf
     setMenu(null)
     if (action === 'deck') openDecks(member, true)
     else if (action === 'rename') setRename({ member, value: '', focused: false, error: null, created: false })
-    else if (action === 'claim') setClaim(member)
     else setConfirm({ action, member })
   }
 
@@ -420,8 +414,6 @@ export default function MembersDirectory({ groupId, details, currentUser, transf
         </DialogActions>
       </Box>
     </Dialog>
-    {claimTarget && <ProfileClaimDialog key={claimTarget.userId} groupId={groupId} profile={claimTarget} onClose={() => setClaim(null)}
-      onUnauthorized={onAccessError} onTargetLost={error => { setClaim(null); void reconcile(error, 'Die Einladung wurde nicht bestätigt.') }} />}
     {invitation.state && <InvitationDialog state={invitation.state} busy={invitation.busy} onRetry={invitation.create} onClose={invitation.close} />}
   </Stack>
 }

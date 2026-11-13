@@ -335,9 +335,6 @@ and join states) are covered by `frontend/e2e/invitations.pw.ts` with synthetic
 API responses, including decoding the rendered QR code. Shared invitation links
 use the serving origin unless `VITE_PUBLIC_APP_URL` is set at build time; see the
 [invitation cutover runbook](docs/development/invitation-cutover.md).
-Quick-profile claim invitations #247 (Members claim dialog, QR code, public
-`/claim/:code` preview, auth return, confirmation and error states) are covered
-by `frontend/e2e/claims.pw.ts` in the same way.
 
 Statistics browser checks use synthetic API responses:
 with Vite running, run `python tools/ui/verify-statistics.py` (Python Playwright

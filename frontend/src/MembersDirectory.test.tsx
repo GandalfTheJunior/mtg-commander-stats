@@ -74,8 +74,7 @@ test('permission matrix offers only the approved actions per actor and target', 
   expect(memberActions('ADMIN', admin.userId, owner, false)).toEqual([])
   expect(memberActions('ADMIN', admin.userId, { ...aragorn, role: 'ADMIN', userId: uid(9) }, false)).toEqual([])
   expect(memberActions('ADMIN', admin.userId, admin, false)).toEqual([])
-  // #247 appends the claim invitation for OWNER/ADMIN only.
-  for (const role of ['OWNER', 'ADMIN'] as const) expect(memberActions(role, uid(1), quick, false)).toEqual(['rename', 'deck', 'delete', 'claim'])
+  for (const role of ['OWNER', 'ADMIN'] as const) expect(memberActions(role, uid(1), quick, false)).toEqual(['rename', 'deck', 'delete'])
   expect(memberActions('MEMBER', frodo.userId, quick, false)).toEqual(['rename', 'deck'])
   for (const target of [owner, admin, aragorn, frodo]) expect(memberActions('MEMBER', frodo.userId, target, false)).toEqual([])
 })
@@ -123,7 +122,7 @@ test('ADMIN viewer can only remove ordinary members and sees the leave action', 
   expect(screen.getByRole('button', { name: 'Playgroup verlassen' })).toBeInTheDocument()
   expect(await openMenu('Frodo')).toEqual(['Aus Gruppe entfernen'])
   fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
-  expect(await openMenu('Flinker Waschbär')).toEqual(['Schnellprofil umbenennen', 'Deck erstellen', 'Schnellprofil löschen', 'Zur Profilübernahme einladen'])
+  expect(await openMenu('Flinker Waschbär')).toEqual(['Schnellprofil umbenennen', 'Deck erstellen', 'Schnellprofil löschen'])
 })
 
 test('whole-row activation opens the member deck route; the three-dot trigger never navigates', async () => {
