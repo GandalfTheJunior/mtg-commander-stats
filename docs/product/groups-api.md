@@ -261,8 +261,14 @@ expired, consumed, revoked, superseded or deleted-profile code returns the same
 has no token-bearing image endpoint. Preview never consumes the invitation.
 
 `POST /api/profile-invitations/{code}/accept` is the explicit, authenticated,
-CSRF-protected confirmation and returns `204`. It merges the profile into the
-authenticated account in one transaction. If both already participated in one
+CSRF-protected confirmation and returns `204`. Its body is required and is
+exactly `{"expectedAccountId":"<account UUID>"}`: the account the user saw and
+confirmed (#247). If it differs from the session's authenticated account (for
+example because another tab switched the shared session after the confirmation
+was shown), the server returns `409` with `code: "PROFILE_CLAIM_ACCOUNT_MISMATCH"`
+before reading the invitation: nothing is merged and the code is not consumed.
+A missing, malformed or extended body returns `400` (`Invalid request.`). It
+merges the profile into the authenticated account in one transaction. If both already participated in one
 game it returns `409` with `code: "PROFILE_CLAIM_SAME_GAME"`, changes nothing,
 and leaves the code available until expiry. Otherwise, all decks and game
 participations move to the account, which joins the group as MEMBER unless it

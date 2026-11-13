@@ -51,7 +51,7 @@ class ProfileInvitationsTest extends GameTestSupport {
         String code = invite(f, profile);
         JsonNode preview = expect(null, "GET", preview(code), "", 200);
         assertThat(preview.toString()).contains("Pod", "Lena").doesNotContain(code, profile.toString());
-        expect(f.member(), "POST", accept(code), "", 204);
+        expect(f.member(), "POST", accept(code), confirm(f.member()), 204);
 
         assertThat(users.findById(profile)).isEmpty();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM group_memberships WHERE user_id = ?", Integer.class,
@@ -73,7 +73,7 @@ class ProfileInvitationsTest extends GameTestSupport {
         assertThat(jdbc.queryForObject("SELECT profile_id FROM profile_invitations WHERE consumed_at IS NOT NULL",
                 UUID.class)).isNull();
         expect(null, "GET", preview(code), "", 400);
-        expect(f.outsider(), "POST", accept(code), "", 400);
+        expect(f.outsider(), "POST", accept(code), confirm(f.outsider()), 400);
     }
 
     @Test
@@ -91,7 +91,7 @@ class ProfileInvitationsTest extends GameTestSupport {
         groupService.changeRole(f.owner().id(), f.groupId(), f.creator().id(), GroupRole.ADMIN);
         String second = expect(f.creator(), "POST", path, "", 201).get("code").asText();
         expect(null, "GET", preview(first), "", 400);
-        expect(f.member(), "POST", accept(first), "", 400);
+        expect(f.member(), "POST", accept(first), confirm(f.member()), 400);
         expect(null, "GET", preview(second), "", 200);
         expect(f.creator(), "DELETE", path, "", 204);
         expect(null, "GET", preview(second), "", 400);
@@ -106,14 +106,14 @@ class ProfileInvitationsTest extends GameTestSupport {
         UUID game = id(expect(f.owner(), "POST", f.path(), body(List.of(
                 assignment(profile, deck), assignment(f.member().id(), f.memberDeck())), "WIN", profile), 201));
         String code = invite(f, profile);
-        JsonNode conflict = expect(f.member(), "POST", accept(code), "", 409);
+        JsonNode conflict = expect(f.member(), "POST", accept(code), confirm(f.member()), 409);
         assertThat(conflict.get("code").asText()).isEqualTo("PROFILE_CLAIM_SAME_GAME");
         assertThat(decks.findById(deck).orElseThrow().getOwnerId()).isEqualTo(profile);
         assertThat(users.findById(profile)).isPresent();
         expect(null, "GET", preview(code), "", 200);
         expect(f.owner(), "PUT", f.path() + "/" + game, body(List.of(
                 assignment(profile, deck), assignment(f.creator().id(), f.creatorDeck())), "WIN", profile), 200);
-        expect(f.member(), "POST", accept(code), "", 204);
+        expect(f.member(), "POST", accept(code), confirm(f.member()), 204);
     }
 
     @Test
@@ -121,14 +121,14 @@ class ProfileInvitationsTest extends GameTestSupport {
         Fixture f = fixture();
         UUID first = profile(f);
         expect(f.member(), "DELETE", "/api/groups/" + f.groupId() + "/membership", "", 204);
-        expect(f.member(), "POST", accept(invite(f, first)), "", 204);
+        expect(f.member(), "POST", accept(invite(f, first)), confirm(f.member()), 204);
         assertThat(jdbc.queryForObject("SELECT role FROM group_memberships WHERE group_id = ? AND user_id = ?",
                 String.class, f.groupId(), f.member().id())).isEqualTo("MEMBER");
         assertThat(jdbc.queryForObject("SELECT active FROM group_memberships WHERE group_id = ? AND user_id = ?",
                 Boolean.class, f.groupId(), f.member().id())).isTrue();
         groupService.changeRole(f.owner().id(), f.groupId(), f.creator().id(), GroupRole.ADMIN);
         UUID second = profile(f);
-        expect(f.creator(), "POST", accept(invite(f, second)), "", 204);
+        expect(f.creator(), "POST", accept(invite(f, second)), confirm(f.creator()), 204);
         assertThat(jdbc.queryForObject("SELECT role FROM group_memberships WHERE group_id = ? AND user_id = ?",
                 String.class, f.groupId(), f.creator().id())).isEqualTo("ADMIN");
     }
@@ -140,7 +140,7 @@ class ProfileInvitationsTest extends GameTestSupport {
         UUID deck = profileDeck(f, profile, "Inherited");
         String code = invite(f, profile);
         Actor newcomer = register("lena-new", "LenaM");
-        expect(newcomer, "POST", accept(code), "", 204);
+        expect(newcomer, "POST", accept(code), confirm(newcomer), 204);
         assertThat(decks.findById(deck).orElseThrow().getOwnerId()).isEqualTo(newcomer.id());
         assertThat(jdbc.queryForObject("SELECT username FROM users WHERE id = ?", String.class, newcomer.id()))
                 .isEqualTo("LenaM");
@@ -159,12 +159,12 @@ class ProfileInvitationsTest extends GameTestSupport {
                 + " UPDATE profile_invitations SET created_at = expired.at - interval '1 hour',"
                 + " expires_at = expired.at FROM expired");
         expect(null, "GET", preview(expired), "", 400);
-        expect(f.member(), "POST", accept(expired), "", 400);
+        expect(f.member(), "POST", accept(expired), confirm(f.member()), 400);
         String code = invite(f, profile);
         CountDownLatch start = new CountDownLatch(1);
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
-            Future<Integer> first = executor.submit(() -> { start.await(); return send(f.member(), "POST", accept(code), "").statusCode(); });
-            Future<Integer> second = executor.submit(() -> { start.await(); return send(f.outsider(), "POST", accept(code), "").statusCode(); });
+            Future<Integer> first = executor.submit(() -> { start.await(); return send(f.member(), "POST", accept(code), confirm(f.member())).statusCode(); });
+            Future<Integer> second = executor.submit(() -> { start.await(); return send(f.outsider(), "POST", accept(code), confirm(f.outsider())).statusCode(); });
             start.countDown();
             assertThat(List.of(first.get(15, TimeUnit.SECONDS), second.get(15, TimeUnit.SECONDS)))
                     .containsExactlyInAnyOrder(204, 400);
@@ -179,11 +179,65 @@ class ProfileInvitationsTest extends GameTestSupport {
         String unknown = "AAAAAAAAAAAAAAAAAAAAAA";
         String bad = send(null, "GET", preview(unknown), "").body();
         assertThat(send(null, "GET", preview("bad"), "").body()).isEqualTo(bad);
-        expect(new Actor(f.member().cookie(), null, f.member().id()), "POST", accept(code), "", 403);
-        expect(anonymous(), "POST", accept(code), "", 401);
+        expect(new Actor(f.member().cookie(), null, f.member().id()), "POST", accept(code), confirm(new Actor(f.member().cookie(), null, f.member().id())), 403);
+        expect(anonymous(), "POST", accept(code), confirm(anonymous()), 401);
         expect(f.owner(), "DELETE", management(f, profile), "", 204);
         assertThat(send(null, "GET", preview(code), "").body()).isEqualTo(bad);
-        assertThat(send(f.member(), "POST", accept(code), "").body()).isEqualTo(bad);
+        assertThat(send(f.member(), "POST", accept(code), confirm(f.member())).body()).isEqualTo(bad);
+    }
+
+    @Test
+    void crossTabSessionSwitchIsRefusedWithoutMergingOrConsuming() throws Exception {
+        // #247/PR #309 review: Bob confirmed in one tab, then another tab of the same browser switched the shared
+        // session to Carol before "Jetzt übernehmen" was sent. The request carries Carol's cookie and CSRF token but
+        // names Bob as the confirmed account.
+        Fixture f = fixture();
+        Actor bob = f.member();
+        Actor carol = f.outsider();
+        UUID profile = profile(f);
+        UUID deck = profileDeck(f, profile, "Bound");
+        String code = invite(f, profile);
+
+        JsonNode mismatch = expect(carol, "POST", accept(code), confirm(bob), 409);
+        assertThat(mismatch.get("code").asText()).isEqualTo("PROFILE_CLAIM_ACCOUNT_MISMATCH");
+        assertThat(mismatch.toString()).doesNotContain(code, bob.id().toString(), carol.id().toString());
+        // Nothing merged or consumed: profile, deck owner and memberships are unchanged and the link still works.
+        assertThat(users.findById(profile)).isPresent();
+        assertThat(jdbc.queryForObject("SELECT owner_id FROM decks WHERE id = ?", UUID.class, deck)).isEqualTo(profile);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM group_memberships WHERE group_id = ? AND user_id = ?",
+                Integer.class, f.groupId(), carol.id())).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM profile_invitations WHERE consumed_at IS NOT NULL"
+                + " OR consumer_id IS NOT NULL", Integer.class)).isZero();
+        expect(null, "GET", preview(code), "", 200);
+
+        // The account that actually confirmed can still claim with its own session; the consumer is Bob.
+        expect(bob, "POST", accept(code), confirm(bob), 204);
+        assertThat(jdbc.queryForObject("SELECT consumer_id FROM profile_invitations WHERE consumed_at IS NOT NULL",
+                UUID.class)).isEqualTo(bob.id());
+        assertThat(jdbc.queryForObject("SELECT owner_id FROM decks WHERE id = ?", UUID.class, deck)).isEqualTo(bob.id());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM group_memberships WHERE group_id = ? AND user_id = ?",
+                Integer.class, f.groupId(), carol.id())).isZero();
+    }
+
+    @Test
+    void mismatchIsCheckedBeforeTheInvitationIsRead() throws Exception {
+        Fixture f = fixture();
+        String mismatch = send(f.outsider(), "POST", accept("AAAAAAAAAAAAAAAAAAAAAA"), confirm(f.member())).body();
+        assertThat(send(f.outsider(), "POST", accept("bad"), confirm(f.member())).body()).isEqualTo(mismatch);
+        assertThat(mismatch).contains("PROFILE_CLAIM_ACCOUNT_MISMATCH");
+    }
+
+    @Test
+    void acceptRequiresExactlyTheConfirmedAccountBody() throws Exception {
+        Fixture f = fixture();
+        String code = invite(f, profile(f));
+        String invalid = "{\"expectedAccountId\":\"" + f.member().id() + "\",\"extra\":true}";
+        for (String body : List.of("", "{}", "{\"expectedAccountId\":null}", "{\"expectedAccountId\":\"nope\"}", invalid)) {
+            JsonNode problem = expect(f.member(), "POST", accept(code), body, 400);
+            assertThat(problem.get("detail").asText()).isEqualTo("Invalid request.");
+        }
+        expect(null, "GET", preview(code), "", 200);
+        expect(f.member(), "POST", accept(code), confirm(f.member()), 204);
     }
 
     @Test
@@ -205,7 +259,7 @@ class ProfileInvitationsTest extends GameTestSupport {
                 }
             }));
             assertThat(locked.await(5, TimeUnit.SECONDS)).isTrue();
-            Future<Integer> claimant = executor.submit(() -> send(f.member(), "POST", accept(code), "").statusCode());
+            Future<Integer> claimant = executor.submit(() -> send(f.member(), "POST", accept(code), confirm(f.member())).statusCode());
             try {
                 org.assertj.core.api.Assertions.assertThatThrownBy(() -> claimant.get(300, TimeUnit.MILLISECONDS))
                         .isInstanceOf(TimeoutException.class);
@@ -240,7 +294,7 @@ class ProfileInvitationsTest extends GameTestSupport {
                 }
             }));
             assertThat(deleted.await(5, TimeUnit.SECONDS)).isTrue();
-            Future<Integer> claim = executor.submit(() -> send(f.member(), "POST", accept(code), "").statusCode());
+            Future<Integer> claim = executor.submit(() -> send(f.member(), "POST", accept(code), confirm(f.member())).statusCode());
             try {
                 org.assertj.core.api.Assertions.assertThatThrownBy(() -> claim.get(300, TimeUnit.MILLISECONDS))
                         .isInstanceOf(TimeoutException.class);
@@ -314,7 +368,7 @@ class ProfileInvitationsTest extends GameTestSupport {
                 + " WHERE profile_id IS NULL", Boolean.class)).isTrue();
         String unavailable = send(null, "GET", preview("AAAAAAAAAAAAAAAAAAAAAA"), "").body();
         assertThat(send(null, "GET", preview(unusedCode), "").body()).isEqualTo(unavailable);
-        assertThat(send(f.member(), "POST", accept(unusedCode), "").body()).isEqualTo(unavailable);
+        assertThat(send(f.member(), "POST", accept(unusedCode), confirm(f.member())).body()).isEqualTo(unavailable);
 
         UUID played = profile(f);
         UUID deck = profileDeck(f, played, "Played");
@@ -325,7 +379,7 @@ class ProfileInvitationsTest extends GameTestSupport {
         assertThat(jdbc.queryForObject("SELECT revoked_at IS NOT NULL FROM profile_invitations"
                 + " WHERE profile_id = ?", Boolean.class, played)).isTrue();
         assertThat(send(null, "GET", preview(playedCode), "").body()).isEqualTo(unavailable);
-        assertThat(send(f.member(), "POST", accept(playedCode), "").body()).isEqualTo(unavailable);
+        assertThat(send(f.member(), "POST", accept(playedCode), confirm(f.member())).body()).isEqualTo(unavailable);
     }
 
     @Test
@@ -372,6 +426,15 @@ class ProfileInvitationsTest extends GameTestSupport {
 
     private String accept(String code) {
         return preview(code) + "/accept";
+    }
+
+    /** The accept body naming the account the user confirmed (#247); an actor without an id confirms a random account. */
+    private String confirm(Actor actor) {
+        return confirm(actor == null || actor.id() == null ? UUID.randomUUID() : actor.id());
+    }
+
+    private String confirm(UUID account) {
+        return "{\"expectedAccountId\":\"" + account + "\"}";
     }
 
     private JsonNode row(JsonNode rows, String field, String value) {

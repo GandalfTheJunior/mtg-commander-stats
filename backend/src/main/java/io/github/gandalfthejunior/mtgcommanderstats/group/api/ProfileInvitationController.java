@@ -55,9 +55,23 @@ public class ProfileInvitationController {
 
     @PostMapping("/api/profile-invitations/{code}/accept")
     public ResponseEntity<Void> accept(@AuthenticationPrincipal UserPrincipal actor, @PathVariable String code,
-            @RequestBody(required = false) EmptyRequest request) {
-        invitations.accept(actor.getId(), code);
+            @RequestBody AcceptRequest request) {
+        invitations.accept(actor.getId(), request.expectedAccountId(), code);
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
+    }
+
+    /** The account the user explicitly confirmed; required (#247). Unknown fields are rejected. */
+    public record AcceptRequest(UUID expectedAccountId) {
+        public AcceptRequest {
+            if (expectedAccountId == null) {
+                throw new InvalidGroupRequestException();
+            }
+        }
+
+        @JsonAnySetter
+        public void rejectUnknownField(String field, Object value) {
+            throw new InvalidGroupRequestException();
+        }
     }
 
     public record EmptyRequest() {

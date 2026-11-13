@@ -324,7 +324,8 @@ class AtomicDeckSaveTest extends GameTestSupport {
         assertThat(send(f.creator(), "POST", profilePath, body.replace("Keyed", "Replay"), key).statusCode()).isEqualTo(200);
         String code = expect(f.owner(), "POST", "/api/groups/" + f.groupId()
                 + "/quick-profiles/" + profile + "/invitation", "", 201).path("code").asText();
-        expect(f.member(), "POST", "/api/profile-invitations/" + code + "/accept", "", 204);
+        expect(f.member(), "POST", "/api/profile-invitations/" + code + "/accept",
+                "{\"expectedAccountId\":\"" + f.member().id() + "\"}", 204);
         assertThat(decks.findById(profileDeck).orElseThrow().getOwnerId()).isEqualTo(f.member().id());
         assertThat(decks.findById(profileDeck).orElseThrow().getIdempotencyKey()).isNull();
         assertThat(decks.findById(accountDeck).orElseThrow().getIdempotencyKey()).isEqualTo(UUID.fromString(key));
