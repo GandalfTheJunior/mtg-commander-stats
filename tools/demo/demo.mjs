@@ -114,15 +114,32 @@ function target(cfg) {
   return id;
 }
 
+// Flyway V27 (#303) browser sessions. They are temporary, never exported, and the
+// temporary demo backend may already hold anonymous sessions before the check.
+const SESSION_STORE_TABLES = new Set(['session_store.spring_session', 'session_store.spring_session_attributes']);
+const UNVERIFIABLE_SOURCE = 'Source application tables are nonempty or unverifiable; no retry or cleanup allowed.';
+
+// Returns the public application tables that must be proven empty. Exactly the
+// known session-store tables are skipped; any other schema or table name fails.
+export function sourceApplicationTables(qualifiedNames) {
+  const tables = [];
+  for (const name of qualifiedNames) {
+    if (SESSION_STORE_TABLES.has(name)) continue;
+    if (!/^public\.[a-z][a-z0-9_]*$/.test(name)) throw new DemoError(UNVERIFIABLE_SOURCE);
+    tables.push(name.slice('public.'.length));
+  }
+  return tables;
+}
+
 function emptySource(id) {
   if (existsSync(marker)) throw new DemoError('Source seed already attempted; preserving its marker and data.');
-  const tables = run(['exec', id, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', db, '-d', db, '-Atc',
+  const qualified = run(['exec', id, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', db, '-d', db, '-Atc',
     "SELECT schemaname || '.' || tablename FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema') AND NOT (schemaname = 'public' AND tablename = 'flyway_schema_history') ORDER BY 1"])
     .split('\n').filter(Boolean);
-  for (const table of tables) {
-    if (!/^public\.[a-z][a-z0-9_]*$/.test(table) || run(['exec', id, 'psql', '-X', '-v', 'ON_ERROR_STOP=1',
-      '-U', db, '-d', db, '-Atc', 'SELECT count(*) FROM public."' + table.slice(7) + '"']) !== '0') {
-      throw new DemoError('Source application tables are nonempty or unverifiable; no retry or cleanup allowed.');
+  for (const table of sourceApplicationTables(qualified)) {
+    if (run(['exec', id, 'psql', '-X', '-v', 'ON_ERROR_STOP=1',
+      '-U', db, '-d', db, '-Atc', 'SELECT count(*) FROM public."' + table + '"']) !== '0') {
+      throw new DemoError(UNVERIFIABLE_SOURCE);
     }
   }
 }

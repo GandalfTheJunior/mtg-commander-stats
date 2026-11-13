@@ -33,6 +33,7 @@
   },
   "postStartCommand": "bash .devcontainer/start.sh",
   "containerEnv": {
-    "MTG_CODESPACE_DEMO_DATA": "1"
+    "MTG_CODESPACE_DEMO_DATA": "1",
+    "SERVER_SERVLET_SESSION_COOKIE_SECURE": "true"
   }
 }

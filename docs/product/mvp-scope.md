@@ -214,8 +214,16 @@ outside this MVP.
 - `GET /api/csrf` is available anonymously and while authenticated. Clients use
   its token and header name for login and other unsafe requests, including
   `DELETE /api/session`. Refresh the CSRF token after successful login.
+- Registered users stay signed in by default (no "Remember me" option) across
+  page reloads, normal browser closes/reopens and backend restarts, as long as the
+  browser keeps the cookie and the site origin and database are unchanged (#303).
+  An authenticated session expires after 7 days without activity, and in any case
+  30 days after the password login that created it. Activity renews only the
+  7-day window; only another password login starts a new 30-day lifetime, and
+  only for that browser. Both limits are enforced by the server.
 - Logout requires authentication and CSRF protection, returns `204`, and
-  invalidates the session. Protected anonymous requests receive `401`; forbidden
+  invalidates the session, including its stored record; other separately signed-in
+  devices stay signed in. Protected anonymous requests receive `401`; forbidden
   operations and invalid/missing CSRF protection receive `403`.
 - Confirmed browser sessions show Log out and hide login/registration forms.
   Logout hides protected deck/group content, including invitation codes, while

@@ -215,9 +215,10 @@ export function restorationSql(plainDump, names) {
 }
 
 function importData(sourceId, targetId, names) {
+  // Browser sessions (#303) live in session_store and are never copied.
   const archive = docker(['exec', sourceId, 'pg_dump', '-U', demo, '-d', demo,
     '--format=custom', '--data-only', '--no-owner', '--no-acl',
-    '--exclude-table=public.flyway_schema_history'], {
+    '--exclude-table=public.flyway_schema_history', '--exclude-schema=session_store'], {
     encoding: null, stage: 'isolated demo export',
   });
   requireSafe(archive.length > 0, 'Empty demo PostgreSQL data archive.');

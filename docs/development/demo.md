@@ -288,7 +288,11 @@ artifacts; no database or marker is deleted to manage them.
 The ordinary application jar contains neither
 launcher, fixture provider nor test resources and has no fixture/profile switch.
 The wrapper still validates the local Docker context, fixed container/volume,
-loopback database, every application table empty and explicit opt-in before API writes. The test
+loopback database, every application table empty and explicit opt-in before API writes.
+The emptiness check accepts only `public` application tables, plus exactly the two
+Spring Session tables in `session_store` (#303). Those hold temporary browser sessions,
+may already contain the temporary backend's anonymous sessions and are never
+exported; any other schema or table still fails the check. The test
 launcher additionally rejects arbitrary arguments/targets and requires the
 random temporary loopback context and ephemeral HTTP port. No direct SQL inserts
 or relaxed Commander validators are used.

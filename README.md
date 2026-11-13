@@ -116,6 +116,18 @@ registration and session authentication work without separate CORS configuration
 The token is read from the JSON response, not from the HttpOnly session cookie.
 Missing/invalid CSRF protection returns `403`; protected anonymous requests return
 `401` without redirects. Other authenticated access denials return `403`.
+
+Sessions are stored in PostgreSQL (Spring Session JDBC, Flyway V27, schema
+`session_store`), so a sign-in survives browser closes and backend restarts or
+branch switches against the same database. Authenticated sessions expire after 7
+days of inactivity and at the latest 30 days after the password login; see the
+[architecture overview](docs/architecture/overview.md#data-and-security).
+The session cookie is named `SESSION` (formerly `JSESSIONID`): after this change
+is first deployed, each browser must sign in once more. Account and group data
+are unaffected. The cookie is `Secure` only for HTTPS requests seen by the
+backend; behind an HTTPS proxy or forwarding, set
+`SERVER_SERVLET_SESSION_COOKIE_SECURE=true`. Removing the database volume, clearing
+cookies or changing the site origin still requires a new login.
 Flyway creates the `users` table; Hibernate validates rather than creates tables.
 The email migration cannot safely infer addresses for users created by older
 versions. If a local development database contains pre-email users, reset and

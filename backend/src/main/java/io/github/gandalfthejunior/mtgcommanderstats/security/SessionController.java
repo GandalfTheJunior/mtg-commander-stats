@@ -40,10 +40,12 @@ public class SessionController {
     private final SecurityContextRepository contexts;
     private final SecurityContextLogoutHandler logout;
     private final CsrfLogoutHandler csrfLogout;
+    private final AuthenticatedSessionLifetime lifetime;
 
     public SessionController(AuthenticationManager authenticationManager, SessionAuthenticationStrategy sessions,
-            SecurityContextRepository contexts, CsrfTokenRepository csrfTokens) {
+            SecurityContextRepository contexts, CsrfTokenRepository csrfTokens, AuthenticatedSessionLifetime lifetime) {
         this.authenticationManager = authenticationManager;
+        this.lifetime = lifetime;
         this.sessions = sessions;
         this.contexts = contexts;
         this.logout = new SecurityContextLogoutHandler();
@@ -65,6 +67,8 @@ public class SessionController {
                         credentials.email() == null ? "" : credentials.email(),
                         credentials.password() == null ? "" : credentials.password()));
         sessions.onAuthentication(authentication, request, response);
+        // Only an explicit password login starts a new 30-day authenticated lifetime.
+        lifetime.start(request.getSession());
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);

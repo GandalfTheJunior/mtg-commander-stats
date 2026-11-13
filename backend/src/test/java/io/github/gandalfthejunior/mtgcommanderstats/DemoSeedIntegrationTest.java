@@ -88,7 +88,7 @@ class DemoSeedIntegrationTest {
                 + "AND tablename <> 'flyway_schema_history' ORDER BY tablename", String.class);
         byte[] archive = command(null, "docker", "exec", container, "pg_dump", "-U", user,
                 "-d", source, "--format=custom", "--data-only", "--no-owner", "--no-acl",
-                "--exclude-table=public.flyway_schema_history");
+                "--exclude-table=public.flyway_schema_history", "--exclude-schema=session_store");
         byte[] dump = command(archive, "docker", "exec", "-i", container, "pg_restore",
                 "--data-only", "--no-owner", "--no-acl", "--file=-");
         byte[] script = command(dump, "node", "--input-type=module", "-e",
