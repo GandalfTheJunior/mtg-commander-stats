@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode, type Ref } from 'react'
-import { Box, Button, CircularProgress, Collapse, Dialog, DialogContent, DialogTitle, IconButton, Stack, TextField, Typography } from '@mui/material'
+import { Box, Button, CircularProgress, Dialog, DialogContent, DialogTitle, IconButton, Stack, TextField, Typography } from '@mui/material'
 import {
   ApiError, createProfileInvitation, getProfileInvitation, revokeProfileInvitation, type GroupMember, type Invitation,
 } from './api'
@@ -241,6 +241,8 @@ export default function ProfileClaimDialog({ groupId, profile, onClose, onUnauth
         <Typography component="label" htmlFor={linkId} variant="caption" sx={overline}>Einladungslink</Typography>
         <TextField id={linkId} inputRef={sharing.manualField} value={url} fullWidth size="small"
           onFocus={event => event.target.select()}
+          // The legacy global `input[readonly]` fill (index.css) would put cream text on a near-white field.
+          sx={{ '& input[readonly]': { backgroundColor: 'transparent' } }}
           slotProps={{ htmlInput: { readOnly: true, spellCheck: false, style: { textOverflow: 'ellipsis' } } }} />
       </Box>
       <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', '& > *': { flex: '1 1 120px', minHeight: 48 } }}>
@@ -249,13 +251,11 @@ export default function ProfileClaimDialog({ groupId, profile, onClose, onUnauth
           onClick={() => { void sharing.copyLink() }}>Link kopieren</Button>
       </Box>
       <ShareFeedback sharing={sharing} field={false} />
-      <Button variant="outlined" color="secondary" aria-expanded={qrOpen} aria-controls={qrId} onClick={() => setQrOpen(open => !open)}
+      <Button variant="outlined" color="secondary" aria-expanded={qrOpen} aria-controls={qrOpen ? qrId : undefined} onClick={() => setQrOpen(open => !open)}
         sx={{ ...buttonSx, justifyContent: 'flex-start', textAlign: 'left' }}>
         {qrOpen ? 'QR-Code verbergen' : 'QR-Code anzeigen'}<Chevron up={qrOpen} />
       </Button>
-      <Collapse in={qrOpen} id={qrId} unmountOnExit>
-        <InvitationQr url={url} />
-      </Collapse>
+      {qrOpen && <InvitationQr url={url} id={qrId} />}
       <Typography variant="body2" sx={{ color: 'text.secondary' }}>Link jetzt weitergeben. Nach dem Schließen kann er nicht erneut angezeigt werden.</Typography>
       {closeButton}
     </>

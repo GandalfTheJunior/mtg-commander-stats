@@ -317,8 +317,9 @@ export default function App() {
       onClaimed={() => {
         if (version !== sessionVersionRef.current) return
         setSessionNotice({ kind: 'success', message: claimSuccessMessage })
-        // Replace the consumed link; the collection mounts fresh and re-reads this account's groups.
-        void navigate('/playgroups', { replace: true, state: null })
+        // Replace the consumed link; the collection mounts fresh and re-reads this account's groups. The synchronous
+        // navigation commits together with the notice, so the claim page never renders the success message itself.
+        void navigate('/playgroups', { replace: true, state: null, flushSync: true })
       }} />
   }
 

@@ -26,7 +26,7 @@ not force scroll reset. The fixed collection Back link targets `/playgroups`.
 | `/playgroups/:groupId/members/:memberId/decks/new` | #198 focused quick-profile deck editor (reuses the #196 `DeckForm` context) |
 | `/decks`, `/decks/new`, `/decks/:deckId/edit` | Personal collection and focused editors |
 | `/invite/:code` | #200 public invitation preview before the auth gate; explicit join after authentication |
-| `/claim/:code` | Public placeholder before the auth gate; #247 owns preview and claim |
+| `/claim/:code` | #247 public quick-profile claim preview before the auth gate; explicit claim after authentication |
 
 Protected routes confirm `/api/me` before mounting private content. Login resumes
 only an allowlisted in-app pathname and then authorizes its resource. Group IDs
@@ -66,7 +66,7 @@ panel and a blank form.
 The header shows username with only **Abmelden** in its menu. Global destinations
 are Dashboard, Playgroups, Decks. Group main views alone show Overview, Games,
 Statistics, Members. The mobile bottom bar hides on focused editors; desktop
-retains the horizontal row. Public signed-in placeholders provide a Dashboard exit.
+retains the horizontal row. Public invitation and claim pages provide their own exits.
 ADMIN is strictly decoded in group summaries/rosters. Cross-creator game actions
 remain OWNER-only here; #195 owns any ADMIN affordance expansion.
 
@@ -181,6 +181,8 @@ retires the group with the standard access-loss notice.
   A failed read or acknowledgement stops draining and stays retryable.
 - **Spieler einladen** opens the #200 invitation dialog for every active role;
   see [single-use invitations](#single-use-invitations-200).
+- **Zur Profilübernahme einladen** is appended to an active quick profile's menu
+  for OWNER/ADMIN viewers only; see [quick-profile claims](#quick-profile-claim-invitations-247).
 
 `frontend/e2e/members.pw.ts` covers 320/375/390/1280px layouts, touch targets,
 horizontal overflow, sticky search and Back restoration with synthetic API data.
@@ -774,3 +776,61 @@ use intercepted non-sensitive data, not a live backend or physical-device test.
 - **Tests:** `src/Invitation.test.tsx` (integration) and
   `e2e/invitations.pw.ts` (320/375/390/1280px, Chromium and WebKit, decodes the
   rendered QR code with the dev-only `jsqr`).
+
+## Quick-profile claim invitations (#247)
+
+Backed by the [profile invitation API](../product/groups-api.md#profile-invitations-and-claiming)
+(#224). Ordinary Playgroup invitations (#200) keep their own 24-hour lifetime,
+permissions and `/invite/:code` route; nothing is shared except the share/QR
+helpers (`linkSharing.ts`, `InvitationQr`, `ShareFeedback`) and `retryWindow.ts`.
+
+- **Issuer dialog (`ProfileClaimDialog`):** opened from the quick-profile row menu
+  (OWNER/ADMIN only; MEMBERs keep their other actions). Opening only sends the
+  status `GET`; it never creates a link. **Einladung erstellen** sends one
+  CSRF-protected `POST`; **Neue Einladung erstellen** and **Einladung widerrufen**
+  first open a named confirmation, and only **Neuen Link erstellen** /
+  **Einladung widerrufen** in it write. A ref guard allows one request at a time;
+  nothing is retried automatically. The one-time code exists only in the dialog's
+  state after a `201`: closing, expiry (server `expiresAt`, no countdown), a
+  roster change that removes the profile or the viewer's OWNER/ADMIN role, or a
+  session change discards it. The link is `new URL('/claim/<code>', origin)`;
+  share, copy and the local QR code use that exact URL.
+- **Write outcomes:** 4xx responses are definite (nothing changed); network
+  errors, 5xx and malformed responses are ambiguous and show
+  **Erstellung/Widerruf nicht bestätigt** without any link. The only way out is
+  **Status prüfen** (read-only `GET`); an active result explains that a possibly
+  new code cannot be retrieved. 401 expires the session; 403/404 close the dialog
+  and re-read the roster through the shared #198 reconciliation.
+- **Public page (`ClaimPage`):** `/claim/:code` renders before the auth gate for
+  checking, signed-out and signed-in sessions, keyed by session epoch and path.
+  Malformed codes are unavailable without a request. The preview `GET` uses
+  `credentials: 'omit'`, `cache: 'no-store'` and `referrerPolicy: 'no-referrer'`
+  and keeps only `groupName` and `profileName`. **Anmelden**/**Registrieren** use
+  the #200 `inviteAuth` history-state detour on the same URL (the auth screen
+  shows a **Profilübernahme** note); login resumes the claim path and never
+  accepts. **Nicht übernehmen** links to `/playgroups` without any request.
+  **Anderes Konto verwenden** runs the ordinary explicit logout; only after its
+  confirmed `204` does it return to the same validated `/claim/:code` login
+  detour (every other logout outcome is unchanged).
+- **Confirmation and success:** **Profil übernehmen** only opens
+  **Schnellprofil übernehmen?**; only **Jetzt übernehmen** sends the CSRF-protected
+  accept `POST` (no body, no referrer). While pending, closing is disabled. An
+  acknowledged `204` (from the current session and route) replaces the entry with
+  `/playgroups`, which mounts fresh and re-reads the groups, and shows
+  **Schnellprofil erfolgreich übernommen.**
+- **Errors:** 400 → **Einladung nicht verfügbar** without names; 409
+  `PROFILE_CLAIM_SAME_GAME` → **Übernahme noch nicht möglich** with a read-only
+  **Erneut prüfen**; 429 (preview or accept) → **Bitte später erneut versuchen**
+  with the retry disabled for `Retry-After` (default 60 s); network/5xx/malformed
+  preview → **Einladung konnte nicht geladen werden**; other definite accept
+  refusals (e.g. CSRF 403) report that nothing changed; 401 expires the session.
+  An ambiguous accept (network, 5xx, unexpected 2xx) shows **Übernahme konnte
+  nicht bestätigt werden**; **Einladung erneut prüfen** sends only the preview
+  `GET`. A usable result needs a fresh confirmation; an unusable one states that
+  the outcome cannot be determined here and links to Playgroups.
+- **Leakage:** the Vite dev/preview servers send `Cache-Control: no-store` and
+  `Referrer-Policy: no-referrer` on `/claim/*` as on `/invite/*`; production
+  hosting must do the same (see the [cutover runbook](invitation-cutover.md#quick-profile-claim-links-247)).
+- **Tests:** `src/ProfileClaim.test.tsx` (integration) and `e2e/claims.pw.ts`
+  (all seven approved wireframe scenarios at 320/375/390/1280px, Chromium and
+  WebKit, decoding the rendered QR code).
