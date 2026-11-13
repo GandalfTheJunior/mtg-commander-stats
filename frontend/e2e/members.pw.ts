@@ -68,7 +68,8 @@ for (const width of [320, 375, 390, 1280]) {
     await page.keyboard.press('Escape')
     await expect(trigger).toBeFocused()
     await page.getByRole('button', { name: 'Aktionen für Flinker Waschbär' }).click()
-    await expect(page.getByRole('menuitem')).toHaveText(['Schnellprofil umbenennen', 'Deck erstellen', 'Schnellprofil löschen'])
+    // #247 appends the OWNER/ADMIN claim invitation entry.
+    await expect(page.getByRole('menuitem')).toHaveText(['Schnellprofil umbenennen', 'Deck erstellen', 'Schnellprofil löschen', 'Zur Profilübernahme einladen'])
     await shot(page, info, `members-02c-quick-profile-menu-${width}`)
     await page.getByRole('menuitem', { name: 'Schnellprofil löschen' }).click()
     await expect(page.getByRole('dialog', { name: 'Schnellprofil löschen?' })).toBeVisible()

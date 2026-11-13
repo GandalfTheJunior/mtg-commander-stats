@@ -1,19 +1,34 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { Box, Button, Dialog, DialogContent, DialogTitle, Divider, IconButton, Stack, TextField, Typography } from '@mui/material'
 import { CloseIcon } from './MembersDirectory'
 import { formatExpiry, invitationUrl, qrGeometry } from './invitationLink'
 
+import { useLinkSharing } from './linkSharing'
 import type { InvitationState as State } from './useInvitationCreation'
-type CopyState = 'idle' | 'copied' | 'manual'
 
-/** Native share only where the browser offers it; never a dead placeholder (#200 §2.2). */
-function canShare(url: string) {
-  if (typeof navigator.share !== 'function') return false
-  try {
-    return typeof navigator.canShare === 'function' ? navigator.canShare({ url }) : true
-  } catch {
-    return false
-  }
+/** Copy/share outcome: success only after the clipboard confirmed it; otherwise the link to copy by hand. */
+export function ShareFeedback({ sharing, field = true }: {
+  sharing: ReturnType<typeof useLinkSharing>
+  /** False when the link is already visible in a field that `sharing.manualField` focuses and selects. */
+  field?: boolean
+}) {
+  const hintId = useId()
+  const { copy, shareFailed, manualField, url } = sharing
+  return <>
+    {copy === 'copied' && <Typography role="status" sx={{ color: 'success.main' }}>Link kopiert</Typography>}
+    {shareFailed && <Typography role="alert" sx={{ color: 'error.main' }}>Teilen ist fehlgeschlagen. Kopiere den Link stattdessen.</Typography>}
+    {copy === 'manual' && !field && <Typography role="alert" sx={{ color: 'error.main' }}>
+      Der Link konnte nicht automatisch kopiert werden. Er ist oben markiert – kopiere ihn manuell.
+    </Typography>}
+    {copy === 'manual' && field && url && <Stack sx={{ gap: 1 }}>
+      <Typography role="alert" id={hintId} sx={{ color: 'error.main' }}>
+        Der Link konnte nicht automatisch kopiert werden. Markiere ihn und kopiere ihn manuell.
+      </Typography>
+      <TextField inputRef={manualField} label="Einladungslink" value={url} fullWidth size="small"
+        onFocus={event => event.target.select()}
+        slotProps={{ htmlInput: { readOnly: true, 'aria-describedby': hintId, spellCheck: false } }} />
+    </Stack>}
+  </>
 }
 
 const iconSx = { flexShrink: 0, color: 'text.secondary' } as const
@@ -23,12 +38,12 @@ const CalendarIcon = () => <Box component="svg" aria-hidden="true" focusable="fa
 const LockIcon = () => <Box component="svg" aria-hidden="true" focusable="false" width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} sx={iconSx}>
   <rect x="4.5" y="11" width="15" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" />
 </Box>
-const QrIcon = () => <Box component="svg" aria-hidden="true" focusable="false" width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} sx={{ flexShrink: 0 }}>
+export const QrIcon = () => <Box component="svg" aria-hidden="true" focusable="false" width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} sx={{ flexShrink: 0 }}>
   <rect x="3.5" y="3.5" width="7" height="7" /><rect x="13.5" y="3.5" width="7" height="7" /><rect x="3.5" y="13.5" width="7" height="7" /><rect x="14" y="14" width="6" height="6" fill="currentColor" />
 </Box>
 
 /** Black-on-white code with a white quiet zone, rendered entirely in the browser. */
-function InvitationQr({ url, id }: { url: string; id: string }) {
+export function InvitationQr({ url, id }: { url: string; id?: string }) {
   const { size, path } = useMemo(() => qrGeometry(url), [url])
   return <Box id={id} sx={{ display: 'grid', justifyItems: 'center', gap: 1.5 }}>
     <Box sx={{ width: 'min(100%, 264px)', bgcolor: '#FFFFFF', borderRadius: 1, p: 1, boxSizing: 'border-box' }}>
@@ -50,40 +65,9 @@ export default function InvitationDialog({ state, busy, onRetry, onClose }: {
   onClose: () => void
 }) {
   const [qrOpen, setQrOpen] = useState(false)
-  const [copy, setCopy] = useState<CopyState>('idle')
-  const [shareFailed, setShareFailed] = useState(false)
-  const manualField = useRef<HTMLInputElement>(null)
   const qrId = useId()
-
-  useEffect(() => {
-    if (copy === 'manual') { manualField.current?.focus(); manualField.current?.select() }
-  }, [copy])
-
-  const url = state.status === 'ready' ? invitationUrl(state.invitation.code) : null
-  const shareable = url !== null && canShare(url)
-
-  async function share() {
-    if (!url) return
-    setShareFailed(false)
-    try {
-      await navigator.share({ title: 'Playgroup-Einladung', url })
-    } catch (error) {
-      // Dismissing the share sheet is not a failure.
-      if (!(error instanceof DOMException && error.name === 'AbortError')) setShareFailed(true)
-    }
-  }
-
-  async function copyLink() {
-    if (!url) return
-    setCopy('idle')
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable')
-      await navigator.clipboard.writeText(url)
-      setCopy('copied')
-    } catch {
-      setCopy('manual')
-    }
-  }
+  const sharing = useLinkSharing(state.status === 'ready' ? invitationUrl(state.invitation.code) : null, 'Playgroup-Einladung')
+  const { url, shareable, share, copyLink } = sharing
 
   const shareButton = shareable && <Button variant="contained" onClick={() => { void share() }} sx={{ minHeight: 52, flex: 1 }}>Link teilen</Button>
   const copyButton = <Button variant={shareable ? 'outlined' : 'contained'} color={shareable ? 'secondary' : 'primary'}
@@ -124,16 +108,7 @@ export default function InvitationDialog({ state, busy, onRetry, onClose }: {
           <Button color="secondary" aria-expanded={false} onClick={() => setQrOpen(true)}
             sx={{ justifyContent: 'flex-start', minHeight: 48, gap: 1.5, px: 1, fontWeight: 600 }}><QrIcon />QR-Code anzeigen</Button>
         </>}
-        {copy === 'copied' && <Typography role="status" sx={{ color: 'success.main' }}>Link kopiert</Typography>}
-        {shareFailed && <Typography role="alert" sx={{ color: 'error.main' }}>Teilen ist fehlgeschlagen. Kopiere den Link stattdessen.</Typography>}
-        {copy === 'manual' && <Stack sx={{ gap: 1 }}>
-          <Typography role="alert" id="invite-manual-copy" sx={{ color: 'error.main' }}>
-            Der Link konnte nicht automatisch kopiert werden. Markiere ihn und kopiere ihn manuell.
-          </Typography>
-          <TextField inputRef={manualField} label="Einladungslink" value={url} fullWidth size="small"
-            onFocus={event => event.target.select()}
-            slotProps={{ htmlInput: { readOnly: true, 'aria-describedby': 'invite-manual-copy', spellCheck: false } }} />
-        </Stack>}
+        <ShareFeedback sharing={sharing} />
       </>}
     </DialogContent>
   </Dialog>
