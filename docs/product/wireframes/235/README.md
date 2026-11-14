@@ -1,29 +1,30 @@
 # PO-approved mobile functional wireframe for #235
 
-> **Archive incomplete — original image binary pending.** This directory stages the repository-local archive of the one Product Owner-approved mobile v1 wireframe attached to [issue #235](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/235). The README alone is **not** a substitute for the image and must not be treated as completed visual evidence.
+This directory contains the **Product Owner-uploaded repository image** for the single mobile v1 token-accordion wireframe approved in [issue #235](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/235) on 2026-11-09.
 
-## Authoritative references
+## Archive and visual reference
 
-- **Owning specification:** [#235 — Scryfall-linked tokens accordion in full-card dialog](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/235).
-- **Original PO-approved mobile v1 attachment:** [GitHub issue attachment](https://github.com/user-attachments/assets/97f82238-0ee1-40b2-a75d-4fb7f8affbab), approved on 2026-11-09.
-- **Completed shared viewer prerequisite:** [#239, merged via PR #313](https://github.com/GandalfTheJunior/mtg-commander-stats/pull/313).
-- **Completed backend token snapshot prerequisite:** [#234](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/234).
+- **Repository image:** [`issue235_mobile_wireframe_v1.png`](issue235_mobile_wireframe_v1.png)
+- **Preview:** ![Mobile v1 related-Commander-token accordion, collapsed and expanded](issue235_mobile_wireframe_v1.png)
+- **Original approved attachment:** [issue #235 source image](https://github.com/user-attachments/assets/97f82238-0ee1-40b2-a75d-4fb7f8affbab).
+- **GitHub file metadata:** 79,145 bytes, Git blob `583b4c4c21d41091d3d4ca8dff2457e186d81c1e`.
+- **Dependency:** [#239 full-card viewer merged in PR #313](https://github.com/GandalfTheJunior/mtg-commander-stats/pull/313); [#234 stored token snapshot backend](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/234) is also merged.
 
-The approved wireframe governs the **accordion's location, collapsed/expanded controls, one-column token-card arrangement and relative visual hierarchy**, not exact pixels, styling or decorative effects. The #235 written contract governs data integration, access, states, errors, accessibility and all other runtime behavior. A separate desktop wireframe is **not required**.
+The previously uploaded `issue239_mobile_wireframe_v1.png` was **byte-identical to #239's archive** and has been deleted from this branch. The current image has a **different Git blob SHA and byte length** from #239's archived image (`b02098247bf8100d28d2da856972f0ffdd852770`, 68,390 bytes). This proves it is **not the same binary** as #239, but does not by itself prove visual equivalence to the original #235 attachment.
 
-## Completion gate for this documentation PR
+### Verification and outstanding review gate
 
-1. Download the **original approved wireframe** from #235 and upload the real image file into this directory on branch `docs/235-wireframe`. Do not recreate, generate or restyle it.
-2. Add a repository-relative Markdown link to its **actual committed filename**, with verified format and pixel dimensions if available.
-3. Open the committed image visually, compare its controls and layout against the original issue attachment, and record the checks performed. Never claim byte-for-byte original provenance without verifying it.
-4. Ensure the changed-file list contains only the image and this README, then complete independent review and current-HEAD required CI before PO-only merge.
+- **Verified:** the new image exists in the correct repository directory, is linked by its committed filename above, and is distinct from #239's image.
+- **Verified:** the PR changed-file list consists of this image and the README only.
+- **Not independently verified here:** PNG signature, pixel dimensions, actual image appearance and comparison with the approved issue attachment. The available integration cannot decode image blobs; do not infer visual verification from filename or Git hash alone.
+- **Required before PO merge:** open the committed image and original #235 attachment, visually compare their collapsed/expanded token accordion controls and layout, confirm the committed image displays correctly, obtain independent review and required successful CI on final PR HEAD.
 
-**Current limitation:** the approved issue attachment is reachable as an issue URL, but could not be downloaded as a binary with the available tool access. No image has yet been committed or independently inspected here.
+## Design authority and implementation boundaries
 
-## Implementation handoff after archive merge
+The approved image governs **accordion placement, collapsed/expanded control inventory, one-column token-card arrangement and relative hierarchy**, not exact dimensions, colors or decoration. The written #235 specification remains authoritative for data, visibility, error states, image loading, permissions and accessible interaction. No separate desktop wireframe is required.
 
-The separate PO-authorized #235 implementation must **open the actual committed repository image** and read the full issue. Extend the one already-merged `frontend/src/FullCardView.tsx` from #239, consuming only #234's stored, authorized nullable `relatedTokens` snapshots. The saved Commander's token relationships do not change on face flip. Do not implement new token metadata endpoints, extra dialogs, Companion tokens, gameplay counters, or decorative redesign.
+After the documentation PR is independently reviewed, passes current-HEAD CI and is merged with PO approval, the separately authorized #235 Implementer must open this **actual committed image** and read the full issue. Extend the existing `frontend/src/FullCardView.tsx` from #239, consuming only #234's stored, authorized nullable `relatedTokens` snapshots. Related tokens are tied to the saved Commander printing, not the currently selected card face; the token accordion is Commander-only and collapsed by default.
 
-Suggested hands-on PO acceptance examples from iPhone testing: **Sorin of House Markov // Sorin, Ravenous Neonate** (Food token associated with the saved Commander printing, independently of the visible face) and **Koma, Cosmos Serpent** (3/3 blue Serpent creature token named Koma's Coil). Before asserting a token ought to appear in these particular decks, verify that their saved printing's Scryfall-linked snapshot actually contains the corresponding token. These are implementation/verification notes, **not** new behavioral requirements or permission to infer token relationships from rules text.
+For subsequent PO iPhone acceptance, check two user-reported examples: **Sorin of House Markov // Sorin, Ravenous Neonate** (Food token) and **Koma, Cosmos Serpent** (3/3 blue Serpent token named Koma's Coil). Verify that the **saved printing's** `relatedTokens` snapshot actually includes the expected token before interpreting a missing entry as a UI defect. These are test candidates, not an authorization to infer token relationships from rules text.
 
-This documentation-only PR does **not** authorize #235 implementation or merge.
+This archive has **no production runtime changes** and does **not** authorize implementing #235, merging or deploying.
