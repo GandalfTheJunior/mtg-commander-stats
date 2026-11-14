@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { FullCardView } from './FullCardView'
 import SavedDeckCard from './SavedDeckCard'
@@ -161,13 +162,24 @@ test('re-entering the dialog starts collapsed; paired Commanders and the Compani
   expect(fetchMock).not.toHaveBeenCalled()
 })
 
-test('unmounting while token images load leaves no background work or stale updates', () => {
+test('leaving the dialog cancels unfinished token downloads, keeps finished ones and survives StrictMode remounts', () => {
   const error = vi.spyOn(console, 'error')
-  const { view, dialog } = open(koma)
+  const many = [coil, ...[3, 4].map(n => token(n, `Token ${n}`))]
+  const view = render(<StrictMode><AppThemeProvider><FullCardView card={{ ...koma, relatedTokens: many }} /></AppThemeProvider></StrictMode>)
+  fireEvent.click(screen.getByRole('button', { name: `Karte anzeigen: ${koma.name}` }))
+  const dialog = screen.getByRole('dialog', { name: koma.name })
   fireEvent.click(toggle(dialog))
-  const img = tokenImages(dialog)[0]
+  // StrictMode's simulated unmount/remount must not leave the images without a source.
+  const images = tokenImages(dialog)
+  expect(images.map(img => img.getAttribute('src'))).toEqual(many.map(entry => entry.imageUrl))
+  fireEvent.click(toggle(dialog))
+  expect(images.map(img => img.getAttribute('src'))).toEqual(many.map(entry => entry.imageUrl)) // Collapse keeps downloads.
+  Object.defineProperty(images[0], 'complete', { value: true })
+  for (const img of images.slice(1)) Object.defineProperty(img, 'complete', { value: false })
   view.unmount()
-  act(() => { fireEvent.error(img) })
+  expect(images[0].getAttribute('src')).toBe(coil.imageUrl)
+  for (const img of images.slice(1)) expect(img.hasAttribute('src')).toBe(false)
+  act(() => { fireEvent.error(images[1]) })
   expect(error).not.toHaveBeenCalled()
 })
 

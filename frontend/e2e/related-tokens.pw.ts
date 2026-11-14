@@ -207,3 +207,29 @@ test('desktop: tokens sit below the rules in the text column, capped at the Comm
   expect(apiRequests).toHaveLength(requestsBefore)
   expect(tokenImages).toHaveLength(4)
 })
+
+test('closing the dialog cancels token image downloads that are still pending', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  const { apiRequests } = await fixture(page)
+  // Hold every token image response open, as on a slow connection; registered later, so it takes precedence.
+  const held: { abort: () => Promise<void> }[] = []
+  await page.route(/^https:\/\/cards\.scryfall\.io\/normal\/front\/token-/, route => { held.push(route) })
+  const cancelled = new Set<string>()
+  page.on('requestfailed', request => { if (request.url().includes('/token-')) cancelled.add(path.basename(new URL(request.url()).pathname, '.jpg')) })
+  await page.goto('/decks')
+  await page.getByRole('button', { name: `Karte anzeigen: ${KOMA}` }).click()
+  const dialog = page.getByRole('dialog', { name: KOMA })
+  await summary(dialog).click()
+  await expect.poll(() => held.length).toBe(4)
+  // Collapsing keeps the pending images (no cancellation, no new requests); only leaving the dialog cancels them.
+  await summary(dialog).click()
+  await expect(summary(dialog)).toHaveAttribute('aria-expanded', 'false')
+  await page.waitForTimeout(250)
+  expect(cancelled.size).toBe(0)
+  await dialog.getByRole('button', { name: 'Schließen' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect.poll(() => [...cancelled].sort()).toEqual(['token-2', 'token-3', 'token-4', 'token-5'])
+  expect(held).toHaveLength(4)
+  expect(apiRequests.filter(entry => !['/api/me', '/api/decks'].includes(entry))).toEqual([])
+  await Promise.all(held.map(route => route.abort().catch(() => undefined)))
+})

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type RefObject } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { flushSync } from 'react-dom'
 import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, ButtonBase, Dialog, DialogContent, DialogTitle, Divider, IconButton, Stack, Typography } from '@mui/material'
 import type { CardFace, CommanderSelectionRef, RelatedToken } from './api'
@@ -236,10 +236,19 @@ function TokenAccordion({ tokens, maxWidth }: { tokens: RelatedToken[]; maxWidth
 
 function TokenImage({ token, label }: { token: RelatedToken; label: string }) {
   const [failed, setFailed] = useState(false)
+  const image = useRef<HTMLImageElement>(null)
   const src = safeArtworkUrl(token.imageUrl)
   const message = failed ? 'Tokenbild konnte nicht geladen werden.' : 'Kein Tokenbild verfügbar.'
+  // Leaving the dialog cancels unfinished downloads (#235 §5). Collapsing keeps the element, so this runs only on
+  // unmount; the layout cleanup runs while the element is still attached, which Chromium needs to abort the transfer.
+  // A re-run setup (StrictMode's simulated remount) restores the source that an earlier cleanup removed.
+  useLayoutEffect(() => {
+    const element = image.current
+    if (element && src && !element.hasAttribute('src')) element.setAttribute('src', src)
+    return () => { if (element && !element.complete) element.removeAttribute('src') }
+  }, [src])
   return src && !failed
-    ? <Box component="img" src={src} alt={label} onError={() => setFailed(true)}
+    ? <Box component="img" ref={image} src={src} alt={label} onError={() => setFailed(true)}
       sx={{ display: 'block', width: '100%', height: 'auto', aspectRatio: '488 / 680', objectFit: 'contain' }} />
     // An image-shaped stand-in (not a live alert) keeps the entry, its name and position in the list.
     : <Alert severity="info" role="img" aria-label={`${label}. ${message}`}>
