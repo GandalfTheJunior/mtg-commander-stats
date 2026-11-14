@@ -109,7 +109,11 @@ function CardDialog({ card, onClose }: { card: SavedCard; onClose: () => void })
   const preferred = card.selectionRef.gameplayFaceIndex ?? card.artworkFaceIndex
   const [selected, setSelected] = useState(() => Math.max(0, faces.findIndex(face => face.faceIndex === preferred)))
   const face = faces[selected]
-  const flippable = faces.length === 2
+  // Front/back only for two separately displayable physical sides. Adventure/split faces share one image and keep
+  // name-based selection of their rules faces instead of a misleading physical card turn.
+  const images = faces.map(option => safeArtworkUrl(option.imageUrl))
+  const flippable = faces.length === 2 && !!images[0] && !!images[1] && images[0] !== images[1]
+  const selectable = faces.length > 1 && !flippable
   useEffect(() => () => { animation.current?.cancel(); animation.current = null }, [])
 
   const flip = () => {
@@ -134,7 +138,7 @@ function CardDialog({ card, onClose }: { card: SavedCard; onClose: () => void })
 
   // The scroll body is a size container, so 100cqh is its visible height below the (possibly wrapped) header.
   // Reserve the flip row so the whole card fits without initial scrolling; 9rem keeps tiny landscape views legible.
-  const reserved = flippable || faces.length > 2 ? 72 : 16
+  const reserved = flippable || selectable ? 72 : 16
   const cardWidth = `max(9rem, calc((100cqh - ${reserved}px) * ${CARD_RATIO}))`
   return <Dialog open onClose={onClose} fullWidth maxWidth="md" scroll="paper" aria-labelledby={`${id}-title`}
     slotProps={{
@@ -159,7 +163,7 @@ function CardDialog({ card, onClose }: { card: SavedCard; onClose: () => void })
               <FlipIcon />
             </IconButton>
           </Stack>}
-          {faces.length > 2 && <Stack direction="row" role="group" aria-label="Kartenseite" sx={{ gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end', mb: 1 }}>
+          {selectable && <Stack direction="row" role="group" aria-label="Kartenseite" sx={{ gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end', mb: 1 }}>
             {faces.map((option, index) => <Button key={index} aria-pressed={selected === index} onClick={() => setSelected(index)}>
               {index + 1}: {option.name}
             </Button>)}

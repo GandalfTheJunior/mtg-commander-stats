@@ -68,6 +68,44 @@ test('single-faced cards omit the flip row; more than two saved faces keep acces
   expect(screen.getByText(/Back rules/)).toBeInTheDocument()
 })
 
+test('two rules faces on one physical side (Adventure/split) keep name-based selection, never a front/back turn', () => {
+  const { animate, restore } = stubAnimate()
+  try {
+    const shared = 'https://cards.scryfall.io/normal/beluna.jpg'
+    const adventure: CardFace[] = [
+      { faceIndex: 0, name: 'Beluna Grandsquall', typeLine: 'Legendary Creature — Giant Noble', oracleText: 'Beluna rules', imageUrl: shared },
+      { faceIndex: 1, name: 'Seek Thrills', typeLine: 'Sorcery — Adventure', oracleText: 'Seek Thrills rules', imageUrl: shared },
+    ]
+    render(<FullCardView card={{ ...savedCommander('Beluna Grandsquall // Seek Thrills'), artworkFaceIndex: 0, cardFaces: adventure }} />)
+    fireEvent.click(screen.getByRole('button'))
+    const dialog = screen.getByRole('dialog', { name: 'Beluna Grandsquall // Seek Thrills' })
+    expect(within(dialog).queryByRole('button', { name: /seite anzeigen/ })).not.toBeInTheDocument()
+    expect(within(dialog).queryByText('Vorderseite')).not.toBeInTheDocument()
+    expect(within(dialog).queryByText('Rückseite')).not.toBeInTheDocument()
+    const group = within(dialog).getByRole('group', { name: 'Kartenseite' })
+    expect(within(group).getByRole('button', { name: '1: Beluna Grandsquall' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(within(group).getByRole('button', { name: '2: Seek Thrills' }))
+    expect(within(group).getByRole('button', { name: '2: Seek Thrills' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(dialog).getByRole('heading', { name: 'Seek Thrills' })).toBeInTheDocument()
+    expect(within(dialog).getByText('Sorcery — Adventure')).toBeInTheDocument()
+    expect(within(dialog).getByText('Seek Thrills rules')).toBeInTheDocument()
+    // The same physical card image remains; no card turn is animated.
+    expect(within(dialog).getByRole('img', { name: 'Vollständige Karte: Seek Thrills' })).toHaveAttribute('src', shared)
+    expect(animate).not.toHaveBeenCalled()
+  } finally { restore() }
+})
+
+test('a two-face snapshot without a displayable image for one side keeps name-based selection', () => {
+  render(<FullCardView card={{ ...card, cardFaces: [faces[0], { ...faces[1], imageUrl: null }] }} />)
+  fireEvent.click(screen.getByRole('button'))
+  expect(screen.queryByRole('button', { name: /seite anzeigen/ })).not.toBeInTheDocument()
+  const group = screen.getByRole('group', { name: 'Kartenseite' })
+  expect(within(group).getByRole('button', { name: '2: Back' })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByText('Kein Kartenbild gespeichert.')).toBeInTheDocument()
+  fireEvent.click(within(group).getByRole('button', { name: '1: Front' }))
+  expect(screen.getByRole('img', { name: 'Vollständige Karte: Front' })).toBeInTheDocument()
+})
+
 type FakeAnimation = { keyframes: Keyframe[]; finish: () => void; cancel: ReturnType<typeof vi.fn>; onfinish: (() => void) | null }
 function stubAnimate() {
   const animations: FakeAnimation[] = []
