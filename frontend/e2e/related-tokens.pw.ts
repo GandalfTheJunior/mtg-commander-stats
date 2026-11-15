@@ -208,7 +208,7 @@ test('desktop: tokens sit below the rules in the text column, capped at the Comm
   expect(tokenImages).toHaveLength(4)
 })
 
-test('closing the dialog cancels token image downloads that are still pending', async ({ page }) => {
+test('closing the dialog releases pending token image sources and Chromium cancels their downloads', async ({ page, browserName }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   const { apiRequests } = await fixture(page)
   // Hold every token image response open, as on a slow connection; registered later, so it takes precedence.
@@ -216,20 +216,34 @@ test('closing the dialog cancels token image downloads that are still pending', 
   await page.route(/^https:\/\/cards\.scryfall\.io\/normal\/front\/token-/, route => { held.push(route) })
   const cancelled = new Set<string>()
   page.on('requestfailed', request => { if (request.url().includes('/token-')) cancelled.add(path.basename(new URL(request.url()).pathname, '.jpg')) })
-  await page.goto('/decks')
-  await page.getByRole('button', { name: `Karte anzeigen: ${KOMA}` }).click()
-  const dialog = page.getByRole('dialog', { name: KOMA })
-  await summary(dialog).click()
-  await expect.poll(() => held.length).toBe(4)
-  // Collapsing keeps the pending images (no cancellation, no new requests); only leaving the dialog cancels them.
-  await summary(dialog).click()
-  await expect(summary(dialog)).toHaveAttribute('aria-expanded', 'false')
-  await page.waitForTimeout(250)
-  expect(cancelled.size).toBe(0)
-  await dialog.getByRole('button', { name: 'Schließen' }).click()
-  await expect(page.getByRole('dialog')).toHaveCount(0)
-  await expect.poll(() => [...cancelled].sort()).toEqual(['token-2', 'token-3', 'token-4', 'token-5'])
-  expect(held).toHaveLength(4)
-  expect(apiRequests.filter(entry => !['/api/me', '/api/decks'].includes(entry))).toEqual([])
-  await Promise.all(held.map(route => route.abort().catch(() => undefined)))
+  try {
+    await page.goto('/decks')
+    await page.getByRole('button', { name: `Karte anzeigen: ${KOMA}` }).click()
+    const dialog = page.getByRole('dialog', { name: KOMA })
+    await summary(dialog).click()
+    await expect.poll(() => held.length).toBe(4)
+    // Retain handles so teardown can be checked after React removes the elements from the document.
+    const images = await dialog.locator('img[src*="/token-"]').elementHandles()
+    expect(images).toHaveLength(4)
+    expect(await Promise.all(images.map(image => image.evaluate(node => (node as HTMLImageElement).complete)))).toEqual([false, false, false, false])
+    const sources = await Promise.all(images.map(image => image.getAttribute('src')))
+    // Collapsing keeps the same sources and pending requests; it must not invoke the unmount cleanup.
+    await summary(dialog).click()
+    await expect(summary(dialog)).toHaveAttribute('aria-expanded', 'false')
+    await settled(page)
+    expect(await Promise.all(images.map(image => image.getAttribute('src')))).toEqual(sources)
+    expect(cancelled.size).toBe(0)
+    await dialog.getByRole('button', { name: 'Schließen' }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    // Both engines must release unfinished sources. WebKit may continue native image transfers even after
+    // src removal (also reproduced with real HTTP responses), so requestfailed is not a portable teardown signal.
+    expect(await Promise.all(images.map(image => image.getAttribute('src')))).toEqual([null, null, null, null])
+    if (browserName === 'chromium') {
+      await expect.poll(() => [...cancelled].sort()).toEqual(['token-2', 'token-3', 'token-4', 'token-5'])
+    }
+    expect(held).toHaveLength(4)
+    expect(apiRequests.filter(entry => !['/api/me', '/api/decks'].includes(entry))).toEqual([])
+  } finally {
+    await Promise.all(held.map(route => route.abort().catch(() => undefined)))
+  }
 })
