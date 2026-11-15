@@ -16,13 +16,15 @@ const profileName = 'Hairy Zombie'
 const owner = { id: id(1), username: 'Gandalf' }
 const guest = { id: id(2), username: 'Frodo' }
 type Options = {
-  user?: typeof owner | null; role?: 'OWNER' | 'ADMIN' | 'MEMBER'; active?: boolean
+  user?: typeof owner | null; role?: 'OWNER' | 'ADMIN' | 'MEMBER'; active?: boolean; expiresAt?: string
   create?: number | 'abort'; preview?: number; accept?: number | 'abort'; retryAfter?: string
 }
 
 async function mockApi(page: Page, options: Options = {}) {
   const state = {
-    user: options.user === undefined ? owner : options.user, active: options.active ?? false, expiresAt: '2026-11-13T18:45:00Z',
+    user: options.user === undefined ? owner : options.user, active: options.active ?? false,
+    // Ordinary scenarios must not trigger background expiry checks as the calendar advances (#315).
+    expiresAt: options.expiresAt ?? new Date(Date.now() + 45 * 60_000).toISOString(),
     previewStatus: options.preview ?? 200, creates: 0, revokes: 0, accepts: 0, previews: [] as Record<string, string>[], tokenUrls: [] as string[],
     acceptedFor: [] as (string | undefined)[],
   }
@@ -218,7 +220,7 @@ test('an ADMIN manages claims, a MEMBER never sees the entry; row navigation sta
 test('a device clock past the expiry never hides an active invitation or skips the replace confirmation', async ({ page }) => {
   // PR #309 review (P3): the device clock is one hour past the invitation's expiry; the server still reports it active.
   await page.clock.install({ time: new Date('2026-11-13T19:45:00Z') })
-  const api = await mockApi(page, { active: true })
+  const api = await mockApi(page, { active: true, expiresAt: '2026-11-13T18:45:00Z' })
   const dialog = await openIssuer(page)
   await expect(dialog.getByText('Aktive Einladung')).toBeVisible()
   await page.clock.runFor(1_000)
