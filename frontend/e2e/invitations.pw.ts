@@ -258,6 +258,7 @@ for (const [name, options, heading, action] of states) {
     await page.goto(`/invite/${code}`)
     if (options.join) await page.getByRole('button', { name: 'Playgroup beitreten' }).click()
     await expect(page.getByRole('heading', { name: heading })).toBeVisible()
+    if (name === '04b-member') await expect(page.getByRole('heading', { name: heading })).toBeFocused()
     await expect(page.getByRole(action === 'Erneut versuchen' ? 'button' : 'link', { name: action })).toBeVisible()
     if (name !== '04b-member') await expect(page.getByText(groupName)).toHaveCount(0)
     if (name === '04c-rate-limited') await expect(page.getByRole('button', { name: 'Erneut versuchen' })).toBeDisabled()
