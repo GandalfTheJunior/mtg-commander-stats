@@ -398,7 +398,8 @@ test('an already active member gets the distinct notice without a second join', 
   api.state.member = true
   show(`/invite/${code}`)
   fireEvent.click(await screen.findByRole('button', { name: 'Playgroup beitreten' }))
-  expect(await screen.findByRole('heading', { name: 'Du bist bereits Mitglied' })).toHaveFocus()
+  // The heading can render before its passive focus effect runs.
+  await waitFor(() => expect(screen.getByRole('heading', { name: 'Du bist bereits Mitglied' })).toHaveFocus())
   expect(screen.getByText(group.name)).toBeInTheDocument()
   expect(screen.getByText('Die Einladung wurde nicht verwendet. Sie bleibt für andere gültig.')).toBeInTheDocument()
   expect(screen.getAllByRole('link', { name: 'Zu meinen Playgroups' }).at(-1)).toHaveAttribute('href', '/playgroups')
