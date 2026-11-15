@@ -4,24 +4,34 @@ import GameManager from './GameManager'
 import { renderApp } from './test/renderApp'
 import { deferred, gameApi, group, recorded, response, uid } from './test/gameFixtures'
 
-let intersect: () => void
+// Only observers that currently observe the sentinel can deliver intersections.
+type Observer = { fire: () => void }
+const observing = new Set<Observer>()
 function show() {
-  vi.stubGlobal('IntersectionObserver', class {
-    constructor(callback: IntersectionObserverCallback) {
-      intersect = () => callback([{ isIntersecting: true } as IntersectionObserverEntry], this as unknown as IntersectionObserver)
+  vi.stubGlobal('IntersectionObserver', class implements Observer {
+    private readonly callback: IntersectionObserverCallback
+    constructor(callback: IntersectionObserverCallback) { this.callback = callback }
+    observe() { observing.add(this) }
+    disconnect() { observing.delete(this) }
+    fire() {
+      if (observing.has(this)) this.callback([{ isIntersecting: true } as IntersectionObserverEntry], this as unknown as IntersectionObserver)
     }
-    observe() {}
-    disconnect() {}
   })
   return renderApp(<GameManager group={group} onUnauthorized={vi.fn()} onAccessLost={vi.fn()}
     onCheckingAccess={vi.fn()} onGroupConfirmed={vi.fn()} />)
+}
+// React may flush the passive effect creating the next observer after the cards commit.
+async function intersect(times = 1) {
+  await waitFor(() => expect(observing.size).toBe(1))
+  const [current] = observing
+  act(() => { for (let index = 0; index < times; index++) current.fire() })
 }
 const path = `/api/groups/${group.id}/games/history`
 const end = 'Du hast das Ende der Bibliothek erreicht.'
 const rows = (count: number, start = 0) => Array.from({ length: count }, (_, i) => ({
   ...recorded({ id: uid(200 + start + i) }), playedOn: i % 2 ? null : '2026-11-09',
 }))
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
+afterEach(() => { observing.clear(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 test.each([0, 1, 20, 21, 40, 41])('loads %s games in bounded server order and stops at the confirmed end', async count => {
   const api = gameApi()
@@ -39,7 +49,7 @@ test.each([0, 1, 20, 21, 40, 41])('loads %s games in bounded server order and st
     await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(Math.min(20, count)))
     for (let offset = 20; offset < count; offset += 20) {
       expect(screen.queryByText(end)).not.toBeInTheDocument()
-      act(() => { intersect(); intersect() })
+      await intersect(2)
       await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(Math.min(offset + 20, count)))
     }
     expect(screen.getByText(end)).toBeInTheDocument()
@@ -47,6 +57,9 @@ test.each([0, 1, 20, 21, 40, 41])('loads %s games in bounded server order and st
     expect(links.map(link => link.getAttribute('href')?.split('/').at(-1))).toEqual(rows(count).map(row => row.id))
   }
   expect(api.fetchMock.mock.calls.filter(([url]) => url.includes('/history'))).toHaveLength(Math.max(1, Math.ceil(count / 20)))
+  expect(api.fetchMock.mock.calls.filter(([url]) => url.includes('/history')).map(([url]) => url)).toEqual(
+    Array.from({ length: Math.max(1, Math.ceil(count / 20)) }, (_, page) => path + (page ? `?cursor=page${page * 20}` : '')),
+  )
   expect(api.fetchMock.mock.calls.some(([url]) => url.endsWith('/games'))).toBe(false)
 })
 
@@ -55,14 +68,15 @@ test('failed append preserves cards, retries the same cursor and deduplicates ov
   api.next(path, () => response({ games: rows(20), nextCursor: 'next' }))
   api.next(path + '?cursor=next', () => response({}, 503))
   api.next(path + '?cursor=next', () => response({ games: rows(2, 19), nextCursor: null }))
-  const previousObserver = intersect
   show()
   await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(20))
-  await waitFor(() => expect(intersect).not.toBe(previousObserver))
-  act(() => intersect())
-  fireEvent.click(await screen.findByRole('button', { name: 'Erneut versuchen' }))
+  await intersect()
+  const retry = await screen.findByRole('button', { name: 'Erneut versuchen' })
+  expect(screen.getAllByRole('article')).toHaveLength(20)
+  fireEvent.click(retry)
   await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(21))
   expect(screen.getByText(end)).toBeInTheDocument()
+  expect(api.fetchMock.mock.calls.map(([url]) => url)).toEqual([path, path + '?cursor=next', path + '?cursor=next'])
 })
 
 test.each([200, 401, 403])('retired append response %s cannot update a new lifetime', async status => {
@@ -71,8 +85,10 @@ test.each([200, 401, 403])('retired append response %s cannot update a new lifet
   api.next(path + '?cursor=next', () => pending.promise)
   const view = show()
   await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(20))
-  act(() => intersect())
+  await intersect()
+  expect(api.fetchMock).toHaveBeenCalledWith(path + '?cursor=next', expect.objectContaining({ signal: expect.any(AbortSignal) }))
   view.unmount()
+  expect(api.fetchMock.mock.calls.at(-1)?.[1]?.signal?.aborted).toBe(true)
   await act(async () => pending.resolve(response({ games: rows(1, 20), nextCursor: null }, status)))
   expect(screen.queryByRole('article')).not.toBeInTheDocument()
 })
@@ -98,7 +114,7 @@ test.each([401, 403])('append authorization failure %s removes private rows befo
   api.next(`/api/groups/${group.id}`, () => deferred().promise)
   show()
   await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(20))
-  act(() => intersect())
+  await intersect()
   await waitFor(() => expect(screen.queryByRole('article')).not.toBeInTheDocument())
   expect(screen.queryByText(end)).not.toBeInTheDocument()
 })
