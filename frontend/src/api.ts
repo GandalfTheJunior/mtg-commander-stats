@@ -34,8 +34,15 @@ export type CommanderChoice = {
 }
 export type CardFace = { faceIndex: number | null; name: string; typeLine: string | null; oracleText: string | null; imageUrl: string | null }
 export type SavedCompanion = Pick<SavedCommander, 'oracleId' | 'name' | 'selectionRef' | 'scryfallCardId' | 'colorIdentity' | 'artworkFaceIndex' | 'artCropUrl' | 'illustrationId' | 'artist' | 'scryfallUri' | 'cardFaces'>
+/**
+ * Saved Scryfall-linked token printing of a Commander (#234). Only the primary `imageUrl` is displayed (#235);
+ * `cardFaces` is kept as delivered and never drives a token flip.
+ */
+export type RelatedToken = { scryfallCardId: string; name: string; typeLine: string | null; imageUrl: string | null; layout: string; cardFaces: CardFace[] | null }
 export type SavedCommander = Omit<CommanderChoice, 'thumbnailUrl'> & {
   cardFaces?: CardFace[] | null
+  /** Commander-only: null = legacy/unknown/pending, [] = resolved without links; absent in older responses. */
+  relatedTokens?: RelatedToken[] | null
   position: number; oracleId: string; chosenColor: MagicColor | null; effectiveColorIdentity: MagicColor[]
   artworkFaceIndex: number | null; artCropUrl: string | null; illustrationId: string | null; artist: string | null; scryfallUri: string | null
 }
@@ -942,6 +949,24 @@ function cardFacesFrom(value: unknown): CardFace[] | null {
   return faces
 }
 
+/** Strict nullable token snapshot; repeated printing IDs keep their first-seen entry so the count stays distinct. */
+function relatedTokensFrom(value: unknown): RelatedToken[] | null {
+  if (value === null) return null
+  if (!Array.isArray(value)) throw new Error('The server returned invalid related tokens.')
+  const seen = new Set<string>()
+  return value.flatMap((token: unknown): RelatedToken[] => {
+    if (!isRecord(token) || !isUuid(token.scryfallCardId) || typeof token.name !== 'string' || !token.name ||
+      typeof token.layout !== 'string' || [token.typeLine, token.imageUrl].some(text => text !== null && typeof text !== 'string')) {
+      throw new Error('The server returned an invalid related token.')
+    }
+    const cardFaces = cardFacesFrom(token.cardFaces ?? null)
+    if (seen.has(token.scryfallCardId)) return []
+    seen.add(token.scryfallCardId)
+    return [{ scryfallCardId: token.scryfallCardId, name: token.name, typeLine: token.typeLine as string | null,
+      imageUrl: token.imageUrl as string | null, layout: token.layout, cardFaces }]
+  })
+}
+
 function companionFrom(value: unknown): SavedCompanion | null {
   if (value === null) return null
   if (!isRecord(value) || !isUuid(value.oracleId) || !isUuid(value.scryfallCardId) || typeof value.name !== 'string' || !value.name ||
@@ -973,7 +998,8 @@ function commandersFrom(value: unknown): SavedCommander[] {
     }
     const { thumbnailUrl: _thumbnail, ...metadata } = choice
     void _thumbnail
-    return { ...metadata, ...('cardFaces' in card ? { cardFaces: cardFacesFrom(card.cardFaces) } : {}), position: index + 1, oracleId: card.oracleId, chosenColor: card.chosenColor as MagicColor | null,
+    return { ...metadata, ...('cardFaces' in card ? { cardFaces: cardFacesFrom(card.cardFaces) } : {}),
+      ...('relatedTokens' in card ? { relatedTokens: relatedTokensFrom(card.relatedTokens) } : {}), position: index + 1, oracleId: card.oracleId, chosenColor: card.chosenColor as MagicColor | null,
       effectiveColorIdentity: colorsFrom(card.effectiveColorIdentity), artworkFaceIndex: card.artworkFaceIndex as number | null,
       artCropUrl: nullableText('artCropUrl'), illustrationId: nullableText('illustrationId'), artist: nullableText('artist'), scryfallUri: nullableText('scryfallUri') }
   })

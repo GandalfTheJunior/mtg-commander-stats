@@ -274,6 +274,15 @@ in #239; the backend supplies both selectors and coherent printing snapshots. Mi
 images do not hide the text; images have no cropping, overlays, distortion or
 color effects.
 
+For a Commander whose saved `relatedTokens` is nonempty, the same viewer adds a
+collapsed **Zugehörige Tokens (N)** accordion below the rules text (#235). `N`
+counts the distinct saved printings in backend order. Token images are not
+preloaded: the first expansion loads every safe primary `imageUrl`, which stays
+mounted while collapsed. Each token shows only its image, with a saved-name
+fallback when the image is missing, unsafe or fails, and no token flip. The list
+belongs to the printing, so switching Commander faces keeps it. `null`/`[]` and
+Companions show no section, and nothing triggers metadata requests.
+
 The own deck collection has a separate **Karte anzeigen** control beside its
 artwork. Artwork activation continues to open the editing gallery. Its preloader
 observes the artwork with zero viewport margin and starts all faces only when
