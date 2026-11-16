@@ -216,9 +216,10 @@ export default function MemberDecksPage({ onUnauthorized, onNotice }: { onUnauth
           }}
           sx={{ '& input::-webkit-search-cancel-button': { display: 'none' } }} />
       </Box>}
-      {/* The page is the only scroller (#319); keyboard focus keeps controls clear of the sticky search and fixed navigation. */}
+      {/* The page is the only scroller (#319); keyboard focus keeps controls clear of the sticky search and fixed navigation.
+          Isolation keeps raised card layers (Companion artwork, focus rings) below the sticky search while scrolling. */}
       <Box ref={list} id="member-decks-results" data-testid="member-decks-region"
-        sx={{ minWidth: 0, '& button, & a': { scrollMarginTop: searchVisible ? 88 : 0,
+        sx={{ minWidth: 0, isolation: 'isolate', '& button, & a': { scrollMarginTop: searchVisible ? 88 : 0,
           scrollMarginBottom: { xs: 'calc(104px + env(safe-area-inset-bottom, 0px))', sm: 0 } } }}>
         {shown.length === 0 ? <StateMessage icon={<SearchIcon />} title="Keine Decks gefunden" text="Versuche einen anderen Suchbegriff."
           action="Suche zurücksetzen" onAction={resetSearch} />

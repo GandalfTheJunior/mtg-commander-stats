@@ -198,6 +198,19 @@ for (const [width, height] of [[320, 568], [375, 548], [390, 664], [1280, 800]])
     expect(searchBox.y).toBeLessThan(16)
     expect(navTop - (searchBox.y + searchBox.height)).toBeGreaterThan(0.6 * height - (fixedNav ? 80 : 0))
     await shot(page, info, `member-decks-04a-scrolled-${width}x${height}`)
+    // Raised card layers (Companion artwork) scroll below the sticky search, like Commander artwork.
+    const companionArt = list.getByRole('button', { name: 'Companion anzeigen: Lurrus of the Dream-Den' })
+    const companionBox = (await companionArt.boundingBox())!
+    await page.evaluate(offset => window.scrollBy(0, offset), companionBox.y + companionBox.height / 2 - (searchBox.y + searchBox.height / 2))
+    await expect(async () => {
+      const art = (await companionArt.boundingBox())!
+      const field = (await search.boundingBox())!
+      const point = { x: art.x + art.width / 2, y: field.y + field.height / 2 }
+      expect(point.y).toBeGreaterThan(art.y)
+      expect(point.y).toBeLessThan(art.y + art.height)
+      expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('#member-decks-results') === null, point)).toBe(true)
+    }).toPass({ timeout: 2000 })
+    await shot(page, info, `member-decks-04c-companion-under-search-${width}x${height}`)
     // The last deck and the image credit end above the fixed navigation.
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
     const last = (await list.getByRole('listitem').last().boundingBox())!
@@ -211,15 +224,19 @@ for (const [width, height] of [[320, 568], [375, 548], [390, 664], [1280, 800]])
       let checked = 0
       for (let step = 0; step < long.length + 2; step++) {
         await page.keyboard.press(key)
-        const focused = await page.evaluate(() => {
-          const box = document.activeElement!.getBoundingClientRect()
-          return { top: box.top, bottom: box.bottom, inList: Boolean(document.activeElement!.closest('#member-decks-results')) }
-        })
-        if (!focused.inList) continue
+        const inList = await page.evaluate(() => Boolean(document.activeElement!.closest('#member-decks-results')))
+        if (!inList) continue
         checked++
-        const searchBottom = (await search.boundingBox())!
-        expect(focused.top).toBeGreaterThanOrEqual(Math.max(0, searchBottom.y + searchBottom.height) - 1)
-        expect(focused.bottom).toBeLessThanOrEqual(navTop + 1)
+        // Focus scrolling can still be in progress (WebKit): re-read focus and search geometry until it settles.
+        await expect(async () => {
+          const focused = await page.evaluate(() => {
+            const box = document.activeElement!.getBoundingClientRect()
+            return { top: box.top, bottom: box.bottom }
+          })
+          const searchBottom = (await search.boundingBox())!
+          expect(focused.top).toBeGreaterThanOrEqual(Math.max(0, searchBottom.y + searchBottom.height) - 1)
+          expect(focused.bottom).toBeLessThanOrEqual(navTop + 1)
+        }).toPass({ timeout: 2000 })
       }
       expect(checked).toBeGreaterThan(3)
     }
