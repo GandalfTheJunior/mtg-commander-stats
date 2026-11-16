@@ -29,6 +29,9 @@ acceptance period: steps 2–6 remain mandatory for joint deployment.
    pages as well as API responses; the SPA fallback for `/invite/*` must return
    `index.html` so direct opens and reloads work. The Vite dev/preview servers
    already do this locally; the bundle also sets a global `no-referrer` meta tag.
+   Serve the app over HTTPS: browsers expose the Clipboard API only in secure
+   contexts, so over plain HTTP **Link kopieren** always falls back to manual
+   copying (#318). Do not send a `Permissions-Policy` that blocks `clipboard-write`.
    Exclude token-bearing routes and bodies from proxy/access logs, analytics and
    tracing. Keep request logging disabled. Configure aggregate edge rate limits
    for preview/join across replicas; the local bounded peer limit is supplemental

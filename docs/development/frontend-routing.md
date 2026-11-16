@@ -751,7 +751,11 @@ use intercepted non-sensitive data, not a live backend or physical-device test.
   **Link kopieren** is primary. **Link kopiert** appears only after the clipboard
   promise resolves, and only for the URL still shown (feedback and late completions
   for a replaced or expired link are discarded); denial shows a selected read-only
-  field with the link.
+  field with the link. The Clipboard API exists only in secure contexts (HTTPS or
+  `localhost`): on plain-HTTP LAN origins such as `http://<PC-LAN-IP>:5173`,
+  `navigator.clipboard` is undefined and the manual field is the expected,
+  truthful outcome, not a defect (#318). `writeText` is called synchronously in the
+  click handler so the browser's user activation is preserved.
 - **Preview:** `/invite/:code` renders before the auth gate for checking,
   signed-out and signed-in sessions. Malformed codes are unavailable without a
   request. `GET /api/invitations/{code}` is sent with `credentials: 'omit'`,
