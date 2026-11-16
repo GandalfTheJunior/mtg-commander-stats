@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode, type Ref } from 'react'
 import { Box, Button, CircularProgress, Dialog, DialogContent, DialogTitle, IconButton, Stack, TextField, Typography } from '@mui/material'
 import {
-  ApiError, createProfileInvitation, getProfileInvitation, revokeProfileInvitation, type GroupMember, type Invitation,
+  ApiError, createProfileInvitation, getProfileInvitation, revokeProfileInvitation, type GroupMember, type Invitation, type ProfileInvitationStatus,
 } from './api'
 import { CloseIcon } from './MembersDirectory'
 import { InvitationQr, ShareFeedback } from './InvitationDialog'
@@ -21,6 +21,9 @@ type Phase =
   | { kind: 'created'; invitation: Invitation }
   | { kind: 'uncertain'; write: 'create' | 'revoke' }
 type Confirmation = 'replace' | 'revoke'
+type StatusResult = { ok: true; value: ProfileInvitationStatus } | { ok: false; error: unknown } | null
+type StatusRead = { controller: AbortController; promise: Promise<StatusResult> }
+const changedStatus = 'Der Einladungsstatus hat sich geändert. Bitte prüfe den aktuellen Status und bestätige die gewünschte Aktion erneut.'
 
 /** A definite HTTP rejection means the write was not applied; network errors, 5xx and malformed bodies are ambiguous. */
 const definite = (error: unknown): error is ApiError => error instanceof ApiError && error.status >= 400 && error.status < 500
@@ -75,13 +78,17 @@ export default function ProfileClaimDialog({ groupId, profile, onClose, onUnauth
   onTargetLost: (error: unknown) => void
 }) {
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' })
-  const [confirm, setConfirm] = useState<Confirmation | null>(null)
+  const [confirm, setConfirm] = useState<{ kind: Confirmation; expiresAt: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [checking, setChecking] = useState(false)
+  const [verifying, setVerifying] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [qrOpen, setQrOpen] = useState(false)
   const life = useRef<AbortController | null>(null)
-  const pending = useRef(false)
+  const statusRead = useRef<StatusRead | null>(null)
+  const intent = useRef<AbortController | null>(null)
+  const mutating = useRef(false)
   const heading = useRef<HTMLElement>(null)
   const qrId = useId()
   const linkId = useId()
@@ -90,20 +97,26 @@ export default function ProfileClaimDialog({ groupId, profile, onClose, onUnauth
   const code = phase.kind === 'created' ? phase.invitation.code : null
   const sharing = useLinkSharing(code ? claimUrl(code) : null, 'Profilübernahme')
 
-  /** Runs one request in this dialog's lifetime; late results after unmount are ignored. */
-  const run = useCallback(async <T,>(operation: (signal: AbortSignal) => Promise<T>): Promise<{ ok: true; value: T } | { ok: false; error: unknown } | null> => {
-    const signal = life.current?.signal
-    if (!signal || signal.aborted || pending.current) return null
-    pending.current = true
-    setBusy(true)
-    try {
-      return { ok: true, value: await operation(signal) }
-    } catch (error) {
-      return signal.aborted ? null : { ok: false, error }
-    } finally {
-      if (!signal.aborted) { pending.current = false; setBusy(false) }
-    }
-  }, [])
+  /** Share an in-flight read without locking controls. Canceled/retired reads cannot publish even if fetch ignores abort. */
+  const fetchStatus = useCallback((): Promise<StatusResult> => {
+    const lifetime = life.current?.signal
+    if (!lifetime || lifetime.aborted) return Promise.resolve(null)
+    if (statusRead.current) return statusRead.current.promise
+    const controller = new AbortController()
+    const signal = AbortSignal.any([lifetime, controller.signal])
+    setChecking(true)
+    const request: StatusRead = { controller, promise: getProfileInvitation(groupId, profile.userId, signal).then(
+      value => signal.aborted ? null : { ok: true as const, value },
+      (error: unknown) => signal.aborted ? null : { ok: false as const, error },
+    ).finally(() => {
+      if (statusRead.current === request) {
+        statusRead.current = null
+        if (!lifetime.aborted) setChecking(false)
+      }
+    }) }
+    statusRead.current = request
+    return request.promise
+  }, [groupId, profile.userId])
 
   /** Hands access-level outcomes to the roster. Returns true when the dialog is being retired. */
   const escalate = useCallback((error: unknown) => {
@@ -115,8 +128,9 @@ export default function ProfileClaimDialog({ groupId, profile, onClose, onUnauth
   /** Read-only, authoritative status. Never creates or reveals a code. */
   const readStatus = useCallback(async (afterUncertainty = false) => {
     setError(null)
-    const result = await run(signal => getProfileInvitation(groupId, profile.userId, signal))
-    if (!result) return
+    const lifetime = life.current
+    const result = await fetchStatus()
+    if (lifetime?.signal.aborted || !result) return
     if (result.ok) {
       setPhase(result.value.active ? { kind: 'active', expiresAt: result.value.expiresAt, afterUncertainty } : { kind: 'inactive' })
       return
@@ -124,12 +138,14 @@ export default function ProfileClaimDialog({ groupId, profile, onClose, onUnauth
     if (escalate(result.error)) return
     if (afterUncertainty) setError('Der Status konnte nicht geprüft werden. Bitte versuche es erneut.')
     else setPhase({ kind: 'loadFailed' })
-  }, [run, escalate, groupId, profile.userId])
+  }, [fetchStatus, escalate])
 
   useEffect(() => {
     const controller = new AbortController()
     life.current = controller
-    pending.current = false
+    statusRead.current = null
+    intent.current = null
+    mutating.current = false
     // Opening only reads the status; the GET is idempotent, so a StrictMode re-run is harmless.
     getProfileInvitation(groupId, profile.userId, controller.signal).then(status => {
       if (!controller.signal.aborted) setPhase(status.active ? { kind: 'active', expiresAt: status.expiresAt } : { kind: 'inactive' })
@@ -149,8 +165,13 @@ export default function ProfileClaimDialog({ groupId, profile, onClose, onUnauth
   const round = expiryRound !== null && expiryRound.at === expiresAt ? expiryRound.round : 0
   const checkExpiry = useCallback(async (at: string) => {
     const again = () => setExpiryRound(current => ({ at, round: (current?.at === at ? current.round : 0) + 1 }))
-    const result = await run(signal => getProfileInvitation(groupId, profile.userId, signal))
-    // Another request is in flight: look again later instead of asserting anything now.
+    if (life.current?.signal.aborted) return
+    if (intent.current) { again(); return }
+    const lifetime = life.current
+    const result = await fetchStatus()
+    if (lifetime?.signal.aborted) return
+    // A user action owns the result while verifying; a background response must not overwrite its state.
+    if (intent.current) { again(); return }
     if (!result) { again(); return }
     if (result.ok) {
       const status = result.value
@@ -161,6 +182,7 @@ export default function ProfileClaimDialog({ groupId, profile, onClose, onUnauth
         return
       }
       // Still active on the server: keep the shown invitation (and its code) only if it is that same invitation.
+      if (status.expiresAt !== at) { setConfirm(null); setNotice(changedStatus) }
       setPhase(current => (current.kind === 'created' && current.invitation.expiresAt === status.expiresAt) ||
         (current.kind === 'active' && current.expiresAt === status.expiresAt) ? current : { kind: 'active', expiresAt: status.expiresAt })
       again()
@@ -169,7 +191,7 @@ export default function ProfileClaimDialog({ groupId, profile, onClose, onUnauth
     if (escalate(result.error)) return
     setConfirm(null)
     setPhase({ kind: 'loadFailed' })
-  }, [run, escalate, groupId, profile.userId])
+  }, [fetchStatus, escalate])
   useEffect(() => {
     if (!expiresAt) return
     const delay = round === 0 ? Math.min(longest, Math.max(0, Date.parse(expiresAt) - Date.now())) : expiryRecheckMs(round)
@@ -179,36 +201,83 @@ export default function ProfileClaimDialog({ groupId, profile, onClose, onUnauth
 
   useEffect(() => { if (phase.kind === 'created' || phase.kind === 'uncertain') heading.current?.focus() }, [phase.kind])
 
-  async function create() {
+  async function submit(write: 'create' | 'revoke', expectedExpiry: string | null) {
+    const lifetime = life.current?.signal
+    if (!lifetime || lifetime.aborted || intent.current) return
+    const action = new AbortController()
+    const signal = AbortSignal.any([lifetime, action.signal])
+    // Pair aria-disabled with this synchronous guard: repeated activation is ignored without dropping focus or Escape.
+    intent.current = action
+    setVerifying(true)
     setError(null)
     setNotice(null)
     const before = phase
-    const result = await run(signal => createProfileInvitation(groupId, profile.userId, signal))
-    if (!result) return
-    setConfirm(null)
-    setQrOpen(false)
-    if (result.ok) { setPhase({ kind: 'created', invitation: result.value }); return }
-    if (escalate(result.error)) return
-    if (definite(result.error)) {
-      // Rejected before any change: the previous state (and an existing link) still applies.
-      setPhase(before)
-      setError('Die Einladung konnte nicht erstellt werden. Es wurde kein neuer Link erstellt.')
-    } else setPhase({ kind: 'uncertain', write: 'create' })
+    try {
+      // An accepted click waits for the ongoing read, or starts a fresh one. Failed verification never queues a retry.
+      const result = await fetchStatus()
+      if (signal.aborted || !result) return
+      if (!result.ok) {
+        if (!escalate(result.error)) setError('Der Status konnte nicht geprüft werden. Es wurde nichts geändert. Bitte versuche die Aktion erneut.')
+        return
+      }
+      const status = result.value
+      if (status.expiresAt !== expectedExpiry) {
+        setConfirm(null)
+        setPhase(status.active ? { kind: 'active', expiresAt: status.expiresAt } : { kind: 'inactive' })
+        setNotice(changedStatus)
+        return
+      }
+      // Only the actual write locks dismissal. Verification and background reads remain cancelable.
+      setVerifying(false)
+      mutating.current = true
+      setBusy(true)
+      try {
+        if (write === 'create') {
+          const invitation = await createProfileInvitation(groupId, profile.userId, signal)
+          if (!signal.aborted) { setQrOpen(false); setPhase({ kind: 'created', invitation }) }
+        } else {
+          await revokeProfileInvitation(groupId, profile.userId, signal)
+          if (!signal.aborted) { setPhase({ kind: 'inactive' }); setNotice('Die Einladung wurde widerrufen.') }
+        }
+      } catch (error) {
+        if (signal.aborted || escalate(error)) return
+        if (definite(error)) {
+          setPhase(before)
+          setError(write === 'create' ? 'Die Einladung konnte nicht erstellt werden. Es wurde kein neuer Link erstellt.'
+            : 'Die Einladung konnte nicht widerrufen werden. Der bestehende Link bleibt gültig.')
+        } else setPhase({ kind: 'uncertain', write })
+      }
+      if (!signal.aborted) setConfirm(null)
+    } finally {
+      if (intent.current === action) {
+        intent.current = null
+        mutating.current = false
+        if (!lifetime.aborted) { setVerifying(false); setBusy(false) }
+      }
+    }
   }
 
-  async function revoke() {
+  const cancelVerification = () => {
+    intent.current?.abort()
+    intent.current = null
+    statusRead.current?.controller.abort()
+    statusRead.current = null
+    setChecking(false)
+    setVerifying(false)
     setError(null)
-    setNotice(null)
-    const result = await run(signal => revokeProfileInvitation(groupId, profile.userId, signal))
-    if (!result) return
-    setConfirm(null)
-    if (result.ok) { setPhase({ kind: 'inactive' }); setNotice('Die Einladung wurde widerrufen.'); return }
-    if (escalate(result.error)) return
-    if (definite(result.error)) setError('Die Einladung konnte nicht widerrufen werden. Der bestehende Link bleibt gültig.')
-    else setPhase({ kind: 'uncertain', write: 'revoke' })
   }
-
-  const close = () => { if (!busy) onClose() }
+  const cancelConfirmation = () => {
+    if (mutating.current) return
+    cancelVerification()
+    setConfirm(null)
+  }
+  const close = () => {
+    if (mutating.current) return
+    cancelVerification()
+    life.current?.abort()
+    onClose()
+  }
+  const locked = busy || verifying
   const title = (text: string) => <Typography ref={heading} tabIndex={-1} sx={{ fontWeight: 600, '&:focus': { outline: 'none' } }}>{text}</Typography>
   const closeButton = <Button variant="outlined" color="secondary" fullWidth onClick={close} disabled={busy} sx={buttonSx}>Schließen</Button>
 
@@ -221,14 +290,14 @@ export default function ProfileClaimDialog({ groupId, profile, onClose, onUnauth
     body = <>
       <Typography role="alert" sx={{ fontWeight: 600 }}>Der Einladungsstatus konnte nicht geladen werden.</Typography>
       <Typography sx={{ color: 'text.secondary' }}>Ob eine Einladung aktiv ist, lässt sich gerade nicht feststellen.</Typography>
-      <Button variant="contained" fullWidth disabled={busy} onClick={() => { setPhase({ kind: 'loading' }); void readStatus() }} sx={buttonSx}>Erneut versuchen</Button>
+      <Button variant="contained" fullWidth disabled={checking} onClick={() => { setPhase({ kind: 'loading' }); void readStatus() }} sx={buttonSx}>Erneut versuchen</Button>
       {closeButton}
     </>
   } else if (phase.kind === 'inactive') {
     body = <>
       <StatusBox active={false} title="Keine aktive Einladung" />
       <Typography>Erstelle einen einmalig verwendbaren Einladungslink. Er ist ab Erstellung 1 Stunde gültig.</Typography>
-      <Button variant="contained" fullWidth disabled={busy} onClick={() => { void create() }} sx={buttonSx}>
+      <Button variant="contained" fullWidth disabled={busy} aria-disabled={verifying || undefined} onClick={() => { void submit('create', null) }} sx={buttonSx}>
         {busy ? 'Einladung wird erstellt…' : 'Einladung erstellen'}
       </Button>
       {closeButton}
@@ -244,10 +313,10 @@ export default function ProfileClaimDialog({ groupId, profile, onClose, onUnauth
         Ein möglicherweise gerade erstellter Link lässt sich nicht abrufen. Eine neue Einladung macht den aktiven Link ungültig.
       </Typography>}
       <Stack sx={{ gap: 0.75 }}>
-        <Button variant="contained" fullWidth disabled={busy} onClick={() => setConfirm('replace')} sx={buttonSx}>Neue Einladung erstellen</Button>
+        <Button variant="contained" fullWidth disabled={locked} onClick={() => { setError(null); setConfirm({ kind: 'replace', expiresAt: phase.expiresAt }) }} sx={buttonSx}>Neue Einladung erstellen</Button>
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>Der bisherige Link wird dadurch ungültig.</Typography>
       </Stack>
-      <Button variant="outlined" color="error" fullWidth disabled={busy} onClick={() => setConfirm('revoke')} sx={buttonSx}>Einladung widerrufen</Button>
+      <Button variant="outlined" color="error" fullWidth disabled={locked} onClick={() => { setError(null); setConfirm({ kind: 'revoke', expiresAt: phase.expiresAt }) }} sx={buttonSx}>Einladung widerrufen</Button>
       {closeButton}
     </>
   } else if (phase.kind === 'uncertain') {
@@ -259,7 +328,7 @@ export default function ProfileClaimDialog({ groupId, profile, onClose, onUnauth
           : 'Es ist unklar, ob die Einladung widerrufen wurde.'}</Typography>
       </Box>
       <Typography sx={{ color: 'text.secondary' }}>Prüfe den aktuellen Status. Es wird nichts automatisch wiederholt.</Typography>
-      <Button variant="contained" fullWidth disabled={busy} onClick={() => { void readStatus(true) }} sx={buttonSx}>Status prüfen</Button>
+      <Button variant="contained" fullWidth disabled={checking} onClick={() => { void readStatus(true) }} sx={buttonSx}>Status prüfen</Button>
       {closeButton}
     </>
   } else {
@@ -298,19 +367,22 @@ export default function ProfileClaimDialog({ groupId, profile, onClose, onUnauth
       <IconButton aria-label="Schließen" onClick={close} disabled={busy} sx={{ position: 'absolute', top: 8, right: 8, width: 48, height: 48 }}><CloseIcon /></IconButton>
       <DialogContent sx={{ display: 'grid', gap: 2, pb: 3 }}>
         <ProfileSection name={profile.username} />
-        {notice && <Typography role="status" sx={{ color: 'success.main' }}>{notice}</Typography>}
+        {checking && <Typography role="status" sx={{ color: 'text.secondary' }}>Einladungsstatus wird geprüft…</Typography>}
+        {notice && <Typography role="status" sx={{ color: notice === changedStatus ? 'text.secondary' : 'success.main' }}>{notice}</Typography>}
         {error && <Typography role="alert" sx={{ color: 'error.main' }}>{error}</Typography>}
         {body}
       </DialogContent>
     </Dialog>
-    <ManagementConfirmation kind={confirm} name={profile.username} busy={busy}
-      onCancel={() => setConfirm(null)} onConfirm={() => { void (confirm === 'revoke' ? revoke() : create()) }} />
+    <ManagementConfirmation kind={confirm?.kind ?? null} name={profile.username} busy={busy} verifying={verifying}
+      checking={checking} error={error} onCancel={cancelConfirmation}
+      onConfirm={() => { if (confirm) void submit(confirm.kind === 'revoke' ? 'revoke' : 'create', confirm.expiresAt) }} />
   </>
 }
 
 /** #247 wireframe 03: separate, named confirmation before replacing or revoking an existing link. */
-function ManagementConfirmation({ kind, name, busy, onCancel, onConfirm }: {
-  kind: Confirmation | null; name: string; busy: boolean; onCancel: () => void; onConfirm: () => void
+function ManagementConfirmation({ kind, name, busy, verifying, checking, error, onCancel, onConfirm }: {
+  kind: Confirmation | null; name: string; busy: boolean; verifying: boolean; checking: boolean; error: string | null
+  onCancel: () => void; onConfirm: () => void
 }) {
   // Keep the last copy while the closing transition runs.
   const [shown, setShown] = useState(kind)
@@ -332,9 +404,11 @@ function ManagementConfirmation({ kind, name, busy, onCancel, onConfirm }: {
           <Typography sx={{ color: 'text.secondary' }}>Das Schnellprofil, seine Decks und seine Spiele bleiben unverändert.</Typography>
         </>}
       </Box>
+      {checking && <Typography role="status" sx={{ color: 'text.secondary' }}>Einladungsstatus wird geprüft…</Typography>}
+      {error && <Typography role="alert" sx={{ color: 'error.main' }}>{error}</Typography>}
       {showReplace
-        ? <Button variant="contained" fullWidth disabled={busy} onClick={onConfirm} sx={buttonSx}>{busy ? 'Neuer Link wird erstellt…' : 'Neuen Link erstellen'}</Button>
-        : <Button variant="outlined" color="error" fullWidth disabled={busy} onClick={onConfirm} sx={buttonSx}>{busy ? 'Einladung wird widerrufen…' : 'Einladung widerrufen'}</Button>}
+        ? <Button variant="contained" fullWidth disabled={busy} aria-disabled={verifying || undefined} onClick={onConfirm} sx={buttonSx}>{busy ? 'Neuer Link wird erstellt…' : 'Neuen Link erstellen'}</Button>
+        : <Button variant="outlined" color="error" fullWidth disabled={busy} aria-disabled={verifying || undefined} onClick={onConfirm} sx={buttonSx}>{busy ? 'Einladung wird widerrufen…' : 'Einladung widerrufen'}</Button>}
       <Button variant="outlined" color="secondary" fullWidth disabled={busy} onClick={onCancel} sx={buttonSx}>Abbrechen</Button>
     </DialogContent>
   </Dialog>
