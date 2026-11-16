@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
   login,
   logout,
@@ -79,7 +79,8 @@ export default function App() {
   const invitation = inviteSegment(location.pathname)
   const claim = claimSegment(location.pathname)
   const inviteAuth = invitation === null && claim === null ? null : inviteAuthIntent(location.state)
-  useEffect(() => {
+  // Focus in the commit that reveals the form, before keyboard input can begin.
+  useLayoutEffect(() => {
     if (!inviteAuth || sessionStatus !== 'signed-out') return
     document.getElementById(inviteAuth === 'login' ? 'auth-login-email' : 'auth-register-email')?.focus()
   }, [inviteAuth, sessionStatus, location.key])
@@ -216,10 +217,14 @@ export default function App() {
     try {
       await logout()
       if (version !== sessionVersionRef.current) return
-      setCurrentUser(null)
-      setSessionStatus('signed-out')
-      setSessionNotice({ kind: 'success', message: 'Logged out.' })
-      void navigate(claimReturn ?? '/', { replace: true, state: claimReturn ? { [inviteAuthKey]: 'login' } : null })
+      // The router transitions to the return URL. Reveal the form in that same
+      // transition so it cannot accept input with a stale destination or focus.
+      startTransition(() => {
+        setCurrentUser(null)
+        setSessionStatus('signed-out')
+        setSessionNotice({ kind: 'success', message: 'Logged out.' })
+        void navigate(claimReturn ?? '/', { replace: true, state: claimReturn ? { [inviteAuthKey]: 'login' } : null })
+      })
     } catch {
       try {
         const user = await restoreSession()

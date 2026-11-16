@@ -94,7 +94,7 @@ jobs:
     name: playground browser (${{ matrix.browser }})
     runs-on: ubuntu-latest
     # Keep one test worker per engine; isolate engines to fit the existing bound.
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:

@@ -1,5 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { Suspense } from 'react'
+import { useLocation } from 'react-router'
 import App from './App'
 import { AppRouter } from './AppRouter'
 import { AppThemeProvider } from './theme/AppThemeProvider'
@@ -733,6 +735,45 @@ test('Anderes Konto verwenden logs out, returns to the same link and the next ac
   expect(await screen.findByText(other.username)).toBeInTheDocument()
   expect(screen.queryByText(visitor.username)).not.toBeInTheDocument()
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(accepts(api)).toHaveLength(0)
+})
+
+test('account-switch sign-in stays hidden until a deferred claim-return navigation can commit', async () => {
+  const api = server(visitor)
+  const logout = deferred()
+  const destination = deferred()
+  let holdReturn = true
+  let returnAttempted = false
+  function DeferredReturn() {
+    const location = useLocation()
+    if (holdReturn && location.state?.inviteAuth === 'login') {
+      returnAttempted = true
+      throw destination.promise
+    }
+    return null
+  }
+  api.next('DELETE /api/session', () => logout.promise)
+  window.history.replaceState(null, '', `/claim/${code}`)
+  render(<AppThemeProvider><AppRouter><Suspense fallback={<p>Loading destination</p>}>
+    <App /><DeferredReturn />
+  </Suspense></AppRouter></AppThemeProvider>)
+  fireEvent.click(await screen.findByRole('button', { name: 'Anderes Konto verwenden' }))
+  await waitFor(() => expect(window.location.pathname).toBe('/'))
+  expect(screen.getByText('Logging out…')).toBeInTheDocument()
+  api.state.user = null
+  await act(async () => logout.resolve(new Response(null, { status: 204 })))
+  await waitFor(() => expect(returnAttempted).toBe(true))
+  expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument()
+  expect(screen.getByText('Logging out…')).toBeInTheDocument()
+
+  holdReturn = false
+  await act(async () => destination.resolve(new Response(null)))
+  expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+  expect(document.getElementById('auth-login-email')).toHaveFocus()
+  expect(window.location.pathname).toBe(`/claim/${code}`)
+  await signIn()
+  expect(await screen.findByRole('button', { name: 'Profil übernehmen' })).toBeInTheDocument()
+  expect(window.location.pathname).toBe(`/claim/${code}`)
   expect(accepts(api)).toHaveLength(0)
 })
 
