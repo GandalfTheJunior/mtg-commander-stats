@@ -47,6 +47,11 @@ export function useLinkSharing(url: string | null, title: string) {
     }
   }
 
+  /**
+   * #318: `navigator.clipboard` exists only in secure contexts (HTTPS or localhost); on plain-HTTP LAN origins it is
+   * absent and the manual fallback is the expected outcome. The write must stay the first awaited call of the click
+   * handler: Safari and Chromium reject it once the click's user activation has been consumed by an earlier await.
+   */
   async function copyLink() {
     if (!url) return
     const target = url

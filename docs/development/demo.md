@@ -116,6 +116,12 @@ The only other restricted API in these flows is Clipboard `writeText`. If absent
 or rejected, **Kopieren** retains the read-only code and explains manual copying:
 long-press inside **Aktueller Einladungscode**, choose **Select All / Alles
 auswählen**, then **Copy / Kopieren**. Do not paste the secret into logs or a PR.
+The same applies to **Link kopieren** for Playgroup invitations (#200) and
+quick-profile claim links (#247): over LAN HTTP it always shows the selected
+manual field (#318). To verify automatic copying on a phone or another computer,
+use a secure origin such as the private HTTPS
+[Codespaces preview](codespaces.md); desktop `http://localhost:5173` is also a
+secure context.
 
 ### Real-device checklist and evidence record for #89
 
