@@ -128,8 +128,9 @@ export default function ProfileClaimDialog({ groupId, profile, onClose, onUnauth
   /** Read-only, authoritative status. Never creates or reveals a code. */
   const readStatus = useCallback(async (afterUncertainty = false) => {
     setError(null)
+    const lifetime = life.current
     const result = await fetchStatus()
-    if (!result) return
+    if (lifetime?.signal.aborted || !result) return
     if (result.ok) {
       setPhase(result.value.active ? { kind: 'active', expiresAt: result.value.expiresAt, afterUncertainty } : { kind: 'inactive' })
       return
