@@ -86,32 +86,88 @@ async function expectDetailsPainted(page: Page, deck: Deck) {
   await expect(page).toHaveURL(/\/decks$/)
 }
 
-for (let iteration = 1; iteration <= 20; iteration++) {
-  test(`historical helper native touch scrolling ${iteration}`, async ({ page, browserName }) => {
-    test.setTimeout(120_000)
-    test.skip(browserName !== 'chromium', 'Playwright WebKit has no native touch-drag API; validate on physical Safari.')
-    await fixture(page)
-    const session = await page.context().newCDPSession(page)
-    for (const throughContent of [false, true]) {
-      const deck = decks[0]
-      await reveal(page, deck)
-      const area = (await region(page, deck).boundingBox())!
-      const x = throughContent ? area.x + area.width / 2 : 4
-      const y = area.y + Math.min(area.height - 10, 110)
-      const before = await page.evaluate(() => scrollY)
-      await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
-      await expectDetailsPainted(page, deck)
-      for (const dy of [10, 30, 60]) {
-        await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - dy }] })
-        await expectDetailsPainted(page, deck)
+// A native scroll can update the compositor before the DOM geometry or an opacity
+// change has reached a painted frame. Cross a paint before reading the clip and
+// after each style change so the two captures represent the requested states.
+async function afterPaint(page: Page) {
+  await page.evaluate(() => new Promise<void>(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  }))
+}
+
+// DOM visibility alone passes when an opaque pseudo-element paints over the glyphs.
+// Only one element changes per comparison: every detail must contribute visible pixels.
+async function expectPreparedDetailsPainted(page: Page, deck: Deck) {
+  const area = region(page, deck)
+  const elements = [
+    ...deck.commanders.map(card => area.getByText(card.name, { exact: true })),
+    ...(deck.companion ? [area.getByText(`Companion: ${deck.companion.name}`, { exact: true })] : []),
+    area.getByText(deck.name, { exact: true }),
+    area.getByRole('img', { name: 'Farbidentität: Blau, Rot' }),
+    area.getByText('Deck bearbeiten', { exact: true }),
+  ]
+  await afterPaint(page)
+  const clip = (await area.boundingBox())!
+  expect(clip.y).toBeGreaterThanOrEqual(0)
+  expect(clip.y + clip.height).toBeLessThanOrEqual(page.viewportSize()!.height)
+  const painted = await page.screenshot({ clip })
+  for (const element of elements) {
+    await expect(element).toBeVisible()
+    const original = await element.evaluate((node: HTMLElement) => {
+      const opacity = node.style.opacity
+      node.style.opacity = '0'
+      return opacity
+    })
+    try {
+      await afterPaint(page)
+      const hidden = await page.screenshot({ clip })
+      if (painted.equals(hidden)) {
+        console.log('CI334_PREPARED_CAPTURE ' + JSON.stringify({ label: await element.textContent(), clip,
+          current: await area.boundingBox(), element: await element.boundingBox(),
+          scroll: await page.evaluate(() => ({ y: scrollY, viewportY: visualViewport?.pageTop })),
+          painted: painted.toString('base64'), hidden: hidden.toString('base64') }))
+        await test.info().attach('details-painted', { body: painted, contentType: 'image/png' })
+        await test.info().attach('details-hidden', { body: hidden, contentType: 'image/png' })
+        console.log('Pixel comparison geometry:', JSON.stringify({ clip, current: await area.boundingBox(),
+          scroll: await page.evaluate(() => ({ y: scrollY, viewportY: visualViewport?.pageTop })) }))
       }
-      await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
-      await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(before)
-      await expect(page).toHaveURL(/\/decks$/)
-      // A fling may carry the card out of view; bring it back to inspect the post-touch state.
-      await reveal(page, deck)
-      await expectDetailsPainted(page, deck)
+      expect(painted.equals(hidden), `Content must contribute visible pixels: ${await element.textContent()}`).toBe(false)
+    } finally {
+      await element.evaluate((node: HTMLElement, opacity) => { node.style.opacity = opacity }, original)
+      await afterPaint(page)
     }
-    await session.detach()
-  })
+  }
+  await expect(page).toHaveURL(/\/decks$/)
+}
+
+for (const [variant, helper] of Object.entries({ historical: expectDetailsPainted, prepared: expectPreparedDetailsPainted })) {
+  for (let iteration = 1; iteration <= 20; iteration++) {
+    test(`${variant} helper native touch scrolling ${iteration}`, async ({ page, browserName }) => {
+      test.setTimeout(120_000)
+      test.skip(browserName !== 'chromium', 'Playwright WebKit has no native touch-drag API; validate on physical Safari.')
+      await fixture(page)
+      const session = await page.context().newCDPSession(page)
+      for (const throughContent of [false, true]) {
+        const deck = decks[0]
+        await reveal(page, deck)
+        const area = (await region(page, deck).boundingBox())!
+        const x = throughContent ? area.x + area.width / 2 : 4
+        const y = area.y + Math.min(area.height - 10, 110)
+        const before = await page.evaluate(() => scrollY)
+        await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
+        await helper(page, deck)
+        for (const dy of [10, 30, 60]) {
+          await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - dy }] })
+          await helper(page, deck)
+        }
+        await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+        await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(before)
+        await expect(page).toHaveURL(/\/decks$/)
+        // A fling may carry the card out of view; bring it back to inspect the post-touch state.
+        await reveal(page, deck)
+        await helper(page, deck)
+      }
+      await session.detach()
+    })
+  }
 }
