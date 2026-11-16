@@ -793,8 +793,15 @@ helpers (`linkSharing.ts`, `InvitationQr`, `ShareFeedback`) and `retryWindow.ts`
   status `GET`; it never creates a link. **Einladung erstellen** sends one
   CSRF-protected `POST`; **Neue Einladung erstellen** and **Einladung widerrufen**
   first open a named confirmation, and only **Neuen Link erstellen** /
-  **Einladung widerrufen** in it write. A ref guard allows one request at a time;
-  nothing is retried automatically. The one-time code exists only in the dialog's
+  **Einladung widerrufen** in it write. A ref guard accepts one write intent at a
+  time; writes are never retried automatically. Each intent first verifies the
+  server status, sharing an ongoing expiry GET if present. A changed active state
+  or expiry retires the intent, explains the change, and requires renewed action
+  and any applicable confirmation. Failed verification offers an explicit retry
+  without submitting a write. Only the mutation itself locks dismissal; reads
+  preserve keyboard focus and leave Escape, Cancel and close available (#325).
+  Dismissal aborts the read and queued intent; late results cannot submit writes
+  or update retired state. The one-time code exists only in the dialog's
   state after a `201`: closing, a server-confirmed inactive status, a roster change
   that removes the profile or the viewer's OWNER/ADMIN role, or a session change
   discards it. Expiry is server-authoritative: when the device clock reaches
@@ -845,6 +852,7 @@ helpers (`linkSharing.ts`, `InvitationQr`, `ShareFeedback`) and `retryWindow.ts`
   `Referrer-Policy: no-referrer` on `/claim/*` as on `/invite/*`; production
   hosting must do the same (see the [cutover runbook](invitation-cutover.md#quick-profile-claim-links-247)).
 - **Tests:** `src/ProfileClaim.test.tsx` (including deferred return navigation),
+  `src/ProfileClaimDialog.test.tsx` (expiry/read/write coordination and cancellation),
   `e2e/auth-return.pw.ts` (first-visibility input and CPU-throttled Chromium return),
   and `e2e/claims.pw.ts`
   (all seven approved wireframe scenarios at 320/375/390/1280px, Chromium and

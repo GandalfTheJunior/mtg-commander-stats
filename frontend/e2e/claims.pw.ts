@@ -18,6 +18,7 @@ const guest = { id: id(2), username: 'Frodo' }
 type Options = {
   user?: typeof owner | null; role?: 'OWNER' | 'ADMIN' | 'MEMBER'; active?: boolean; expiresAt?: string
   create?: number | 'abort'; preview?: number; accept?: number | 'abort'; retryAfter?: string
+  beforeStatus?: (read: number) => Promise<number | void>
 }
 
 async function mockApi(page: Page, options: Options = {}) {
@@ -26,7 +27,7 @@ async function mockApi(page: Page, options: Options = {}) {
     // Ordinary scenarios must not trigger background expiry checks as the calendar advances (#315).
     expiresAt: options.expiresAt ?? new Date(Date.now() + 45 * 60_000).toISOString(),
     previewStatus: options.preview ?? 200, creates: 0, revokes: 0, accepts: 0, previews: [] as Record<string, string>[], tokenUrls: [] as string[],
-    acceptedFor: [] as (string | undefined)[],
+    acceptedFor: [] as (string | undefined)[], reads: 0,
   }
   // Any request carrying the token is recorded to prove it never leaves the application's own API.
   // Context-wide, so several tabs share one simulated server session (cross-tab scenarios).
@@ -41,7 +42,10 @@ async function mockApi(page: Page, options: Options = {}) {
     else if (path === '/api/session' && method === 'POST') { state.user = guest; await route.fulfill({ json: guest }) }
     else if (path === '/api/session' && method === 'DELETE') { state.user = null; await route.fulfill({ status: 204 }) }
     else if (path === '/api/users' && method === 'POST') await route.fulfill({ status: 201, json: guest })
-    else if (path === invitationPath && method === 'GET') await route.fulfill({ json: { active: state.active, expiresAt: state.active ? state.expiresAt : null } })
+    else if (path === invitationPath && method === 'GET') {
+      const status = await options.beforeStatus?.(++state.reads)
+      await route.fulfill({ status: status ?? 200, json: { active: state.active, expiresAt: state.active ? state.expiresAt : null } })
+    }
     else if (path === invitationPath && method === 'POST') {
       state.creates++
       await new Promise(resolve => setTimeout(resolve, 150))
@@ -230,6 +234,147 @@ test('a device clock past the expiry never hides an active invitation or skips t
   await dialog.getByRole('button', { name: 'Neue Einladung erstellen' }).click()
   await expect(page.getByRole('dialog', { name: 'Einladung ersetzen?' })).toBeVisible()
   expect(api.creates).toBe(0)
+})
+
+/** Align the real expiry callback with user input; hold its GET until the test explicitly releases it. */
+async function gatedExpiry(page: Page) {
+  const start = new Date('2030-01-01T12:00:00Z')
+  await page.clock.install({ time: new Date(+start - 1_000) })
+  await page.clock.pauseAt(start)
+  let armed = false
+  let release!: (status?: number) => void
+  let started!: () => void
+  const gate = new Promise<number | void>(resolve => { release = resolve })
+  const reading = new Promise<void>(resolve => { started = resolve })
+  const api = await mockApi(page, { active: true, expiresAt: new Date(+start + 9_000).toISOString(),
+    // StrictMode can issue two opening GETs. Arm only after the initial status is rendered.
+    beforeStatus: async () => { if (armed) { armed = false; started(); return gate } },
+  })
+  const dialog = await openIssuer(page)
+  await expect(dialog.getByText('Aktive Einladung')).toBeVisible()
+  armed = true
+  return { api, dialog, release, reading }
+}
+
+test('expiry overlap: a re-check after Escape preserves restored button focus', async ({ page }, info) => {
+  await page.setViewportSize({ width: 1280, height: 844 })
+  const { api, dialog, reading, release } = await gatedExpiry(page)
+  const button = dialog.getByRole('button', { name: 'Neue Einladung erstellen' })
+  await button.click()
+  await page.getByRole('dialog', { name: 'Einladung ersetzen?' }).getByRole('button', { name: 'Abbrechen' }).focus()
+  await page.clock.runFor(8_850)
+  await page.keyboard.press('Escape')
+  await page.clock.runFor(300)
+  await reading
+  await expect(button).toBeFocused()
+  await expect(button).toBeEnabled()
+  await expect(dialog.getByRole('status')).toHaveText('Einladungsstatus wird geprüft…')
+  await shot(page, info, 'claim-expiry-focus-1280')
+  release()
+  await page.clock.resume()
+  await expect(dialog.getByRole('status')).toHaveCount(0)
+  await expect(button).toBeFocused()
+  expect(api.creates + api.revokes).toBe(0)
+})
+
+for (const dismiss of ['Escape', 'Abbrechen', 'Schließen']) {
+  test(`expiry overlap: ${dismiss} stays operable in the confirmation`, async ({ page }, info) => {
+    const { api, dialog, reading, release } = await gatedExpiry(page)
+    const button = dialog.getByRole('button', { name: 'Neue Einladung erstellen' })
+    await button.click()
+    const confirm = page.getByRole('dialog', { name: 'Einladung ersetzen?' })
+    const cancel = confirm.getByRole('button', { name: 'Abbrechen' })
+    await cancel.focus()
+    await page.clock.runFor(9_000)
+    await reading
+    await expect(cancel).toBeFocused()
+    if (dismiss === 'Escape') await shot(page, info, 'claim-expiry-confirmation-390')
+    if (dismiss === 'Escape') await page.keyboard.press('Escape')
+    else await confirm.getByRole('button', { name: dismiss }).click()
+    await page.clock.runFor(300)
+    await expect(confirm).toHaveCount(0)
+    await expect(button).toBeFocused()
+    release()
+    await page.clock.resume()
+    expect(api.creates + api.revokes).toBe(0)
+  })
+}
+
+for (const kind of ['replace', 'revoke'] as const) {
+  test(`expiry overlap: ${kind} waits for verification and writes exactly once`, async ({ page }) => {
+    const { api, dialog, reading, release } = await gatedExpiry(page)
+    await page.clock.runFor(9_000)
+    await reading
+    await dialog.getByRole('button', { name: kind === 'replace' ? 'Neue Einladung erstellen' : 'Einladung widerrufen' }).click()
+    const confirm = page.getByRole('dialog', { name: kind === 'replace' ? 'Einladung ersetzen?' : 'Einladung widerrufen?' })
+    await confirm.getByRole('button', { name: kind === 'replace' ? 'Neuen Link erstellen' : 'Einladung widerrufen' })
+      .evaluate((button: HTMLElement) => { button.click(); button.click() })
+    await expect(confirm.getByRole('button', { name: 'Abbrechen' })).toBeEnabled()
+    expect(api.creates + api.revokes).toBe(0)
+    release()
+    await page.clock.resume()
+    await page.clock.runFor(300)
+    await expect(dialog.getByText(kind === 'replace' ? 'Neue Einladung erstellt' : 'Keine aktive Einladung')).toBeVisible()
+    expect(api.creates).toBe(kind === 'replace' ? 1 : 0)
+    expect(api.revokes).toBe(kind === 'revoke' ? 1 : 0)
+  })
+}
+
+test('expiry overlap: canceled verification never submits a late write', async ({ page }) => {
+  const { api, dialog, reading, release } = await gatedExpiry(page)
+  await page.clock.runFor(9_000)
+  await reading
+  await dialog.getByRole('button', { name: 'Neue Einladung erstellen' }).click()
+  const confirm = page.getByRole('dialog', { name: 'Einladung ersetzen?' })
+  await confirm.getByRole('button', { name: 'Neuen Link erstellen' }).click()
+  await page.keyboard.press('Escape')
+  await page.clock.runFor(300)
+  await expect(confirm).toHaveCount(0)
+  await dialog.getByRole('button', { name: 'Schließen' }).last().click()
+  await page.clock.runFor(300)
+  await expect(dialog).toHaveCount(0)
+  release()
+  await page.clock.resume()
+  await expect(page.getByRole('button', { name: `Aktionen für ${profileName}` })).toBeFocused()
+  expect(api.creates + api.revokes).toBe(0)
+})
+
+test('expiry overlap: a changed invitation requires renewed confirmation', async ({ page }, info) => {
+  const { api, dialog, reading, release } = await gatedExpiry(page)
+  await dialog.getByRole('button', { name: 'Neue Einladung erstellen' }).click()
+  const confirm = page.getByRole('dialog', { name: 'Einladung ersetzen?' })
+  await page.clock.runFor(9_000)
+  await reading
+  await confirm.getByRole('button', { name: 'Neuen Link erstellen' }).click()
+  api.expiresAt = new Date('2030-01-01T13:00:00Z').toISOString()
+  release()
+  await page.clock.resume()
+  await page.clock.runFor(300)
+  await expect(confirm).toHaveCount(0)
+  await expect(dialog.getByRole('status')).toContainText('Der Einladungsstatus hat sich geändert.')
+  await shot(page, info, 'claim-expiry-changed-390')
+  expect(api.creates).toBe(0)
+  await dialog.getByRole('button', { name: 'Neue Einladung erstellen' }).click()
+  await confirm.getByRole('button', { name: 'Neuen Link erstellen' }).click()
+  await expect(dialog.getByText('Neue Einladung erstellt')).toBeVisible()
+  expect(api.creates).toBe(1)
+})
+
+test('expiry overlap: a failed check explains the error and requires an explicit retry', async ({ page }, info) => {
+  const { api, dialog, reading, release } = await gatedExpiry(page)
+  await dialog.getByRole('button', { name: 'Neue Einladung erstellen' }).click()
+  const confirm = page.getByRole('dialog', { name: 'Einladung ersetzen?' })
+  await page.clock.runFor(9_000)
+  await reading
+  await confirm.getByRole('button', { name: 'Neuen Link erstellen' }).click()
+  release(503)
+  await page.clock.resume()
+  await expect(confirm.getByRole('alert')).toContainText('Es wurde nichts geändert. Bitte versuche die Aktion erneut.')
+  await shot(page, info, 'claim-expiry-error-390')
+  expect(api.creates).toBe(0)
+  await confirm.getByRole('button', { name: 'Neuen Link erstellen' }).click()
+  await expect(dialog.getByText('Neue Einladung erstellt')).toBeVisible()
+  expect(api.creates).toBe(1)
 })
 
 test('an ambiguous creation shows no link and recovers only through a status check', async ({ page }, info) => {
