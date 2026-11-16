@@ -77,6 +77,13 @@ async function shot(page: Page, info: TestInfo, name: string) {
   if (process.env.MTG_SCREENSHOTS) await page.screenshot({ path: `${process.env.MTG_SCREENSHOTS}/${name}.png` })
 }
 const noHorizontalOverflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
+const pageOverflows = (page: Page) => page.evaluate(() => document.documentElement.scrollHeight > innerHeight + 1)
+/** #319: the page is the only scroller; the deck region never scrolls on its own. */
+async function expectSinglePageScroller(page: Page) {
+  expect(await pageOverflows(page)).toBe(true)
+  expect(await page.getByTestId('member-decks-region').evaluate(element =>
+    getComputedStyle(element).overflowY === 'visible' && element.scrollHeight <= element.clientHeight + 1)).toBe(true)
+}
 const deckUrl = (member: Member) => `/playgroups/${groupId}/members/${member.userId}/decks`
 
 for (const width of [320, 390, 1280]) {
@@ -92,10 +99,9 @@ for (const width of [320, 390, 1280]) {
     await expect(list.getByRole('listitem')).toHaveCount(3)
     await expect(page.getByRole('heading', { level: 2, name: 'Frodos Decks' })).toBeVisible()
     await expect(page.getByText('Playgroup: Commander-Runde')).toBeVisible()
-    // Search is offered exactly when the complete list overflows its bounded region (at 320px it already does).
-    const overflows = await page.getByTestId('member-decks-region').evaluate(element => element.scrollHeight > element.clientHeight + 1)
+    // Search is offered exactly when the complete list makes the page scroll (#319; at 320px it already does).
+    const overflows = await pageOverflows(page)
     await expect(page.getByRole('searchbox')).toHaveCount(overflows ? 1 : 0)
-    expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1)).toBe(true)
     const link = page.getByRole('link', { name: 'Drachenpakt: Deck in ManaBox ansehen (öffnet einen neuen Tab)' })
     await expect(link).toHaveAttribute('href', dragons.manaBoxUrl)
     await expect(link).toHaveAttribute('target', '_blank')
@@ -119,27 +125,27 @@ for (const width of [320, 390, 1280]) {
     await expect(dialog).toHaveCount(0)
     await expect(thrasios).toBeFocused()
 
-    // 02a: the complete list overflows its bounded region, so search appears and stays above the scrolling cards.
+    // 02a: the complete list makes the page scroll, so search appears and stays sticky above the cards (#319).
     await page.goto(`/playgroups/${groupId}/members/${id(3)}/decks`)
     const longList = page.getByRole('list', { name: 'Decks von Aragorn' })
     await expect(longList.getByRole('listitem')).toHaveCount(long.length)
     const search = page.getByRole('searchbox', { name: 'Deckname oder Commander suchen' })
     await expect(search).toBeVisible()
-    const region = page.getByTestId('member-decks-region')
-    expect(await region.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true)
-    expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1)).toBe(true)
-    await region.evaluate(element => { element.scrollTop = 260 })
+    await expectSinglePageScroller(page)
+    await page.evaluate(() => window.scrollTo(0, 260))
     await expect(search).toBeInViewport()
     expect(await noHorizontalOverflow(page)).toBe(true)
-    await region.evaluate(element => { element.scrollTop = 0 })
+    await page.evaluate(() => window.scrollTo(0, 0))
     await shot(page, info, `member-decks-02a-long-list-${width}`)
-    // The shared viewer leaves the list's scroll position untouched.
-    await region.evaluate(element => { element.scrollTop = 200 })
+    // The shared viewer leaves the page's scroll position untouched.
     const scrolledArt = longList.getByRole('button', { name: 'Karte anzeigen: Tymna the Weaver' })
+    await page.evaluate(() => window.scrollTo(0, 200))
+    const before = await page.evaluate(() => window.scrollY)
+    expect(before).toBe(200)
     await scrolledArt.click()
     await page.getByRole('dialog').getByRole('button', { name: 'Schließen' }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
-    expect(await region.evaluate(element => element.scrollTop)).toBeGreaterThan(150)
+    expect(await page.evaluate(() => window.scrollY)).toBe(before)
 
     // 02b: Commander match keeps the search visible with one result.
     await search.fill('thrasios')
@@ -167,6 +173,87 @@ for (const width of [320, 390, 1280]) {
     await expect(page.getByText('Mitglied nicht mehr verfügbar')).toBeVisible()
     await expect(page.getByRole('heading', { level: 2, name: 'Mitglieder-Decks' })).toBeVisible()
     await shot(page, info, `member-decks-03b-unavailable-${width}`)
+  })
+}
+
+// #319: approximate iPhone Safari layout viewports with toolbars shown (and a 320px phone), plus desktop.
+for (const [width, height] of [[320, 568], [375, 548], [390, 664], [1280, 800]]) {
+  test(`many decks use the page as single scroller with sticky search at ${width}x${height}`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height })
+    await mockApi(page, { [id(3)]: long })
+    await page.goto(`/playgroups/${groupId}/members/${id(3)}/decks`)
+    const list = page.getByRole('list', { name: 'Decks von Aragorn' })
+    await expect(list.getByRole('listitem')).toHaveCount(long.length)
+    const search = page.getByRole('searchbox', { name: 'Deckname oder Commander suchen' })
+    await expect(search).toBeVisible()
+    await expectSinglePageScroller(page)
+    const nav = page.getByRole('navigation', { name: 'Main navigation' })
+    const fixedNav = await nav.evaluate(element => getComputedStyle(element).position === 'fixed')
+    const navTop = fixedNav ? (await nav.boundingBox())!.y : height
+    // Mid-list, the heading has scrolled away; search sticks to the top and cards fill the rest of the screen.
+    await page.evaluate(() => window.scrollTo(0, 500))
+    await expect(page.getByRole('heading', { level: 2, name: 'Aragorns Decks' })).not.toBeInViewport()
+    const searchBox = (await search.boundingBox())!
+    expect(searchBox.y).toBeGreaterThanOrEqual(0)
+    expect(searchBox.y).toBeLessThan(16)
+    expect(navTop - (searchBox.y + searchBox.height)).toBeGreaterThan(0.6 * height - (fixedNav ? 80 : 0))
+    await shot(page, info, `member-decks-04a-scrolled-${width}x${height}`)
+    // Raised card layers (Companion artwork) scroll below the sticky search, like Commander artwork.
+    const companionArt = list.getByRole('button', { name: 'Companion anzeigen: Lurrus of the Dream-Den' })
+    const companionBox = (await companionArt.boundingBox())!
+    await page.evaluate(offset => window.scrollBy(0, offset), companionBox.y + companionBox.height / 2 - (searchBox.y + searchBox.height / 2))
+    await expect(async () => {
+      const art = (await companionArt.boundingBox())!
+      const field = (await search.boundingBox())!
+      const point = { x: art.x + art.width / 2, y: field.y + field.height / 2 }
+      expect(point.y).toBeGreaterThan(art.y)
+      expect(point.y).toBeLessThan(art.y + art.height)
+      expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('#member-decks-results') === null, point)).toBe(true)
+    }).toPass({ timeout: 2000 })
+    await shot(page, info, `member-decks-04c-companion-under-search-${width}x${height}`)
+    // The last deck and the image credit end above the fixed navigation.
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+    const last = (await list.getByRole('listitem').last().boundingBox())!
+    expect(last.y + last.height).toBeLessThanOrEqual(navTop)
+    const credit = (await page.getByText('Illustrationen © Wizards of the Coast · Scryfall').boundingBox())!
+    expect(credit.y + credit.height).toBeLessThanOrEqual(navTop)
+    expect(await noHorizontalOverflow(page)).toBe(true)
+    await shot(page, info, `member-decks-04b-end-${width}x${height}`)
+    // Keyboard focus on a card control is never hidden behind the sticky search or the fixed navigation.
+    const focusStaysClear = async (key: string) => {
+      let checked = 0
+      for (let step = 0; step < long.length + 2; step++) {
+        await page.keyboard.press(key)
+        const inList = await page.evaluate(() => Boolean(document.activeElement!.closest('#member-decks-results')))
+        if (!inList) continue
+        checked++
+        // Focus scrolling can still be in progress (WebKit): re-read focus and search geometry until it settles.
+        await expect(async () => {
+          const focused = await page.evaluate(() => {
+            const box = document.activeElement!.getBoundingClientRect()
+            return { top: box.top, bottom: box.bottom }
+          })
+          const searchBottom = (await search.boundingBox())!
+          expect(focused.top).toBeGreaterThanOrEqual(Math.max(0, searchBottom.y + searchBottom.height) - 1)
+          expect(focused.bottom).toBeLessThanOrEqual(navTop + 1)
+        }).toPass({ timeout: 2000 })
+      }
+      expect(checked).toBeGreaterThan(3)
+    }
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await search.focus()
+    await focusStaysClear('Tab')
+    await focusStaysClear('Shift+Tab')
+    // Filtering keeps the search available and the page usable.
+    await search.fill('thrasios')
+    await expect(list.getByRole('listitem')).toHaveCount(1)
+    await expect(search).toBeInViewport()
+    // Rotation / resize keeps the single scroller and the search.
+    await page.setViewportSize({ width: height, height: width })
+    await search.fill('')
+    await expect(list.getByRole('listitem')).toHaveCount(long.length)
+    await expect(search).toBeVisible()
+    expect(await noHorizontalOverflow(page)).toBe(true)
   })
 }
 

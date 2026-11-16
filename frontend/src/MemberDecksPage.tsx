@@ -46,7 +46,6 @@ export default function MemberDecksPage({ onUnauthorized, onNotice }: { onUnauth
   const [revision, setRevision] = useState(0)
   const [query, setQuery] = useState('')
   const [searchVisible, setSearchVisible] = useState(false)
-  const [maxHeight, setMaxHeight] = useState<number | null>(null)
   const list = useRef<HTMLDivElement>(null)
   const searchInput = useRef<HTMLInputElement>(null)
   const callbacks = useRef({ onUnauthorized, onNotice, navigate })
@@ -128,33 +127,22 @@ export default function MemberDecksPage({ onUnauthorized, onNotice }: { onUnauth
   const needle = searchKey(query)
   const shown = ready ? ready.decks.filter(deck => matches(deck, needle)) : []
 
-  // The deck region takes the viewport height left by the content above and below it (including the main area's
-  // padding, which reserves room for the fixed phone navigation), so only the region scrolls.
-  const fit = useCallback(() => {
-    const element = list.current
-    if (!element) return
-    const region = element.getBoundingClientRect()
-    const container = element.closest('main') ?? document.body
-    const below = Math.max(0, container.getBoundingClientRect().bottom - region.bottom)
-    const viewport = window.visualViewport?.height ?? window.innerHeight
-    setMaxHeight(Math.max(240, Math.floor(viewport - (region.top + window.scrollY) - below)))
-  }, [])
-  // Search appears only when the complete, unsearched list overflows its region, and then stays.
+  // Search appears only when the complete, unsearched list makes the page scroll (#319: the page is the only scroller),
+  // and then stays.
   const deckCount = ready?.decks.length ?? 0
   const searching = needle !== ''
   const measure = useCallback(() => {
     const element = list.current
     if (!element || deckCount === 0 || searchVisible || searching) return
-    const overflows = element.clientHeight > 0 ? element.scrollHeight > element.clientHeight + 1 : deckCount > fallbackOverflowDecks
+    const page = document.documentElement
+    const overflows = element.getBoundingClientRect().height > 0 ? page.scrollHeight > window.innerHeight + 1 : deckCount > fallbackOverflowDecks
     if (overflows) setSearchVisible(true)
   }, [deckCount, searchVisible, searching])
-  useLayoutEffect(fit, [fit, view, searchVisible])
-  useLayoutEffect(measure, [measure, maxHeight])
+  useLayoutEffect(measure, [measure, view])
   useEffect(() => {
-    const resize = () => { fit(); measure() }
-    window.addEventListener('resize', resize)
-    return () => window.removeEventListener('resize', resize)
-  }, [fit, measure])
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [measure])
 
   function back() {
     if (fromMembers) void navigate(-1)
@@ -210,26 +198,29 @@ export default function MemberDecksPage({ onUnauthorized, onNotice }: { onUnauth
       text="Dieses Mitglied hat aktuell keine Decks, die in der Playgroup angezeigt werden können." action="Zurück zu Mitglieder" onAction={back} />}
 
     {ready && ready.decks.length > 0 && <>
-      {searchVisible && <TextField inputRef={searchInput} type="search" value={query} onChange={event => setQuery(event.target.value)}
-        placeholder="Deckname oder Commander suchen" fullWidth
-        slotProps={{
-          htmlInput: { 'aria-label': 'Deckname oder Commander suchen', 'aria-controls': 'member-decks-results' },
-          input: {
-            startAdornment: <InputAdornment position="start">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="6" /><path d="M15 15l6 6" /></svg>
-            </InputAdornment>,
-            endAdornment: query ? <InputAdornment position="end">
-              <IconButton aria-label="Suchbegriff löschen" edge="end" onClick={resetSearch} sx={{ width: 44, height: 44 }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" /><path d="M9 9l6 6M15 9l-6 6" /></svg>
-              </IconButton>
-            </InputAdornment> : undefined,
-          },
-        }}
-        sx={{ '& input::-webkit-search-cancel-button': { display: 'none' } }} />}
+      {searchVisible && <Box sx={{ position: 'sticky', top: 0, zIndex: 1, bgcolor: 'background.default', py: 1, my: -1 }}>
+        <TextField inputRef={searchInput} type="search" value={query} onChange={event => setQuery(event.target.value)}
+          placeholder="Deckname oder Commander suchen" fullWidth
+          slotProps={{
+            htmlInput: { 'aria-label': 'Deckname oder Commander suchen', 'aria-controls': 'member-decks-results' },
+            input: {
+              startAdornment: <InputAdornment position="start">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="6" /><path d="M15 15l6 6" /></svg>
+              </InputAdornment>,
+              endAdornment: query ? <InputAdornment position="end">
+                <IconButton aria-label="Suchbegriff löschen" edge="end" onClick={resetSearch} sx={{ width: 44, height: 44 }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" /><path d="M9 9l6 6M15 9l-6 6" /></svg>
+                </IconButton>
+              </InputAdornment> : undefined,
+            },
+          }}
+          sx={{ '& input::-webkit-search-cancel-button': { display: 'none' } }} />
+      </Box>}
+      {/* The page is the only scroller (#319); keyboard focus keeps controls clear of the sticky search and fixed navigation.
+          Isolation keeps raised card layers (Companion artwork, focus rings) below the sticky search while scrolling. */}
       <Box ref={list} id="member-decks-results" data-testid="member-decks-region"
-        sx={{ boxSizing: 'border-box', maxHeight: maxHeight ?? undefined, overflowY: 'auto', overscrollBehavior: 'contain', minWidth: 0,
-          // Room for focus rings of the first and last card inside the scroll region.
-          px: 0.5, mx: -0.5, py: 0.5, my: -0.5 }}>
+        sx={{ minWidth: 0, isolation: 'isolate', '& button, & a': { scrollMarginTop: searchVisible ? 88 : 0,
+          scrollMarginBottom: { xs: 'calc(104px + env(safe-area-inset-bottom, 0px))', sm: 0 } } }}>
         {shown.length === 0 ? <StateMessage icon={<SearchIcon />} title="Keine Decks gefunden" text="Versuche einen anderen Suchbegriff."
           action="Suche zurücksetzen" onAction={resetSearch} />
           : <Stack component="ul" aria-label={`Decks von ${ready.member.username}`} sx={{ p: 0, m: 0, listStyle: 'none', gap: 2 }}>
