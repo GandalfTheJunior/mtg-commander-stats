@@ -1,4 +1,11 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig } from '@playwright/test'
+import { activeQuarantine, playwrightTitlePattern, utcDay, type QuarantineEntry } from './src/test/quarantine.ts'
+
+// Known flaky tests listed in test-quarantine.json stay out of regular runs until
+// their entry lapses; the nightly soak run sets RUN_QUARANTINED to keep observing them.
+const registry: QuarantineEntry[] = JSON.parse(readFileSync(new URL('./test-quarantine.json', import.meta.url), 'utf8'))
+const quarantined = process.env.RUN_QUARANTINED ? [] : activeQuarantine(registry, 'playwright', utcDay(new Date()))
 
 export default defineConfig({
   testDir: './e2e',
@@ -6,6 +13,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
+  grepInvert: quarantined.map(playwrightTitlePattern),
   forbidOnly: !!process.env.CI,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {

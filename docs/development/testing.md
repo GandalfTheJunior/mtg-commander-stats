@@ -48,7 +48,9 @@ A failing test is a signal to investigate, not an obstacle to remove. Do not mak
 checks pass by deleting relevant tests, disabling tests, weakening assertions
 without justification, suppressing lint/type/security rules without justification,
 adding arbitrary retries for flaky tests, or changing expected behavior merely
-to match the implementation.
+to match the implementation. The only sanctioned way to take a test out of the
+PR checks before its cause is fixed is the time-boxed
+[quarantine](#quarantine-for-known-flaky-tests).
 
 If requirements changed and an existing expectation is now incorrect, update it
 and explain why the previous expectation is no longer valid. Investigate the
@@ -81,6 +83,61 @@ The development-only motion playground also has real Chromium/WebKit landing
 regressions. See [browser setup and evidence](motion-playground.md#repeatable-browser-verification)
 for commands and physical Safari acceptance checks; component mocks alone cannot
 verify animation continuity across React commits.
+
+## Quarantine for known flaky tests
+
+A test that fails intermittently on unrelated changes blocks every PR until its
+cause is found. The PO accepted (16 November 2026) that such a test may leave
+the PR checks for a limited time while the investigation runs. Quarantine is not
+a retry and not a fix: the test keeps running every night in the
+[soak run](#nightly-soak-run), and its tracking issue stays open.
+
+`frontend/test-quarantine.json` is the registry. Each entry names one test:
+
+```json
+{
+  "runner": "playwright",
+  "file": "e2e/example.pw.ts",
+  "test": "exact test title",
+  "issue": "https://github.com/GandalfTheJunior/mtg-commander-stats/issues/123",
+  "since": "2026-11-16",
+  "until": "2026-11-30"
+}
+```
+
+- `runner` is `vitest` or `playwright`; `file` is relative to `frontend/`. A
+  Playwright entry applies to both engines.
+- `issue` records the failing runs and owns the root-cause fix.
+- `since` and `until` are the first and last quarantined day (UTC), at most 14
+  days apart. After `until` the entry stops applying by itself and the test
+  gates PRs again. Extending it is a new reviewed change to the registry.
+- Adding or extending an entry needs explicit PO approval. Use it for tests
+  with recorded intermittent failures on unrelated changes, never for a test
+  that fails deterministically or that the same PR adds or changes.
+- The PR that fixes the cause removes the entry.
+
+While an entry is in force, `npm run test` reports the Vitest test as skipped
+with its end date and issue, and `npm run test:browser` leaves the Playwright
+test out. Set `RUN_QUARANTINED=1` to run quarantined tests locally. The
+`frontend` job validates the registry (`node --test tools/ci/*.test.mjs`).
+
+## Nightly soak run
+
+The [Soak workflow](../../.github/workflows/soak.yaml) runs on the default branch
+every night at 01:23 UTC and via manual dispatch. It measures intermittent
+failures away from PRs: the complete Vitest suite five times, and every
+Playwright spec three times per engine (`--repeat-each=3`), with quarantined
+tests included. Its jobs (`vitest soak`, `browser soak (chromium|webkit)`) are
+not PR checks and cannot satisfy `frontend` or the browser jobs.
+
+Each job summary lists every test that failed at least once with its failure
+count, runs, quarantine end date and first error line; a job fails when any
+repetition failed. The `vitest-soak-results` and `browser-soak-results-<engine>`
+artifacts keep the JSON reports and, for browser failures, traces, error context
+and screenshots for 14 days. Use these counts to prioritize investigations and
+to confirm a fix before removing a quarantine entry. A newly added workflow may
+not be dispatchable until it exists on the default branch; an unrun soak is not
+evidence of stability.
 
 ## Invitation request quota isolation
 

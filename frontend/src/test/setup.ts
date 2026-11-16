@@ -1,8 +1,15 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
-import { afterEach } from 'vitest'
+import { afterEach, beforeEach, inject } from 'vitest'
 
 afterEach(cleanup)
+
+// Tests under time-boxed quarantine are reported as skipped (docs/development/testing.md).
+const quarantined = inject('quarantined')
+if (quarantined.length > 0) beforeEach(({ task, skip }) => {
+  const entry = quarantined.find(item => task.file.filepath.endsWith(`/${item.file}`) && item.test === task.name)
+  if (entry) skip(`quarantined until ${entry.until}: ${entry.issue}`)
+})
 
 // Existing integration tests use a desktop viewport. Responsive tests replace
 // this with a controlled MediaQueryList and exercise real change notifications.

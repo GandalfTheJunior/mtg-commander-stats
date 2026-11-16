@@ -62,6 +62,8 @@ jobs:
         run: node --test ../.devcontainer/*.test.mjs
       - name: Verify Codespaces startup lifecycle and secret isolation
         run: python3 ../.devcontainer/test-start.py
+      - name: Verify CI tooling
+        run: node --test ../tools/ci/*.test.mjs
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck

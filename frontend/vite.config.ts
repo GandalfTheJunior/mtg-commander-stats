@@ -1,8 +1,10 @@
 import react from '@vitejs/plugin-react'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { availableParallelism } from 'node:os'
 import { configDefaults, defineConfig } from 'vitest/config'
 import type { Connect, Plugin } from 'vite'
+import { activeQuarantine, utcDay, type QuarantineEntry } from './src/test/quarantine.ts'
 
 // #200/#247: token-bearing invitation and claim pages must not be cached or leak via Referer.
 // Production hosting must send the same headers (docs/development/invitation-cutover.md).
@@ -31,6 +33,11 @@ const interactiveSuites = [
   'src/GameSession.test.tsx',
 ]
 
+// Known flaky tests listed in test-quarantine.json are skipped until their entry
+// lapses; the nightly soak run sets RUN_QUARANTINED to keep observing them.
+const quarantineRegistry: QuarantineEntry[] = JSON.parse(readFileSync(new URL('./test-quarantine.json', import.meta.url), 'utf8'))
+const quarantined = process.env.RUN_QUARANTINED ? [] : activeQuarantine(quarantineRegistry, 'vitest', utcDay(new Date()))
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), invitationHeaders()],
@@ -52,6 +59,7 @@ export default defineConfig({
     },
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    provide: { quarantined },
     // Full router flows exceeded the default five seconds on a two-CPU runner.
     testTimeout: availableParallelism() <= 2 ? 15000 : 5000,
     // Two-CPU runners time out when route and editor integration suites compete.

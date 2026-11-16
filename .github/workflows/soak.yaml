@@ -1,0 +1,97 @@
+name: Soak
+
+# Repeats the complete frontend suites on the default branch, off the pull
+# request path, to measure which tests fail intermittently. Quarantined tests
+# are included. See docs/development/testing.md.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 1 * * *'
+
+permissions:
+  contents: read
+
+env:
+  RUN_QUARANTINED: '1'
+
+jobs:
+  vitest-soak:
+    name: vitest soak
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Run the complete Vitest suite five times
+        run: |
+          failed=0
+          for run in 1 2 3 4 5; do
+            npx vitest run --reporter=default --reporter=json --outputFile.json="soak-results/vitest-$run.json" || failed=1
+          done
+          exit "$failed"
+      - name: Summarize failures per test
+        if: always()
+        run: node ../tools/ci/flake-summary.mjs soak-results | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vitest-soak-results
+          path: frontend/soak-results/
+          retention-days: 14
+
+  browser-soak:
+    name: browser soak (${{ matrix.browser }})
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    # Same image, history and single worker as the playground browser job.
+    container: mcr.microsoft.com/playwright:v1.64.1-noble
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+      - name: Trust browser checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Run every browser spec three times
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: soak-results/playwright-${{ matrix.browser }}.json
+        run: npx playwright test --project=${{ matrix.browser }} --repeat-each=3 --reporter=list,json
+      - name: Summarize failures per test
+        if: always()
+        run: node ../tools/ci/flake-summary.mjs soak-results | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-soak-results-${{ matrix.browser }}
+          # Reports and failure evidence only; videos of passing tests stay out.
+          path: |
+            frontend/soak-results/
+            frontend/test-results/**/trace.zip
+            frontend/test-results/**/error-context.md
+            frontend/test-results/**/*.png
+          retention-days: 14
