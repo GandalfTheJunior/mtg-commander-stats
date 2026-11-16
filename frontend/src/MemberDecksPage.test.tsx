@@ -99,13 +99,13 @@ test('header names the member and group; cards keep server order and show Comman
   expect(searchbox()).not.toBeInTheDocument()
 })
 
-test('artwork opens the shared full-card viewer without a request and returns focus; the list keeps its scroll', async () => {
+test('artwork opens the shared full-card viewer without a request and returns focus; the page keeps its scroll', async () => {
   const server = api({ ...groupReads(), [`GET ${decksPath(frodo)}`]: () => response([superfriends, partners]) })
   show(deckUrl(frodo))
   await deckList()
   const requests = server.fetchMock.mock.calls.length
-  const region = screen.getByTestId('member-decks-region')
-  region.scrollTop = 120
+  // The page is the only scroller (#319): opening and closing the viewer must not move it.
+  const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined)
   const trigger = within(cardOf('Partnerkombo')).getByRole('button', { name: 'Karte anzeigen: Thrasios, Triton Hero' })
   trigger.focus()
   fireEvent.click(trigger)
@@ -114,7 +114,8 @@ test('artwork opens the shared full-card viewer without a request and returns fo
   fireEvent.click(within(dialog).getByRole('button', { name: 'Schließen' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   await waitFor(() => expect(trigger).toHaveFocus())
-  expect(region.scrollTop).toBe(120)
+  expect(scrollTo).not.toHaveBeenCalled()
+  scrollTo.mockRestore()
   fireEvent.click(within(cardOf('Superfriends')).getByRole('button', { name: 'Companion anzeigen: Lurrus of the Dream-Den' }))
   expect(await screen.findByRole('dialog', { name: 'Lurrus of the Dream-Den' })).toBeInTheDocument()
   expect(server.fetchMock.mock.calls.length).toBe(requests)
