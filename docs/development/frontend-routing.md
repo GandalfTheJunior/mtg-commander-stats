@@ -762,7 +762,8 @@ use intercepted non-sensitive data, not a live backend or physical-device test.
   discard its state and revalidate the preview.
 - **Auth return:** **Anmelden**/**Registrieren** push the same `/invite/:code`
   URL with history state `inviteAuth`, which shows the unchanged auth screen plus
-  a short invitation note and focuses the chosen form. History state survives
+  a short invitation note and focuses the chosen form in its layout commit, before
+  the visible form can receive keyboard input. History state survives
   reload; Back returns to the preview. Login resumes the allowlisted invite path;
   registration alone never signs in or joins.
 - **Join:** only **Playgroup beitreten** sends `POST /api/groups/join` with
@@ -777,7 +778,8 @@ use intercepted non-sensitive data, not a live backend or physical-device test.
   the same (see the [cutover runbook](invitation-cutover.md)).
 - **Tests:** `src/Invitation.test.tsx` (integration) and
   `e2e/invitations.pw.ts` (320/375/390/1280px, Chromium and WebKit, decodes the
-  rendered QR code with the dev-only `jsqr`).
+  rendered QR code with the dev-only `jsqr`). `e2e/auth-return.pw.ts` checks
+  first-visibility focus, keyboard input, Back, reload and registration/login return.
 
 ## Quick-profile claim invitations (#247)
 
@@ -816,7 +818,9 @@ helpers (`linkSharing.ts`, `InvitationQr`, `ShareFeedback`) and `retryWindow.ts`
   accepts. **Nicht übernehmen** links to `/playgroups` without any request.
   **Anderes Konto verwenden** runs the ordinary explicit logout; only after its
   confirmed `204` does it return to the same validated `/claim/:code` login
-  detour (every other logout outcome is unchanged).
+  detour. The signed-out state and return navigation commit in the same transition;
+  while that destination is pending, the logout screen keeps the forms hidden.
+  Every other logout outcome is unchanged.
 - **Confirmation and success:** **Profil übernehmen** only opens
   **Schnellprofil übernehmen?**; only **Jetzt übernehmen** sends the CSRF-protected
   accept `POST` (no referrer) with `{ expectedAccountId }` = the account shown. It
@@ -840,6 +844,8 @@ helpers (`linkSharing.ts`, `InvitationQr`, `ShareFeedback`) and `retryWindow.ts`
 - **Leakage:** the Vite dev/preview servers send `Cache-Control: no-store` and
   `Referrer-Policy: no-referrer` on `/claim/*` as on `/invite/*`; production
   hosting must do the same (see the [cutover runbook](invitation-cutover.md#quick-profile-claim-links-247)).
-- **Tests:** `src/ProfileClaim.test.tsx` (integration) and `e2e/claims.pw.ts`
+- **Tests:** `src/ProfileClaim.test.tsx` (including deferred return navigation),
+  `e2e/auth-return.pw.ts` (first-visibility input and CPU-throttled Chromium return),
+  and `e2e/claims.pw.ts`
   (all seven approved wireframe scenarios at 320/375/390/1280px, Chromium and
   WebKit, decoding the rendered QR code).
