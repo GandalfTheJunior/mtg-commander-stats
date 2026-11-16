@@ -108,10 +108,11 @@ export default function SavedDeckCard(props: EditableProps | ReadOnlyProps) {
           {viewers.map((card, index) => <FullCardView key={index} card={card} preloadTarget={cluster} eye={viewers.length === 1 ? 'labelled' : 'icon'} />)}
         </Box>
       </Stack>
-      <Box sx={{ position: 'relative', minWidth: 0, pr: 3, overflowWrap: 'anywhere' }}>
+      <Box sx={{ position: 'relative', isolation: 'isolate', pointerEvents: 'none', minWidth: 0, pr: 3, overflowWrap: 'anywhere' }}>
         <CardActionArea disableRipple onClick={onOpen} aria-label={`${deck.name} bearbeiten`} aria-describedby={`${id}-description`}
-          sx={{ position: 'static', display: 'block', textAlign: 'left', color: 'text.primary', borderRadius: 1,
-            '&::after': { content: '""', position: 'absolute', inset: -4, borderRadius: 1 },
+          sx={{ position: 'static', pointerEvents: 'auto', display: 'block', textAlign: 'left', color: 'text.primary', borderRadius: 1,
+            // Keep the stretched hit area and its opaque feedback behind all information in this isolated region.
+            '&::after': { content: '""', position: 'absolute', inset: -4, borderRadius: 1, zIndex: -1 },
             '&:hover::after': { bgcolor: 'interaction.hover' }, '&:active::after': { bgcolor: 'interaction.pressed' },
             '& .MuiCardActionArea-focusHighlight': { display: 'none' },
             '&.Mui-focusVisible::after, &:focus-visible::after': { outline: '3px solid', outlineColor: 'interaction.focus' } }}>
@@ -123,7 +124,7 @@ export default function SavedDeckCard(props: EditableProps | ReadOnlyProps) {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minHeight: 32 }}>
             <Typography variant="body2" component="span" sx={{ minWidth: 0 }}>{deck.name}</Typography>
             {/* Positioned above the stretched editor target; the link is its sibling, never nested. */}
-            <Box component="span" sx={{ position: 'relative', zIndex: 1, flexShrink: 0, '& a': { width: 48, height: 48 } }}>
+            <Box component="span" sx={{ position: 'relative', zIndex: 1, pointerEvents: 'auto', flexShrink: 0, '& a': { width: 48, height: 48 } }}>
               <ManaBoxLink compact url={deck.manaBoxUrl} deckName={deck.name} />
             </Box>
           </Box>
