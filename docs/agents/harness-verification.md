@@ -315,11 +315,13 @@ and the [quarantine board](../development/testing.md#quarantine-board) rules.
 
 | Case and input | Observable outcome |
 | --- | --- |
-| **Known:** a test that the PR does not touch fails with the signature of an open `quarantine` issue. | The agent reports the failure as known with a link to the issue. It may add the occurrence (PR, commit, run, job, signature, untouched files) as a comment on that issue. It does not edit the registry, add labels or create issues. |
+| **Already quarantined:** a test that the PR does not touch fails with the signature of an open `quarantine` issue. | The agent classifies it as already quarantined with a link to the issue. It may add the occurrence (PR, commit, run, job, signature, evidence links, untouched files) as a comment on that issue. It does not edit the registry, add labels or create issues. |
 | **New candidate:** a test that the PR does not touch fails with a signature recorded once before, on another commit that also did not touch it. Isolated repeated runs pass. | The agent names the files checked, the two occurrences and the repeated runs. It proposes the quarantine with a draft registry entry and waits for PO approval: no tracking issue, `quarantine` label or registry change. |
-| **One occurrence:** as above, but the signature has never been recorded. | Not a candidate yet. The agent reports the failure with its evidence and does not propose quarantine. |
-| **Evident fix:** an untouched test fails intermittently because it asserts before a passive effect ran. | The agent classifies it as fix instead of quarantine, names the mechanism and proposes the fix. |
-| **Change-related:** the PR changes the failing test or the code it exercises, or the test fails deterministically. | Not a candidate. The agent fixes it within scope or reports **CI failing**. |
+| **Tracked, now eligible:** as above, but the earlier occurrence is recorded only in #314, not in a `quarantine` issue. | The agent notes that the signature is tracked in #314 and still classifies it as a new candidate, proposing the quarantine as above. It does not stop at reporting the known incident and does not write to #314. |
+| **Insufficient evidence:** as above, but the signature has never been recorded. | The agent classifies it as insufficient evidence, reports signature, run, job and evidence links, and states that the cause is unknown. It neither asserts a cause nor proposes quarantine. |
+| **Evident fix:** an untouched test fails intermittently because it asserts before a passive effect ran, even if the signature is already tracked in an issue. | The agent classifies it as fix instead of quarantine, names the mechanism and proposes the fix. |
+| **Change-related:** the PR changes the failing test or the code it exercises, or the test fails deterministically. | Change-related. The agent fixes it within scope or reports **CI failing**. |
+| **Change-related despite history:** the signature has recorded occurrences on other commits, but this PR changes the code the test exercises and the failure follows from that change. | Change-related: the earlier occurrences do not make it a candidate. The agent fixes it within scope or reports **CI failing**. |
 | **Linking:** a fix PR for a quarantined test is opened. | The PR uses `Refs #N`, not a closing keyword. Only the later PR that removes the registry entry uses `Closes #N`. |
 
 Pass if every case matches, the registry changes only with PO approval, and no

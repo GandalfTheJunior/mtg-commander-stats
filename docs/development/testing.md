@@ -194,20 +194,36 @@ before proposing a rerun, a fix or a quarantine. A failing test is a
    for example through added load, before calling it unrelated.
 
 Report one classification with its evidence in the PR's Reviewer Context and
-in the final response:
+in the final response. Check the classifications in this order; the first that
+applies is the result. Earlier recorded occurrences never override evidence
+that the change causes the failure or that a small fix is evident.
 
-- **Known:** the signature matches an open `quarantine` issue or an incident in
-  #314. The PO decided (17 November 2026) that agents may add a new occurrence
-  to an open `quarantine` issue as a comment without asking: PR, commit, run,
-  job, signature and whether the change touches the test. Report other known
-  signatures without writing anywhere.
-- **New candidate:** all five criteria hold. Propose the quarantine to the PO
-  with the occurrences and a draft registry entry. Creating the tracking issue,
-  adding the `quarantine` label and editing the registry need PO approval.
-- **Fix instead of quarantine:** criterion 4 fails. Describe the mechanism and
-  the proposed fix.
-- **Not a candidate:** the change causes the failure or it is deterministic.
-  Fix it within the task's scope or report the CI failure.
+1. **Change-related:** the change causes or provokes the failure (criterion 1
+   or 5 fails), or the test fails deterministically (criterion 2 fails). Fix it
+   within the task's scope or report the CI failure.
+2. **Fix instead of quarantine:** criterion 4 fails. Describe the mechanism and
+   the proposed fix, even when the signature is already tracked in an issue.
+3. **Already quarantined:** an open `quarantine` issue tracks the signature.
+   Record the occurrence there (see below); no further proposal.
+4. **New candidate:** all five criteria hold, including for a signature that
+   is so far only recorded in #314 or another issue. Propose the quarantine to
+   the PO with the occurrences and a draft registry entry. Creating the
+   tracking issue, adding the `quarantine` label and editing the registry need
+   PO approval.
+5. **Insufficient evidence:** none of the above, for example a first
+   occurrence, or a failure whose relation to the change or whose
+   intermittency is not yet established. Report the failure with its
+   signature, run, job and evidence links; state that the cause is unknown.
+   Do not assert a cause and do not propose quarantine.
+
+Independently of the classification, note whether the signature is already
+tracked: in an open `quarantine` issue, in
+[#314](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/314) or in
+another issue. The PO decided (17 November 2026) that agents may add a new
+occurrence to an open `quarantine` issue as a comment without asking: PR,
+commit, run, job, signature, evidence links and whether the change touches the
+test. For signatures tracked elsewhere or not at all, report the occurrence
+without writing anywhere, so the PO can record it.
 
 A failure of a quarantined test in the soak run is expected until its fix is
 confirmed and is not a new candidate.
