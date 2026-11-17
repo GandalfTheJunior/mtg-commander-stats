@@ -166,10 +166,12 @@ lists failures that are not attributed to a test, such as a throwing
 `beforeAll` or a spec that fails to load; the affected tests may not have run.
 A **Quarantine status** section then lists every entry in force for that job's
 runner, green or not: its result that night, failed and run repetitions out of
-the expected ones (5 for Vitest, 3 per engine for Playwright) and days left.
-`incomplete` means some repetitions did not execute the test; `not run` means
-none did, usually because of an error outside tests or a renamed test whose
-entry must be corrected.
+the expected ones and days left. The expected repetitions come from the run
+plan in the workflow (`VITEST_RUNS`, `PLAYWRIGHT_REPEATS`), not from the reports
+that exist, so a repetition that crashed before writing its report still
+counts and is listed as an error outside tests. `incomplete` means some
+repetitions did not execute the test; `not run` means none did, usually because
+of an error outside tests or a renamed test whose entry must be corrected.
 
 The `vitest-soak-results` and `browser-soak-results-<engine>` artifacts keep the
 JSON reports and, for browser failures, traces, error context and screenshots

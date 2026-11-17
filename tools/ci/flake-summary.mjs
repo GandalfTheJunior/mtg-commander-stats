@@ -2,7 +2,7 @@
 // Summarizes repeated test runs as Markdown: the tests that failed at least once,
 // errors outside tests, and the status of every quarantine entry in force.
 // Reads Vitest and Playwright JSON reports. See docs/development/testing.md.
-import {readdirSync, readFileSync} from 'node:fs';
+import {existsSync, readdirSync, readFileSync} from 'node:fs';
 import {join, relative} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -99,8 +99,14 @@ function* playwrightErrors(report) {
  * Aggregates reports into one row per executed test case (most frequent failures
  * first), the errors outside tests, every attempt including unexecuted ones, and
  * the number of repetitions each runner was expected to run.
+ *
+ * `planned` maps a runner (`vitest`, `playwright chromium`, ...) to the number of
+ * repetitions the workflow started. It is authoritative: exactly the planned
+ * runners are expected, a repetition that left no report still counts, and the
+ * shortfall is listed as an error outside tests. Without a plan, the expected
+ * count comes from the reports themselves.
  */
-export function summarize(reports) {
+export function summarize(reports, planned = new Map()) {
   const rows = new Map();
   const attempts = [];
   const errors = [];
@@ -122,6 +128,15 @@ export function summarize(reports) {
       if (ran.size === 0 || ran.has(project.name)) expect(`playwright ${project.name}`, project.repeatEach ?? 1);
     }
   });
+  // With a plan, exactly the planned runners are expected.
+  if (planned.size > 0) for (const runner of expected.keys()) if (!planned.has(runner)) expected.delete(runner);
+  for (const [runner, count] of planned) {
+    const reported = expected.get(runner) ?? 0;
+    if (reported < count) {
+      errors.push({runner, file: '', message: `${count - reported} of ${count} planned repetitions left no report`});
+    }
+    expected.set(runner, count);
+  }
   for (const {runner, file, test, case: position, cases, status, message} of attempts) {
     if (status === 'skipped') continue;
     const key = JSON.stringify([runner, file, test, position]);
@@ -225,15 +240,31 @@ export function renderMarkdown(summary, quarantine = [], today = new Date().toIS
   return `${lines.join('\n')}\n`;
 }
 
+/**
+ * Parses `--expect <runner>=<count>` options; `playwright/chromium` names the
+ * runner `playwright chromium`. Returns undefined for invalid arguments.
+ */
+export function parsePlan(args) {
+  const planned = new Map();
+  for (let index = 0; index < args.length; index += 2) {
+    const match = args[index] === '--expect' && /^(vitest|playwright\/[\w-]+)=([1-9]\d*)$/.exec(args[index + 1] ?? '');
+    if (!match) return undefined;
+    planned.set(match[1].replace('/', ' '), Number(match[2]));
+  }
+  return planned;
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const directory = process.argv[2];
-  if (!directory) {
-    console.error('Usage: flake-summary.mjs <directory with Vitest/Playwright JSON reports>');
+  const [directory, ...options] = process.argv.slice(2);
+  const planned = parsePlan(options);
+  if (!directory || !planned) {
+    console.error('Usage: flake-summary.mjs <directory with Vitest/Playwright JSON reports> [--expect vitest=<runs> | --expect playwright/<project>=<repeats>]...');
     process.exitCode = 2;
   } else {
-    const reports = readdirSync(directory).filter(name => name.endsWith('.json')).sort()
-      .map(name => JSON.parse(readFileSync(join(directory, name), 'utf8')));
+    // A run that wrote no report at all leaves no directory; the plan still counts it.
+    const names = existsSync(directory) ? readdirSync(directory).filter(name => name.endsWith('.json')).sort() : [];
+    const reports = names.map(name => JSON.parse(readFileSync(join(directory, name), 'utf8')));
     const quarantine = JSON.parse(readFileSync(join(frontend, 'test-quarantine.json'), 'utf8'));
-    process.stdout.write(renderMarkdown(summarize(reports), quarantine));
+    process.stdout.write(renderMarkdown(summarize(reports, planned), quarantine));
   }
 }

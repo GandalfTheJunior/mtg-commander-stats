@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
-import {renderMarkdown, summarize} from './flake-summary.mjs';
+import {parsePlan, renderMarkdown, summarize} from './flake-summary.mjs';
 
 const frontend = fileURLToPath(new URL('../../frontend/', import.meta.url));
 const failure = '\u001b[31mTypeError: Cannot read properties of undefined\u001b[39m\n    at src/DeckManager.test.tsx:76:82';
@@ -145,6 +145,36 @@ test('expects every configured project and reports the error when a Playwright r
     '| playwright webkit | `e2e/claims.pw.ts` › flaky | not run: check the title path and errors outside tests | 0 / 0 | 0 of 3',
   ]);
   assert.match(markdown, /\| playwright \| `e2e\/claims.pw.ts` \| 1 \| Error: Cannot find module .\/helper \|/);
+});
+
+test('counts planned repetitions that left no report as not run', () => {
+  // Five planned Vitest invocations; the third failed at startup and wrote no JSON.
+  const quarantined = [{...entry('pending list'), runner: 'vitest', file: 'src/DeckManager.test.tsx'}];
+  const reports = Array.from({length: 4}, () => vitestReport([['pending list', 'passed']]));
+  const markdown = renderMarkdown(summarize(reports, new Map([['vitest', 5]])), quarantined, '2026-11-17');
+  assert.match(statusRows(markdown)[0], /\| incomplete: 4 of 5 repetitions ran \| 0 \/ 4 \| 4 of 5 \|/);
+  assert.match(markdown, /\| vitest \|  \| 1 \| 1 of 5 planned repetitions left no report \|/);
+
+  // Without any report, the planned runner is still listed as not run.
+  const none = renderMarkdown(summarize([], new Map([['playwright chromium', 3]])), [entry('flaky')], '2026-11-17');
+  assert.match(statusRows(none)[0], /^\| playwright chromium \| .* \| not run: .* \| 0 \/ 0 \| 0 of 3 \|/);
+  assert.match(none, /3 of 3 planned repetitions left no report/);
+});
+
+test('expects exactly the planned runners when a plan is given', () => {
+  const report = playwrightReport([], [], [{name: 'chromium', repeatEach: 3}, {name: 'webkit', repeatEach: 3}],
+    [{message: 'Error: Cannot find module ./helper'}]);
+  const rows = statusRows(renderMarkdown(summarize([report], new Map([['playwright chromium', 3]])), [entry('flaky')], '2026-11-17'));
+  assert.deepEqual(rows.map(row => row.split(' | ')[0]), ['| playwright chromium']);
+});
+
+test('parses the run plan from --expect options', () => {
+  assert.deepEqual(parsePlan([]), new Map());
+  assert.deepEqual(parsePlan(['--expect', 'vitest=5', '--expect', 'playwright/chromium=3']),
+    new Map([['vitest', 5], ['playwright chromium', 3]]));
+  for (const invalid of [['--expect'], ['--expect', 'vitest=0'], ['--expect', 'jest=5'], ['--other', 'vitest=5']]) {
+    assert.equal(parsePlan(invalid), undefined);
+  }
 });
 
 test('reports a clean soak without tables', () => {

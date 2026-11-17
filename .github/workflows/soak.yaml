@@ -13,6 +13,10 @@ permissions:
 
 env:
   RUN_QUARANTINED: '1'
+  # The run plan. The summary expects exactly these repetitions, so a run that
+  # leaves no report counts as missing instead of shrinking the denominator.
+  VITEST_RUNS: '5'
+  PLAYWRIGHT_REPEATS: '3'
 
 jobs:
   vitest-soak:
@@ -33,16 +37,16 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      - name: Run the complete Vitest suite five times
+      - name: Run the complete Vitest suite VITEST_RUNS times
         run: |
           failed=0
-          for run in 1 2 3 4 5; do
+          for run in $(seq 1 "$VITEST_RUNS"); do
             npx vitest run --reporter=default --reporter=json --outputFile.json="soak-results/vitest-$run.json" || failed=1
           done
           exit "$failed"
       - name: Summarize failures per test
         if: always()
-        run: node ../tools/ci/flake-summary.mjs soak-results | tee -a "$GITHUB_STEP_SUMMARY"
+        run: node ../tools/ci/flake-summary.mjs soak-results --expect "vitest=$VITEST_RUNS" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -77,13 +81,13 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      - name: Run every browser spec three times
+      - name: Run every browser spec PLAYWRIGHT_REPEATS times
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: soak-results/playwright-${{ matrix.browser }}.json
-        run: npx playwright test --project=${{ matrix.browser }} --repeat-each=3 --reporter=list,json
+        run: npx playwright test --project=${{ matrix.browser }} --repeat-each="$PLAYWRIGHT_REPEATS" --reporter=list,json
       - name: Summarize failures per test
         if: always()
-        run: node ../tools/ci/flake-summary.mjs soak-results | tee -a "$GITHUB_STEP_SUMMARY"
+        run: node ../tools/ci/flake-summary.mjs soak-results --expect "playwright/${{ matrix.browser }}=$PLAYWRIGHT_REPEATS" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
