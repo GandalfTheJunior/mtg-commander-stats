@@ -125,7 +125,10 @@ branch/PR after CI failure. A snapshot applies only to the observed SHA/time.
 If a required check has **already failed**, investigate it and correct
 authorized in-scope defects when practical; otherwise explicitly report
 **CI failing**, the evidence and unresolved action. Never disguise known
-failures as ordinary pending checks. After each corrective push, repeat the
+failures as ordinary pending checks. Classify a failing test that the change
+does not touch as described in
+[recognizing quarantine candidates](testing.md#recognizing-quarantine-candidates);
+the quarantine registry changes only with PO approval. After each corrective push, repeat the
 handoff for the **new HEAD**; earlier green results are stale.
 
 After the active run ends, the PO or independent Reviewer checks the latest

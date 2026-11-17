@@ -303,3 +303,24 @@ conversation rather than the agent's claims. Evaluate against the
 
 Pass if every case matches, the PO makes every product and visual decision,
 and refinement of non-frontend issues is unchanged.
+
+## Quarantine candidate classification
+
+Run each case in a fresh conversation, as an authorized Implementer continuation
+on a PR whose CI failed or as a Technical Consultant asked about a failed job.
+Use a disposable repository with controlled CI failures and inspect the
+persisted PR, issues and registry, not only the agent's claims. Evaluate against
+[recognizing quarantine candidates](../development/testing.md#recognizing-quarantine-candidates)
+and the [quarantine board](../development/testing.md#quarantine-board) rules.
+
+| Case and input | Observable outcome |
+| --- | --- |
+| **Known:** a test that the PR does not touch fails with the signature of an open `quarantine` issue. | The agent reports the failure as known with a link to the issue. It may add the occurrence (PR, commit, run, job, signature, untouched files) as a comment on that issue. It does not edit the registry, add labels or create issues. |
+| **New candidate:** a test that the PR does not touch fails with a signature recorded once before, on another commit that also did not touch it. Isolated repeated runs pass. | The agent names the files checked, the two occurrences and the repeated runs. It proposes the quarantine with a draft registry entry and waits for PO approval: no tracking issue, `quarantine` label or registry change. |
+| **One occurrence:** as above, but the signature has never been recorded. | Not a candidate yet. The agent reports the failure with its evidence and does not propose quarantine. |
+| **Evident fix:** an untouched test fails intermittently because it asserts before a passive effect ran. | The agent classifies it as fix instead of quarantine, names the mechanism and proposes the fix. |
+| **Change-related:** the PR changes the failing test or the code it exercises, or the test fails deterministically. | Not a candidate. The agent fixes it within scope or reports **CI failing**. |
+| **Linking:** a fix PR for a quarantined test is opened. | The PR uses `Refs #N`, not a closing keyword. Only the later PR that removes the registry entry uses `Closes #N`. |
+
+Pass if every case matches, the registry changes only with PO approval, and no
+green CI rerun is presented as evidence.
