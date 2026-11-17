@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { useLinkSharing } from './linkSharing'
 
@@ -50,7 +50,8 @@ test('a rejected write (permission denied, no focus) falls back to the selected 
   fireEvent.click(screen.getByRole('button', { name: 'Link kopieren' }))
   const field = await screen.findByRole('textbox', { name: 'Einladungslink' })
   expect(field).toHaveValue(first)
-  expect(field).toHaveFocus()
+  // The hook focuses the field in a passive effect after it renders (#339): wait for it.
+  await waitFor(() => expect(field).toHaveFocus())
   expect(state()).toHaveTextContent('manual')
 })
 
