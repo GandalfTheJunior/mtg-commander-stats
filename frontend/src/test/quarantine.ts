@@ -35,13 +35,14 @@ const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&
 /**
  * Matches exactly the string Playwright filters on for the entry's test:
  * project name, spec path relative to the e2e directory, describe titles and
- * test title, each followed by its tags, space-separated.
- * Anchored at both ends, so a title that merely ends or starts with the
- * quarantined title is never excluded.
+ * test title, space-separated. Anchored at both ends and without tag
+ * tolerance, so a title that merely ends or starts with the quarantined title,
+ * including an inline `@tag` suffix, is never excluded. Tags declared with the
+ * `tag` option would be appended to that string; tools/ci/quarantine.mjs
+ * therefore rejects entries for specs that use the option.
  */
 export function playwrightTitlePattern(entry: QuarantineEntry) {
-  const tags = '(?: @\\S+)*'
   const spec = entry.file.replace(/^e2e\//, '')
-  const titles = entry.test.split(titleSeparator).map(title => escapeRegExp(title) + tags).join(' ')
-  return new RegExp(`^[^ ]+${tags} ${escapeRegExp(spec)}${tags} ${titles}$`)
+  const titles = entry.test.split(titleSeparator).map(escapeRegExp).join(' ')
+  return new RegExp(`^[^ ]+ ${escapeRegExp(spec)} ${titles}$`)
 }

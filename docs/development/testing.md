@@ -110,9 +110,12 @@ a retry and not a fix: the test keeps running every night in the
 - `test` is the full title path below the file: every enclosing `describe`
   title and the test title, joined by ` › `, as `npx playwright test --list`
   prints it after the file name. A top-level test is just its title. The match
-  is exact, so a test whose title merely contains the quarantined title stays
-  in the PR checks. Vitest cases that share one title path (for example from
-  `it.each` with a fixed title) are quarantined together.
+  is exact, so a test whose title merely contains the quarantined title, or
+  adds an inline `@tag` to it, stays in the PR checks. Inline `@tag` text is
+  part of the title. Specs that declare tags with Playwright's `tag` option
+  cannot be matched exactly and are rejected by the registry validation. Vitest
+  cases that share one title path (for example from `it.each` with a fixed
+  title) are quarantined together.
 - `issue` is the tracking issue, labeled `quarantine`. It records the failing
   runs, the entry and its end date, and owns the root-cause fix.
 - `since` and `until` are the first and last quarantined day (UTC), at most 14
@@ -130,7 +133,9 @@ because a single PR run or burn-in cannot rule out a rare failure:
    place.
 2. After the fix is merged, the entry stays until the test is **green on three
    consecutive nights** in every soak job that runs it: `vitest soak`, or both
-   `browser soak` engines for a Playwright test. A red night restarts the count.
+   `browser soak` engines for a Playwright test. A night is green only when
+   every expected repetition ran and passed; a red, incomplete or not-run
+   night restarts the count.
 3. A separate small PR then removes the entry and closes the tracking issue.
 4. If `until` arrives first, the PO decides whether to extend the quarantine
    (a new entry with new approval) or let it lapse so the test gates PRs again.
@@ -156,10 +161,15 @@ not PR checks and cannot satisfy `frontend` or the browser jobs.
 Each job summary lists every test that failed at least once with its failure
 count, runs, quarantine end date and first error line; a job fails when any
 repetition failed. Parametrized Vitest cases that share a title path are counted
-separately, labeled by their position in the file. A **Quarantine status**
-section then lists every entry in force for that job's runner, green or not:
-its result that night, failures per runs and days left. `not run` means the
-entry no longer matches any test, usually after a rename; correct the entry.
+separately, labeled by their position in the file. **Errors outside tests**
+lists failures that are not attributed to a test, such as a throwing
+`beforeAll` or a spec that fails to load; the affected tests may not have run.
+A **Quarantine status** section then lists every entry in force for that job's
+runner, green or not: its result that night, failed and run repetitions out of
+the expected ones (5 for Vitest, 3 per engine for Playwright) and days left.
+`incomplete` means some repetitions did not execute the test; `not run` means
+none did, usually because of an error outside tests or a renamed test whose
+entry must be corrected.
 
 The `vitest-soak-results` and `browser-soak-results-<engine>` artifacts keep the
 JSON reports and, for browser failures, traces, error context and screenshots

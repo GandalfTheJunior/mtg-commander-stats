@@ -40,15 +40,17 @@ function listed(entries: QuarantineEntry[]) {
   return tests.sort()
 }
 
-const all = ['target', 'unrelated prefix target', 'target and more', 'control', 'tagged target @slow', 'group › target', 'group › inner group › target']
+const all = ['target', 'unrelated prefix target', 'target and more', 'control', 'tagged target @slow', 'target @slow', 'group › target', 'group › inner group › target']
   .map(title => `sample.pw.ts › ${title}`).concat('other.pw.ts › target')
 const everywhere = (titles: string[]) => ['chromium', 'webkit'].flatMap(project => titles.map(title => `${project} › ${title}`)).sort()
 
 test('the real Playwright runner excludes exactly the quarantined test in both projects', { timeout: 60_000 }, () => {
   expect(listed([])).toEqual(everywhere(all))
   const except = (excluded: string) => everywhere(all.filter(title => title !== excluded))
-  // A title that ends, starts or nests the quarantined title in the same or another spec stays listed.
+  // A title that ends, starts or nests the quarantined title, or adds an inline
+  // tag to it, stays listed, in the same spec or another one.
   expect(listed([entry])).toEqual(except('sample.pw.ts › target'))
+  expect(listed([{ ...entry, test: 'target @slow' }])).toEqual(except('sample.pw.ts › target @slow'))
   expect(listed([{ ...entry, test: 'group › target' }])).toEqual(except('sample.pw.ts › group › target'))
   expect(listed([{ ...entry, test: 'group › inner group › target' }])).toEqual(except('sample.pw.ts › group › inner group › target'))
   expect(listed([{ ...entry, test: 'tagged target @slow' }])).toEqual(except('sample.pw.ts › tagged target @slow'))

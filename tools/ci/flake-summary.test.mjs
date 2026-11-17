@@ -7,9 +7,11 @@ const frontend = fileURLToPath(new URL('../../frontend/', import.meta.url));
 const failure = '\u001b[31mTypeError: Cannot read properties of undefined\u001b[39m\n    at src/DeckManager.test.tsx:76:82';
 
 /** One Vitest file report; each case is [title, status] or [title, status, ancestorTitles]. */
-const vitestReport = (cases, file = 'src/DeckManager.test.tsx') => ({
+const vitestReport = (cases, file = 'src/DeckManager.test.tsx', fileStatus = undefined, message = '') => ({
   testResults: [{
     name: `${frontend}${file}`,
+    status: fileStatus ?? (cases.some(([, status]) => status === 'failed') ? 'failed' : 'passed'),
+    message,
     assertionResults: cases.map(([title, status, ancestorTitles = []]) => ({
       ancestorTitles, title, status, failureMessages: status === 'failed' ? [failure] : [],
     })),
@@ -21,9 +23,10 @@ const playwrightSpec = (title, status, projectName = 'webkit') => ({
   tests: [{projectName, results: [{status, ...(status === 'passed' ? {} : {error: {message: 'Error: expect(locator).toBeVisible() failed\n\nLocator: getByText'}})}]}],
 });
 /** A Playwright report with one spec file: top-level specs plus describe suites. */
-const playwrightReport = (specs, suites = []) => ({
-  config: {rootDir: `${frontend}e2e`},
+const playwrightReport = (specs, suites = [], projects = [{name: 'webkit', repeatEach: 1}], errors = []) => ({
+  config: {rootDir: `${frontend}e2e`, projects},
   suites: [{title: 'claims.pw.ts', file: 'claims.pw.ts', specs, suites}],
+  errors,
 });
 
 test('counts executions per test across reports and lists only tests that failed', () => {
@@ -87,26 +90,61 @@ test('orders by failure rate and marks quarantined tests in the failure table', 
   assert.match(markdown, /4 executions of 2 tests; 2 test\(s\) failed at least once\./);
 });
 
+const entry = (test, change = {}) => ({
+  runner: 'playwright', file: 'e2e/claims.pw.ts', test, issue: `https://example.test/${test}`, since: '2026-11-10', until: '2026-11-20', ...change,
+});
+const statusRows = markdown => markdown.slice(markdown.indexOf('## Quarantine status')).split('\n').filter(line => /^\| (vitest|playwright)/.test(line));
+
 test('lists every quarantine entry in force with its result tonight, including green and unrun tests', () => {
-  const entry = (test, change = {}) => ({
-    runner: 'playwright', file: 'e2e/claims.pw.ts', test, issue: `https://example.test/${test}`, since: '2026-11-10', until: '2026-11-20', ...change,
-  });
   const summary = summarize([playwrightReport([
     playwrightSpec('flaky', 'passed', 'chromium'), playwrightSpec('flaky', 'failed', 'chromium'),
     playwrightSpec('fixed', 'passed', 'chromium'), playwrightSpec('fixed', 'passed', 'chromium'),
-  ])]);
+  ], [], [{name: 'chromium', repeatEach: 2}, {name: 'webkit', repeatEach: 2}])]);
   const markdown = renderMarkdown(summary, [
     entry('flaky'), entry('fixed'), entry('renamed'),
     entry('lapsed', {until: '2026-11-16'}), {...entry('vitest only'), runner: 'vitest', file: 'src/A.test.ts'},
   ], '2026-11-17');
-  const status = markdown.slice(markdown.indexOf('## Quarantine status')).split('\n').filter(line => line.startsWith('| playwright'));
-  assert.deepEqual(status, [
-    '| playwright chromium | `e2e/claims.pw.ts` › flaky | red | 1 / 2 | 2026-11-20 (3 days left) | https://example.test/flaky |',
-    '| playwright chromium | `e2e/claims.pw.ts` › fixed | green | 0 / 2 | 2026-11-20 (3 days left) | https://example.test/fixed |',
-    '| playwright chromium | `e2e/claims.pw.ts` › renamed | not run: check the title path | 0 / 0 | 2026-11-20 (3 days left) | https://example.test/renamed |',
+  // Only the project that ran is expected; webkit was filtered out of this job.
+  assert.deepEqual(statusRows(markdown), [
+    '| playwright chromium | `e2e/claims.pw.ts` › flaky | red | 1 / 2 | 2 of 2 | 2026-11-20 (3 days left) | https://example.test/flaky |',
+    '| playwright chromium | `e2e/claims.pw.ts` › fixed | green | 0 / 2 | 2 of 2 | 2026-11-20 (3 days left) | https://example.test/fixed |',
+    '| playwright chromium | `e2e/claims.pw.ts` › renamed | not run: check the title path and errors outside tests | 0 / 0 | 0 of 2 | 2026-11-20 (3 days left) | https://example.test/renamed |',
   ]);
   assert.match(markdown, /three consecutive green nights/);
   assert.doesNotMatch(markdown, /lapsed|vitest only/);
+});
+
+test('does not count repetitions whose setup failed as a green night', () => {
+  // One clean run and four runs whose beforeAll threw: the file failed, its test was skipped.
+  const quarantined = [{...entry('pending list'), runner: 'vitest', file: 'src/DeckManager.test.tsx'}];
+  const broken = () => vitestReport([['pending list', 'skipped']], undefined, 'failed', 'Error: setup broke\n    at beforeAll');
+  const reports = [vitestReport([['pending list', 'passed']]), broken(), broken(), broken(), broken()];
+
+  const markdown = renderMarkdown(summarize(reports), quarantined, '2026-11-17');
+  assert.match(statusRows(markdown)[0], /› pending list \| incomplete: 1 of 5 repetitions ran \| 0 \/ 1 \| 1 of 5 \|/);
+  assert.match(markdown, /## Errors outside tests[\s\S]*\| vitest \| `src\/DeckManager.test.tsx` \| 4 \| Error: setup broke \|/);
+
+  // With no executed repetition the runner is still reported, as not run.
+  assert.match(statusRows(renderMarkdown(summarize(reports.slice(1)), quarantined, '2026-11-17'))[0], /\| vitest \| .* \| not run: .* \| 0 \/ 0 \| 0 of 4 \|/);
+});
+
+test('counts a repetition only when every case an entry matches ran', () => {
+  const quarantined = [{...entry('rejects invalid'), runner: 'vitest', file: 'src/DeckManager.test.tsx'}];
+  const partial = vitestReport([['rejects invalid', 'passed'], ['rejects invalid', 'skipped']]);
+  const full = vitestReport([['rejects invalid', 'passed'], ['rejects invalid', 'passed']]);
+  assert.match(statusRows(renderMarkdown(summarize([full, partial]), quarantined, '2026-11-17'))[0], /incomplete: 1 of 2 repetitions ran/);
+  assert.match(statusRows(renderMarkdown(summarize([full, full]), quarantined, '2026-11-17'))[0], /\| green \| 0 \/ 2 \| 2 of 2 \|/);
+});
+
+test('expects every configured project and reports the error when a Playwright run lists no test', () => {
+  const report = playwrightReport([], [], [{name: 'chromium', repeatEach: 3}, {name: 'webkit', repeatEach: 3}],
+    [{message: 'Error: Cannot find module ./helper\n    at claims.pw.ts:1', location: {file: `${frontend}e2e/claims.pw.ts`}}]);
+  const markdown = renderMarkdown(summarize([report]), [entry('flaky')], '2026-11-17');
+  assert.deepEqual(statusRows(markdown).map(line => line.split(' | ').slice(0, 5).join(' | ')), [
+    '| playwright chromium | `e2e/claims.pw.ts` › flaky | not run: check the title path and errors outside tests | 0 / 0 | 0 of 3',
+    '| playwright webkit | `e2e/claims.pw.ts` › flaky | not run: check the title path and errors outside tests | 0 / 0 | 0 of 3',
+  ]);
+  assert.match(markdown, /\| playwright \| `e2e\/claims.pw.ts` \| 1 \| Error: Cannot find module .\/helper \|/);
 });
 
 test('reports a clean soak without tables', () => {

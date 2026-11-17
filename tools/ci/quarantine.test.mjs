@@ -8,7 +8,8 @@ const valid = {
   issue: 'https://github.com/GandalfTheJunior/mtg-commander-stats/issues/314', since: '2026-11-16', until: '2026-11-30',
 };
 const exists = () => true;
-const problems = change => quarantineProblems([{...valid, ...change}], exists);
+const plainSpec = () => "test('accepts once', async ({page}) => {})";
+const problems = change => quarantineProblems([{...valid, ...change}], exists, plainSpec);
 
 test('the committed registry is valid', () => {
   const registry = JSON.parse(readFileSync(new URL('../../frontend/test-quarantine.json', import.meta.url), 'utf8'));
@@ -32,6 +33,15 @@ test('requires a test file of the named runner that exists', () => {
   assert.match(problems({file: 'e2e/claims.pw.ts'})[0], /must be a vitest test file/);
   assert.match(problems({file: 'src/DeckManager.tsx'})[0], /must be a vitest test file/);
   assert.match(quarantineProblems([valid], () => false)[0], /src\/DeckManager\.test\.tsx does not exist/);
+});
+
+test('rejects Playwright specs that declare tags with the tag option', () => {
+  const tagged = () => "test('accepts once', {tag: '@slow'}, async ({page}) => {})";
+  const playwright = {...valid, runner: 'playwright', file: 'e2e/claims.pw.ts'};
+  assert.deepEqual(quarantineProblems([playwright], exists, plainSpec), []);
+  assert.match(quarantineProblems([playwright], exists, tagged)[0], /uses the Playwright tag option/);
+  // Inline tags are part of the title and are matched exactly.
+  assert.deepEqual(quarantineProblems([{...playwright, test: 'accepts once @slow'}], exists, () => "test('accepts once @slow', () => {})"), []);
 });
 
 test('requires a tracking issue in this repository', () => {

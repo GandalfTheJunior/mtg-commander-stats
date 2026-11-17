@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Summarizes repeated test runs as Markdown: the tests that failed at least once,
-// and the status of every quarantine entry in force. Reads Vitest and Playwright
-// JSON reports. See docs/development/testing.md.
+// errors outside tests, and the status of every quarantine entry in force.
+// Reads Vitest and Playwright JSON reports. See docs/development/testing.md.
 import {readdirSync, readFileSync} from 'node:fs';
 import {join, relative} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -17,12 +17,14 @@ function firstLine(message) {
 }
 
 /**
- * Yields {runner, file, test, case, cases, failed, message} for every executed test
- * in one Vitest JSON report. `test` is the full title path. Parametrized cases that
- * share a title path are told apart by `case`, their position among those cases in
- * the file; the position is stable across repetitions of the same code.
+ * Yields {runner, file, test, case, cases, status, message, repetition} for every
+ * test in one Vitest JSON report, one report per repetition. `status` is passed,
+ * failed or skipped (not executed, for example after a failing beforeAll).
+ * `test` is the full title path. Parametrized cases that share a title path are
+ * told apart by `case`, their position among those cases in the file; the
+ * position is stable across repetitions of the same code.
  */
-function* vitestOutcomes(report) {
+function* vitestOutcomes(report, repetition) {
   for (const file of report.testResults) {
     const cases = new Map();
     const numbered = file.assertionResults.map(assertion => {
@@ -31,16 +33,25 @@ function* vitestOutcomes(report) {
       return {assertion, test, case: cases.get(test)};
     });
     for (const {assertion, test, case: position} of numbered) {
-      if (assertion.status !== 'passed' && assertion.status !== 'failed') continue;
       yield {
         runner: 'vitest',
         file: relative(frontend, file.name),
         test,
         case: position,
         cases: cases.get(test),
-        failed: assertion.status === 'failed',
+        status: assertion.status === 'passed' || assertion.status === 'failed' ? assertion.status : 'skipped',
         message: firstLine(assertion.failureMessages?.[0]),
+        repetition,
       };
+    }
+  }
+}
+
+/** Errors outside any test in one Vitest report: a failed file without a failed test. */
+function* vitestErrors(report) {
+  for (const file of report.testResults) {
+    if (file.status === 'failed' && !file.assertionResults.some(assertion => assertion.status === 'failed')) {
+      yield {runner: 'vitest', file: relative(frontend, file.name), message: firstLine(file.message) || 'file failed outside its tests'};
     }
   }
 }
@@ -48,23 +59,26 @@ function* vitestOutcomes(report) {
 /**
  * Yields the same shape for one Playwright JSON report. Playwright rejects duplicate
  * titles within a file, so project, file and title path identify a test; each
- * `--repeat-each` repetition is listed as its own spec with that identity.
+ * `--repeat-each` repetition is listed as its own spec with that identity and
+ * counts as its own repetition.
  */
-function* playwrightOutcomes(report) {
+function* playwrightOutcomes(report, reportIndex) {
   const directory = relative(frontend, report.config.rootDir);
+  let attempt = 0;
   function* walk(suite, titles) {
     for (const spec of suite.specs ?? []) {
       for (const test of spec.tests) {
         const result = test.results.at(-1);
-        if (!result || result.status === 'skipped') continue;
+        const status = !result || result.status === 'skipped' ? 'skipped' : result.status === 'passed' ? 'passed' : 'failed';
         yield {
           runner: `playwright ${test.projectName}`,
           file: join(directory, spec.file),
           test: [...titles, spec.title].join(titleSeparator),
           case: 1,
           cases: 1,
-          failed: result.status !== 'passed',
-          message: firstLine(result.error?.message),
+          status,
+          message: firstLine(result?.error?.message),
+          repetition: `${reportIndex}:${attempt++}`,
         };
       }
     }
@@ -74,25 +88,57 @@ function* playwrightOutcomes(report) {
   for (const file of report.suites) yield* walk(file, []);
 }
 
-/** Aggregates reports into one row per test case, most frequent failures first. */
+/** Errors outside any test in one Playwright report, for example a spec that fails to load. */
+function* playwrightErrors(report) {
+  for (const error of report.errors ?? []) {
+    yield {runner: 'playwright', file: error.location?.file ? relative(frontend, error.location.file) : '', message: firstLine(error.message)};
+  }
+}
+
+/**
+ * Aggregates reports into one row per executed test case (most frequent failures
+ * first), the errors outside tests, every attempt including unexecuted ones, and
+ * the number of repetitions each runner was expected to run.
+ */
 export function summarize(reports) {
   const rows = new Map();
-  for (const report of reports) {
-    const outcomes = report.testResults ? vitestOutcomes(report) : playwrightOutcomes(report);
-    for (const {runner, file, test, case: position, cases, failed, message} of outcomes) {
-      const key = JSON.stringify([runner, file, test, position]);
-      const row = rows.get(key) ?? {runner, file, test, case: position, cases, runs: 0, failures: 0, message: ''};
-      row.runs++;
-      if (failed) {
-        row.failures++;
-        row.message ||= message;
-      }
-      rows.set(key, row);
+  const attempts = [];
+  const errors = [];
+  const expected = new Map();
+  const expect = (runner, count) => expected.set(runner, (expected.get(runner) ?? 0) + count);
+  reports.forEach((report, index) => {
+    if (report.testResults) {
+      expect('vitest', 1);
+      attempts.push(...vitestOutcomes(report, `${index}`));
+      errors.push(...vitestErrors(report));
+      return;
     }
+    const outcomes = [...playwrightOutcomes(report, index)];
+    attempts.push(...outcomes);
+    errors.push(...playwrightErrors(report));
+    // Projects that ran; with no test listed at all (a load error), every configured project.
+    const ran = new Set(outcomes.map(outcome => outcome.runner.slice('playwright '.length)));
+    for (const project of report.config.projects ?? []) {
+      if (ran.size === 0 || ran.has(project.name)) expect(`playwright ${project.name}`, project.repeatEach ?? 1);
+    }
+  });
+  for (const {runner, file, test, case: position, cases, status, message} of attempts) {
+    if (status === 'skipped') continue;
+    const key = JSON.stringify([runner, file, test, position]);
+    const row = rows.get(key) ?? {runner, file, test, case: position, cases, runs: 0, failures: 0, message: ''};
+    row.runs++;
+    if (status === 'failed') {
+      row.failures++;
+      row.message ||= message;
+    }
+    rows.set(key, row);
   }
   const all = [...rows.values()];
   return {
     rows: all,
+    attempts,
+    errors,
+    expected,
     tests: all.length,
     executions: all.reduce((sum, row) => sum + row.runs, 0),
     failing: all.filter(row => row.failures > 0)
@@ -107,12 +153,39 @@ const matches = (entry, row) => row.runner.startsWith(entry.runner) && entry.fil
 const daysUntil = (day, today) => Math.round((Date.parse(day) - Date.parse(today)) / 86_400_000);
 
 /**
+ * Result of one quarantine entry for one runner. A repetition counts as run only
+ * when every case the entry matches executed in it, and as failed when any of
+ * them failed. The night is green only when every expected repetition ran and
+ * none failed.
+ */
+function quarantineResult(entry, runner, {attempts, expected}) {
+  const repetitions = new Map();
+  for (const attempt of attempts) {
+    if (attempt.runner !== runner || !matches(entry, attempt)) continue;
+    const statuses = repetitions.get(attempt.repetition) ?? [];
+    statuses.push(attempt.status);
+    repetitions.set(attempt.repetition, statuses);
+  }
+  const results = [...repetitions.values()].map(statuses =>
+    statuses.includes('failed') ? 'failed' : statuses.every(status => status === 'passed') ? 'passed' : 'not run');
+  const failed = results.filter(result => result === 'failed').length;
+  const ran = results.filter(result => result !== 'not run').length;
+  const total = expected.get(runner) ?? 0;
+  const result = failed > 0 ? 'red'
+    : ran === 0 ? 'not run: check the title path and errors outside tests'
+    : ran < total ? `incomplete: ${ran} of ${total} repetitions ran`
+    : 'green';
+  return {result, failed, ran, total};
+}
+
+/**
  * `quarantine` is the parsed frontend/test-quarantine.json and `today` a UTC day
  * (YYYY-MM-DD). Failing tests listed in it are marked with their end date. Every
- * entry in force today for a runner present in the reports gets a status row per
- * runner, including entries whose test passed or did not run at all.
+ * entry in force today gets a status row per runner present in the reports,
+ * including entries whose test passed, ran incompletely or did not run at all.
  */
-export function renderMarkdown({rows, tests, executions, failing}, quarantine = [], today = new Date().toISOString().slice(0, 10)) {
+export function renderMarkdown(summary, quarantine = [], today = new Date().toISOString().slice(0, 10)) {
+  const {tests, executions, failing, errors, expected} = summary;
   const lines = ['## Soak summary', '', `${executions} executions of ${tests} tests; ${failing.length} test(s) failed at least once.`];
   if (failing.length > 0) {
     lines.push('', '| Runner | Test | Failed / runs | Quarantined until | First failure |', '| --- | --- | --- | --- | --- |');
@@ -122,20 +195,32 @@ export function renderMarkdown({rows, tests, executions, failing}, quarantine = 
     }
   }
 
-  const runners = [...new Set(rows.map(row => row.runner))].sort();
+  if (errors.length > 0) {
+    const counted = new Map();
+    for (const error of errors) {
+      const key = JSON.stringify([error.runner, error.file, error.message]);
+      counted.set(key, {...error, count: (counted.get(key)?.count ?? 0) + 1});
+    }
+    lines.push('', '## Errors outside tests', '',
+      'Tests of an affected file may not have run in these repetitions.', '',
+      '| Runner | File | Occurrences | Error |', '| --- | --- | --- | --- |');
+    for (const error of counted.values()) {
+      lines.push(`| ${error.runner} | ${error.file ? `\`${cell(error.file)}\`` : ''} | ${error.count} | ${cell(error.message)} |`);
+    }
+  }
+
+  const runners = [...expected.keys()].sort();
   const status = quarantine
     .filter(entry => entry.since <= today && today <= entry.until)
     .flatMap(entry => runners.filter(runner => runner.startsWith(entry.runner)).map(runner => {
-      const matched = rows.filter(row => row.runner === runner && matches(entry, row));
-      const runs = matched.reduce((sum, row) => sum + row.runs, 0);
-      const failures = matched.reduce((sum, row) => sum + row.failures, 0);
-      const result = runs === 0 ? 'not run: check the title path' : failures === 0 ? 'green' : 'red';
-      return `| ${runner} | \`${cell(entry.file)}\` › ${cell(entry.test)} | ${result} | ${failures} / ${runs} | ${entry.until} (${daysUntil(entry.until, today)} days left) | ${entry.issue} |`;
+      const {result, failed, ran, total} = quarantineResult(entry, runner, summary);
+      return `| ${runner} | \`${cell(entry.file)}\` › ${cell(entry.test)} | ${result} | ${failed} / ${ran} | ${ran} of ${total} | ${entry.until} (${daysUntil(entry.until, today)} days left) | ${entry.issue} |`;
     }));
   if (status.length > 0) {
     lines.push('', '## Quarantine status', '',
-      'A quarantined test returns to the PR checks after three consecutive green nights in every soak job that runs it.', '',
-      '| Runner | Test | Tonight | Failed / runs | Quarantined until | Issue |', '| --- | --- | --- | --- | --- | --- |', ...status);
+      'A night counts as green only when every expected repetition ran and passed. A quarantined test returns to the PR checks after three consecutive green nights in every soak job that runs it.', '',
+      '| Runner | Test | Tonight | Failed / run repetitions | Repetitions run | Quarantined until | Issue |',
+      '| --- | --- | --- | --- | --- | --- | --- |', ...status);
   }
   return `${lines.join('\n')}\n`;
 }
