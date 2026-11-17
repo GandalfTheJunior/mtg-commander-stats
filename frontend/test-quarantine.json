@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "runner": "playwright",
+    "file": "e2e/personal-deck-interactions.pw.ts",
+    "test": "native touch scrolling through and outside the edit region never opens the editor",
+    "issue": "https://github.com/GandalfTheJunior/mtg-commander-stats/issues/338",
+    "since": "2026-11-17",
+    "until": "2026-12-01"
+  }
+]
