@@ -129,25 +129,104 @@ A quarantined test returns to the PR checks only after its fix is confirmed.
 The PO decided (17 November 2026) on one rule for test and product fixes alike,
 because a single PR run or burn-in cannot rule out a rare failure:
 
-1. The fix PR references the tracking issue but leaves the registry entry in
-   place.
+1. The fix PR references the tracking issue (`Refs #123`) but leaves the
+   registry entry in place.
 2. After the fix is merged, the entry stays until the test is **green on three
    consecutive nights** in every soak job that runs it: `vitest soak`, or both
    `browser soak` engines for a Playwright test. A night is green only when
    every expected repetition ran and passed; a red, incomplete or not-run
    night restarts the count.
-3. A separate small PR then removes the entry and closes the tracking issue.
+3. A separate small PR then removes the entry and closes the tracking issue
+   (`Closes #123`).
 4. If `until` arrives first, the PO decides whether to extend the quarantine
    (a new entry with new approval) or let it lapse so the test gates PRs again.
 
-Review quarantine weekly: open the latest soak run's summary and the open
-`quarantine` issues, and decide for each entry whether it is still under
-investigation, ready to return or close to its end date.
+Review quarantine weekly: open the latest soak run's summary and the
+[quarantine board](#quarantine-board), and decide for each entry whether it is
+still under investigation, ready to return or close to its end date.
 
 While an entry is in force, `npm run test` reports the Vitest test as skipped
 with its end date and issue, and `npm run test:browser` leaves the Playwright
 test out. Set `RUN_QUARANTINED=1` to run quarantined tests locally. The
 `frontend` job validates the registry (`node --test tools/ci/*.test.mjs`).
+
+### Quarantine board
+
+The [quarantine board](https://github.com/users/GandalfTheJunior/projects/3/views/1)
+(a GitHub project) follows every tracking issue through the rules above:
+
+| Status | Meaning | Set |
+| --- | --- | --- |
+| To do | The test is quarantined; nobody works on its cause yet. | Automatically when an issue gets the `quarantine` label. |
+| In progress | The cause is being investigated or a fix PR is open. | Manually. |
+| Verifying | The fix is merged; green soak nights are being counted. | Manually. |
+| Done | The entry is removed and the tracking issue is closed. | Automatically when the issue closes. |
+
+The `quarantine` label is added only after the PO approved the entry, so To do
+always means quarantined. Only the PR that removes the registry entry closes
+the tracking issue, with a closing keyword such as `Closes #123`. The PR that
+adds the entry and the fix PR use `Refs #123`, and nobody links them in the
+issue's Development sidebar: a closing keyword or such a link closes the issue
+when the PR merges, which would skip the green nights and move the item to
+Done.
+
+### Recognizing quarantine candidates
+
+When a CI job fails on a test, whoever investigates the failure classifies it
+before proposing a rerun, a fix or a quarantine. A failing test is a
+**quarantine candidate** only when all of these hold:
+
+1. **Unrelated to the change.** The PR or commit changes neither the test, its
+   helpers or fixtures, nor the code the test exercises. Name the files checked.
+2. **Not deterministic.** The test passes on the base revision, in other runs or
+   in repeated local runs. A green CI rerun alone is not evidence.
+3. **Recurring.** The same signature (test, failing line and assertion) failed
+   at least twice, on two different commits that do not touch it. Attempts on
+   one commit count once. Look in open `quarantine` issues, the CI reliability
+   tracker [#314](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/314),
+   soak summaries and CI history.
+4. **No evident small fix.** If the code shows the mechanism and the fix is
+   small, for example an assertion made before a passive React effect ran
+   ([#339](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/339)),
+   propose the fix instead.
+5. **Not plausibly worsened by the change.** If the failure has so far appeared
+   only on the current PR, investigate whether the change causes or provokes it,
+   for example through added load, before calling it unrelated.
+
+Report one classification with its evidence in the PR's Reviewer Context and
+in the final response. Check the classifications in this order; the first that
+applies is the result. Earlier recorded occurrences never override evidence
+that the change causes the failure or that a small fix is evident.
+
+1. **Change-related:** the change causes or provokes the failure (criterion 1
+   or 5 fails), or the test fails deterministically (criterion 2 fails). Fix it
+   within the task's scope or report the CI failure.
+2. **Fix instead of quarantine:** criterion 4 fails. Describe the mechanism and
+   the proposed fix, even when the signature is already tracked in an issue.
+3. **Already quarantined:** an open `quarantine` issue tracks the signature.
+   Record the occurrence there (see below); no further proposal.
+4. **New candidate:** all five criteria hold, including for a signature that
+   is so far only recorded in #314 or another issue. Propose the quarantine to
+   the PO with the occurrences and a draft registry entry. Creating the
+   tracking issue, adding the `quarantine` label and editing the registry need
+   PO approval.
+5. **Insufficient evidence:** none of the above, for example a first
+   occurrence, or a failure whose relation to the change or whose
+   intermittency is not yet established. Report the failure with its
+   signature, run, job and evidence links; state that the cause is unknown.
+   Do not assert a cause and do not propose quarantine.
+
+Independently of the classification, note whether the signature is already
+tracked: in an open `quarantine` issue, in
+[#314](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/314) or in
+another issue. The PO decided (17 November 2026) that agents may add a new
+occurrence to an open `quarantine` issue as a comment without asking: PR,
+commit, run, job, signature, evidence links and whether the change touches the
+test. For signatures tracked elsewhere or not at all, report the occurrence
+without writing anywhere, so the PO can record it.
+
+A failure of a quarantined test in the soak run is expected until its fix is
+confirmed and is not a new candidate.
 
 ## Nightly soak run
 
