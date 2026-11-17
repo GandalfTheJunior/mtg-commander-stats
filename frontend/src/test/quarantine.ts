@@ -6,7 +6,7 @@ export type QuarantineEntry = {
   runner: 'vitest' | 'playwright'
   /** Path relative to frontend/, for example src/DeckManager.test.tsx or e2e/claims.pw.ts. */
   file: string
-  /** Exact test title. */
+  /** Full title path below the file: describe titles and the test title, joined by ` › `. */
   test: string
   /** Issue that tracks the root-cause fix. */
   issue: string
@@ -20,6 +20,9 @@ declare module 'vitest' {
   export interface ProvidedContext { quarantined: QuarantineEntry[] }
 }
 
+/** Separator between describe titles and the test title in an entry's `test`. */
+export const titleSeparator = ' › '
+
 export const utcDay = (date: Date) => date.toISOString().slice(0, 10)
 
 /** Entries in force on `day`. A lapsed entry stops applying, so its test gates pull requests again. */
@@ -30,10 +33,15 @@ export function activeQuarantine(entries: QuarantineEntry[], runner: QuarantineE
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 /**
- * Matches the string Playwright filters on: project name, spec path relative
- * to the e2e test directory, describe titles, test title and tags, space-separated.
+ * Matches exactly the string Playwright filters on for the entry's test:
+ * project name, spec path relative to the e2e directory, describe titles and
+ * test title, each followed by its tags, space-separated.
+ * Anchored at both ends, so a title that merely ends or starts with the
+ * quarantined title is never excluded.
  */
 export function playwrightTitlePattern(entry: QuarantineEntry) {
+  const tags = '(?: @\\S+)*'
   const spec = entry.file.replace(/^e2e\//, '')
-  return new RegExp(` ${escapeRegExp(spec)} (?:.* )?${escapeRegExp(entry.test)}(?: @\\S+)*$`)
+  const titles = entry.test.split(titleSeparator).map(title => escapeRegExp(title) + tags).join(' ')
+  return new RegExp(`^[^ ]+${tags} ${escapeRegExp(spec)}${tags} ${titles}$`)
 }

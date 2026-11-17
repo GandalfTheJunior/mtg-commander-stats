@@ -98,7 +98,7 @@ a retry and not a fix: the test keeps running every night in the
 {
   "runner": "playwright",
   "file": "e2e/example.pw.ts",
-  "test": "exact test title",
+  "test": "describe title › exact test title",
   "issue": "https://github.com/GandalfTheJunior/mtg-commander-stats/issues/123",
   "since": "2026-11-16",
   "until": "2026-11-30"
@@ -107,14 +107,37 @@ a retry and not a fix: the test keeps running every night in the
 
 - `runner` is `vitest` or `playwright`; `file` is relative to `frontend/`. A
   Playwright entry applies to both engines.
-- `issue` records the failing runs and owns the root-cause fix.
+- `test` is the full title path below the file: every enclosing `describe`
+  title and the test title, joined by ` › `, as `npx playwright test --list`
+  prints it after the file name. A top-level test is just its title. The match
+  is exact, so a test whose title merely contains the quarantined title stays
+  in the PR checks. Vitest cases that share one title path (for example from
+  `it.each` with a fixed title) are quarantined together.
+- `issue` is the tracking issue, labeled `quarantine`. It records the failing
+  runs, the entry and its end date, and owns the root-cause fix.
 - `since` and `until` are the first and last quarantined day (UTC), at most 14
   days apart. After `until` the entry stops applying by itself and the test
   gates PRs again. Extending it is a new reviewed change to the registry.
 - Adding or extending an entry needs explicit PO approval. Use it for tests
   with recorded intermittent failures on unrelated changes, never for a test
   that fails deterministically or that the same PR adds or changes.
-- The PR that fixes the cause removes the entry.
+
+A quarantined test returns to the PR checks only after its fix is confirmed.
+The PO decided (17 November 2026) on one rule for test and product fixes alike,
+because a single PR run or burn-in cannot rule out a rare failure:
+
+1. The fix PR references the tracking issue but leaves the registry entry in
+   place.
+2. After the fix is merged, the entry stays until the test is **green on three
+   consecutive nights** in every soak job that runs it: `vitest soak`, or both
+   `browser soak` engines for a Playwright test. A red night restarts the count.
+3. A separate small PR then removes the entry and closes the tracking issue.
+4. If `until` arrives first, the PO decides whether to extend the quarantine
+   (a new entry with new approval) or let it lapse so the test gates PRs again.
+
+Review quarantine weekly: open the latest soak run's summary and the open
+`quarantine` issues, and decide for each entry whether it is still under
+investigation, ready to return or close to its end date.
 
 While an entry is in force, `npm run test` reports the Vitest test as skipped
 with its end date and issue, and `npm run test:browser` leaves the Playwright
@@ -132,11 +155,17 @@ not PR checks and cannot satisfy `frontend` or the browser jobs.
 
 Each job summary lists every test that failed at least once with its failure
 count, runs, quarantine end date and first error line; a job fails when any
-repetition failed. The `vitest-soak-results` and `browser-soak-results-<engine>`
-artifacts keep the JSON reports and, for browser failures, traces, error context
-and screenshots for 14 days. Use these counts to prioritize investigations and
-to confirm a fix before removing a quarantine entry. A newly added workflow may
-not be dispatchable until it exists on the default branch; an unrun soak is not
+repetition failed. Parametrized Vitest cases that share a title path are counted
+separately, labeled by their position in the file. A **Quarantine status**
+section then lists every entry in force for that job's runner, green or not:
+its result that night, failures per runs and days left. `not run` means the
+entry no longer matches any test, usually after a rename; correct the entry.
+
+The `vitest-soak-results` and `browser-soak-results-<engine>` artifacts keep the
+JSON reports and, for browser failures, traces, error context and screenshots
+for 14 days. Use these counts to prioritize investigations and to count the
+green nights before removing a quarantine entry. A newly added workflow may not
+be dispatchable until it exists on the default branch; an unrun soak is not
 evidence of stability.
 
 ## Invitation request quota isolation

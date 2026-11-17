@@ -1,8 +1,11 @@
+import { execFileSync } from 'node:child_process'
+import { createRequire } from 'node:module'
+import { resolve } from 'node:path'
 import { expect, test } from 'vitest'
-import { activeQuarantine, playwrightTitlePattern, utcDay, type QuarantineEntry } from './quarantine.ts'
+import { activeQuarantine, utcDay, type QuarantineEntry } from './quarantine.ts'
 
 const entry: QuarantineEntry = {
-  runner: 'playwright', file: 'e2e/claims.pw.ts', test: 'accepts (once) at 320px',
+  runner: 'playwright', file: 'e2e/sample.pw.ts', test: 'target',
   issue: 'https://github.com/GandalfTheJunior/mtg-commander-stats/issues/1', since: '2026-11-10', until: '2026-11-20',
 }
 
@@ -17,12 +20,38 @@ test('days are compared in UTC', () => {
   expect(utcDay(new Date('2026-11-21T00:00:00+02:00'))).toBe('2026-11-20')
 })
 
-test('the Playwright pattern matches exactly the quarantined test in its spec, in every project', () => {
-  const pattern = playwrightTitlePattern(entry)
-  expect(pattern.test('chromium claims.pw.ts accepts (once) at 320px')).toBe(true)
-  expect(pattern.test('webkit claims.pw.ts Claim dialog accepts (once) at 320px @slow')).toBe(true)
-  expect(pattern.test('chromium claims.pw.ts accepts (once) at 320px and again')).toBe(false)
-  expect(pattern.test('chromium claims.pw.ts accepts xoncex at 320px')).toBe(false)
-  expect(pattern.test('chromium invitations.pw.ts accepts (once) at 320px')).toBe(false)
-  expect(pattern.test('chromium other-claims.pw.ts accepts (once) at 320px')).toBe(false)
+// The real Playwright runner lists the fixture specs with the quarantine filter applied.
+// Paths resolve from frontend/, the Vitest root, because jsdom replaces file URLs.
+const playwrightCli = createRequire(resolve('package.json')).resolve('@playwright/test/cli')
+const fixtureConfig = resolve('src/test/quarantine-fixture/playwright.config.ts')
+
+type ListedSuite = { title: string, specs?: { title: string, tests: { projectName: string }[] }[], suites?: ListedSuite[] }
+
+function listed(entries: QuarantineEntry[]) {
+  const output = execFileSync(process.execPath, [playwrightCli, 'test', '--list', '--reporter=json', '--config', fixtureConfig], {
+    encoding: 'utf8', env: { ...process.env, QUARANTINE_ENTRIES: JSON.stringify(entries) },
+  })
+  const tests: string[] = []
+  const collect = (suite: ListedSuite, titles: string[]) => {
+    for (const spec of suite.specs ?? []) for (const run of spec.tests) tests.push([run.projectName, ...titles, spec.title].join(' › '))
+    for (const child of suite.suites ?? []) collect(child, [...titles, child.title])
+  }
+  for (const file of (JSON.parse(output) as { suites: ListedSuite[] }).suites) collect(file, [file.title])
+  return tests.sort()
+}
+
+const all = ['target', 'unrelated prefix target', 'target and more', 'control', 'tagged target @slow', 'group › target', 'group › inner group › target']
+  .map(title => `sample.pw.ts › ${title}`).concat('other.pw.ts › target')
+const everywhere = (titles: string[]) => ['chromium', 'webkit'].flatMap(project => titles.map(title => `${project} › ${title}`)).sort()
+
+test('the real Playwright runner excludes exactly the quarantined test in both projects', { timeout: 60_000 }, () => {
+  expect(listed([])).toEqual(everywhere(all))
+  const except = (excluded: string) => everywhere(all.filter(title => title !== excluded))
+  // A title that ends, starts or nests the quarantined title in the same or another spec stays listed.
+  expect(listed([entry])).toEqual(except('sample.pw.ts › target'))
+  expect(listed([{ ...entry, test: 'group › target' }])).toEqual(except('sample.pw.ts › group › target'))
+  expect(listed([{ ...entry, test: 'group › inner group › target' }])).toEqual(except('sample.pw.ts › group › inner group › target'))
+  expect(listed([{ ...entry, test: 'tagged target @slow' }])).toEqual(except('sample.pw.ts › tagged target @slow'))
+  // An entry that names no existing title path excludes nothing.
+  expect(listed([{ ...entry, test: 'inner group › target' }])).toEqual(everywhere(all))
 })
