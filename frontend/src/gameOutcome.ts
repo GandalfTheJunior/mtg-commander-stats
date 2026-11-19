@@ -65,6 +65,7 @@ export function outcomeFields(draft: OutcomeDraft, mode: OutcomeMode, winnerOnly
 export function gamePayload(input: GameInput): GameInput {
   return { result: input.result, alternateWinCon: input.result === 'WIN' && input.alternateWinCon,
     ...('playedOn' in input ? { playedOn: input.playedOn ?? null } : {}),
+    ...('playedOnTimeZone' in input ? { playedOnTimeZone: input.playedOnTimeZone } : {}),
     participants: input.participants.map(p => ({
       userId: p.userId, deckId: p.deckId, startPosition: p.startPosition,
       ...(input.result === 'DRAW' ? { stillInGame: p.stillInGame! } :

@@ -4,6 +4,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.deck.application.InvalidDeck
 import io.github.gandalfthejunior.mtgcommanderstats.game.application.GameNotFoundException;
 import io.github.gandalfthejunior.mtgcommanderstats.game.application.InvalidHistoryCursorException;
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.InvalidGameException;
+import io.github.gandalfthejunior.mtgcommanderstats.game.domain.InvalidPlayedOnException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupAccessDeniedException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupNotFoundException;
 import org.springframework.dao.ConcurrencyFailureException;
@@ -23,6 +24,19 @@ public class GameErrors {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
                 "Provide only documented fields, 2–6 distinct eligible players with their decks,"
                         + " unique start seats and complete mode-specific WIN/DRAW facts with valid competition ranks.");
+    }
+
+    @ExceptionHandler(InvalidPlayedOnException.class)
+    public ProblemDetail invalidPlayedOn(InvalidPlayedOnException exception) {
+        String detail = switch (exception.code()) {
+            case "PLAYED_ON_FUTURE" -> "Choose today or an earlier playedOn date in the supplied time zone.";
+            case "PLAYED_ON_TIME_ZONE_INVALID" -> "Supply a valid IANA playedOnTimeZone with every non-null playedOn date.";
+            default -> "Supply playedOn as a valid YYYY-MM-DD calendar date or null.";
+        };
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
+        problem.setProperty("code", exception.code());
+        problem.setProperty("field", exception.code().equals("PLAYED_ON_TIME_ZONE_INVALID") ? "playedOnTimeZone" : "playedOn");
+        return problem;
     }
 
     @ExceptionHandler(InvalidHistoryCursorException.class)

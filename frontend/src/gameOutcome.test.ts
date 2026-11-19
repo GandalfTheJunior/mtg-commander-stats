@@ -63,8 +63,8 @@ test('saved unknown ranks and statuses stay unknown when loading an edit', () =>
 
 test('the transport payload keeps playedOn including explicit null and omits it when absent', () => {
   const participants = [{ userId: uid(2), deckId: uid(102), startPosition: 1, placement: 1 }, { userId: uid(3), deckId: uid(103), startPosition: 2 }]
-  expect(gamePayload({ result: 'WIN', alternateWinCon: false, playedOn: '2026-11-06', participants })).toEqual({
-    result: 'WIN', alternateWinCon: false, playedOn: '2026-11-06', participants,
+  expect(gamePayload({ result: 'WIN', alternateWinCon: false, playedOn: '2026-11-06', playedOnTimeZone: 'Pacific/Kiritimati', participants })).toEqual({
+    result: 'WIN', alternateWinCon: false, playedOn: '2026-11-06', playedOnTimeZone: 'Pacific/Kiritimati', participants,
   })
   expect(gamePayload({ result: 'WIN', alternateWinCon: false, playedOn: null, participants }).playedOn).toBeNull()
   expect('playedOn' in gamePayload({ result: 'WIN', alternateWinCon: false, participants })).toBe(false)

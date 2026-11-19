@@ -12,6 +12,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.game.application.ManageGames
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.GameParticipant;
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.GameResult;
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.InvalidGameException;
+import io.github.gandalfthejunior.mtgcommanderstats.game.domain.InvalidPlayedOnException;
 import io.github.gandalfthejunior.mtgcommanderstats.security.UserPrincipal;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -39,7 +40,7 @@ public class GameController {
     public GameDetails create(@AuthenticationPrincipal UserPrincipal user, @PathVariable UUID groupId,
             @RequestBody GameRequest request) {
         return games.create(user.getId(), groupId, request.assignments(), GameResult.parse(request.result()),
-                request.alternate(), request.playedOnDate());
+                request.alternate(), request.playedOnDate(), request.timeZone());
     }
 
     @GetMapping("/api/groups/{groupId}/games")
@@ -63,7 +64,7 @@ public class GameController {
     public GameDetails replace(@AuthenticationPrincipal UserPrincipal user, @PathVariable UUID groupId,
             @PathVariable UUID gameId, @RequestBody GameRequest request) {
         return games.replace(user.getId(), groupId, gameId, request.assignments(), GameResult.parse(request.result()),
-                request.alternate(), request.playedOn() != null, request.playedOnDate());
+                request.alternate(), request.playedOn() != null, request.playedOnDate(), request.timeZone());
     }
 
     @DeleteMapping("/api/groups/{groupId}/games/{gameId}")
@@ -119,18 +120,26 @@ public class GameController {
     }
 
     public record GameRequest(List<ParticipantRequest> participants, String result, JsonNode alternateWinCon,
-            JsonNode playedOn) {
+            JsonNode playedOn, JsonNode playedOnTimeZone) {
+        String timeZone() {
+            if (playedOnTimeZone == null) return null;
+            if (!playedOnTimeZone.isString()) {
+                throw new InvalidPlayedOnException("PLAYED_ON_TIME_ZONE_INVALID");
+            }
+            return playedOnTimeZone.asText();
+        }
+
         LocalDate playedOnDate() {
             if (playedOn == null || playedOn.isNull()) {
                 return null;
             }
             if (!playedOn.isString() || !playedOn.asText().matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")) {
-                throw new InvalidGameException();
+                throw new InvalidPlayedOnException("PLAYED_ON_INVALID");
             }
             try {
                 return LocalDate.parse(playedOn.asText());
             } catch (DateTimeParseException exception) {
-                throw new InvalidGameException();
+                throw new InvalidPlayedOnException("PLAYED_ON_INVALID");
             }
         }
 
