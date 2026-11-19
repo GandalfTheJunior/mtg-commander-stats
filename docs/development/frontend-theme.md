@@ -93,6 +93,10 @@ is guarded by `import.meta.env.DEV`, and is not a production build entry.
 `ThemeFixture.test.tsx` checks observable validation, labelling and selection;
 the existing `App.test.tsx` flows also run under the production provider.
 
+The [Storybook component workshop](storybook.md) shows the same fixture as
+`Foundations/Themed controls`, next to palette and typography pages generated
+from `appTheme` and isolated component stories.
+
 ## Rendered contrast verification
 
 Chrome computed styles were sampled with `index.css` loaded, after hover/pressed

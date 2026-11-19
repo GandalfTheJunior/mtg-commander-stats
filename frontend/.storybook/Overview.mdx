@@ -1,0 +1,34 @@
+import { Meta } from '@storybook/addon-docs/blocks'
+
+<Meta title="Overview" />
+
+# Cozy Commander component workshop
+
+This Storybook is a **development-only** workshop. It shows individual production
+components and design experiments in isolation, in their relevant states, rendered
+with the production theme (`AppThemeProvider` and the legacy `index.css`). It is not
+part of the application build, has no backend and makes no network requests.
+
+## Sidebar groups
+
+- **Foundations** — theme tokens and themed MUI primitives, generated from `appTheme`.
+- **Patterns** — small recurring building blocks used by several screens.
+- **Components** — product-specific components as they exist in production.
+- **Experiments** — design experiments that are **not approved**. Every experiment
+  story carries the `experiment` tag.
+
+## Not an approval
+
+Showing an experiment here, or a passing check, is **not** Product Owner design
+approval and not authorization to change production. Only explicit PO decisions,
+recorded in the
+[visual design guidelines](https://github.com/GandalfTheJunior/mtg-commander-stats/blob/main/docs/product/visual-design-guidelines.md),
+promote an experiment, and adoption happens through a separate authorized issue.
+Storybook does not track design status; GitHub issues and the design guidelines
+remain the source of truth.
+
+## Adding a story
+
+See the
+[Storybook developer guide](https://github.com/GandalfTheJunior/mtg-commander-stats/blob/main/docs/development/storybook.md)
+for how to start Storybook, where stories live and how to add one.
