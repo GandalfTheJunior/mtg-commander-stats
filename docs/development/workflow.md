@@ -136,7 +136,10 @@ PR HEAD and actual GitHub status results. Required `backend`, `frontend`,
 and any other branch-protection checks must be **terminal and successful on
 that exact revision** before calling the PR **CI verified** or **review/merge
 ready**. Queued, pending, in-progress, missing, skipped, cancelled, timed-out,
-failed or stale checks are **not passes**. Reviewers may inspect code while
+failed or stale checks are **not passes**. The one exception is a
+[documentation-only change](testing.md#documentation-only-changes): when the
+`changes` job succeeded and classified the revision as documentation-only, the
+build and test jobs are skipped by design and count as passed. Reviewers may inspect code while
 CI runs, but final verification/review handoff and the PO merge decision must
 account for current-HEAD CI success, independent review, and PO authority.
 Branch protection is not a substitute for truthful reporting or human review.
