@@ -20,6 +20,53 @@ The application code is written by AI agents, while I focus on product decisions
 
 This project is an ongoing experiment in understanding both the possibilities and limitations of agent-based software development.
 
+## Features
+
+The App now has a fully functional (yet still ugly) UI. 
+
+### Accounts
+
+You can create an Account and Log in.
+
+### Decks 
+
+Create a Deck simple and fast by only entering its Name and Commander. 
+Cards are searched with scryfall-API. 
+Optional manabox-links can be added as there is no real deck editor yet.
+Full support for PEDH, Parnter Commanders and Companions.
+Click on an artwork to view the full Card, Text and Tokens.
+
+### Playgroups
+
+You can create or join Playgroups. Invites work through sharing links or a QR-Code.
+Record Matches Between Members of your Playgroup for 2+ Players.
+Gather Data about Players, Decks, Starting Order, Color-Identity and Placements.
+
+### Quick Profiles
+
+Only One User needs to have a registered Account. For everyone Else you can just Add a Quick Profile.
+You can do so even from the Record Game Dialog. Just Click "Register Quick Profile" and Create a Deck.
+You can rename a Quick Profile to keep track of who is who.
+Join Quick Profiles with a real account by simply choosing the "Merge Accounts" Option. Just by Sharing a Link or Scanning a QR-Code
+
+
+## Screenshots
+
+### Current UI (Built for Functionality)
+
+<img width="585" height="1266" alt="IMG_2506" src="https://github.com/user-attachments/assets/63058764-5b62-46d2-a6cc-754c72dd32b4" />
+<img width="585" height="1266" alt="IMG_2507" src="https://github.com/user-attachments/assets/6cc14f66-2192-4b16-8a5e-b7681a34d06e" />
+<img width="585" height="1266" alt="IMG_2505" src="https://github.com/user-attachments/assets/da6a543c-ed00-4757-ae16-21e46fd4212e" />
+<img width="585" height="1266" alt="IMG_2504" src="https://github.com/user-attachments/assets/62c6887c-4620-4f19-8742-a52ffec01619" />
+<img width="585" height="1266" alt="IMG_2503" src="https://github.com/user-attachments/assets/0f34f74a-c475-4c40-a470-25ec0a6a4832" />
+
+
+### Experimental Design Elements (WIP)
+
+<img width="585" height="1266" alt="IMG_2510" src="https://github.com/user-attachments/assets/5185b4ab-7182-4b4c-8078-3cfda51e50f6" />
+<img width="585" height="1266" alt="IMG_2509" src="https://github.com/user-attachments/assets/04a9fdf1-02cf-4fb0-8e90-db4ae82a96ed" />
+<img width="585" height="1266" alt="IMG_2508" src="https://github.com/user-attachments/assets/c2d066db-f564-4579-9e51-aa4780fc4ad7" />
+
 ## Agent entry point
 
 Agent clients and repository harnesses must load the root [`/AGENTS.md`](AGENTS.md)
