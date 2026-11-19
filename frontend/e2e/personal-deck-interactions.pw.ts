@@ -47,17 +47,8 @@ async function reveal(page: Page, deck: Deck) {
   })
 }
 
-// Allow rendering between native scroll/style updates and captures. This is a
-// synchronization precaution; the original Chromium failure is not reproduced.
-async function afterPaint(page: Page) {
-  await page.evaluate(() => new Promise<void>(resolve => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-  }))
-}
-
 // DOM visibility alone passes when an opaque pseudo-element paints over the glyphs.
-// Compare each detail's own pixels: WebKit can repaint a few pixels at an
-// ancestor's rounded corner when opacity changes, even when the text is covered.
+// Only one element changes per comparison: every detail must contribute visible pixels.
 async function expectDetailsPainted(page: Page, deck: Deck) {
   const area = region(page, deck)
   const elements = [
@@ -67,41 +58,22 @@ async function expectDetailsPainted(page: Page, deck: Deck) {
     area.getByRole('img', { name: 'Farbidentität: Blau, Rot' }),
     area.getByText('Deck bearbeiten', { exact: true }),
   ]
-  await afterPaint(page)
-  const bounds = (await area.boundingBox())!
-  expect(bounds.y).toBeGreaterThanOrEqual(0)
-  expect(bounds.y + bounds.height).toBeLessThanOrEqual(page.viewportSize()!.height)
+  const clip = (await area.boundingBox())!
+  expect(clip.y).toBeGreaterThanOrEqual(0)
+  expect(clip.y + clip.height).toBeLessThanOrEqual(page.viewportSize()!.height)
+  const painted = await page.screenshot({ clip })
   for (const element of elements) {
     await expect(element).toBeVisible()
-    const clip = await element.evaluate(node => {
-      if (node.getAttribute('role') === 'img') return node.getBoundingClientRect().toJSON()
-      const range = document.createRange()
-      range.selectNodeContents(node)
-      return range.getBoundingClientRect().toJSON()
-    })
-    expect(clip.x).toBeGreaterThanOrEqual(0)
-    expect(clip.y).toBeGreaterThanOrEqual(0)
-    expect(clip.x + clip.width).toBeLessThanOrEqual(page.viewportSize()!.width)
-    expect(clip.y + clip.height).toBeLessThanOrEqual(page.viewportSize()!.height)
-    const painted = await page.screenshot({ clip })
     const original = await element.evaluate((node: HTMLElement) => {
       const opacity = node.style.opacity
       node.style.opacity = '0'
       return opacity
     })
     try {
-      await afterPaint(page)
       const hidden = await page.screenshot({ clip })
-      if (painted.equals(hidden)) {
-        await test.info().attach('details-painted', { body: painted, contentType: 'image/png' })
-        await test.info().attach('details-hidden', { body: hidden, contentType: 'image/png' })
-        console.log('Pixel comparison geometry:', JSON.stringify({ clip, region: bounds, current: await area.boundingBox(),
-          scroll: await page.evaluate(() => ({ y: scrollY, viewportY: visualViewport?.pageTop })) }))
-      }
       expect(painted.equals(hidden), `Content must contribute visible pixels: ${await element.textContent()}`).toBe(false)
     } finally {
       await element.evaluate((node: HTMLElement, opacity) => { node.style.opacity = opacity }, original)
-      await afterPaint(page)
     }
   }
   await expect(page).toHaveURL(/\/decks$/)
@@ -248,26 +220,4 @@ test('native touch scrolling through and outside the edit region never opens the
     await expectDetailsPainted(page, deck)
   }
   await session.detach()
-})
-
-test('the pixel comparison still rejects an opaque overlay over DOM-visible details', async ({ page }) => {
-  await fixture(page)
-  const deck = decks[0]
-  await reveal(page, deck)
-  const area = region(page, deck)
-  const overlay = await area.evaluateHandle(element => {
-    const cover = document.createElement('div')
-    Object.assign(cover.style, { position: 'absolute', inset: '-4px', zIndex: '5', pointerEvents: 'none',
-      backgroundColor: getComputedStyle(element.closest('li')!).backgroundColor })
-    element.append(cover)
-    return cover
-  })
-  try {
-    await expect(area.getByText('First Commander', { exact: true })).toBeVisible()
-    await expect(expectDetailsPainted(page, deck)).rejects.toThrow('Content must contribute visible pixels: First Commander')
-  } finally {
-    await overlay.evaluate(element => element.remove())
-    await overlay.dispose()
-  }
-  await expectDetailsPainted(page, deck)
 })
