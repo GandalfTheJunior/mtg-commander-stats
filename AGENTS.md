@@ -20,6 +20,12 @@ by the human Product Owner (PO).
 - Issues labeled `DRAFT` (including `Draft`) are work in progress: inspect,
   discuss, challenge, or refine them, but do not implement them unless the PO
   explicitly overrides that state.
+- Issues labeled `Learning` are reserved for the PO to implement personally as
+  learning exercises. Agents may explain, answer questions, give hints, refine
+  the issue when asked, and review the PO's own implementation, but do not
+  implement them: no code changes, branches or PRs for the issue, and no
+  complete solution handed over in conversation unless the PO explicitly asks
+  for one. A general request to work through open issues never covers them.
 - Role authority and client/tool capability are independent. Available write
   tools confer no authority. When an authorized action is unavailable, prepare
   the intended result for the PO to apply and disclose what remains undone.
