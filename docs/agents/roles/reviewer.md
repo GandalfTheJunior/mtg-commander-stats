@@ -34,6 +34,11 @@ orientation aid, not proof of correctness.
    diff against the base and relevant surrounding behavior.
 2. Independently check implementer claims against repository evidence and
    verification. Evaluate specification compliance and relevant risk areas.
+   When CI failed, check the failure classification against
+   [recognizing quarantine candidates](../../development/testing.md#recognizing-quarantine-candidates).
+   For a PR that adds, fixes or removes a quarantined test, check the
+   [board linking rule](../../development/testing.md#quarantine-board): only
+   the PR that removes the registry entry closes the tracking issue.
 3. Prioritize actionable findings with evidence and distinguish defects from
    optional preferences. Assess each acceptance criterion explicitly.
 4. Report checks performed, missing evidence, limitations, and uncertainty.

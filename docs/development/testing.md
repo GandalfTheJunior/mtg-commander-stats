@@ -48,7 +48,9 @@ A failing test is a signal to investigate, not an obstacle to remove. Do not mak
 checks pass by deleting relevant tests, disabling tests, weakening assertions
 without justification, suppressing lint/type/security rules without justification,
 adding arbitrary retries for flaky tests, or changing expected behavior merely
-to match the implementation.
+to match the implementation. The only sanctioned way to take a test out of the
+PR checks before its cause is fixed is the time-boxed
+[quarantine](#quarantine-for-known-flaky-tests).
 
 If requirements changed and an existing expectation is now incorrect, update it
 and explain why the previous expectation is no longer valid. Investigate the
@@ -81,6 +83,181 @@ The development-only motion playground also has real Chromium/WebKit landing
 regressions. See [browser setup and evidence](motion-playground.md#repeatable-browser-verification)
 for commands and physical Safari acceptance checks; component mocks alone cannot
 verify animation continuity across React commits.
+
+## Quarantine for known flaky tests
+
+A test that fails intermittently on unrelated changes blocks every PR until its
+cause is found. The PO accepted (16 November 2026) that such a test may leave
+the PR checks for a limited time while the investigation runs. Quarantine is not
+a retry and not a fix: the test keeps running every night in the
+[soak run](#nightly-soak-run), and its tracking issue stays open.
+
+`frontend/test-quarantine.json` is the registry. Each entry names one test:
+
+```json
+{
+  "runner": "playwright",
+  "file": "e2e/example.pw.ts",
+  "test": "describe title › exact test title",
+  "issue": "https://github.com/GandalfTheJunior/mtg-commander-stats/issues/123",
+  "since": "2026-11-16",
+  "until": "2026-11-30"
+}
+```
+
+- `runner` is `vitest` or `playwright`; `file` is relative to `frontend/`. A
+  Playwright entry applies to both engines.
+- `test` is the full title path below the file: every enclosing `describe`
+  title and the test title, joined by ` › `, as `npx playwright test --list`
+  prints it after the file name. A top-level test is just its title. The match
+  is exact, so a test whose title merely contains the quarantined title, or
+  adds an inline `@tag` to it, stays in the PR checks. Inline `@tag` text is
+  part of the title. Specs that declare tags with Playwright's `tag` option
+  cannot be matched exactly and are rejected by the registry validation. Vitest
+  cases that share one title path (for example from `it.each` with a fixed
+  title) are quarantined together.
+- `issue` is the tracking issue, labeled `quarantine`. It records the failing
+  runs, the entry and its end date, and owns the root-cause fix.
+- `since` and `until` are the first and last quarantined day (UTC), at most 14
+  days apart. After `until` the entry stops applying by itself and the test
+  gates PRs again. Extending it is a new reviewed change to the registry.
+- Adding or extending an entry needs explicit PO approval. Use it for tests
+  with recorded intermittent failures on unrelated changes, never for a test
+  that fails deterministically or that the same PR adds or changes.
+
+A quarantined test returns to the PR checks only after its fix is confirmed.
+The PO decided (17 November 2026) on one rule for test and product fixes alike,
+because a single PR run or burn-in cannot rule out a rare failure:
+
+1. The fix PR references the tracking issue (`Refs #123`) but leaves the
+   registry entry in place.
+2. After the fix is merged, the entry stays until the test is **green on three
+   consecutive nights** in every soak job that runs it: `vitest soak`, or both
+   `browser soak` engines for a Playwright test. A night is green only when
+   every expected repetition ran and passed; a red, incomplete or not-run
+   night restarts the count.
+3. A separate small PR then removes the entry and closes the tracking issue
+   (`Closes #123`).
+4. If `until` arrives first, the PO decides whether to extend the quarantine
+   (a new entry with new approval) or let it lapse so the test gates PRs again.
+
+Review quarantine weekly: open the latest soak run's summary and the
+[quarantine board](#quarantine-board), and decide for each entry whether it is
+still under investigation, ready to return or close to its end date.
+
+While an entry is in force, `npm run test` reports the Vitest test as skipped
+with its end date and issue, and `npm run test:browser` leaves the Playwright
+test out. Set `RUN_QUARANTINED=1` to run quarantined tests locally. The
+`frontend` job validates the registry (`node --test tools/ci/*.test.mjs`).
+
+### Quarantine board
+
+The [quarantine board](https://github.com/users/GandalfTheJunior/projects/3/views/1)
+(a GitHub project) follows every tracking issue through the rules above:
+
+| Status | Meaning | Set |
+| --- | --- | --- |
+| To do | The test is quarantined; nobody works on its cause yet. | Automatically when an issue gets the `quarantine` label. |
+| In progress | The cause is being investigated or a fix PR is open. | Manually. |
+| Verifying | The fix is merged; green soak nights are being counted. | Manually. |
+| Done | The entry is removed and the tracking issue is closed. | Automatically when the issue closes. |
+
+The `quarantine` label is added only after the PO approved the entry, so To do
+always means quarantined. Only the PR that removes the registry entry closes
+the tracking issue, with a closing keyword such as `Closes #123`. The PR that
+adds the entry and the fix PR use `Refs #123`, and nobody links them in the
+issue's Development sidebar: a closing keyword or such a link closes the issue
+when the PR merges, which would skip the green nights and move the item to
+Done.
+
+### Recognizing quarantine candidates
+
+When a CI job fails on a test, whoever investigates the failure classifies it
+before proposing a rerun, a fix or a quarantine. A failing test is a
+**quarantine candidate** only when all of these hold:
+
+1. **Unrelated to the change.** The PR or commit changes neither the test, its
+   helpers or fixtures, nor the code the test exercises. Name the files checked.
+2. **Not deterministic.** The test passes on the base revision, in other runs or
+   in repeated local runs. A green CI rerun alone is not evidence.
+3. **Recurring.** The same signature (test, failing line and assertion) failed
+   at least twice, on two different commits that do not touch it. Attempts on
+   one commit count once. Look in open `quarantine` issues, the CI reliability
+   tracker [#314](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/314),
+   soak summaries and CI history.
+4. **No evident small fix.** If the code shows the mechanism and the fix is
+   small, for example an assertion made before a passive React effect ran
+   ([#339](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/339)),
+   propose the fix instead.
+5. **Not plausibly worsened by the change.** If the failure has so far appeared
+   only on the current PR, investigate whether the change causes or provokes it,
+   for example through added load, before calling it unrelated.
+
+Report one classification with its evidence in the PR's Reviewer Context and
+in the final response. Check the classifications in this order; the first that
+applies is the result. Earlier recorded occurrences never override evidence
+that the change causes the failure or that a small fix is evident.
+
+1. **Change-related:** the change causes or provokes the failure (criterion 1
+   or 5 fails), or the test fails deterministically (criterion 2 fails). Fix it
+   within the task's scope or report the CI failure.
+2. **Fix instead of quarantine:** criterion 4 fails. Describe the mechanism and
+   the proposed fix, even when the signature is already tracked in an issue.
+3. **Already quarantined:** an open `quarantine` issue tracks the signature.
+   Record the occurrence there (see below); no further proposal.
+4. **New candidate:** all five criteria hold, including for a signature that
+   is so far only recorded in #314 or another issue. Propose the quarantine to
+   the PO with the occurrences and a draft registry entry. Creating the
+   tracking issue, adding the `quarantine` label and editing the registry need
+   PO approval.
+5. **Insufficient evidence:** none of the above, for example a first
+   occurrence, or a failure whose relation to the change or whose
+   intermittency is not yet established. Report the failure with its
+   signature, run, job and evidence links; state that the cause is unknown.
+   Do not assert a cause and do not propose quarantine.
+
+Independently of the classification, note whether the signature is already
+tracked: in an open `quarantine` issue, in
+[#314](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/314) or in
+another issue. The PO decided (17 November 2026) that agents may add a new
+occurrence to an open `quarantine` issue as a comment without asking: PR,
+commit, run, job, signature, evidence links and whether the change touches the
+test. For signatures tracked elsewhere or not at all, report the occurrence
+without writing anywhere, so the PO can record it.
+
+A failure of a quarantined test in the soak run is expected until its fix is
+confirmed and is not a new candidate.
+
+## Nightly soak run
+
+The [Soak workflow](../../.github/workflows/soak.yaml) runs on the default branch
+every night at 01:23 UTC and via manual dispatch. It measures intermittent
+failures away from PRs: the complete Vitest suite five times, and every
+Playwright spec three times per engine (`--repeat-each=3`), with quarantined
+tests included. Its jobs (`vitest soak`, `browser soak (chromium|webkit)`) are
+not PR checks and cannot satisfy `frontend` or the browser jobs.
+
+Each job summary lists every test that failed at least once with its failure
+count, runs, quarantine end date and first error line; a job fails when any
+repetition failed. Parametrized Vitest cases that share a title path are counted
+separately, labeled by their position in the file. **Errors outside tests**
+lists failures that are not attributed to a test, such as a throwing
+`beforeAll` or a spec that fails to load; the affected tests may not have run.
+A **Quarantine status** section then lists every entry in force for that job's
+runner, green or not: its result that night, failed and run repetitions out of
+the expected ones and days left. The expected repetitions come from the run
+plan in the workflow (`VITEST_RUNS`, `PLAYWRIGHT_REPEATS`), not from the reports
+that exist, so a repetition that crashed before writing its report still
+counts and is listed as an error outside tests. `incomplete` means some
+repetitions did not execute the test; `not run` means none did, usually because
+of an error outside tests or a renamed test whose entry must be corrected.
+
+The `vitest-soak-results` and `browser-soak-results-<engine>` artifacts keep the
+JSON reports and, for browser failures, traces, error context and screenshots
+for 14 days. Use these counts to prioritize investigations and to count the
+green nights before removing a quarantine entry. A newly added workflow may not
+be dispatchable until it exists on the default branch; an unrun soak is not
+evidence of stability.
 
 ## Invitation request quota isolation
 
