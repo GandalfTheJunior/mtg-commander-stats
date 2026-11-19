@@ -297,8 +297,9 @@ failures still do. No external coverage service or additional required job is us
 - App means `src/**/*.{ts,tsx}` outside `src/playground/`; Playground means
   `src/playground/**/*.{ts,tsx}`. Explicit inclusion makes unimported executable
   modules appear as uncovered, including entry points and theme fixtures.
-  Both exclude `*.test.{ts,tsx}`, `*.spec.{ts,tsx}`, declarations (`*.d.ts`) and
-  `src/test/**` (test setup/helpers). CSS, images and type-only code have no
+  Both exclude `*.test.{ts,tsx}`, `*.spec.{ts,tsx}`, Storybook stories
+  (`*.stories.{ts,tsx}`), declarations (`*.d.ts`) and `src/test/**` (test
+  setup/helpers). CSS, images and type-only code have no
   executable JavaScript counters; generated output and dependencies are outside
   `src/`. No application module is excluded merely because it lacks tests.
 - `npm run test:coverage-reporter` checks partitioning and the zero-hit denominator
