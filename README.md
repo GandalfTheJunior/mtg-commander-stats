@@ -59,7 +59,8 @@ export POSTGRES_PASSWORD
 docker compose up -d --wait
 ```
 
-If you get an error like: `read: -p: no coprocess`try this instead:
+If you get an error like: `read: -p: no coprocess` you are likely using zsh, the default
+for macOS. Try this instead:
 
 ```zsh
 read -rs "POSTGRES_PASSWORD?Enter PostgreSQL password:"
