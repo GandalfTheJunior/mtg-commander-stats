@@ -47,10 +47,20 @@ async function reveal(page: Page, deck: Deck) {
   })
 }
 
+// Native touch scrolling keeps moving the page after Input.dispatchTouchEvent returns (#338).
+// Wait until the scroll position is unchanged across two animation frames.
+async function scrollSettled(page: Page) {
+  await expect.poll(() => page.evaluate(() => new Promise<boolean>(resolve => {
+    const start = scrollY
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve(scrollY === start)))
+  })), { message: 'Scrolling must settle before pixels are compared' }).toBe(true)
+}
+
 // DOM visibility alone passes when an opaque pseudo-element paints over the glyphs.
 // Only one element changes per comparison: every detail must contribute visible pixels.
 async function expectDetailsPainted(page: Page, deck: Deck) {
   const area = region(page, deck)
+  await scrollSettled(page)
   const elements = [
     ...deck.commanders.map(card => area.getByText(card.name, { exact: true })),
     ...(deck.companion ? [area.getByText(`Companion: ${deck.companion.name}`, { exact: true })] : []),
@@ -71,6 +81,8 @@ async function expectDetailsPainted(page: Page, deck: Deck) {
     })
     try {
       const hidden = await page.screenshot({ clip })
+      // A moved region would compare different content, so a match or mismatch would mean nothing.
+      expect(await area.boundingBox(), 'The region must not move while its pixels are compared').toEqual(clip)
       expect(painted.equals(hidden), `Content must contribute visible pixels: ${await element.textContent()}`).toBe(false)
     } finally {
       await element.evaluate((node: HTMLElement, opacity) => { node.style.opacity = opacity }, original)
