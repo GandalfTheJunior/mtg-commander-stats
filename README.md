@@ -59,6 +59,15 @@ export POSTGRES_PASSWORD
 docker compose up -d --wait
 ```
 
+If you get an error like: `read: -p: no coprocess`try this instead:
+
+```zsh
+read -rs "POSTGRES_PASSWORD?Enter PostgreSQL password:"
+printf '\n'
+export POSTGRES_PASSWORD
+docker compose up -d --wait
+```
+
 In PowerShell 7, use `$env:POSTGRES_PASSWORD = Read-Host 'Local PostgreSQL password' -MaskInput`
 before running the same Compose command.
 
