@@ -132,3 +132,84 @@ jobs:
             frontend/playwright-report/
             frontend/test-results/
           retention-days: 14
+
+  # Burn-in: repeat the test files a pull request adds or changes, so a
+  # timing-sensitive test fails here instead of intermittently on later changes.
+  changed-tests:
+    name: changed tests
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      vitest: ${{ steps.count.outputs.vitest }}
+      playwright: ${{ steps.count.outputs.playwright }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The pull request merge commit and its base, HEAD^1.
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Count added or changed test files
+        id: count
+        run: node tools/ci/burn-in.mjs count HEAD^1 | tee -a "$GITHUB_OUTPUT"
+
+  frontend-burn-in:
+    name: frontend burn-in
+    needs: changed-tests
+    if: needs.changed-tests.outputs.vitest != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Repeat added or changed Vitest files
+        run: node ../tools/ci/burn-in.mjs vitest HEAD^1
+
+  browser-burn-in:
+    name: browser burn-in (${{ matrix.browser }})
+    needs: changed-tests
+    if: needs.changed-tests.outputs.playwright != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    # Same image, history and single worker as the playground browser job.
+    container: mcr.microsoft.com/playwright:v1.64.1-noble
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Trust browser checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Repeat added or changed browser specs
+        run: node ../tools/ci/burn-in.mjs playwright HEAD^1 -- --project=${{ matrix.browser }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-burn-in-evidence-${{ matrix.browser }}
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 14
