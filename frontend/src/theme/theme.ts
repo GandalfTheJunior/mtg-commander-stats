@@ -143,6 +143,16 @@ export const appTheme = createTheme({
         },
       },
     },
+    MuiAlert: {
+      // #353: an action shares the row with the message. On narrow phones the shrinking action
+      // column broke button labels between letters; when space runs out, the action now wraps
+      // below the message instead. Alerts without an action keep MUI's single-row layout.
+      styleOverrides: {
+        root: ({ ownerState }) => ownerState.action ? { flexWrap: 'wrap' } : {},
+        message: ({ ownerState }) => ownerState.action ? { flex: '1 1 12rem' } : {},
+        action: { flexShrink: 0, maxWidth: '100%' },
+      },
+    },
     MuiTextField: { defaultProps: { variant: 'outlined' } },
     MuiInputLabel: {
       styleOverrides: {
