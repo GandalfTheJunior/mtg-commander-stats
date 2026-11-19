@@ -22,7 +22,7 @@ This project is an ongoing experiment in understanding both the possibilities an
 
 ## Features
 
-The App now has a fully functional (yet still ugly) UI. 
+The App has a fully functional UI, a visual redesign is in progress.
 
 ### Accounts
 
@@ -30,59 +30,43 @@ You can create an Account and Log in.
 
 ### Decks 
 
-Create a Deck simple and fast by only entering its Name and Commander. 
+Create a Deck simply and fast by only entering its name and commander. 
 Cards are searched with scryfall-API. 
 Optional manabox-links can be added as there is no real deck editor yet.
-Full support for PEDH, Parnter Commanders and Companions.
-Click on an artwork to view the full Card, Text and Tokens.
+Full support for PEDH, partner commanders and companions.
+Click on an artwork to view the full Card, text and tokens.
 
 ### Playgroups
 
-You can create or join Playgroups. Invites work through sharing links or a QR-Code.
-Record Matches Between Members of your Playgroup for 2+ Players.
-Gather Data about Players, Decks, Starting Order, Color-Identity and Placements.
+You can create or join playgroups. invites work through sharing links or a QR-Code.
+Record matches between members of your playgroup for 2+ players.
+Gather data about players, decks, starting order, color-identity and placements.
 
 ### Quick Profiles
 
-Only One User needs to have a registered Account. For everyone Else you can just Add a Quick Profile.
-You can do so even from the Record Game Dialog. Just Click "Register Quick Profile" and Create a Deck.
-You can rename a Quick Profile to keep track of who is who.
-Join Quick Profiles with a real account by simply choosing the "Merge Accounts" Option. Just by Sharing a Link or Scanning a QR-Code
+Only one user needs to have a registered account. For everyone else you can just add a quick profile.
+You can do so even from the record game dialog. Just click "Register Quick Profile" and create a deck.
+You can rename a quick profile to keep track of who is who.
+Join quick profiles with a real account by simply choosing the "Merge Accounts" option. This is as easy
+as sharing a link or scanning a QR-Code.
 
 
 ## Screenshots
 
 ### Current UI (Built for Functionality)
 
-<img width="585" height="1266" alt="IMG_2506" src="https://github.com/user-attachments/assets/63058764-5b62-46d2-a6cc-754c72dd32b4" />
-<img width="585" height="1266" alt="IMG_2507" src="https://github.com/user-attachments/assets/6cc14f66-2192-4b16-8a5e-b7681a34d06e" />
-<img width="585" height="1266" alt="IMG_2505" src="https://github.com/user-attachments/assets/da6a543c-ed00-4757-ae16-21e46fd4212e" />
-<img width="585" height="1266" alt="IMG_2504" src="https://github.com/user-attachments/assets/62c6887c-4620-4f19-8742-a52ffec01619" />
-<img width="585" height="1266" alt="IMG_2503" src="https://github.com/user-attachments/assets/0f34f74a-c475-4c40-a470-25ec0a6a4832" />
+<img width="200" alt="IMG_2505" src="https://github.com/user-attachments/assets/da6a543c-ed00-4757-ae16-21e46fd4212e" />
+<img width="200" alt="IMG_2504" src="https://github.com/user-attachments/assets/62c6887c-4620-4f19-8742-a52ffec01619" />
+<img width="200" alt="IMG_2503" src="https://github.com/user-attachments/assets/0f34f74a-c475-4c40-a470-25ec0a6a4832" />
+<img width="200" alt="IMG_2506" src="https://github.com/user-attachments/assets/63058764-5b62-46d2-a6cc-754c72dd32b4" />
+<img width="200" alt="IMG_2507" src="https://github.com/user-attachments/assets/6cc14f66-2192-4b16-8a5e-b7681a34d06e" />
 
 
 ### Experimental Design Elements (WIP)
 
-<img width="585" height="1266" alt="IMG_2510" src="https://github.com/user-attachments/assets/5185b4ab-7182-4b4c-8078-3cfda51e50f6" />
-<img width="585" height="1266" alt="IMG_2509" src="https://github.com/user-attachments/assets/04a9fdf1-02cf-4fb0-8e90-db4ae82a96ed" />
-<img width="585" height="1266" alt="IMG_2508" src="https://github.com/user-attachments/assets/c2d066db-f564-4579-9e51-aa4780fc4ad7" />
-
-## Agent entry point
-
-Agent clients and repository harnesses must load the root [`/AGENTS.md`](AGENTS.md)
-before substantive repository work. This is the generic bootstrap entry point;
-`AGENTS.md` selects and loads the role contract that matches the requested outcome.
-Configure the repository root as the task workspace when the client discovers
-instruction files automatically, or load `/AGENTS.md` explicitly when it does not.
-For Claude Code, the root [`CLAUDE.md`](CLAUDE.md) is a compatibility shim that
-only imports `AGENTS.md`. Current Claude Code versions can read `AGENTS.md`
-directly when no `CLAUDE.md` or `CLAUDE.local.md` applies, but older versions,
-a disabled `AGENTS.md` plugin or a `CLAUDE.md`-only instruction setting load
-`CLAUDE.md` files only, and a personal `CLAUDE.local.md` would otherwise stop
-`AGENTS.md` from loading. The shim covers these cases without duplicating
-instructions. It applies to Claude Code only; other Claude clients, such as
-Claude chat with GitHub-synchronized files, have no documented automatic
-instruction-file discovery or import expansion.
+<img width="200" alt="IMG_2510" src="https://github.com/user-attachments/assets/5185b4ab-7182-4b4c-8078-3cfda51e50f6" />
+<img width="200" alt="IMG_2509" src="https://github.com/user-attachments/assets/04a9fdf1-02cf-4fb0-8e90-db4ae82a96ed" />
+<img width="200" alt="IMG_2508" src="https://github.com/user-attachments/assets/c2d066db-f564-4579-9e51-aa4780fc4ad7" />
 
 ## Stack and prerequisites
 
@@ -432,3 +416,20 @@ Tests terminate without watch mode. GitHub Actions runs separate `backend` and
 
 For the isolated Cozy Commander experiment, open `/dev/lounge.html` with the frontend
 Vite dev server. See [run instructions and review checklist](docs/development/motion-playground.md).
+
+## Agent entry point
+
+Agent clients and repository harnesses must load the root [`/AGENTS.md`](AGENTS.md)
+before substantive repository work. This is the generic bootstrap entry point;
+`AGENTS.md` selects and loads the role contract that matches the requested outcome.
+Configure the repository root as the task workspace when the client discovers
+instruction files automatically, or load `/AGENTS.md` explicitly when it does not.
+For Claude Code, the root [`CLAUDE.md`](CLAUDE.md) is a compatibility shim that
+only imports `AGENTS.md`. Current Claude Code versions can read `AGENTS.md`
+directly when no `CLAUDE.md` or `CLAUDE.local.md` applies, but older versions,
+a disabled `AGENTS.md` plugin or a `CLAUDE.md`-only instruction setting load
+`CLAUDE.md` files only, and a personal `CLAUDE.local.md` would otherwise stop
+`AGENTS.md` from loading. The shim covers these cases without duplicating
+instructions. It applies to Claude Code only; other Claude clients, such as
+Claude chat with GitHub-synchronized files, have no documented automatic
+instruction-file discovery or import expansion.
