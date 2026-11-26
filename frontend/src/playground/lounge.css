@@ -1,6 +1,15 @@
-:root { font-family: system-ui, sans-serif; color: #f4ebdf; background: #20151c; font-synthesis: none; }
-* { box-sizing: border-box; }
-body { margin: 0; }
+/* Imported by every Lounge building block, so each renders on its own (#358). Page-level
+   rules live in playground.css; the root restates what the Lounge inherits from that page.
+   :where() keeps the specificity of the former page-wide selectors unchanged. */
+.lounge { font-family: system-ui, sans-serif; color: #f4ebdf; font-synthesis: none; line-height: normal; text-rendering: auto; }
+:where(.lounge), :where(.lounge) * { box-sizing: border-box; }
+/* Stories also load the application's legacy index.css, which this page never does.
+   Restore the browser defaults the Lounge was designed on wherever index.css would differ. */
+.lounge header { margin-bottom: revert; }
+.lounge p { margin-top: revert; }
+.lounge label { gap: revert; font-weight: revert; }
+.lounge input { font: revert; }
+.lounge button:disabled { opacity: revert; }
 .lounge { min-height: 100vh; position: relative; isolation: isolate; overflow: clip; background: radial-gradient(ellipse at 0 70%, #46222a77, transparent 65%), repeating-linear-gradient(92deg, #ffffff02 0 1px, transparent 1px 70px), #20151c; }
 /* Finite vector backdrop, clipped independently from content. A minimum width
    retains massive stones on phones; no tiling seam or viewport filter. */
@@ -70,12 +79,13 @@ body { margin: 0; }
 .lounge .room-light i + i { background: radial-gradient(ellipse at 85% 100%, #f47b3466, transparent 85%); }
 .fire-glass { opacity: calc(var(--warm-b) * .18 * var(--fire-strength)); }
 .fire-brass { opacity: calc(var(--warm-a) * .6 * var(--fire-strength)); }
-[data-fire='false'] .fire-glass, [data-fire='false'] .fire-brass { display: none; }
+:where(.lounge)[data-fire='false'] .fire-glass, :where(.lounge)[data-fire='false'] .fire-brass { display: none; }
 .fireflies { pointer-events: none; }
 .firefly { opacity: calc(var(--fly-alpha, 0) * var(--fly-strength, 1)); }
-[data-intensity='strong'] { --fire-strength: 2.1; --fly-strength: 1.25; }
-[data-reduced='true'] .MuiButton-root:active, [data-reduced='true'] .MuiToggleButton-root:active { transform: none; }
-[data-reduced='true'] * { transition-duration: .001ms !important; }
+:where(.lounge)[data-intensity='strong'] { --fire-strength: 2.1; --fly-strength: 1.25; }
+/* The Hall of Fame also marks reduced motion with data-reduced and relies on these two rules. */
+:where(.lounge, .hall)[data-reduced='true'] .MuiButton-root:active, :where(.lounge, .hall)[data-reduced='true'] .MuiToggleButton-root:active { transform: none; }
+:where(.lounge, .hall)[data-reduced='true'] * { transition-duration: .001ms !important; }
 .lounge footer { margin-top: 38px; padding-top: 24px; border-top: 1px solid #c6a05e30; color: #cdbfb3; font-size: 11px; line-height: 2; }.lounge footer span { color: #dbb977; font-family: Georgia, serif; font-style: italic; font-size: 14px; }.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 @media (max-width: 700px) {
   .lounge-main { padding: 20px 16px; }
@@ -101,7 +111,7 @@ body { margin: 0; }
 .overlay-controls span { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid #bb95513d; border-radius: 12px; }
 .overlay-controls span:first-child { margin-right: auto; font-size: 24px; }
 .overlay-label { position: absolute; bottom: 21px; left: 75px; right: 115px; margin: 0; font-size: 10px; text-align: left; }
-[data-reduced="true"] .drag-overlay { transform: none; }
+:where(.lounge)[data-reduced="true"] .drag-overlay { transform: none; }
 
 /* #165: dev-only material comparison. Surfaces never consume --card-fire;
    grain, foxing and deck colours are static, including on the held overlay. */

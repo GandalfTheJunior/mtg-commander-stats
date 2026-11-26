@@ -88,6 +88,21 @@ Story files are type-checked and linted with the application code and excluded
 from the coverage reports. Stories are not tests: they add no Vitest coverage
 and no CI assertions.
 
+### Lounge stories
+
+The Lounge experiment is shown as `Experiments/Lounge/…`: the complete scene and
+its building blocks (stone wall, firelight, window, sortable table, wax seal
+button). Every building block imports `src/playground/lounge.css`, which only
+styles elements inside a `.lounge` root. The page-level rules of the legacy
+Playground (`:root`, `*`, `body`) live in `playground.css`, which only
+`/dev/lounge.html` loads.
+
+In the scene, `Lounge.tsx` sets the room's state as attributes on its `.lounge`
+root: `data-fire`, `data-intensity`, `data-card-design`, `data-reduced`,
+`data-hidden` and `data-light-mode`. A building-block story renders its own
+`.lounge` root and sets these attributes from its `args`, so the controls panel
+switches, for example, between fire on and off or parchment and classic cards.
+
 ### Experiments with global CSS
 
 Playground experiments use plain global CSS, sometimes scoped to an ancestor
