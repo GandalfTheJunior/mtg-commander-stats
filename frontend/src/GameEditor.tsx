@@ -15,6 +15,7 @@ import {
   type OutcomeDraft, type OutcomeMode, type OutcomeValue,
 } from './gameOutcome'
 import { publicName, sameId } from './gamePresentation'
+import { browserTimeZone, futurePlayedOn, invalidPlayedOn, missingPlayedOnZone } from './playedOn'
 
 type Assignment = { key: number; userId: string; deckId: string; expanded: boolean; added?: boolean; outcome: OutcomeDraft }
 type Choice = { status: 'loading' | 'ready' | 'error'; decks: DeckSelection[]; error?: string }
@@ -28,6 +29,7 @@ type Props = {
   busy: boolean
   completed?: boolean
   writeError?: string
+  playedOnWriteError?: string
   onSubmit: (input: GameInput) => void
   onAccessError: (error: unknown) => void
 }
@@ -76,7 +78,7 @@ function initialRows(game: Game | null, initialMembers: string[] | undefined, me
   return rows
 }
 
-export default function GameEditor({ group, game, currentUserId, initialMembers, busy, completed = false, writeError, onSubmit, onAccessError }: Props) {
+export default function GameEditor({ group, game, currentUserId, initialMembers, busy, completed = false, writeError, playedOnWriteError, onSubmit, onAccessError }: Props) {
   const [addedMembers, setAddedMembers] = useState<GroupMember[]>([])
   const members = [...group.members, ...addedMembers.filter(added => !group.members.some(member => sameId(member.userId, added.userId)))]
   const [rows, setRows] = useState<Assignment[]>(() => initialRows(game, initialMembers, group.members))
@@ -88,6 +90,21 @@ export default function GameEditor({ group, game, currentUserId, initialMembers,
   const [lastWinMode, setLastWinMode] = useState<Exclude<OutcomeMode, 'DRAW'>>(gameMode(game) === 'ALTERNATE' ? 'ALTERNATE' : 'WIN')
   // New entries start on the user's local calendar day; edits keep the stored value, including unknown.
   const [playedOn, setPlayedOn] = useState<string | null>(() => game ? game.playedOn : localToday())
+  const [today, setToday] = useState(localToday)
+  const [dateError, setDateError] = useState('')
+  const shownDateError = dateError || playedOnWriteError || ''
+  useEffect(() => {
+    const refresh = () => setToday(localToday())
+    const timer = window.setInterval(refresh, 30_000)
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+  }, [])
+  useLayoutEffect(() => { if (playedOnWriteError) document.getElementById('game-played-on')?.focus() }, [playedOnWriteError])
   const [baseline] = useState(() => material(game ? rows : [], mode, playedOn))
   const [attempts, setAttempts] = useState(0)
   const attempted = attempts > 0
@@ -272,8 +289,20 @@ export default function GameEditor({ group, game, currentUserId, initialMembers,
   const countError = complete.length < 2 || complete.length > MAX_PLAYERS ? 'Bitte 2–6 Spieler mit Deck auswählen. Leere Karten werden nicht gespeichert.' : ''
   const outcome = checkOutcome(complete.map(row => row.outcome), mode)
 
+  function validateDate() {
+    const currentToday = localToday()
+    setToday(currentToday)
+    const zone = playedOn ? browserTimeZone() : undefined
+    const error = playedOn && !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(playedOn) ? invalidPlayedOn
+      : playedOn && playedOn > currentToday ? futurePlayedOn : playedOn && !zone ? missingPlayedOnZone : ''
+    setDateError(error)
+    if (error) focusNext.current = 'game-played-on'
+    return { error, zone }
+  }
   function send(winnerOnly: boolean) {
-    onSubmit({ playedOn, result: mode === 'DRAW' ? 'DRAW' : 'WIN', alternateWinCon: mode === 'ALTERNATE',
+    const { error, zone } = validateDate()
+    if (error) return
+    onSubmit({ playedOn, ...(zone ? { playedOnTimeZone: zone } : {}), result: mode === 'DRAW' ? 'DRAW' : 'WIN', alternateWinCon: mode === 'ALTERNATE',
       participants: complete.map(({ userId, deckId, outcome: draft }, index) => ({ userId, deckId, startPosition: index + 1, ...outcomeFields(draft, mode, winnerOnly) })) })
   }
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -281,6 +310,7 @@ export default function GameEditor({ group, game, currentUserId, initialMembers,
     if (busy) return
     // A fresh render on every attempt applies the first-error focus, even when already attempted.
     setAttempts(value => value + 1)
+    if (validateDate().error) return
     if (errors.size || countError || outcome.error) {
       const first = rows.find(row => errors.has(row.key))
       if (first) {
@@ -295,6 +325,7 @@ export default function GameEditor({ group, game, currentUserId, initialMembers,
   }
   function saveWinnerOnly() {
     if (!winMode) return
+    if (validateDate().error) { setConfirmPartial(false); return }
     // Discard every extra rank and, for alternate wins, every opponent status.
     setRows(current => current.map(row => outcomeValue(row.outcome, winMode) === 1 ? row : { ...row, outcome: withOutcome(row.outcome, winMode, undefined) }))
     setConfirmPartial(false)
@@ -352,8 +383,11 @@ export default function GameEditor({ group, game, currentUserId, initialMembers,
       <Typography component="label" htmlFor="game-played-on" sx={{ fontWeight: 600 }}>Spieldatum</Typography>
       <Box sx={{ textAlign: 'right' }}>
         <TextField id="game-played-on" type="date" size="small" value={playedOn ?? ''} disabled={busy}
-          slotProps={{ htmlInput: { 'aria-describedby': playedOn ? undefined : 'game-played-on-unknown' } }}
-          onChange={event => setPlayedOn(event.target.value || null)} sx={{ width: 180, '& input': { minHeight: 32 } }} />
+          error={Boolean(shownDateError)}
+          helperText={shownDateError || undefined}
+          slotProps={{ htmlInput: { max: today, 'aria-describedby': [shownDateError ? 'game-played-on-helper-text' : '', !playedOn ? 'game-played-on-unknown' : ''].filter(Boolean).join(' ') || undefined } }}
+          onFocus={() => setToday(localToday())}
+          onChange={event => { setPlayedOn(event.target.value || null); setDateError('') }} sx={{ width: 180, '& input': { minHeight: 32 } }} />
         {!playedOn && <Typography id="game-played-on-unknown" variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>Spieldatum unbekannt</Typography>}
       </Box>
     </Card>

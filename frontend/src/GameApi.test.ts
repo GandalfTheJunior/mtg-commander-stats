@@ -161,11 +161,22 @@ test('quick-profile creation and its deck routes use the group-scoped API with C
 
 test('game writes send playedOn and leave winner-only ranks unknown', async () => {
   const api = gameApi()
-  await saveGame(group.id, { result: 'WIN', alternateWinCon: false, playedOn: '2026-11-06', participants: [
+  await saveGame(group.id, { result: 'WIN', alternateWinCon: false, playedOn: '2026-11-06', playedOnTimeZone: 'Europe/Berlin', participants: [
     { userId: uid(2), deckId: deckFor(2).id, startPosition: 1, placement: 1 }, { userId: uid(3), deckId: deckFor(3).id, startPosition: 2 },
   ] })
   const body = JSON.parse(api.fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')![1]!.body as string)
-  expect(body).toEqual({ result: 'WIN', alternateWinCon: false, playedOn: '2026-11-06', participants: [
+  expect(body).toEqual({ result: 'WIN', alternateWinCon: false, playedOn: '2026-11-06', playedOnTimeZone: 'Europe/Berlin', participants: [
     { userId: uid(2), deckId: deckFor(2).id, startPosition: 1, placement: 1 }, { userId: uid(3), deckId: deckFor(3).id, startPosition: 2 },
   ] })
+})
+
+test.each(['POST', 'PUT'])('%s transports the date and IANA zone unchanged and preserves absent/null payloads', async method => {
+  const api = gameApi()
+  const participants = [{ userId: uid(2), deckId: deckFor(2).id, startPosition: 1, placement: 1 }, { userId: uid(3), deckId: deckFor(3).id, startPosition: 2 }]
+  const base = { result: 'WIN' as const, alternateWinCon: false, participants }
+  for (const dateFields of [{ playedOn: '2000-02-29', playedOnTimeZone: 'Pacific/Kiritimati' }, { playedOn: null }, {}]) {
+    await saveGame(group.id, { ...base, ...dateFields }, method === 'PUT' ? uid(20) : undefined)
+    const writes = api.fetchMock.mock.calls.filter(([, init]) => init?.method === method)
+    expect(JSON.parse(writes.at(-1)![1]!.body as string)).toEqual({ ...base, ...dateFields })
+  }
 })

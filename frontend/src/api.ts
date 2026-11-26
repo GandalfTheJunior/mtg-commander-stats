@@ -627,6 +627,8 @@ export type Game = {
 export type GameInput = Pick<Game, 'result' | 'alternateWinCon'> & {
   /** Absent preserves a stored date on PUT; null explicitly records an unknown date. */
   playedOn?: string | null
+  /** Required with every explicitly supplied non-null playedOn; browser IANA zone at Save. */
+  playedOnTimeZone?: string
   participants: { userId: string; deckId: string; startPosition: number; placement?: number; winner?: true; stillInGame?: boolean }[]
 }
 

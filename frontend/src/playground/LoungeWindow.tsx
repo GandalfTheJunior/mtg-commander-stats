@@ -1,5 +1,6 @@
 import { useId, useRef } from 'react'
 import { Ambience } from './Ambience'
+import './lounge.css'
 
 // Original procedural artwork, drawn as separate materials and geometry. One
 // continuous closed path supplies every frame layer, including the right arch.

@@ -23,5 +23,7 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src", ".storybook"],
+  // Node-side tests of the test tooling; type-checked by tsconfig.e2e.json.
+  "exclude": ["src/test/quarantine.test.ts", "src/test/quarantine-fixture"]
 }

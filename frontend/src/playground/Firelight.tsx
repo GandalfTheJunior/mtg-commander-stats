@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { cardLightLevel, createFirelightModel, reflectedLevels } from './firelightModel'
+import './lounge.css'
 
 export type FirelightMode = 'baseline' | 'optimized' | 'static'
 

@@ -788,6 +788,34 @@ test('the accept carries the confirmed account and is preceded by a fresh identi
   expect(JSON.parse(String(accepts(api)[0][1]?.body))).toEqual({ expectedAccountId: visitor.id })
 })
 
+test('the success message renders once, together with the app shell, and never on the claim page (#348)', async () => {
+  server(visitor)
+  show(`/claim/${code}`)
+  fireEvent.click(await screen.findByRole('button', { name: 'Profil übernehmen' }))
+  // Record every element that ever shows the message, and whether the app shell was mounted when it appeared.
+  // A DOM query, not a role query: the closing confirmation dialog may still hide the page from the accessibility tree.
+  const seen: { node: HTMLElement; withShell: boolean }[] = []
+  const observer = new MutationObserver(() => {
+    for (const node of screen.queryAllByText('Schnellprofil erfolgreich übernommen.')) {
+      if (!seen.some(entry => entry.node === node)) {
+        seen.push({ node, withShell: document.querySelector('nav[aria-label="Main navigation"]') !== null })
+      }
+    }
+  })
+  observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+  try {
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Jetzt übernehmen' }))
+    // The claim page also names the group, so wait for the collection inside the app shell.
+    await screen.findByRole('navigation', { name: 'Main navigation' })
+    expect(await within(screen.getByRole('main')).findByText(groupName)).toBeInTheDocument()
+  } finally {
+    observer.disconnect()
+  }
+  expect(window.location.pathname).toBe('/playgroups')
+  expect(seen.map(entry => entry.withShell)).toEqual([true])
+  expect(seen[0].node).toBeInTheDocument()
+})
+
 test('Bob/Carol: a session switched in another tab before Jetzt übernehmen sends no accept and needs a new confirmation', async () => {
   // PR #309 security review: Bob confirms in tab 1; tab 2 of the same browser logs in as Carol.
   const api = server(visitor)

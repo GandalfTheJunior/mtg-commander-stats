@@ -210,7 +210,7 @@ test('cards retain API order, winner/deck and unknown play dates; active draft b
   const cards = await screen.findAllByRole('link', { name: /^Spieldetails:/ })
   expect(cards.map(card => card.getAttribute('href'))).toEqual([gameUrl(group.id, uid(21)), detailUrl])
   expect(cards[0]).toHaveTextContent('Unentschieden')
-  expect(cards[1]).toHaveTextContent('Same name (…0002)Deck: Deck 2')
+  expect(cards[1]).toHaveTextContent('Same name (…0002) Deck: Deck 2')
   expect(cards[1]).not.toHaveTextContent('Teilnehmende')
   expect(cards[1]).toHaveTextContent('Spieldatum unbekannt')
   fireEvent.click(screen.getByRole('link', { name: 'Spiel erfassen' }))
@@ -698,6 +698,9 @@ test.each(['details', 'delete', 'victory', 'companion'])('window refocus preserv
   game.participants[0].deck.companion = { ...game.participants[0].deck.commanders[0], name: 'Saved Companion' }
   api.state.history = [game]; show()
   const link = await screen.findByRole('link', { name: /Deck 1:.*ManaBox/ })
+  // The page focuses its heading in a passive effect once loaded (#306). Wait for that initial
+  // focus, so it cannot land after the baseline below and look like a refocus side effect.
+  await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Spieldetails' })).toHaveFocus())
   const list = screen.getByRole('list', { name: 'Teilnehmende und Decks' })
   expect(within(list).getAllByRole('group', { name: 'Gespeicherte Kartenillustrationen' })).toHaveLength(4)
   let dialog: HTMLElement | null = null

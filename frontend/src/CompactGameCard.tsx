@@ -19,8 +19,10 @@ export default function CompactGameCard({ game }: { game: GamePreview }) {
         </Box>) : <Box sx={{ m: 'auto', color: 'text.secondary' }}>—</Box>}
       </Box>
       <Stack sx={{ gap: 0.5, flex: 1, minWidth: 0, overflowWrap: 'anywhere', textAlign: 'left' }}>
-        <Typography component="h4" variant="h6" sx={{ fontSize: '1.125rem' }}>{name}</Typography>
-        {winner && <Typography>Deck: {winner.deck.name}</Typography>}
+        {/* #354: the spaces between the lines are not rendered in this flex column, but keep the
+            visible text a sequence of words, so it stays contained in the link's aria-label. */}
+        <Typography component="h4" variant="h6" sx={{ fontSize: '1.125rem' }}>{name}</Typography>{' '}
+        {winner && <><Typography>Deck: {winner.deck.name}</Typography>{' '}</>}
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
           {game.playedOn ? <>Gespielt am: <time dateTime={game.playedOn}>{game.playedOn.split('-').reverse().join('.')}</time></> : date}
         </Typography>

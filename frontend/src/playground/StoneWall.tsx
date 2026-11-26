@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import './lounge.css'
 
 // A finite, non-tiling masonry drawing. All geometry is built once, with no
 // runtime randomness, measurements or animation clock. Alternating short/long

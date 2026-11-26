@@ -208,7 +208,33 @@ test('game recording waits for the second member’s independently delayed deck 
   const body = JSON.parse(writes[0][1]!.body as string)
   expect(body).toEqual({
     participants: [{ userId: uid(1), deckId: deckFor(1).id, startPosition: 1, placement: 1 }, { userId: uid(2), deckId: deckFor(2).id, startPosition: 2 }],
-    result: 'WIN', alternateWinCon: false, playedOn: body.playedOn,
+    result: 'WIN', alternateWinCon: false, playedOn: body.playedOn, playedOnTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   })
   expect(body.playedOn).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+})
+
+test.each(['POST', 'PUT'])('%s date rejection is localized at the field and keeps the complete draft without retry', async method => {
+  const api = setup()
+  api.state.history = [recorded({ creatorId: uid(1), playedOn: '2000-02-29' })]
+  api.next(`/api/groups/${group.id}/games${method === 'PUT' ? `/${uid(20)}` : ''}`,
+    () => response({ code: 'PLAYED_ON_FUTURE', field: 'playedOn', detail: 'Choose today or an earlier date.' }, 400), method)
+  render(<App />)
+  await open()
+  if (method === 'PUT') await gameAction('Bearbeiten')
+  else {
+    fireEvent.click(await screen.findByRole('link', { name: 'Spiel erfassen' }))
+    await screen.findByRole('form', { name: 'Spiel erfassen' })
+    await selectGamePlayer(1, 'Owner', deckFor(1))
+    await selectGamePlayer(2, 'Same name (…0002)', deckFor(2))
+    selectGameWinner('Owner')
+  }
+  const field = await screen.findByLabelText('Spieldatum')
+  fireEvent.change(field, { target: { value: '2000-02-29' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
+  await waitFor(() => expect(field).toHaveAccessibleDescription('Bitte heute oder ein früheres Spieldatum wählen.'))
+  expect(field).toHaveFocus()
+  expect(field).toHaveValue('2000-02-29')
+  expect(screen.getAllByRole('region', { name: /^Spieler \d$/ })).toHaveLength(method === 'PUT' ? 2 : 4)
+  expect(screen.getByRole('img', { name: method === 'PUT' ? 'Same name (…0002): Sieger des Spiels, Platz 1' : 'Owner: Sieger des Spiels, Platz 1' })).toBeInTheDocument()
+  expect(api.fetchMock.mock.calls.filter(([path, init]) => path.includes('/games') && init?.method === method)).toHaveLength(1)
 })
