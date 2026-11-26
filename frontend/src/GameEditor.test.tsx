@@ -6,6 +6,7 @@ import { renderApp } from './test/renderApp'
 import { deckFor, deferred, gameApi, group, recorded, response, uid } from './test/gameFixtures'
 import { gameCard as card, selectGameDeck, selectGameMember, selectGamePlayer, selectGameWinner } from './test/gameEntry'
 import { localToday } from './gameOutcome'
+import { browserTimeZone, futurePlayedOn, invalidPlayedOn, missingPlayedOnZone } from './playedOn'
 import { savedCommander } from './test/commanderFixtures'
 import type { Game, GroupDetails } from './api'
 
@@ -25,7 +26,7 @@ const pickerOpen = (title: string) => screen.queryByRole('dialog', { name: title
 async function fill(...players: number[]) {
   for (const [index, n] of players.entries()) await selectGamePlayer(index + 1, name(n), deckFor(n))
 }
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers() })
 
 test('a new group-scoped game starts with today, Sieg, alternate off and four empty collapsed slots', () => {
   gameApi(); show()
@@ -56,7 +57,7 @@ test.each([2, 3, 4, 5, 6])('%s participants chain member and deck pickers and su
   else expect(screen.getByRole('button', { name: 'Spieler hinzufügen' })).toBeEnabled()
   selectGameWinner(name(1))
   save()
-  expect(onSubmit).toHaveBeenCalledExactlyOnceWith({ playedOn: localToday(), result: 'WIN', alternateWinCon: false,
+  expect(onSubmit).toHaveBeenCalledExactlyOnceWith({ playedOn: localToday(), playedOnTimeZone: browserTimeZone(), result: 'WIN', alternateWinCon: false,
     participants: Array.from({ length: count }, (_, i) => ({ userId: uid(i + 1), deckId: deckFor(i + 1).id, startPosition: i + 1, ...(i ? {} : { placement: 1 }) })) })
 })
 
@@ -289,7 +290,7 @@ test('DRAW has no winner action, preselects no status, requires every status and
   expect(screen.getByText(/Mindestens ein Spieler muss noch im Spiel sein/)).toBeInTheDocument()
   for (const n of [1, 2, 3]) setResult(n, 'IN')
   save()
-  expect(onSubmit.mock.lastCall![0]).toEqual({ playedOn: localToday(), result: 'DRAW', alternateWinCon: false,
+  expect(onSubmit.mock.lastCall![0]).toEqual({ playedOn: localToday(), playedOnTimeZone: browserTimeZone(), result: 'DRAW', alternateWinCon: false,
     participants: [1, 2, 3].map(n => ({ userId: uid(n), deckId: deckFor(n).id, startPosition: n, stillInGame: true })) })
 })
 
@@ -520,4 +521,92 @@ test('a quick profile created through Mitglied ändern on an assigned card repla
   expect(background.getByText('New Cat')).toBeInTheDocument()
   expect(background.queryByText('Deck 1')).not.toBeInTheDocument()
   expect(screen.queryByRole('img', { name: /Sieger des Spiels, Platz 1/, hidden: true })).not.toBeInTheDocument()
+})
+
+test.each(['create', 'edit'])('%s rejects manual and programmatic future dates without losing the draft', async operation => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(2026, 10, 16, 12))
+  gameApi()
+  const { onSubmit } = show(operation === 'edit' ? recorded() : null)
+  if (operation === 'create') { await fill(1, 2); selectGameWinner(name(1)) }
+  const field = screen.getByLabelText('Spieldatum')
+  expect(field).toHaveAttribute('max', '2026-11-16')
+  fireEvent.change(field, { target: { value: '2026-11-17' } })
+  save()
+  expect(onSubmit).not.toHaveBeenCalled()
+  expect(field).toHaveValue('2026-11-17')
+  expect(field).toHaveAttribute('aria-invalid', 'true')
+  expect(field).toHaveAccessibleDescription(futurePlayedOn)
+  expect(field).toHaveFocus()
+  expect(screen.getAllByRole('region', { name: /^Spieler \d$/ })).toHaveLength(operation === 'create' ? 4 : 2)
+  expect(screen.getByRole('img', { name: `${name(operation === 'create' ? 1 : 2)}: Sieger des Spiels, Platz 1` })).toBeInTheDocument()
+  fireEvent.change(field, { target: { value: '10000-01-01' } })
+  save()
+  expect(onSubmit).not.toHaveBeenCalled()
+  expect(field).toHaveAccessibleDescription(invalidPlayedOn)
+  // The submit handler also protects scripted submit events, independent of native picker limits.
+  fireEvent.submit(screen.getByRole('form'))
+  expect(onSubmit).not.toHaveBeenCalled()
+  for (const date of ['2026-11-15', '2026-11-16']) {
+    fireEvent.change(field, { target: { value: date } })
+    save()
+    expect(onSubmit.mock.lastCall![0]).toMatchObject({ playedOn: date, playedOnTimeZone: browserTimeZone() })
+  }
+  expect(onSubmit).toHaveBeenCalledTimes(2)
+})
+
+test('Save rechecks today and the current zone across midnight, even without a picker refresh', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(2026, 10, 16, 23, 59))
+  gameApi(); const { onSubmit } = show(recorded())
+  const field = screen.getByLabelText('Spieldatum')
+  expect(field).toHaveAttribute('max', '2026-11-16')
+  fireEvent.change(field, { target: { value: '2026-11-17' } })
+  save()
+  expect(onSubmit).not.toHaveBeenCalled()
+  vi.setSystemTime(new Date(2026, 10, 17, 0, 1))
+  const original = Intl.DateTimeFormat
+  vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(function (...args) { return new original(args[0], { ...args[1], timeZone: args[1]?.timeZone ?? 'Pacific/Kiritimati' }) })
+  save()
+  expect(onSubmit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ playedOn: '2026-11-17', playedOnTimeZone: 'Pacific/Kiritimati' }))
+  expect(field).toHaveAttribute('max', '2026-11-17')
+  // A changed device clock/zone can also move the local calendar backwards.
+  vi.setSystemTime(new Date(2026, 10, 16, 23, 59))
+  save()
+  expect(onSubmit).toHaveBeenCalledTimes(1)
+  expect(field).toHaveAccessibleDescription(futurePlayedOn)
+})
+
+test('an open picker maximum refreshes on interval and window focus without resetting the draft date', async () => {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date(2026, 10, 16, 23, 59, 59))
+  gameApi(); show(recorded({ playedOn: '2000-02-29' }))
+  fireEvent.focus(window)
+  const field = screen.getByLabelText('Spieldatum')
+  expect(field).toHaveAttribute('max', '2026-11-16')
+  act(() => vi.advanceTimersByTime(30_000))
+  expect(field).toHaveAttribute('max', '2026-11-17')
+  vi.setSystemTime(new Date(2026, 10, 18, 0, 1))
+  fireEvent(document, new Event('visibilitychange'))
+  expect(field).toHaveAttribute('max', '2026-11-18')
+  expect(field).toHaveValue('2000-02-29')
+})
+
+test.each(['missing', 'invalid', 'unsupported'])('unavailable browser zone (%s) blocks dated saves but permits unknown dates', async failure => {
+  gameApi(); const { onSubmit } = show(recorded({ playedOn: '2000-02-29' }))
+  const original = Intl.DateTimeFormat
+  if (failure === 'unsupported') vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(() => { throw new Error('unavailable') })
+  else vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(function (...args) {
+    if (args[1]?.timeZone) return new original(...args)
+    return { resolvedOptions: () => ({ timeZone: failure === 'missing' ? '' : 'Mars/Olympus' }) } as Intl.DateTimeFormat
+  })
+  save()
+  expect(onSubmit).not.toHaveBeenCalled()
+  const field = screen.getByLabelText('Spieldatum')
+  expect(field).toHaveValue('2000-02-29')
+  expect(field).toHaveAccessibleDescription(missingPlayedOnZone)
+  fireEvent.change(field, { target: { value: '' } })
+  save()
+  expect(onSubmit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ playedOn: null }))
+  expect(onSubmit.mock.lastCall![0]).not.toHaveProperty('playedOnTimeZone')
 })

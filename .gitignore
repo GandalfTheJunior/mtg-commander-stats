@@ -25,3 +25,7 @@ Thumbs.db
 # Playwright local reports and browser captures
 frontend/test-results/
 frontend/playwright-report/
+frontend/soak-results/
+
+# Storybook static build output
+frontend/storybook-static/

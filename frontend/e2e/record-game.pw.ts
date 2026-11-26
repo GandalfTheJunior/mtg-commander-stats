@@ -107,3 +107,77 @@ for (const width of [320, 390, 1280]) {
     expect(await noOverflow(page)).toBe(true)
   })
 }
+
+test.describe('played-on validation', () => {
+  test.use({ timezoneId: 'Europe/Berlin' })
+  for (const operation of ['create', 'edit']) {
+    test(`${operation} rejects future dates and preserves the draft after a server rejection`, async ({ page }, info) => {
+      const width = operation === 'create' ? 390 : 1280
+      await page.setViewportSize({ width, height: 900 })
+      await page.clock.setFixedTime(new Date('2026-11-15T23:01:00Z'))
+      await mockApi(page)
+      const saved = { id: id(20), groupId: group.id, creatorId: id(1), recordedAt: '2026-11-01T20:00:00Z',
+        playedOn: '2000-02-29', result: 'WIN', alternateWinCon: false, winnerUserId: id(1),
+        participants: [1, 2].map((n, i) => ({ userId: id(n), username: people[n - 1], deckId: deck(n).id,
+          startPosition: n, placement: i ? 2 : 1, stillInGame: !i, deck: { ...deck(n), archived: false } })) }
+      const writes: Record<string, unknown>[] = []
+      const path = `/api/groups/${group.id}/games${operation === 'edit' ? `/${id(20)}` : ''}`
+      await page.route(`**${path}`, async route => {
+        if (route.request().method() === 'GET') return route.fulfill({ json: saved })
+        writes.push(route.request().postDataJSON() as Record<string, unknown>)
+        return route.fulfill({ status: 400, json: { code: 'PLAYED_ON_FUTURE', field: 'playedOn', detail: 'Choose today or earlier.' } })
+      })
+      await page.goto(`/playgroups/${group.id}/games/${operation === 'edit' ? `${id(20)}/edit` : 'new'}`)
+      await expect(page.getByRole('heading', { name: operation === 'edit' ? 'Spiel bearbeiten' : 'Spiel erfassen' })).toBeVisible()
+      if (operation === 'create') {
+        await choose(page, 1, 1); await choose(page, 2, 2)
+        await page.getByRole('button', { name: 'Aragorn: Sieger des Spiels' }).click()
+      }
+      const date = page.getByLabel('Spieldatum')
+      await expect(date).toHaveAttribute('max', '2026-11-16')
+      if (operation === 'create') await expect(date).toHaveValue('2026-11-16')
+      await date.fill('2026-11-17')
+      await page.getByRole('button', { name: 'Spiel speichern' }).click()
+      await expect(date).toHaveAttribute('aria-invalid', 'true')
+      await expect(date).toHaveAccessibleDescription('Bitte heute oder ein früheres Spieldatum wählen.')
+      await expect(date).toBeFocused()
+      expect(writes).toHaveLength(0)
+      // Native constraints disable future picker days; the handler protects scripted submissions too.
+      expect(await date.evaluate((element: HTMLInputElement) => element.validity.rangeOverflow)).toBe(true)
+      await page.locator('form').evaluate(form => form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
+      expect(writes).toHaveLength(0)
+      expect(await noOverflow(page)).toBe(true)
+      const directory = process.env.MTG_SCREENSHOTS ?? info.outputPath('screenshots')
+      await mkdir(directory, { recursive: true })
+      await page.screenshot({ path: `${directory}/played-on-${operation}-${info.project.name}.png`, fullPage: true })
+      // The new local day is accepted at Save even when the previously rendered maximum is stale.
+      await page.clock.setFixedTime(new Date('2026-11-16T23:01:00Z'))
+      await page.getByRole('button', { name: 'Spiel speichern' }).click()
+      await expect.poll(() => writes.length).toBe(1)
+      expect(writes[0].playedOn).toBe('2026-11-17')
+      expect(writes[0].playedOnTimeZone).toBe('Europe/Berlin')
+      await expect(date).toHaveAccessibleDescription('Bitte heute oder ein früheres Spieldatum wählen.')
+      await expect(date).toHaveValue('2026-11-17')
+      await expect(page.getByRole('img', { name: 'Aragorn: Sieger des Spiels, Platz 1' })).toBeVisible()
+      await expect(page.getByRole('region', { name: 'Spieler 2' }).getByRole('heading', { name: 'Gandalf' })).toBeVisible()
+      expect(writes).toHaveLength(1)
+      await page.screenshot({ path: `${directory}/played-on-server-${operation}-${info.project.name}.png`, fullPage: true })
+      // Simulate a browser without usable zone detection; do not guess UTC or Berlin.
+      await page.evaluate(() => {
+        Intl.DateTimeFormat = new Proxy(Intl.DateTimeFormat, {
+          apply(target, thisArg, args) {
+            const formatter = Reflect.apply(target, thisArg, args) as Intl.DateTimeFormat
+            Object.defineProperty(formatter, 'resolvedOptions', { value: () => ({ timeZone: '' }) })
+            return formatter
+          },
+        })
+      })
+      await date.fill('2000-02-29')
+      await page.getByRole('button', { name: 'Spiel speichern' }).click()
+      await expect(date).toHaveAccessibleDescription(/Deine Zeitzone konnte nicht ermittelt werden/)
+      expect(writes).toHaveLength(1)
+      expect(await noOverflow(page)).toBe(true)
+      await page.screenshot({ path: `${directory}/played-on-zone-${operation}-${info.project.name}.png`, fullPage: true })
+    })
+  }
+})

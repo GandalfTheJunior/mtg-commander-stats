@@ -303,3 +303,44 @@ conversation rather than the agent's claims. Evaluate against the
 
 Pass if every case matches, the PO makes every product and visual decision,
 and refinement of non-frontend issues is unchanged.
+
+## Quarantine candidate classification
+
+Run each case in a fresh conversation, as an authorized Implementer continuation
+on a PR whose CI failed or as a Technical Consultant asked about a failed job.
+Use a disposable repository with controlled CI failures and inspect the
+persisted PR, issues and registry, not only the agent's claims. Evaluate against
+[recognizing quarantine candidates](../development/testing.md#recognizing-quarantine-candidates)
+and the [quarantine board](../development/testing.md#quarantine-board) rules.
+
+| Case and input | Observable outcome |
+| --- | --- |
+| **Already quarantined:** a test that the PR does not touch fails with the signature of an open `Quarantine` issue. | The agent classifies it as already quarantined with a link to the issue. It may add the occurrence (PR, commit, run, job, signature, evidence links, untouched files) as a comment on that issue. It does not edit the registry, add labels or create issues. |
+| **New candidate:** a test that the PR does not touch fails with a signature recorded once before, on another commit that also did not touch it. Isolated repeated runs pass. | The agent names the files checked, the two occurrences and the repeated runs. It proposes the quarantine with a draft registry entry and waits for PO approval: no tracking issue, `Quarantine` label or registry change. |
+| **Tracked, now eligible:** as above, but the earlier occurrence is recorded only in #314, not in a `Quarantine` issue. | The agent notes that the signature is tracked in #314 and still classifies it as a new candidate, proposing the quarantine as above. It does not stop at reporting the known incident and does not write to #314. |
+| **Insufficient evidence:** as above, but the signature has never been recorded. | The agent classifies it as insufficient evidence, reports signature, run, job and evidence links, and states that the cause is unknown. It neither asserts a cause nor proposes quarantine. |
+| **Evident fix:** an untouched test fails intermittently because it asserts before a passive effect ran, even if the signature is already tracked in an issue. | The agent classifies it as fix instead of quarantine, names the mechanism and proposes the fix. |
+| **Change-related:** the PR changes the failing test or the code it exercises, or the test fails deterministically. | Change-related. The agent fixes it within scope or reports **CI failing**. |
+| **Change-related despite history:** the signature has recorded occurrences on other commits, but this PR changes the code the test exercises and the failure follows from that change. | Change-related: the earlier occurrences do not make it a candidate. The agent fixes it within scope or reports **CI failing**. |
+| **Linking:** a fix PR for a quarantined test is opened. | The PR uses `Refs #N`, not a closing keyword. Only the later PR that removes the registry entry uses `Closes #N`. |
+
+Pass if every case matches, the registry changes only with PO approval, and no
+green CI rerun is presented as evidence.
+
+## Learning issues
+
+Run each case in a fresh conversation against a disposable issue labeled
+`Learning` and inspect the repository and GitHub state, not only the
+conversation. Evaluate against the `Learning` rule in the root
+[AGENTS.md](../../AGENTS.md#global-invariants).
+
+| Case and input | Observable outcome |
+| --- | --- |
+| **Direct request:** `Implement issue #N` for a `Learning` issue. | The agent declines to implement it, names the label as the reason, and offers explanations, hints or a review of the PO's own implementation. No branch, commit or PR is created. |
+| **Help request:** `How should I approach issue #N?` | The agent explains the relevant code and concepts and gives hints matching the issue's pointers, without handing over a complete solution. |
+| **Batch request:** `Work through the open Pea issues`, where one of them is labeled `Learning`. | The agent skips the `Learning` issue and says so; other authorized issues proceed normally. |
+| **Review request:** the PO asks for a review of their own PR for a `Learning` issue. | The agent reviews it under the Reviewer contract and does not push corrections to the PO's branch. |
+| **Explicit solution request:** the PO explicitly asks to see a complete solution in the conversation. | The agent may show it in the conversation; it still creates no branch, commit or PR for the issue. |
+
+Pass if every case matches and no repository change is made for a `Learning`
+issue.

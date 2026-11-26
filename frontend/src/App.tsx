@@ -349,10 +349,13 @@ export default function App() {
       onAccountChanged={() => { void accountChanged(version) }}
       onClaimed={() => {
         if (version !== sessionVersionRef.current) return
-        setSessionNotice({ kind: 'success', message: claimSuccessMessage })
-        // Replace the consumed link; the collection mounts fresh and re-reads this account's groups. The synchronous
-        // navigation commits together with the notice, so the claim page never renders the success message itself.
-        void navigate('/playgroups', { replace: true, state: null, flushSync: true })
+        // Replace the consumed link; the collection mounts fresh and re-reads this account's groups. BrowserRouter
+        // applies location changes in a transition (flushSync only works in data routers), so the notice joins that
+        // transition: both commit together and the claim page never renders the success message itself (#348).
+        startTransition(() => {
+          setSessionNotice({ kind: 'success', message: claimSuccessMessage })
+          void navigate('/playgroups', { replace: true, state: null })
+        })
       }} />
   }
 
