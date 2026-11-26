@@ -10,8 +10,39 @@ permissions:
   contents: read
 
 jobs:
+  # Documentation-only changes skip the build and test jobs below. A skipped job
+  # satisfies a required check, so every gated job runs unless this job positively
+  # reported code=false: a failed or missing classification runs everything.
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.classify.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # A pull request merge commit or a squash-merged push, and its base HEAD^1.
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Classify changed paths
+        id: classify
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          # A push of several commits at once is not described by HEAD^1; run everything.
+          if [ "$EVENT_NAME" = push ] && [ "$(git rev-parse HEAD^1)" != "$PUSH_BEFORE" ]; then
+            echo "code=true" | tee -a "$GITHUB_OUTPUT"
+          else
+            node tools/ci/docs-only.mjs HEAD^1 | tee -a "$GITHUB_OUTPUT"
+          fi
+
   backend:
     name: backend
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -41,6 +72,8 @@ jobs:
 
   frontend:
     name: frontend
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -74,6 +107,8 @@ jobs:
 
   demo-tooling-windows:
     name: demo tooling (Windows)
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -96,6 +131,8 @@ jobs:
 
   playground-browser:
     name: playground browser (${{ matrix.browser }})
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     # Keep one test worker per engine; isolate engines to fit the existing bound.
     timeout-minutes: 20
