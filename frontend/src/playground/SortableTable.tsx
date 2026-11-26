@@ -8,6 +8,7 @@ import { startEdgeScroll } from './edgeScroll'
 import { startLandingClock } from './landingClock'
 import { measureOverlay, withinDropZone } from './landingGeometry'
 import type { OverlayPose } from './landingGeometry'
+import './lounge.css'
 const gap = 12
 
 type Settling = { drag: Drag; before: Map<string, DOMRect>; order: string[]; release: OverlayPose; viewportWidth: number }

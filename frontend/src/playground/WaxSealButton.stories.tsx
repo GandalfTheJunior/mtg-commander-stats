@@ -1,17 +1,20 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { fn } from 'storybook/test'
 import { WaxSealButton } from './WaxSealButton'
+import './lounge.css'
 
 /**
  * Unchanged Lounge experiment (#160); not approved for production. waxSeal.css
- * scopes part of its button styling to a `.lounge` ancestor, which the story
- * wrapper supplies without loading the rest of the Lounge styles.
+ * scopes part of its button styling to a `.lounge` ancestor. The story renders
+ * inside a `.lounge` room with the Lounge styles loaded (#358), as in the scene,
+ * so it looks the same whether or not another Lounge story was shown before.
  */
 const meta = {
-  title: 'Experiments/Wax seal button',
+  title: 'Experiments/Lounge/Wax seal button',
   component: WaxSealButton,
   tags: ['experiment'],
-  decorators: [Story => <div className="lounge"><Story /></div>],
+  parameters: { surface: false },
+  decorators: [Story => <div className="lounge" lang="de"><div style={{ padding: '24px 16px' }}><Story /></div></div>],
   args: { onClick: fn() },
 } satisfies Meta<typeof WaxSealButton>
 

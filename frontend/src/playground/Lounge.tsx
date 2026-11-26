@@ -6,6 +6,7 @@ import { Firelight, type FirelightMode } from './Firelight'
 import { StoneJoints, StoneWall } from './StoneWall'
 import { initialOrder } from './ordering'
 import { SortableTable } from './SortableTable'
+import './lounge.css'
 
 export function Lounge() {
   const reduced = useMediaQuery('(prefers-reduced-motion: reduce)')

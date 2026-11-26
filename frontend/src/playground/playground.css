@@ -1,0 +1,6 @@
+/* Page-level rules of the legacy Playground page (/dev/lounge.html) only (#358).
+   Storybook never loads this file, so each experiment sets what it depends on
+   under its own root class instead (for example .lounge in lounge.css). */
+:root { font-family: system-ui, sans-serif; color: #f4ebdf; background: #20151c; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; }
