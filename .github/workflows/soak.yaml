@@ -92,10 +92,12 @@ jobs:
         if: always()
         with:
           name: browser-soak-results-${{ matrix.browser }}
-          # Reports and failure evidence only; videos of passing tests stay out.
+          # Reports and failure evidence only. Passing tests also leave videos and
+          # their own screenshots in test-results; Playwright names the screenshot
+          # it takes on failure test-failed-N.png, and traces record every step.
           path: |
             frontend/soak-results/
             frontend/test-results/**/trace.zip
             frontend/test-results/**/error-context.md
-            frontend/test-results/**/*.png
+            frontend/test-results/**/test-failed-*.png
           retention-days: 14
