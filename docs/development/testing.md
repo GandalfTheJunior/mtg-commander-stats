@@ -253,9 +253,11 @@ repetitions did not execute the test; `not run` means none did, usually because
 of an error outside tests or a renamed test whose entry must be corrected.
 
 The `vitest-soak-results` and `browser-soak-results-<engine>` artifacts keep the
-JSON reports and, for browser failures, traces, error context and screenshots
-for 14 days. Use these counts to prioritize investigations and to count the
-green nights before removing a quarantine entry. A newly added workflow may not
+JSON reports and, for browser failures, traces, error context and Playwright's
+failure screenshots for 14 days. Screenshots that tests write to their own
+output directory are not uploaded; the trace records every step of a failed
+test. Use these counts to prioritize investigations and to count the green
+nights before removing a quarantine entry. A newly added workflow may not
 be dispatchable until it exists on the default branch; an unrun soak is not
 evidence of stability.
 

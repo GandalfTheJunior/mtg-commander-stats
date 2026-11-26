@@ -15,8 +15,9 @@ for (const width of [320, 375, 390, 1280]) {
       return { width: rect.width, ratio: image.clientWidth / image.clientHeight, filter: style.filter }
     }))
     for (const image of geometry) { expect(image.width).toBeGreaterThan(150); expect(image.ratio).toBeCloseTo(12/7, 1); expect(image.filter).toBe('none') }
-    const screenshot = await page.screenshot({ path: info.outputPath(`hall-${width}.png`), fullPage: true })
-    await info.attach(`hall-${width}`, { body: screenshot, contentType: 'image/png' })
+    await page.screenshot({ path: info.outputPath(`hall-${width}.png`), fullPage: true })
+    // Attach by path: a body attachment is embedded as base64 in the soak's JSON report.
+    await info.attach(`hall-${width}`, { path: info.outputPath(`hall-${width}.png`), contentType: 'image/png' })
   })
 }
 
