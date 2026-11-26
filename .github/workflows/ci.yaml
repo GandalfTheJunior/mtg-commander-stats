@@ -62,9 +62,10 @@ jobs:
         run: node --test ../.devcontainer/*.test.mjs
       - name: Verify Codespaces startup lifecycle and secret isolation
         run: python3 ../.devcontainer/test-start.py
+      - run: npm ci
+      # After npm ci: the burn-in tests drive the installed Playwright runner.
       - name: Verify CI tooling
         run: node --test ../tools/ci/*.test.mjs
-      - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test

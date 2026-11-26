@@ -15,7 +15,7 @@ const suites = {
 
 // Vitest runs test files side by side in CI, so each round starts as many
 // single-worker runs as CI has workers: 5 rounds of 4 runs execute a file 20 times.
-export const vitestRounds = 5;
+export const vitestRuns = 20;
 export const vitestParallelRuns = 4;
 // CI runs Playwright with one worker, so repeats are sequential there too.
 export const playwrightRepeats = 10;
@@ -31,6 +31,30 @@ export function selectTestFiles(suite, changedPaths) {
 
 export function playwrightRepeatCount(fileCount) {
   return fileCount > manyFiles ? playwrightRepeatsForManyFiles : playwrightRepeats;
+}
+
+/**
+ * Concurrent runs per round. Fewer CPUs mean more rounds, never fewer runs:
+ * every machine executes each file vitestRuns times.
+ */
+export function vitestRoundSizes(cpus) {
+  const parallelRuns = Math.max(1, Math.min(vitestParallelRuns, cpus));
+  const rounds = Math.ceil(vitestRuns / parallelRuns);
+  return Array.from({length: rounds}, (_, round) => Math.min(parallelRuns, vitestRuns - round * parallelRuns));
+}
+
+/**
+ * Playwright reads each positional argument as a regular expression matched
+ * against the absolute test file path, so a file name is passed escaped and
+ * anchored to match exactly that file. The /.../ form also disables the
+ * case-insensitive flag Playwright adds to plain patterns, and its trailing
+ * slash keeps a name ending in ":<number>" from being read as a line filter.
+ */
+export function playwrightFileFilter(file) {
+  // A line break would end the /.../ form early and silently match nothing.
+  if (/[\r\n]/.test(file)) throw new Error(`Cannot select a test file whose name contains a line break: ${JSON.stringify(file)}`);
+  const escaped = file.replace(/[\\^$.*+?()[\]{}|/]/g, '\\$&');
+  return `/(?:^|\\/)${escaped}$/`;
 }
 
 /** Paths added, modified or renamed on HEAD since it diverged from base. Deleted files have nothing to run. */
@@ -56,24 +80,23 @@ function run(args, {capture}) {
 }
 
 async function burnInVitest(files) {
-  const parallelRuns = Math.min(vitestParallelRuns, availableParallelism());
+  const rounds = vitestRoundSizes(availableParallelism());
   let failedRuns = 0;
-  for (let round = 1; round <= vitestRounds; round++) {
+  for (const [index, parallelRuns] of rounds.entries()) {
     const runs = await Promise.all(Array.from({length: parallelRuns}, () =>
       run([vitestCli, 'run', '--maxWorkers=1', ...files], {capture: true})));
     const failed = runs.filter(({code}) => code !== 0);
     failedRuns += failed.length;
-    console.log(`Round ${round}/${vitestRounds}: ${parallelRuns - failed.length}/${parallelRuns} runs passed.`);
+    console.log(`Round ${index + 1}/${rounds.length}: ${parallelRuns - failed.length}/${parallelRuns} runs passed.`);
     for (const {output} of failed) console.log(output);
   }
-  const totalRuns = vitestRounds * parallelRuns;
-  console.log(`Vitest burn-in: ${totalRuns - failedRuns}/${totalRuns} runs passed.`);
+  console.log(`Vitest burn-in: ${vitestRuns - failedRuns}/${vitestRuns} runs passed.`);
   return failedRuns === 0 ? 0 : 1;
 }
 
 async function burnInPlaywright(files, extraArgs) {
   const repeats = playwrightRepeatCount(files.length);
-  const {code} = await run([playwrightCli, 'test', `--repeat-each=${repeats}`, ...extraArgs, ...files], {capture: false});
+  const {code} = await run([playwrightCli, 'test', `--repeat-each=${repeats}`, ...extraArgs, ...files.map(playwrightFileFilter)], {capture: false});
   return code === 0 ? 0 : 1;
 }
 

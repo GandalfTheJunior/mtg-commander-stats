@@ -65,9 +65,14 @@ repeats every frontend test file the PR adds, modifies or renames:
 - **Vitest** (`frontend burn-in`): 20 runs of each changed `src/**/*.test.ts(x)`
   file, as 5 rounds of 4 concurrent single-worker runs. The concurrency matches
   the CPU contention of the regular suite, which runs test files side by side.
+  A machine with fewer than 4 CPUs runs fewer at a time in more rounds, so the
+  total stays at 20 runs.
 - **Playwright** (`browser burn-in (chromium|webkit)`): `--repeat-each=10` for
   each changed `e2e/**/*.pw.ts` spec, per engine, with the regular single worker
   and container image. A PR changing more than three specs repeats each 3 times.
+  Playwright reads file arguments as regular expressions, so each spec path is
+  passed escaped and anchored; a name such as `member (mobile).pw.ts` selects
+  exactly that file.
 
 Every repetition must pass; this is the opposite of a retry. The `changed tests`
 job counts the files and the burn-in jobs are skipped when none changed. They do
