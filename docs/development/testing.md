@@ -116,7 +116,7 @@ a retry and not a fix: the test keeps running every night in the
   cannot be matched exactly and are rejected by the registry validation. Vitest
   cases that share one title path (for example from `it.each` with a fixed
   title) are quarantined together.
-- `issue` is the tracking issue, labeled `quarantine`. It records the failing
+- `issue` is the tracking issue, labeled `Quarantine`. It records the failing
   runs, the entry and its end date, and owns the root-cause fix.
 - `since` and `until` are the first and last quarantined day (UTC), at most 14
   days apart. After `until` the entry stops applying by itself and the test
@@ -157,12 +157,12 @@ The [quarantine board](https://github.com/users/GandalfTheJunior/projects/3/view
 
 | Status | Meaning | Set |
 | --- | --- | --- |
-| To do | The test is quarantined; nobody works on its cause yet. | Automatically when an issue gets the `quarantine` label. |
+| To do | The test is quarantined; nobody works on its cause yet. | Automatically when an issue gets the `Quarantine` label. |
 | In progress | The cause is being investigated or a fix PR is open. | Manually. |
 | Verifying | The fix is merged; green soak nights are being counted. | Manually. |
 | Done | The entry is removed and the tracking issue is closed. | Automatically when the issue closes. |
 
-The `quarantine` label is added only after the PO approved the entry, so To do
+The `Quarantine` label is added only after the PO approved the entry, so To do
 always means quarantined. Only the PR that removes the registry entry closes
 the tracking issue, with a closing keyword such as `Closes #123`. The PR that
 adds the entry and the fix PR use `Refs #123`, and nobody links them in the
@@ -182,7 +182,7 @@ before proposing a rerun, a fix or a quarantine. A failing test is a
    in repeated local runs. A green CI rerun alone is not evidence.
 3. **Recurring.** The same signature (test, failing line and assertion) failed
    at least twice, on two different commits that do not touch it. Attempts on
-   one commit count once. Look in open `quarantine` issues, the CI reliability
+   one commit count once. Look in open `Quarantine` issues, the CI reliability
    tracker [#314](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/314),
    soak summaries and CI history.
 4. **No evident small fix.** If the code shows the mechanism and the fix is
@@ -203,12 +203,12 @@ that the change causes the failure or that a small fix is evident.
    within the task's scope or report the CI failure.
 2. **Fix instead of quarantine:** criterion 4 fails. Describe the mechanism and
    the proposed fix, even when the signature is already tracked in an issue.
-3. **Already quarantined:** an open `quarantine` issue tracks the signature.
+3. **Already quarantined:** an open `Quarantine` issue tracks the signature.
    Record the occurrence there (see below); no further proposal.
 4. **New candidate:** all five criteria hold, including for a signature that
    is so far only recorded in #314 or another issue. Propose the quarantine to
    the PO with the occurrences and a draft registry entry. Creating the
-   tracking issue, adding the `quarantine` label and editing the registry need
+   tracking issue, adding the `Quarantine` label and editing the registry need
    PO approval.
 5. **Insufficient evidence:** none of the above, for example a first
    occurrence, or a failure whose relation to the change or whose
@@ -217,10 +217,10 @@ that the change causes the failure or that a small fix is evident.
    Do not assert a cause and do not propose quarantine.
 
 Independently of the classification, note whether the signature is already
-tracked: in an open `quarantine` issue, in
+tracked: in an open `Quarantine` issue, in
 [#314](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/314) or in
 another issue. The PO decided (17 November 2026) that agents may add a new
-occurrence to an open `quarantine` issue as a comment without asking: PR,
+occurrence to an open `Quarantine` issue as a comment without asking: PR,
 commit, run, job, signature, evidence links and whether the change touches the
 test. For signatures tracked elsewhere or not at all, report the occurrence
 without writing anywhere, so the PO can record it.
