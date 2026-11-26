@@ -96,6 +96,14 @@ class. Supply that ancestor through a story-level decorator, as
 has loaded, it stays in the preview while other stories are shown, so check that
 its selectors cannot match elements of other stories.
 
+The legacy Playground page and Storybook provide different page-level CSS: the
+Playground loads `lounge.css` (border-box sizing, normal line height) but not
+`index.css`, while every story loads `index.css` (for example its `main`, `label`
+and `button` rules) but not `lounge.css`. Never import `lounge.css` into a story.
+Instead, make the experiment's own stylesheet set what it depends on under its
+root class, as `mana.css` does for `.mana-page`, and compare the story with
+`/dev/lounge.html` before and after.
+
 ## Accessibility panel
 
 The **Accessibility** panel runs axe against the current story. It is a review

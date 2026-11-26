@@ -3,6 +3,11 @@
 .playground-nav button[aria-pressed=true] { background:#e4c58c; color:#301f19; }
 .playground-nav button:focus-visible { outline:3px solid #fff; outline-offset:3px; }
 .mana-page { min-height:0; padding:0 16px 48px; background:radial-gradient(ellipse at 50% 0,#57332c,#241b20 80%); color:#352517; font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
+/* Self-contained frame (#357): the Playground page supplies border-box sizing and normal line height through lounge.css,
+   while Storybook loads neither that nor anything but the app's legacy index.css (main, label rules). Same rendering in both. */
+.mana-page { box-sizing:border-box; max-width:none; margin:0; line-height:normal; }
+.mana-page *, .mana-page ::before, .mana-page ::after { box-sizing:border-box; }
+.mana-filters label { display:block; font-weight:400; }
 .mana-brand { max-width:720px; margin:auto; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:28px 8px; color:#e6c68b; font:17px Georgia,serif; letter-spacing:.13em; }
 .mana-brand small { display:block; font:11px system-ui; letter-spacing:.08em; color:#d7bfa6; margin-top:7px; }
 .mana-monogram { font-size:36px; letter-spacing:-.24em; padding-right:10px; }
