@@ -92,10 +92,20 @@ and no CI assertions.
 
 The Lounge experiment is shown as `Experiments/Lounge/…`: the complete scene and
 its building blocks (stone wall, firelight, window, sortable table, wax seal
-button). Every building block imports `src/playground/lounge.css`, which only
-styles elements inside a `.lounge` root. The page-level rules of the legacy
-Playground (`:root`, `*`, `body`) live in `playground.css`, which only
-`/dev/lounge.html` loads.
+button). Every building block imports `src/playground/lounge.css`. The page-level
+rules of the legacy Playground (`:root`, `*`, `body`) live in `playground.css`,
+which only `/dev/lounge.html` loads.
+
+`lounge.css` is not fully scoped to a `.lounge` root. Its root, box-sizing,
+element and state-attribute rules are limited to `.lounge` (the `data-reduced`
+rules also to `.hall`), but most of its class rules, such as `.quiet`,
+`.overline`, `.player-card` or `.room-light`, match those class names anywhere.
+Other stories stay unaffected only because no component outside the Lounge uses
+these names, so do not reuse them elsewhere. Two other Playground experiments
+depend on them: the Hall of Fame's firelight uses the `.room-light` rules, which
+it loads through `Firelight`, and the Commander art heading uses `.overline`,
+which only works on the Playground page because the Lounge has loaded
+`lounge.css` there.
 
 In the scene, `Lounge.tsx` sets the room's state as attributes on its `.lounge`
 root: `data-fire`, `data-intensity`, `data-card-design`, `data-reduced`,
