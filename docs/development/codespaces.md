@@ -16,7 +16,8 @@ The preview database is independent and initially empty on creation; an explicit
    25 and configures Docker-in-Docker.
 3. On startup, the status page starts first, frontend dependencies are installed
    if missing or the lockfile changed, and Vite starts on port 5173 **before**
-   Docker/PostgreSQL (5432) and Spring Boot (8080). The first Maven run may
+   Docker/PostgreSQL (5432) and Spring Boot (8080). Storybook is then launched
+   on port 6006 without waiting for it (see [Storybook](#storybook-on-a-phone)). The first Maven run may
    take time to download dependencies. `postStartCommand` runs automatically on
    creation and each restart; no terminal command is needed for normal use.
 4. Open the **private** forwarded HTTPS URL for port **5174 – Status** in the
@@ -31,6 +32,33 @@ The preview database is independent and initially empty on creation; an explicit
 6. When finished, visit <https://github.com/codespaces>, select the three-dot
    menu for the Codespace and choose **Stop codespace**. Closing Safari does
    **not** stop compute billing. Stopped Codespaces can still consume storage.
+
+## Storybook on a phone
+
+Every Codespace whose branch contains this setup also starts the development-only
+[Storybook component workshop](storybook.md) (#364). Because a Codespace runs
+any branch, design candidates on a PR branch can be opened before they are merged.
+
+- Open it from the status page (**Storybook öffnen**) or directly at
+  `https://<codespace-name>-6006.app.github.dev/`. Port **6006** is private like
+  the other preview ports, so GitHub asks for the same sign-in.
+- Storybook needs neither Docker, PostgreSQL nor the backend; it usually answers
+  shortly after the app frontend, even while Spring Boot is still starting.
+- Startup launches it right after the frontend answers and does **not** wait
+  for it. A Storybook failure never fails startup or blocks the app and backend:
+  the status page then shows **Storybook: Noch nicht erreichbar**, and
+  `storybook.log` holds the details.
+- Storybook listens on localhost only and keeps its host validation enabled.
+  `frontend/.storybook/main.ts` adds exactly one allowed host: this Codespace's
+  forwarded address for port 6006 (from `CODESPACE_NAME` and
+  `GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN`). Do not start it with
+  `--host 0.0.0.0`: Storybook then disables host validation, and its WebSocket
+  channel can write project files.
+- In a Codespace, `main.ts` also points the preview's live-reload socket at
+  port 443, because the forwarded HTTPS address does not answer on port 6006.
+- It is the development server, so pulling new commits into a running Codespace
+  updates the stories without a restart, unless dependencies or the
+  `.storybook/` configuration changed.
 
 ### Testing later changes
 
@@ -119,7 +147,7 @@ forwarding, tester-secret access or physical Safari results.
 
 ## Security and troubleshooting
 
-- Ports **5173** (app) and **5174** (read-only status) must remain **Private**.
+- Ports **5173** (app), **5174** (read-only status) and **6006** (Storybook) must remain **Private**.
   Both services listen on **HTTP** inside the Codespace (`portsAttributes.protocol` is `http`).
   GitHub's authenticated port forwarding still gives Safari **HTTPS** addresses;
   do not replace `https://` with `http://` in the browser.
@@ -141,6 +169,7 @@ forwarding, tester-secret access or physical Safari results.
   tail -n 80 ~/.local/state/mtg-commander-stats/startup.log
   tail -n 80 ~/.local/state/mtg-commander-stats/status-server.log
   tail -n 80 ~/.local/state/mtg-commander-stats/frontend.log
+  tail -n 80 ~/.local/state/mtg-commander-stats/storybook.log
   tail -n 80 ~/.local/state/mtg-commander-stats/backend.log
   ```
 
@@ -193,13 +222,15 @@ forwarding, tester-secret access or physical Safari results.
 ## Startup regression checks (Linux)
 
 Run `python3 .devcontainer/test-start.py` with Node, Bash, curl, `setsid` and
-`flock` available and local ports 5173, 5174 and 8080 unused. The checks run the
+`flock` available and local ports 5173, 5174, 6006 and 8080 unused. The checks run the
 actual startup script and status server without a terminal, using temporary home
 and repository directories (including spaces). npm, Docker and Maven are replaced
 by fixtures; frontend/backend responses come from real Node HTTP processes.
 They cover first-install flow, repeated/concurrent starts, stale PID files after
 stopping services, lifecycle-group signals, DB failure isolation and early child
-exit diagnostics. PID tests cover positive `kill -0` with empty/failed `ps`, live
+exit diagnostics. Storybook checks cover its launch arguments, reuse while it
+is still warming, a backend start that does not wait for it, a Storybook failure
+that leaves the preview and backend available, and the status-page link. PID tests cover positive `kill -0` with empty/failed `ps`, live
 foreign/cross-service PIDs, a foreign repository with the same log descriptor,
 verified reuse before readiness, corrupt/missing PID records while a service is
 warming, lifetime-lock inheritance, and a bounded failure without duplicate
@@ -208,7 +239,7 @@ removal failure, refusal without mutation for unrelated/unsafe Docker metadata,
 and correct final exit logging. Docker metadata/errors are fixtures; these tests
 alone do not prove PostgreSQL data preservation or reproduce stale runc state.
 They do not verify an actual Codespaces stop/start, private forwarded-port
-authentication, real Vite/Spring Boot/PostgreSQL or iPhone Safari.
+authentication, real Vite/Storybook/Spring Boot/PostgreSQL or iPhone Safari.
 
 ### Why this recovery is narrow
 

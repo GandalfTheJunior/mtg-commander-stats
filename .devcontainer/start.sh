@@ -55,6 +55,7 @@ service_process_matches() {
      "/proc/$pid/fd/1" -ef "$state_dir/$name.log" ]] || return 1
   case "$name" in
     frontend|backend) cwd="$repo_root/$name" ;;
+    storybook) cwd="$repo_root/frontend" ;;
   esac
   # The launch shell starts in repo_root before exec/cd into a service directory.
   [[ "/proc/$pid/cwd" -ef "$repo_root" || "/proc/$pid/cwd" -ef "$cwd" ]]
@@ -171,6 +172,15 @@ if ! curl --silent --fail --max-time 2 http://127.0.0.1:5173/ >/dev/null; then
 fi
 wait_service frontend http://127.0.0.1:5173/ 30
 
+# Storybook is optional for the app preview: launch it without waiting, so Docker
+# and the backend are not delayed, and never fail startup because of it. It keeps
+# listening on localhost with host validation; .storybook/main.ts allows only this
+# Codespace's forwarded port 6006 address. Never add --host 0.0.0.0 here.
+report "Storybook wird gestartet"
+if ! curl --silent --fail --max-time 2 http://127.0.0.1:6006/ >/dev/null; then
+  start_service storybook bash -c 'cd "$1/frontend"; exec npm run storybook -- --ci' bash "$repo_root"
+fi
+
 # Keep one stable local password for the lifetime of this Codespace's DB volume.
 report "Docker und PostgreSQL werden gestartet"
 password_file="$secret_dir/postgres-password"
@@ -229,5 +239,12 @@ else
   echo "test-login: optional test login not configured."
 fi
 unset codespace_test_password
+
+# Diagnostic only: the status page shows Storybook's live state either way.
+if curl --silent --fail --max-time 2 http://127.0.0.1:6006/ >/dev/null; then
+  echo "storybook: ready"
+else
+  echo "storybook: not answering yet; log=$state_dir/storybook.log"
+fi
 
 report "Vorschau bereit"

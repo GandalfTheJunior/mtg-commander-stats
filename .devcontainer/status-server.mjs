@@ -8,6 +8,7 @@ if (!codespace || !/^[a-z0-9-]+$/.test(codespace)) {
   throw new Error('A valid CODESPACE_NAME is required')
 }
 const appUrl = `https://${codespace}-5173.app.github.dev/`
+const storybookUrl = `https://${codespace}-6006.app.github.dev/`
 const statusFile = join(homedir(), '.local/state/mtg-commander-stats/startup-status.txt')
 
 const escapeHtml = (value) => value.replace(/[&<>"']/g, (char) => ({
@@ -36,9 +37,10 @@ const server = createServer(async (req, res) => {
     return
   }
 
-  const [frontend, backend, phase] = await Promise.all([
+  const [frontend, backend, storybook, phase] = await Promise.all([
     responds('http://127.0.0.1:5173/'),
     responds('http://127.0.0.1:8080/api/csrf'),
+    responds('http://127.0.0.1:6006/'),
     readFile(statusFile, 'utf8').then((value) => value.trim()).catch(() => 'Start wird vorbereitet')
   ])
   const ready = frontend && backend
@@ -58,8 +60,10 @@ a{color:#1255b4;word-wrap:break-word}small{color:#555}</style></head><body>
 <p>${ready ? 'Die Anwendung ist erreichbar.' : 'Die Vorschau wird vorbereitet oder benötigt Aufmerksamkeit.'}</p>
 <section><p><strong>Frontend:</strong> <span class="${frontend ? 'ok' : 'pending'}">${badge(frontend)}</span></p>
 <p><strong>Backend:</strong> <span class="${backend ? 'ok' : 'pending'}">${badge(backend)}</span></p>
+<p><strong>Storybook:</strong> <span class="${storybook ? 'ok' : 'pending'}">${badge(storybook)}</span></p>
 <p><strong>Letzter Startschritt:</strong> ${escapeHtml(phase)}</p></section>
 <p><a href="${appUrl}">${ready ? 'Anwendung jetzt öffnen' : 'Anwendungslink (möglicherweise noch nicht bereit)'}</a></p>
+<p><a href="${storybookUrl}">${storybook ? 'Storybook öffnen' : 'Storybook-Link (möglicherweise noch nicht bereit)'}</a></p>
 <p><small>Diese Seite aktualisiert sich alle 10 Sekunden. Wenn ein Fehler dauerhaft angezeigt wird, genügt es, den Startschritt zu nennen. Keine Passwörter oder Tokens teilen.</small></p>
 </body></html>`)
 })

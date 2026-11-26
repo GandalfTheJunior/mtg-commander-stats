@@ -29,9 +29,11 @@ which is ignored by Git and ESLint. The required `frontend` CI job runs the stat
 build, so a story that fails to compile blocks a merge. CI does not render the
 stories in a browser.
 
-Storybook is **not published** anywhere and is **not started in Codespaces**. A
-later issue decides how the Product Owner opens it on a phone; until then, UI
-changes are reviewed through screenshots in the PR.
+Storybook is **not published** anywhere. To open it on a phone, use the private
+[Codespaces preview](codespaces.md#storybook-on-a-phone), which starts Storybook
+automatically for the selected branch (#364). Outside a Codespace, Storybook only
+accepts `localhost`; it does not listen on other network interfaces. PRs still
+include screenshots of changed stories.
 
 ## Where things live
 
