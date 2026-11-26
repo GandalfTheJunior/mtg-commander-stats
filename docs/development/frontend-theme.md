@@ -66,6 +66,10 @@ color for each variant. Toggle buttons using these primitives must set
 TextFields need stable IDs, visible
 labels, explanatory `helperText`, and `error` for validation (color alone is
 insufficient). No product-specific wrappers are needed for this foundation.
+An `Alert` with an `action` places the action beside the message while the
+message keeps at least 12rem; otherwise the action wraps below the message,
+right-aligned, instead of shrinking until its button label breaks between
+letters (#353). Alerts without an action keep MUI's single-row layout.
 
 ## Coexistence and fixture
 

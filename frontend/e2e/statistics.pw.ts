@@ -142,8 +142,8 @@ for (const width of [320, 375, 390, 1280]) {
   })
 }
 
-test('statistics failure offers retry without presenting numbers', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 })
+for (const width of [320, 390]) test(`statistics failure offers retry without presenting numbers at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 844 })
   const mode = { failStatistics: true }
   const errors = await serve(page, mode)
   await page.goto(`${base}/reports/players`)
@@ -152,9 +152,12 @@ test('statistics failure offers retry without presenting numbers', async ({ page
   const alert = panel.getByRole('alert')
   await expect(alert).toContainText('Die Statistiken konnten nicht geladen werden.')
   await expect(page.getByText('%')).toHaveCount(0)
-  await capture(page, 'error', 390)
+  // #353: the retry action stays one 48px line instead of breaking its label between letters.
+  const retry = alert.getByRole('button', { name: 'Erneut versuchen' })
+  expect((await retry.boundingBox())!.height).toBeLessThanOrEqual(48)
+  await capture(page, 'error', width)
   mode.failStatistics = false
-  await alert.getByRole('button', { name: 'Erneut versuchen' }).click()
+  await retry.click()
   await expect(panel.getByRole('list', { name: 'Spielerstatistiken' })).toBeVisible()
   await expect(alert).toHaveCount(0)
   expect(errors).toEqual([])
