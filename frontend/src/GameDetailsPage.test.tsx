@@ -210,7 +210,7 @@ test('cards retain API order, winner/deck and unknown play dates; active draft b
   const cards = await screen.findAllByRole('link', { name: /^Spieldetails:/ })
   expect(cards.map(card => card.getAttribute('href'))).toEqual([gameUrl(group.id, uid(21)), detailUrl])
   expect(cards[0]).toHaveTextContent('Unentschieden')
-  expect(cards[1]).toHaveTextContent('Same name (…0002)Deck: Deck 2')
+  expect(cards[1]).toHaveTextContent('Same name (…0002) Deck: Deck 2')
   expect(cards[1]).not.toHaveTextContent('Teilnehmende')
   expect(cards[1]).toHaveTextContent('Spieldatum unbekannt')
   fireEvent.click(screen.getByRole('link', { name: 'Spiel erfassen' }))
