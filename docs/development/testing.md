@@ -320,6 +320,7 @@ lint and typecheck and before build. Demo tooling and Codespaces safety checks
 remain in that job. The required `backend` job (including JaCoCo), Windows
 tooling checks and Chromium/WebKit browser jobs remain unchanged. A failing
 test fails its job; coverage does not replace or conditionally skip these gates.
+Only [documentation-only changes](#documentation-only-changes) skip them.
 
 **PR checks no longer produce frontend coverage artifacts.** The separate
 [Frontend coverage workflow](../../.github/workflows/frontend-coverage.yaml)
@@ -367,3 +368,23 @@ The implementation PR records the first actual baseline with its commit SHA,
 exact commands, counts, percentages and measurement limits. Later CI summaries
 and downloadable artifacts are the source of subsequent measurements; do not
 interpret the original baseline as a permanent quality target.
+
+## Documentation-only changes
+
+A change that touches only documentation cannot alter a build or test result,
+so CI does not run the build and test jobs for it. The `changes` job compares
+the revision with its base (`tools/ci/docs-only.mjs`). A change is
+documentation-only when every changed path is under `docs/`, is a Markdown file
+(`*.md`) anywhere, or is under `.github/ISSUE_TEMPLATE/`. No build, test or
+tooling check reads these paths; a check that starts reading one must remove
+that path from the classifier in the same change.
+
+For such a change `backend`, `frontend`, `demo tooling (Windows)` and the
+`playground browser` jobs are reported as skipped, which satisfies the required
+`backend` and `frontend` checks. Any other changed path, including workflow and
+tooling files, runs every job as before. A file moved between code and
+documentation counts as code. The gate fails open: if `changes` fails, is
+cancelled or cannot classify a push of several commits, every job runs.
+
+When verifying a PR, treat skipped jobs as passed only if the `changes` job
+succeeded on that revision and its log shows `code=false`.
