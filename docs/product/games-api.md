@@ -109,23 +109,52 @@ The two independent facts are:
   `"2026-10-31"`) or explicit `null` for unknown. It has no time of day or timezone.
 
 POST with `playedOn` absent or null stores unknown. PUT with the field absent
-preserves the stored date so older clients cannot erase it; an explicit date
+preserves the stored date without revalidation; an explicit date
 replaces it and explicit null clears it. All other gameplay fields still require
 complete replacement. The same active original creator/OWNER/ADMIN authorization
 applies to date corrections; there is no separate date-edit endpoint.
 
-Malformed strings, impossible calendar dates, date-time timestamps, other JSON
-types and unknown fields produce the existing `400` response. The backend never
-fills a missing date from its clock, the recording timestamp or an inferred user
-timezone. Existing saved games remain unknown after migration, without a backfill.
+An explicitly supplied non-null `playedOn` requires **`playedOnTimeZone`**, a
+valid IANA time-zone identifier such as `Europe/Berlin`, `Asia/Tokyo` or
+`Pacific/Kiritimati`. The current browser supplies its current IANA zone at Save,
+without changing the date-only `playedOn` string. There are no supported legacy
+clients exempt from this rule. Internal HTTP test clients submitting concrete
+dates supply this field too. No migration or backfill is required.
 
-The future client flow in [#172](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/172)
-will explicitly submit the user's local current calendar day for ordinary new
-entries and support past-date entry. Client display/timezone decisions and UI
-changes are separate work. Historical CSV import in
-[#170](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/170) may lack a
-reliable play date; null represents that uncertainty without inventing a day.
-Neither the UI flow nor the importer is implemented by this backend contract.
+The server uses its own clock's current instant in the supplied zone to determine
+today and rejects dates after that calendar day. It never trusts a browser-supplied
+clock, converts the play date to an instant, or substitutes UTC, the server's zone
+or a fixed zone when one is missing. IANA rules apply across midnight and daylight
+saving. The zone is a client claim, not verified location evidence: a malicious
+client can choose another valid zone. It is write-validation context only, not a
+persisted profile/group setting or a response field.
+
+Missing/null zones with a non-null date, malformed/invalid zones (including fixed
+offsets), future dates, malformed/impossible dates, timestamps and other JSON
+types produce HTTP `400`. Explicit invalid `playedOnTimeZone` values, including
+null, are rejected even if `playedOn` is absent/null. Absent/null dates otherwise
+need no zone. Unknown JSON fields remain strictly rejected.
+
+Date validation problems use the existing problem-detail response with a `field`
+and stable `code`: `PLAYED_ON_FUTURE`, `PLAYED_ON_INVALID`, or
+`PLAYED_ON_TIME_ZONE_INVALID`. The editor associates localized actionable feedback
+with Spieldatum, preserves participants/results/date, and never clamps or retries
+a rejected write.
+
+The native date input defaults to the player's local today for new games and
+limits selection to local today. The maximum refreshes while open and on focus /
+visibility changes. Save (including winner-only confirmation) recomputes today and
+the zone, so an initial maximum cannot govern a form left open across midnight.
+`Intl.DateTimeFormat().resolvedOptions().timeZone` supplies the browser zone,
+validated through `Intl.DateTimeFormat` before submission. Current desktop and
+mobile Safari support this API. If detection is unavailable, empty, or throws,
+explicitly dated submission is blocked with advice to check device settings,
+update the browser or clear the date; there is no guessed fallback. The backend
+remains authoritative if the device clock or time-zone database differs.
+
+Unknown historical dates remain unknown; the backend never fills a missing date
+from its clock or `recordedAt`. Historical CSV import may explicitly use null
+rather than inventing a play date.
 
 ## Game response and history
 

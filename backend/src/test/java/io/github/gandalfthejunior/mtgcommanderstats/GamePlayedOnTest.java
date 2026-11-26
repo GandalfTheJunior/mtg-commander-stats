@@ -2,6 +2,13 @@ package io.github.gandalfthejunior.mtgcommanderstats;
 
 import java.net.http.HttpResponse;
 import java.time.LocalDate;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TimeZone;
@@ -19,7 +26,65 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.HttpStatus.OK;
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
+@Import(GamePlayedOnTest.ClockConfiguration.class)
 class GamePlayedOnTest extends GameTestSupport {
+    @TestConfiguration(proxyBeanMethods = false)
+    static class ClockConfiguration {
+        @Bean
+        Clock playedOnClock() {
+            return Clock.fixed(Instant.parse("2026-11-16T10:00:00Z"), ZoneOffset.UTC);
+        }
+    }
+
+    @Test
+    void requiresValidIanaZonesAndRejectsFutureDatesAtomicallyOnBothRoutes() throws Exception {
+        Fixture f = fixture();
+        JsonNode saved = expect(f.creator(), "POST", f.path(), request(f).put("playedOn", "2000-02-29").toString(), CREATED.value());
+        String path = f.path() + "/" + id(saved);
+        for (String method : List.of("POST", "PUT")) {
+            String target = method.equals("POST") ? f.path() : path;
+            for (String zone : List.of("null", "42", "true", "{}", "[]", "\"\"", "\"Mars/Olympus\"",
+                    "\"+14:00\"", "\"UTC+14:00\"", "\" Europe/Berlin\"")) {
+                for (boolean dated : List.of(true, false)) {
+                    ObjectNode invalid = request(f).put("playedOn", "2026-11-16");
+                    if (!dated) invalid.putNull("playedOn");
+                    invalid.set("playedOnTimeZone", json.readTree(zone));
+                    JsonNode problem = expect(f.creator(), method, target, invalid.toString(), BAD_REQUEST.value());
+                    assertThat(problem.get("code").asText()).isEqualTo("PLAYED_ON_TIME_ZONE_INVALID");
+                }
+                ObjectNode omittedDate = request(f);
+                omittedDate.set("playedOnTimeZone", json.readTree(zone));
+                expect(f.creator(), method, target, omittedDate.toString(), BAD_REQUEST.value());
+            }
+            ObjectNode missing = request(f).put("playedOn", "2026-11-16");
+            missing.remove("playedOnTimeZone");
+            expect(f.creator(), method, target, missing.toString(), BAD_REQUEST.value());
+            JsonNode future = expect(f.creator(), method, target, request(f).put("playedOn", "2026-11-17").toString(), BAD_REQUEST.value());
+            assertThat(future.get("code").asText()).isEqualTo("PLAYED_ON_FUTURE");
+            assertThat(future.get("field").asText()).isEqualTo("playedOn");
+            assertThat(expect(f.owner(), "GET", path, "", OK.value())).isEqualTo(saved);
+        }
+        assertThat(games.count()).isEqualTo(1);
+        assertThat(decks.findById(f.ownerDeck()).orElseThrow().isEverUsed()).isFalse();
+    }
+
+    @Test
+    void authoritativeServerInstantUsesTheClaimedZoneForCreateAndReplace() throws Exception {
+        Fixture f = fixture();
+        JsonNode saved = expect(f.creator(), "POST", f.path(), body(f), CREATED.value());
+        String path = f.path() + "/" + id(saved);
+        for (String method : List.of("POST", "PUT")) {
+            String target = method.equals("POST") ? f.path() : path;
+            for (String date : List.of("2026-11-15", "2026-11-16", "2026-11-17")) {
+                ObjectNode request = request(f).put("playedOn", date).put("playedOnTimeZone", "Pacific/Kiritimati");
+                JsonNode result = expect(f.creator(), method, target, request.toString(), method.equals("POST") ? CREATED.value() : OK.value());
+                assertThat(result.get("playedOn").asText()).isEqualTo(date);
+                if (method.equals("PUT")) assertThat(result.get("recordedAt")).isEqualTo(saved.get("recordedAt"));
+            }
+            expect(f.creator(), method, target, request(f).put("playedOn", "2026-11-17").put("playedOnTimeZone", "Pacific/Honolulu").toString(), BAD_REQUEST.value());
+        }
+    }
+
     @Test
     void persistsDateOnlyAcrossAllResponsesAndTimeZonesWithoutChangingRecordedAtOrOrdering() throws Exception {
         Fixture f = fixture();
@@ -53,14 +118,14 @@ class GamePlayedOnTest extends GameTestSupport {
     @Test
     void absentAndExplicitNullCreationStayUnknownAndExplicitNullEditClearsKnownDate() throws Exception {
         Fixture f = fixture();
-        for (ObjectNode request : List.of(request(f), request(f).putNull("playedOn"))) {
+        for (ObjectNode request : List.of((ObjectNode) json.readTree(body(f)), ((ObjectNode) json.readTree(body(f))).putNull("playedOn"))) {
             JsonNode saved = expect(f.creator(), "POST", f.path(), request.toString(), CREATED.value());
             assertDate(f, saved, null);
             assertThat(expect(f.creator(), "PUT", f.path() + "/" + id(saved), body(f), OK.value())).isEqualTo(saved);
         }
         ObjectNode request = request(f).put("playedOn", "2026-10-31");
         JsonNode saved = expect(f.creator(), "POST", f.path(), request.toString(), CREATED.value());
-        JsonNode cleared = expect(f.creator(), "PUT", f.path() + "/" + id(saved), request.putNull("playedOn").toString(), OK.value());
+        JsonNode cleared = expect(f.creator(), "PUT", f.path() + "/" + id(saved), request.putNull("playedOn").without("playedOnTimeZone").toString(), OK.value());
         ObjectNode expected = ((ObjectNode) saved).deepCopy().putNull("playedOn");
         assertThat(cleared).isEqualTo(expected);
         assertDate(f, cleared, null);
@@ -119,8 +184,23 @@ class GamePlayedOnTest extends GameTestSupport {
         assertDate(f, cleared, null);
     }
 
+    @Test
+    void omittedDatePreservesEvenPreviouslyStoredFutureDateAndExplicitNullCanClearIt() throws Exception {
+        Fixture f = fixture();
+        JsonNode saved = expect(f.creator(), "POST", f.path(), body(f), CREATED.value());
+        String path = f.path() + "/" + id(saved);
+        jdbc.update("UPDATE games SET played_on = DATE '2099-01-01' WHERE id = ?", id(saved));
+        JsonNode preserved = expect(f.creator(), "PUT", path, body(f), OK.value());
+        assertThat(preserved.get("playedOn").asText()).isEqualTo("2099-01-01");
+        expect(f.creator(), "PUT", path, request(f).put("playedOn", "2099-01-01").toString(), BAD_REQUEST.value());
+        ObjectNode clear = (ObjectNode) json.readTree(body(f));
+        JsonNode cleared = expect(f.creator(), "PUT", path, clear.putNull("playedOn").toString(), OK.value());
+        assertThat(cleared.get("playedOn").isNull()).isTrue();
+        assertThat(cleared.get("recordedAt")).isEqualTo(saved.get("recordedAt"));
+    }
+
     private ObjectNode request(Fixture f) {
-        return (ObjectNode) json.readTree(body(f));
+        return ((ObjectNode) json.readTree(body(f))).put("playedOnTimeZone", "Europe/Berlin");
     }
 
     private void assertDate(Fixture f, JsonNode saved, String date) throws Exception {

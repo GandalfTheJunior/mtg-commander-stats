@@ -7,6 +7,7 @@ import type { Notice } from './App'
 import { groupUnavailable, groupUrl } from './groupNavigation'
 import { gameUrl, mayManageGame } from './gamePresentation'
 import type { CurrentUser } from './api'
+import { playedOnProblem } from './playedOn'
 import { forgetHandoff, handoffToken, offerHandoff, readHandoff } from './gameHandoff'
 
 const validId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -32,6 +33,7 @@ export default function GameEditorPage({ currentUser, onUnauthorized, onNotice }
   const [busy, setBusy] = useState(false)
   const [completed, setCompleted] = useState(false)
   const [writeError, setWriteError] = useState('')
+  const [dateError, setDateError] = useState('')
   const controller = useRef<AbortController | null>(null)
   const callbacks = useRef({ onUnauthorized, onNotice, navigate })
   useEffect(() => { callbacks.current = { onUnauthorized, onNotice, navigate } })
@@ -103,6 +105,7 @@ export default function GameEditorPage({ currentUser, onUnauthorized, onNotice }
     if (!group || !signal || signal.aborted || busy) return
     setBusy(true)
     setWriteError('')
+    setDateError('')
     try {
       await saveGame(groupId, input, gameId, signal)
       if (signal.aborted) return
@@ -112,6 +115,7 @@ export default function GameEditorPage({ currentUser, onUnauthorized, onNotice }
       if (signal.aborted) return
       if (error instanceof ApiError && error.status === 401) callbacks.current.onUnauthorized()
       else if (error instanceof ApiError && error.status === 403) await failed(error, signal)
+      else if (error instanceof ApiError && error.status === 400 && playedOnProblem(error.code)) setDateError(playedOnProblem(error.code))
       else setWriteError(error instanceof ApiError && error.status === 400
         ? 'Der Server hat die Angaben abgelehnt. Bitte Eingaben prüfen.'
         : 'Der Speichervorgang wurde nicht bestätigt und könnte bereits gespeichert worden sein. Prüfe die Spielehistorie vor einem erneuten Versuch.')
@@ -131,7 +135,7 @@ export default function GameEditorPage({ currentUser, onUnauthorized, onNotice }
     {status === 'error' && <><Alert severity="error">Die Berechtigung oder das Spiel konnte nicht geprüft werden.</Alert>
       <Button onClick={() => { setStatus('loading'); setRevision(value => value + 1) }}>Erneut versuchen</Button></>}
     {status === 'ready' && group && <GameEditor group={group} game={game} currentUserId={currentUser.id} initialMembers={repeatMembers}
-      busy={busy} completed={completed} writeError={writeError} onSubmit={input => { void write(input) }}
+      busy={busy} completed={completed} writeError={writeError} playedOnWriteError={dateError} onSubmit={input => { void write(input) }}
       onAccessError={error => { const signal = controller.current?.signal; if (signal) void failed(error, signal) }} />}
   </Stack>
 }

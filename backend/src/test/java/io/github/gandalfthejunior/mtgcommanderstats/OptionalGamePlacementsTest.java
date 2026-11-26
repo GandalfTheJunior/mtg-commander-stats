@@ -23,6 +23,7 @@ class OptionalGamePlacementsTest extends GameTestSupport {
         Fixture f = fixture();
         ObjectNode request = normal(f, size);
         request.put("playedOn", "2000-02-29");
+        request.put("playedOnTimeZone", "Europe/Berlin");
         JsonNode saved = expect(f.creator(), "POST", f.path(), request.toString(), 201);
         assertRead(f, request, saved);
         assertStatistics(f, saved);

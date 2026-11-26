@@ -1,5 +1,6 @@
 package io.github.gandalfthejunior.mtgcommanderstats.game.application;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Comparator;
@@ -20,6 +21,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.game.domain.Game;
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.GameParticipant;
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.GameResult;
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.InvalidGameException;
+import io.github.gandalfthejunior.mtgcommanderstats.game.domain.PlayedOn;
 import io.github.gandalfthejunior.mtgcommanderstats.game.persistence.GameRepository;
 import io.github.gandalfthejunior.mtgcommanderstats.game.persistence.GameRepository.HistoryPosition;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.GameGroupAccess;
@@ -27,6 +29,7 @@ import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupAcces
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.GroupRole;
 import io.github.gandalfthejunior.mtgcommanderstats.user.application.UserDirectory.PublicUser;
 import io.github.gandalfthejunior.mtgcommanderstats.user.application.UserDirectory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,22 +40,25 @@ public class ManageGames {
     private final GameGroupAccess groups;
     private final GameDecks decks;
     private final UserDirectory users;
+    private final Clock clock;
 
-    public ManageGames(GameRepository games, GameGroupAccess groups, GameDecks decks, UserDirectory users) {
+    public ManageGames(GameRepository games, GameGroupAccess groups, GameDecks decks, UserDirectory users, ObjectProvider<Clock> clock) {
         this.games = games;
         this.groups = groups;
         this.decks = decks;
         this.users = users;
+        this.clock = clock.getIfAvailable(Clock::systemUTC);
     }
 
     public GameDetails create(UUID actorId, UUID groupId, List<GameParticipant> participants, GameResult result,
             Boolean alternateWinCon) {
-        return create(actorId, groupId, participants, result, alternateWinCon, null);
+        return create(actorId, groupId, participants, result, alternateWinCon, null, null);
     }
 
     public GameDetails create(UUID actorId, UUID groupId, List<GameParticipant> participants, GameResult result,
-            Boolean alternateWinCon, LocalDate playedOn) {
+            Boolean alternateWinCon, LocalDate playedOn, String playedOnTimeZone) {
         groups.lockActiveMember(groupId, actorId);
+        PlayedOn.validate(playedOn, playedOnTimeZone, clock);
         Game game = new Game(groupId, actorId, participants, result, alternateWinCon, playedOn);
         useNewAssignments(groupId, participants, List.of());
         games.save(game);
@@ -113,14 +119,15 @@ public class ManageGames {
 
     public GameDetails replace(UUID actorId, UUID groupId, UUID gameId, List<GameParticipant> participants,
             GameResult result, Boolean alternateWinCon) {
-        return replace(actorId, groupId, gameId, participants, result, alternateWinCon, false, null);
+        return replace(actorId, groupId, gameId, participants, result, alternateWinCon, false, null, null);
     }
 
     public GameDetails replace(UUID actorId, UUID groupId, UUID gameId, List<GameParticipant> participants,
-            GameResult result, Boolean alternateWinCon, boolean playedOnSupplied, LocalDate playedOn) {
+            GameResult result, Boolean alternateWinCon, boolean playedOnSupplied, LocalDate playedOn, String playedOnTimeZone) {
         GroupRole role = groups.lockActiveMember(groupId, actorId);
         Game game = find(groupId, gameId);
         requireModification(actorId, role, game);
+        PlayedOn.validate(playedOnSupplied ? playedOn : null, playedOnTimeZone, clock);
         Game.validate(participants, result, alternateWinCon);
         useNewAssignments(groupId, participants, game.getParticipants());
         game.replace(participants, result, alternateWinCon, playedOnSupplied ? playedOn : game.getPlayedOn());
