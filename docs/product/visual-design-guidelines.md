@@ -83,6 +83,10 @@ Only explicit PO decisions promote a particular result into a production
 design rule. Do not import playground modules into production merely because
 they offer a working prototype.
 
+The same applies to the [Storybook component workshop](../development/storybook.md):
+an `Experiments` story, or any story showing a candidate design, has the same
+non-binding status as a playground experiment.
+
 A separate [long-term idea](frontend-redesign.md#future-exploration-playgroup-identity-and-personalization)
 is to let each playgroup develop its own identity by customizing its playgroup
 area. **This is not approved for implementation.** The type and extent of

@@ -359,7 +359,12 @@ npm run lint
 npm run typecheck
 npm run test
 npm run build
+npm run build-storybook
 ```
+
+`npm run build-storybook` builds the development-only
+[Storybook component workshop](docs/development/storybook.md); it is part of the
+required `frontend` CI job. Its output is not part of the application build.
 
 From the repository root, verify the demo tooling with `node --test tools/demo/*.test.mjs`.
 See [demo verification](docs/development/demo.md#verification) for the opt-in real API check.
@@ -401,6 +406,7 @@ Tests terminate without watch mode. GitHub Actions runs separate `backend` and
 - [Architecture and ADRs](docs/architecture/overview.md)
 - [Post-MVP frontend UI strategy (ADR 0003)](docs/architecture/adr/0003-defer-ui-framework-until-after-mvp.md)
 - [Frontend theme and incremental adoption](docs/development/frontend-theme.md)
+- [Storybook component workshop](docs/development/storybook.md)
 - [Browser routing and authenticated shell](docs/development/frontend-routing.md)
 - [Proposed live companion direction (ADR 0004)](docs/architecture/adr/0004-post-mvp-live-companion-direction.md)
 - [Development workflow](docs/development/workflow.md)
