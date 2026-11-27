@@ -5,6 +5,7 @@ import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -12,9 +13,11 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import io.github.gandalfthejunior.mtgcommanderstats.game.domain.GameResult;
+import io.github.gandalfthejunior.mtgcommanderstats.group.application.GroupAccessDeniedException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.ManageOwnershipTransfers;
 import io.github.gandalfthejunior.mtgcommanderstats.group.application.OwnershipTransferConflictException;
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.GroupRole;
+import io.github.gandalfthejunior.mtgcommanderstats.group.domain.OwnerCannotLeaveException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -185,6 +188,69 @@ class OwnershipTransferTest extends GameTestSupport {
         expect(f.member(), "GET", path(f) + "/notices", "", 403);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"demote", "demote-and-remove", "leave"})
+    void targetEligibilityLossCancelsTheOfferPermanently(String loss) throws Exception {
+        Fixture f = fixture();
+        UUID id = propose(f);
+        switch (loss) {
+            case "demote" -> expect(f.owner(), "PATCH", "/api/groups/" + f.groupId() + "/members/" + f.creator().id()
+                    + "/role", "{\"role\":\"MEMBER\"}", 200);
+            case "demote-and-remove" -> {
+                groupService.changeRole(f.owner().id(), f.groupId(), f.creator().id(), GroupRole.MEMBER);
+                expect(f.owner(), "DELETE", "/api/groups/" + f.groupId() + "/members/" + f.creator().id(), "", 204);
+            }
+            case "leave" -> expect(f.creator(), "DELETE", "/api/groups/" + f.groupId() + "/membership", "", 204);
+            default -> throw new AssertionError(loss);
+        }
+        assertCancelled(f, id);
+        if (!loss.equals("demote")) {
+            groupService.join(f.creator().id(), groupService.createInvitation(f.owner().id(), f.groupId()).code());
+        }
+        groupService.changeRole(f.owner().id(), f.groupId(), f.creator().id(), GroupRole.ADMIN);
+        expect(f.owner(), "GET", path(f), "", 404);
+        expect(f.creator(), "GET", path(f), "", 404);
+        expect(f.creator(), "POST", path(f) + "/accept", request(id), 409);
+        expect(f.creator(), "POST", path(f) + "/decline", request(id), 409);
+        expect(f.owner(), "DELETE", path(f), request(id), 409);
+        assertCancelled(f, id);
+        assertOwner(f, f.owner());
+        UUID fresh = id(expect(f.owner(), "POST", path(f), target(f.creator()), 201));
+        expect(f.creator(), "POST", path(f) + "/accept", request(fresh), 200);
+        assertOwner(f, f.creator());
+        assertThat(groupService.details(f.owner().id(), f.groupId()).role()).isEqualTo(GroupRole.MEMBER);
+        assertThat(state(id)).isEqualTo("CANCELLED");
+    }
+
+    @Test
+    void removingAnAlreadyIneligibleTargetCancelsItsStaleOffer() throws Exception {
+        Fixture f = fixture();
+        UUID id = propose(f);
+        // A request left pending by a demotion before automatic cancellation existed.
+        jdbc.update("UPDATE group_memberships SET role = 'MEMBER' WHERE group_id = ? AND user_id = ?",
+                f.groupId(), f.creator().id());
+        assertThat(state(id)).isEqualTo("PENDING");
+        groupService.removeMember(f.owner().id(), f.groupId(), f.creator().id());
+        assertCancelled(f, id);
+    }
+
+    @Test
+    void changesToOtherMembersOrNonDemotingRoleChangesKeepTheOfferValid() throws Exception {
+        Fixture f = fixture();
+        UUID id = propose(f);
+        groupService.changeRole(f.owner().id(), f.groupId(), f.member().id(), GroupRole.ADMIN);
+        groupService.changeRole(f.owner().id(), f.groupId(), f.member().id(), GroupRole.MEMBER);
+        groupService.changeRole(f.owner().id(), f.groupId(), f.creator().id(), GroupRole.ADMIN);
+        groupService.removeMember(f.owner().id(), f.groupId(), f.member().id());
+        groupService.join(f.outsider().id(), groupService.createInvitation(f.owner().id(), f.groupId()).code());
+        groupService.leave(f.outsider().id(), f.groupId());
+        assertThat(state(id)).isEqualTo("PENDING");
+        assertThat(id(expect(f.creator(), "GET", path(f), "", 200))).isEqualTo(id);
+        expect(f.creator(), "POST", path(f) + "/accept", request(id), 200);
+        assertOwner(f, f.creator());
+        assertThat(groupService.details(f.owner().id(), f.groupId()).role()).isEqualTo(GroupRole.MEMBER);
+    }
+
     @Test
     void databaseRejectsDuplicatePendingRequestsAndInterruptedAcceptanceRollsBack() throws Exception {
         Fixture f = fixture();
@@ -209,43 +275,83 @@ class OwnershipTransferTest extends GameTestSupport {
     void concurrentTransitionsSerializeOnGroupAndPreserveOwnerInvariant(String competing) throws Exception {
         Fixture f = fixture();
         UUID id = propose(f);
-        try (ExecutorService executor = Executors.newSingleThreadExecutor()) {
-            Future<?>[] pending = new Future<?>[1];
-            transactions.executeWithoutResult(tx -> {
-                jdbc.queryForObject("SELECT id FROM play_groups WHERE id = ? FOR UPDATE", UUID.class, f.groupId());
-                int blocker = jdbc.queryForObject("SELECT pg_backend_pid()", Integer.class);
-                pending[0] = executor.submit(() -> {
-                    try {
-                        transfers.respond(f.creator().id(), f.groupId(), id, true);
-                        return "accepted";
-                    } catch (OwnershipTransferConflictException exception) {
-                        return "conflict";
+        String blocked = whileGroupLocked(f, () -> {
+            try {
+                transfers.respond(f.creator().id(), f.groupId(), id, true);
+                return "accepted";
+            } catch (OwnershipTransferConflictException exception) {
+                return "conflict";
+            }
+        }, () -> {
+            switch (competing) {
+                case "accept" -> transfers.respond(f.creator().id(), f.groupId(), id, true);
+                case "withdraw" -> transfers.withdraw(f.owner().id(), f.groupId(), id);
+                case "decline" -> transfers.respond(f.creator().id(), f.groupId(), id, false);
+                case "demote", "remove" -> {
+                    groupService.changeRole(f.owner().id(), f.groupId(), f.creator().id(), GroupRole.MEMBER);
+                    if (competing.equals("remove")) {
+                        groupService.removeMember(f.owner().id(), f.groupId(), f.creator().id());
                     }
-                });
-                await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> assertThat(jdbc.queryForObject("""
-                        SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'
-                        AND query LIKE '%play_groups%' AND ? = ANY(pg_blocking_pids(pid))
-                        """, Integer.class, blocker)).isEqualTo(1));
-                switch (competing) {
-                    case "accept" -> transfers.respond(f.creator().id(), f.groupId(), id, true);
-                    case "withdraw" -> transfers.withdraw(f.owner().id(), f.groupId(), id);
-                    case "decline" -> transfers.respond(f.creator().id(), f.groupId(), id, false);
-                    case "demote", "remove" -> {
-                        groupService.changeRole(f.owner().id(), f.groupId(), f.creator().id(), GroupRole.MEMBER);
-                        if (competing.equals("remove")) {
-                            groupService.removeMember(f.owner().id(), f.groupId(), f.creator().id());
-                        }
-                    }
-                    case "leave" -> groupService.leave(f.creator().id(), f.groupId());
-                    default -> throw new AssertionError(competing);
                 }
-            });
-            assertThat(pending[0].get(15, TimeUnit.SECONDS)).isEqualTo("conflict");
-        }
+                case "leave" -> groupService.leave(f.creator().id(), f.groupId());
+                default -> throw new AssertionError(competing);
+            }
+        });
+        assertThat(blocked).isEqualTo("conflict");
         assertOwner(f, competing.equals("accept") ? f.creator() : f.owner());
         if (List.of("demote", "remove", "leave").contains(competing)) {
-            expect(f.owner(), "DELETE", path(f), request(id), 204);
+            assertThat(state(id)).isEqualTo("CANCELLED");
+            expect(f.owner(), "DELETE", path(f), request(id), 409);
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"demote", "leave"})
+    void acceptanceCommittedBeforeEligibilityLossStaysValid(String competing) throws Exception {
+        Fixture f = fixture();
+        UUID id = propose(f);
+        String blocked = whileGroupLocked(f, () -> {
+            try {
+                if (competing.equals("demote")) {
+                    groupService.changeRole(f.owner().id(), f.groupId(), f.creator().id(), GroupRole.MEMBER);
+                } else {
+                    groupService.leave(f.creator().id(), f.groupId());
+                }
+                return "applied";
+            } catch (GroupAccessDeniedException | OwnerCannotLeaveException exception) {
+                return "refused";
+            }
+        }, () -> transfers.respond(f.creator().id(), f.groupId(), id, true));
+        assertThat(blocked).isEqualTo("refused");
+        assertThat(state(id)).isEqualTo("ACCEPTED");
+        assertOwner(f, f.creator());
+        assertThat(groupService.details(f.owner().id(), f.groupId()).role()).isEqualTo(GroupRole.MEMBER);
+        assertThat(transfers.notices(f.owner().id(), f.groupId())).extracting(notice -> notice.id())
+                .containsExactly(id);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void withdrawalRacingWithEligibilityLossLeavesOneCancelledOutcome(boolean withdrawalFirst) throws Exception {
+        Fixture f = fixture();
+        UUID id = propose(f);
+        Runnable withdraw = () -> transfers.withdraw(f.owner().id(), f.groupId(), id);
+        Runnable demote = () -> groupService.changeRole(f.owner().id(), f.groupId(), f.creator().id(), GroupRole.MEMBER);
+        String blocked = whileGroupLocked(f, () -> {
+            try {
+                (withdrawalFirst ? demote : withdraw).run();
+                return "applied";
+            } catch (OwnershipTransferConflictException exception) {
+                return "conflict";
+            }
+        }, withdrawalFirst ? withdraw : demote);
+        // Demotion always succeeds; a withdrawal after automatic cancellation is a stale transition.
+        assertThat(blocked).isEqualTo(withdrawalFirst ? "applied" : "conflict");
+        assertThat(jdbc.queryForList("SELECT state FROM ownership_transfers WHERE group_id = ?", String.class,
+                f.groupId())).containsExactly("CANCELLED");
+        assertThat(groupService.details(f.creator().id(), f.groupId()).role()).isEqualTo(GroupRole.MEMBER);
+        assertThat(transfers.notices(f.owner().id(), f.groupId())).isEmpty();
+        assertOwner(f, f.owner());
     }
 
     @Test
@@ -270,6 +376,41 @@ class OwnershipTransferTest extends GameTestSupport {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM ownership_transfers WHERE state = 'PENDING'", Integer.class))
                 .isEqualTo(1);
         assertOwner(f, f.owner());
+    }
+
+    /**
+     * Holds the group row lock, starts {@code blocked} so that it queues on that lock, then runs {@code winner}
+     * inside the locking transaction. Returns the blocked operation's result after the winner committed.
+     */
+    private String whileGroupLocked(Fixture f, Callable<String> blocked, Runnable winner) throws Exception {
+        try (ExecutorService executor = Executors.newSingleThreadExecutor()) {
+            Future<?>[] pending = new Future<?>[1];
+            transactions.executeWithoutResult(tx -> {
+                jdbc.queryForObject("SELECT id FROM play_groups WHERE id = ? FOR UPDATE", UUID.class, f.groupId());
+                int blocker = jdbc.queryForObject("SELECT pg_backend_pid()", Integer.class);
+                pending[0] = executor.submit(blocked);
+                await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> assertThat(jdbc.queryForObject("""
+                        SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'
+                        AND query LIKE '%play_groups%' AND ? = ANY(pg_blocking_pids(pid))
+                        """, Integer.class, blocker)).isEqualTo(1));
+                winner.run();
+            });
+            return (String) pending[0].get(15, TimeUnit.SECONDS);
+        }
+    }
+
+    private String state(UUID id) {
+        return jdbc.queryForObject("SELECT state FROM ownership_transfers WHERE id = ?", String.class, id);
+    }
+
+    private void assertCancelled(Fixture f, UUID id) {
+        assertThat(jdbc.queryForObject("""
+                SELECT state = 'CANCELLED' AND resolved_at IS NOT NULL AND acknowledged_at IS NULL
+                FROM ownership_transfers WHERE id = ?
+                """, Boolean.class, id)).isTrue();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ownership_transfers WHERE group_id = ? AND state = 'PENDING'",
+                Integer.class, f.groupId())).isZero();
+        assertThat(transfers.notices(f.owner().id(), f.groupId())).isEmpty();
     }
 
     private Actor loginAgain() throws Exception {
