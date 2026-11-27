@@ -1,5 +1,13 @@
 # MTG Commander Stats
 
+[![CI](https://github.com/GandalfTheJunior/mtg-commander-stats/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/GandalfTheJunior/mtg-commander-stats/actions/workflows/ci.yaml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![Java 25](https://img.shields.io/badge/Java-25-ED8B00?logo=openjdk&logoColor=white)
+![Spring Boot 4](https://img.shields.io/badge/Spring_Boot-4-6DB33F?logo=springboot&logoColor=white)
+![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript 6](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
+![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)
+
 A companion app for Magic: The Gathering Commander playgroups: record your games, manage your decks and explore player and deck statistics.
 
 ## Design prototypes from the motion playground, planned for the app's upcoming redesign
@@ -8,7 +16,9 @@ https://github.com/user-attachments/assets/3f867806-1616-475e-98d8-2bf926b59894
 UI showcase of Player Card Elements
 
 https://github.com/user-attachments/assets/b35d5848-ead3-4373-bda6-f908810b68f0
-UI Showcase of the winrate per color statistik
+UI Showcase of the winrate per color statistics
+
+## About
 
 The idea for this application came from my own MTG Commander playgroup. We used to keep track of our games in an Excel spreadsheet, which worked, but became tedious over time.
 
@@ -155,3 +165,7 @@ a disabled `AGENTS.md` plugin or a `CLAUDE.md`-only instruction setting load
 instructions. It applies to Claude Code only; other Claude clients, such as
 Claude chat with GitHub-synchronized files, have no documented automatic
 instruction-file discovery or import expansion.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
