@@ -436,7 +436,13 @@ test('a late creation result after logout never reveals a code to the next sessi
 
 test('reaching the expiry instant only re-reads the status; a server-confirmed inactive invitation discards the code', async () => {
   const api = server()
-  api.state.expiresAt = new Date(Date.now() + 300).toISOString()
+  // Start the short lifetime when the server creates the invitation, not when the test starts:
+  // a slow, contended setup must not let the link expire before the read baseline below.
+  api.next(`POST ${invitationPath}`, () => {
+    api.state.expiresAt = new Date(Date.now() + 1000).toISOString()
+    api.state.status = { active: true, expiresAt: api.state.expiresAt }
+    return response({ code, expiresAt: api.state.expiresAt }, 201)
+  })
   const dialog = await openClaim()
   fireEvent.click(await within(dialog).findByRole('button', { name: 'Einladung erstellen' }))
   expect(await within(dialog).findByLabelText('Einladungslink')).toHaveValue(link)
