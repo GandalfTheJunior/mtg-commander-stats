@@ -92,10 +92,10 @@ function show(path: string, state: unknown = null) {
 }
 
 async function signIn() {
-  const form = within(screen.getByRole('heading', { name: 'Sign in' }).closest('section')!)
-  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'someone@example.test' } })
-  fireEvent.change(form.getByLabelText('Password'), { target: { value: 'correct horse battery' } })
-  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
+  const form = within(screen.getByRole('heading', { name: 'Willkommen zurück!' }).closest('section')!)
+  fireEvent.change(form.getByLabelText('E-Mail'), { target: { value: 'someone@example.test' } })
+  fireEvent.change(form.getByLabelText('Passwort'), { target: { value: 'correct horse battery' } })
+  fireEvent.click(form.getByRole('button', { name: 'Anmelden' }))
 }
 
 const rowOf = async (name: string) => (await screen.findByText(name, { selector: 'li span' })).closest('li')!
@@ -413,7 +413,7 @@ test('a 401 ends the session without exposing invitation state', async () => {
   const api = server()
   api.next(`GET ${invitationPath}`, () => { api.state.user = null; return response({}, 401) })
   await openClaim()
-  expect(await screen.findByText('Your session expired. Sign in again.')).toBeInTheDocument()
+  expect(await screen.findByText('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.')).toBeInTheDocument()
   expect(screen.queryByRole('dialog', { name: 'Profilübernahme einladen' })).not.toBeInTheDocument()
 })
 
@@ -427,7 +427,7 @@ test('a late creation result after logout never reveals a code to the next sessi
   // Logout is still reachable through the shell; the dialog's lifetime ends with the session.
   fireEvent.click(within(screen.getByRole('banner', { hidden: true })).getByRole('button', { hidden: true }))
   fireEvent.click(screen.getByRole('menuitem', { name: 'Abmelden', hidden: true }))
-  expect(await screen.findByText('Logged out.')).toBeInTheDocument()
+  expect(await screen.findByText('Du wurdest abgemeldet.')).toBeInTheDocument()
   await act(async () => pending.resolve(response({ code, expiresAt: soon() }, 201)))
   expect(document.body.textContent).not.toContain(code)
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -531,17 +531,18 @@ test('registration then the separate login return to the identical claim link wi
   const view = show(`/claim/${code}`)
   fireEvent.click(await screen.findByRole('button', { name: 'Registrieren' }))
   await waitFor(() => expect(document.getElementById('auth-register-email')).toHaveFocus())
-  expect(screen.getByRole('heading', { name: 'Profilübernahme' })).toBeInTheDocument()
+  expect(screen.getByText('Erstelle ein Konto und melde dich danach an, um mit der Übernahme des Schnellprofils fortzufahren.')).toBeInTheDocument()
   // Reloading keeps the auth detour for the same link.
   view.unmount()
   show(`/claim/${code}`, { inviteAuth: 'register' })
-  const form = within((await screen.findByRole('heading', { name: 'Create an account' })).closest('section')!)
-  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'frodo@example.test' } })
-  fireEvent.change(form.getByLabelText('Username'), { target: { value: 'Frodo' } })
-  fireEvent.change(form.getByLabelText('Password'), { target: { value: 'correct horse battery' } })
-  fireEvent.click(form.getByRole('button', { name: 'Create account' }))
-  expect(await screen.findByText('Account created for Frodo. Sign in separately to continue.')).toBeInTheDocument()
+  const form = within((await screen.findByRole('heading', { name: 'Konto erstellen' })).closest('section')!)
+  fireEvent.change(form.getByLabelText('E-Mail'), { target: { value: 'frodo@example.test' } })
+  fireEvent.change(form.getByLabelText('Benutzername'), { target: { value: 'Frodo' } })
+  fireEvent.change(form.getByLabelText('Passwort'), { target: { value: 'correct horse battery' } })
+  fireEvent.click(form.getByRole('button', { name: 'Konto erstellen' }))
+  expect(await screen.findByText('Konto erstellt! Melde dich jetzt an.')).toBeInTheDocument()
   expect(window.location.pathname).toBe(`/claim/${code}`)
+  expect(screen.getByText('Melde dich an, um mit der Übernahme des Schnellprofils fortzufahren.')).toBeInTheDocument()
   await signIn()
   expect(await screen.findByRole('button', { name: 'Profil übernehmen' })).toBeInTheDocument()
   expect(window.location.pathname).toBe(`/claim/${code}`)
@@ -553,7 +554,8 @@ test('Zurück zur Einladung leaves the claim auth detour for the preview', async
   server(null)
   show(`/claim/${code}`, { inviteAuth: 'login' })
   fireEvent.click(await screen.findByRole('link', { name: 'Zurück zur Einladung' }))
-  expect(await screen.findByRole('button', { name: 'Anmelden' })).toBeInTheDocument()
+  expect(await screen.findByRole('button', { name: 'Registrieren' })).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Willkommen zurück!' })).not.toBeInTheDocument()
   expect(window.location.pathname).toBe(`/claim/${code}`)
 })
 
@@ -701,7 +703,7 @@ test('a definite 403 on accept (e.g. CSRF) reports no change and does not end th
   fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Jetzt übernehmen' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('Die Übernahme wurde nicht ausgeführt. Es wurde nichts verändert.')
   expect(screen.getByText(visitor.username)).toBeInTheDocument()
-  expect(screen.queryByText('Your session expired. Sign in again.')).not.toBeInTheDocument()
+  expect(screen.queryByText('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.')).not.toBeInTheDocument()
   expect(accepts(api)).toHaveLength(1)
 })
 
@@ -711,7 +713,7 @@ test('a 401 on accept expires the session and the following login never accepts 
   show(`/claim/${code}`)
   fireEvent.click(await screen.findByRole('button', { name: 'Profil übernehmen' }))
   fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Jetzt übernehmen' }))
-  expect(await screen.findByText('Your session expired. Sign in again.')).toBeInTheDocument()
+  expect(await screen.findByText('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.')).toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Einladung nicht verfügbar' })).not.toBeInTheDocument()
   fireEvent.click(await screen.findByRole('button', { name: 'Anmelden' }))
   await signIn()
@@ -726,8 +728,8 @@ test('Anderes Konto verwenden logs out, returns to the same link and the next ac
   show(`/claim/${code}`)
   expect(await screen.findByText(visitor.username)).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Anderes Konto verwenden' }))
-  expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
-  expect(await screen.findByRole('heading', { name: 'Profilübernahme' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Willkommen zurück!' })).toBeInTheDocument()
+  expect(screen.getByText('Melde dich an, um mit der Übernahme des Schnellprofils fortzufahren.')).toBeInTheDocument()
   expect(window.location.pathname).toBe(`/claim/${code}`)
   expect(api.calls('DELETE', '/api/session')).toHaveLength(1)
   expect(screen.queryByText(visitor.username)).not.toBeInTheDocument()
@@ -759,16 +761,16 @@ test('account-switch sign-in stays hidden until a deferred claim-return navigati
   </Suspense></AppRouter></AppThemeProvider>)
   fireEvent.click(await screen.findByRole('button', { name: 'Anderes Konto verwenden' }))
   await waitFor(() => expect(window.location.pathname).toBe('/'))
-  expect(screen.getByText('Logging out…')).toBeInTheDocument()
+  expect(screen.getByText('Abmeldung läuft …')).toBeInTheDocument()
   api.state.user = null
   await act(async () => logout.resolve(new Response(null, { status: 204 })))
   await waitFor(() => expect(returnAttempted).toBe(true))
-  expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument()
-  expect(screen.getByText('Logging out…')).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Willkommen zurück!' })).not.toBeInTheDocument()
+  expect(screen.getByText('Abmeldung läuft …')).toBeInTheDocument()
 
   holdReturn = false
   await act(async () => destination.resolve(new Response(null)))
-  expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Willkommen zurück!' })).toBeInTheDocument()
   expect(document.getElementById('auth-login-email')).toHaveFocus()
   expect(window.location.pathname).toBe(`/claim/${code}`)
   await signIn()

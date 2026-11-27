@@ -42,7 +42,7 @@ function setup() {
 async function open(name = group.name, waitForTab = true) {
   // The initial render already targets Playgroups; don't navigate there again
   // while its session bootstrap is completing.
-  if (screen.queryByText('Checking your session…')) await screen.findByRole('heading', { name: 'Playgroups' })
+  if (screen.queryByText('Sitzung wird geprüft …')) await screen.findByRole('heading', { name: 'Playgroups' })
   if (!screen.queryByRole('heading', { name: 'Playgroups' })) await goTo('Playgroups')
   fireEvent.click(await screen.findByRole('button', { name }))
   if (waitForTab) fireEvent.click(await screen.findByRole('tab', { name: 'Games' }))
@@ -155,11 +155,11 @@ test('logout and a new identity retire pending game 401s before they can expire 
   render(<App />); await open(); await screen.findByText('Spielehistorie wird geladen…')
   fireEvent.click(within(screen.getByRole('banner', { hidden: true })).getByRole('button', { hidden: true })); fireEvent.click(screen.getByRole('menuitem', { name: 'Abmelden' }))
   expect(screen.queryByRole('heading', { name: 'Commander games' })).not.toBeInTheDocument()
-  await screen.findByText('Logged out.')
-  const login = within(screen.getByRole('heading', { name: 'Sign in' }).closest('section')!)
-  fireEvent.change(login.getByLabelText('Email'), { target: { value: 'fourth@example.test' } })
-  fireEvent.change(login.getByLabelText('Password'), { target: { value: 'correct horse battery' } })
-  fireEvent.click(login.getByRole('button', { name: 'Sign in' }))
+  await screen.findByText('Du wurdest abgemeldet.')
+  const login = within(screen.getByRole('heading', { name: 'Willkommen zurück!' }).closest('section')!)
+  fireEvent.change(login.getByLabelText('E-Mail'), { target: { value: 'fourth@example.test' } })
+  fireEvent.change(login.getByLabelText('Passwort'), { target: { value: 'correct horse battery' } })
+  fireEvent.click(login.getByRole('button', { name: 'Anmelden' }))
   await screen.findByText('Fourth')
   await act(async () => late.resolve(response({}, 401)))
   expect(screen.getByRole('button', { name: 'Fourth' })).toBeInTheDocument()

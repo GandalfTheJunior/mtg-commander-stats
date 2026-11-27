@@ -62,11 +62,11 @@ function clickLogout() {
   fireEvent.click(screen.getByRole('menuitem', { name: 'Abmelden' }))
 }
 async function signIn() {
-  const form = within(screen.getByRole('heading', { name: 'Sign in' }).closest('section')!)
-  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'gandalf@example.com' } })
-  fireEvent.change(form.getByLabelText('Password'), { target: { value: 'correct horse battery' } })
-  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
-  await screen.findByText('Login successful.')
+  const form = within(screen.getByRole('heading', { name: 'Willkommen zurück!' }).closest('section')!)
+  fireEvent.change(form.getByLabelText('E-Mail'), { target: { value: 'gandalf@example.com' } })
+  fireEvent.change(form.getByLabelText('Passwort'), { target: { value: 'correct horse battery' } })
+  fireEvent.click(form.getByRole('button', { name: 'Anmelden' }))
+  await screen.findByText('Anmeldung erfolgreich.')
 }
 
 function expectProtectedDataHidden() {
@@ -85,26 +85,27 @@ test('logout uses CSRF and waits for 204, clears protected data and restores sig
   const view = render(<App />)
   await screen.findByText(deck.name)
   await openGroup()
-  expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: 'Create an account' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Willkommen zurück!' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Konto erstellen' })).not.toBeInTheDocument()
   clickLogout()
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/session', {
     credentials: 'same-origin', method: 'DELETE', headers: { 'X-CSRF-TOKEN': 'logout-token' },
   }))
   expectProtectedDataHidden()
-  expect(screen.getByText('Logging out…')).toBeInTheDocument()
-  expect(screen.queryByText('Logged out.')).not.toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument()
+  expect(screen.getByText('Abmeldung läuft …')).toBeInTheDocument()
+  expect(screen.queryByText('Du wurdest abgemeldet.')).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Willkommen zurück!' })).not.toBeInTheDocument()
   server.identity = null
   await act(async () => { pending.resolve(new Response(null, { status: 204 })) })
-  await screen.findByText('Logged out.')
-  expect(screen.getByText('Not signed in.')).toBeInTheDocument()
-  expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
-  expect(screen.getByRole('heading', { name: 'Create an account' })).toBeInTheDocument()
+  await screen.findByText('Du wurdest abgemeldet.')
+  expect(screen.getByRole('heading', { name: 'Willkommen zurück!' })).toBeInTheDocument()
+  // #277: the signed-out entry shows only sign-in; registration is one switch away.
+  expect(screen.queryByRole('heading', { name: 'Konto erstellen' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Noch kein Konto? Registrieren' })).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: user.username })).not.toBeInTheDocument()
   view.unmount()
   render(<App />)
-  await screen.findByText('Not signed in.')
+  await screen.findByRole('heading', { name: 'Willkommen zurück!' })
   expectProtectedDataHidden()
 })
 
@@ -118,11 +119,11 @@ test.each(['403', '500', '200', 'network', 'csrf'])('failed or ambiguous logout 
   }
   if (failure === 'csrf') server.csrf = async () => json({}, 403)
   clickLogout()
-  await screen.findByText('Logout could not be confirmed. You are still signed in. Try again.')
+  await screen.findByText('Die Abmeldung konnte nicht bestätigt werden. Du bist weiterhin angemeldet. Bitte versuche es erneut.')
   expect(screen.getByText(user.username)).toBeInTheDocument()
   await goTo('Decks')
   expect(await screen.findByText(deck.name)).toBeInTheDocument()
-  expect(screen.queryByText('Logged out.')).not.toBeInTheDocument()
+  expect(screen.queryByText('Du wurdest abgemeldet.')).not.toBeInTheDocument()
   expect(screen.queryByDisplayValue(code)).not.toBeInTheDocument()
   expect(screen.queryByRole('region', { name: 'Group details' })).not.toBeInTheDocument()
   if (failure === 'csrf') expect(fetchMock.mock.calls.some(([path, init]) => path === '/api/session' && init?.method === 'DELETE')).toBe(false)
@@ -132,7 +133,7 @@ test.each(['403', '500', '200', 'network', 'csrf'])('failed or ambiguous logout 
   server.csrf = async () => json({ headerName: 'X-CSRF-TOKEN', token: 'retry-token' })
   server.logout = async () => { server.identity = null; return new Response(null, { status: 204 }) }
   clickLogout()
-  await screen.findByText('Logged out.')
+  await screen.findByText('Du wurdest abgemeldet.')
   expectProtectedDataHidden()
 })
 
@@ -146,12 +147,12 @@ test.each(['401', 'network'])('ambiguous logout (%s) with a lost server session 
     return json({}, 401)
   }
   clickLogout()
-  await screen.findByText('Logout could not be confirmed. Your session is no longer active.')
-  expect(screen.queryByText('Logged out.')).not.toBeInTheDocument()
+  await screen.findByText('Die Abmeldung konnte nicht bestätigt werden. Deine Sitzung ist nicht mehr aktiv.')
+  expect(screen.queryByText('Du wurdest abgemeldet.')).not.toBeInTheDocument()
   expectProtectedDataHidden()
   view.unmount()
   render(<App />)
-  await screen.findByText('Not signed in.')
+  await screen.findByRole('heading', { name: 'Willkommen zurück!' })
   expectProtectedDataHidden()
 })
 
@@ -162,11 +163,11 @@ test('failed session recheck hides protected data and can recover through an exp
   server.logout = async () => { throw new Error('Network unavailable') }
   server.me = async () => { throw new Error('Still unavailable') }
   clickLogout()
-  await screen.findByText('Logout could not be confirmed. Check your session before continuing.')
-  expect(screen.getByText('Your session identity could not be confirmed.')).toBeInTheDocument()
+  await screen.findByText('Die Abmeldung konnte nicht bestätigt werden. Bitte prüfe deine Sitzung, bevor du fortfährst.')
+  expect(screen.getByText('Sitzung konnte nicht überprüft werden.')).toBeInTheDocument()
   expectProtectedDataHidden()
   server.me = async () => json(user)
-  fireEvent.click(screen.getByRole('button', { name: 'Check session' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Erneut prüfen' }))
   await screen.findByRole('button', { name: user.username })
   await goTo('Decks')
   expect(await screen.findByText(deck.name)).toBeInTheDocument()
@@ -205,9 +206,9 @@ for (const logoutFails of [false, true]) {
       if (logoutFails) server.logout = async () => json({}, 403)
       clickLogout()
       if (logoutFails) {
-        await screen.findByText('Logout could not be confirmed. You are still signed in. Try again.')
+        await screen.findByText('Die Abmeldung konnte nicht bestätigt werden. Du bist weiterhin angemeldet. Bitte versuche es erneut.')
       } else {
-        await screen.findByText('Logged out.')
+        await screen.findByText('Du wurdest abgemeldet.')
         expectProtectedDataHidden()
         await signIn()
       }

@@ -172,7 +172,7 @@ test('navigation retires the search so a late unauthorized response cannot expir
   type('Pending'); await waitFor(() => expect(searches(api)).toHaveLength(1))
   const signal = searches(api)[0][1]!.signal!
   clickAccountLogout()
-  await screen.findByText('Logged out.')
+  await screen.findByText('Du wurdest abgemeldet.')
   expect(signal.aborted).toBe(true)
   await signInDeck()
   await act(async () => pending.resolve(response({}, 401)))

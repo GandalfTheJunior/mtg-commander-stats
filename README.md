@@ -385,6 +385,11 @@ Quick-profile claim invitations #247 (Members claim dialog, QR code, public
 `/claim/:code` preview, auth return, confirmation and error states) are covered
 by `frontend/e2e/claims.pw.ts` in the same way.
 
+The signed-out sign-in/registration entry #277 (single-form layout at 320, 375,
+390 and 1280px, keyboard order, inline and general errors, session check, retry
+and expiry states) is covered by `frontend/e2e/auth-entry.pw.ts` with synthetic
+API responses.
+
 Statistics browser checks use synthetic API responses:
 with Vite running, run `python tools/ui/verify-statistics.py` (Python Playwright
 and Chromium required). `MTG_UI_URL`, `CHROMIUM_PATH` and `MTG_SCREENSHOTS` override

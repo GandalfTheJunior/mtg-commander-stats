@@ -60,10 +60,10 @@ function show(path: string, state: unknown = null) {
 }
 
 async function signIn() {
-  const form = within(screen.getByRole('heading', { name: 'Sign in' }).closest('section')!)
-  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'visitor@example.test' } })
-  fireEvent.change(form.getByLabelText('Password'), { target: { value: 'correct horse battery' } })
-  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
+  const form = within(screen.getByRole('heading', { name: 'Willkommen zurück!' }).closest('section')!)
+  fireEvent.change(form.getByLabelText('E-Mail'), { target: { value: 'visitor@example.test' } })
+  fireEvent.change(form.getByLabelText('Passwort'), { target: { value: 'correct horse battery' } })
+  fireEvent.click(form.getByRole('button', { name: 'Anmelden' }))
 }
 
 async function openInvite() {
@@ -278,7 +278,7 @@ test('logout and an account switch leave no invitation of the previous account b
   fireEvent.click(within(dialog).getByRole('button', { name: 'Schließen' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   clickAccountLogout()
-  await screen.findByText('Logged out.')
+  await screen.findByText('Du wurdest abgemeldet.')
   api.state.loginUser = { id: uid(60), username: 'Other' }
   window.history.pushState(null, '', `/playgroups/${group.id}/members`)
   act(() => window.dispatchEvent(new PopStateEvent('popstate')))
@@ -318,10 +318,10 @@ test('login returns to the identical invitation and requires an explicit join', 
   const api = server(null)
   show(`/invite/${code}`)
   fireEvent.click(await screen.findByRole('button', { name: 'Anmelden' }))
-  expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Willkommen zurück!' })).toBeInTheDocument()
   expect(window.location.pathname).toBe(`/invite/${code}`)
-  expect(screen.getByRole('heading', { name: 'Playgroup-Einladung' })).toBeInTheDocument()
-  expect(screen.getByText('Nach der Anmeldung kehrst du zu dieser Einladung zurück.')).toBeInTheDocument()
+  // #277: a brief context notice above the shared sign-in fields.
+  expect(screen.getByText('Melde dich an, um mit deiner Playgroup-Einladung fortzufahren.')).toBeInTheDocument()
   await waitFor(() => expect(document.getElementById('auth-login-email')).toHaveFocus())
   await signIn()
   expect(await screen.findByRole('button', { name: 'Playgroup beitreten' })).toBeInTheDocument()
@@ -341,14 +341,19 @@ test('registration followed by the separate required login returns to the same i
   // Interrupted registration: reloading keeps the auth detour for the same invitation.
   view.unmount()
   show(`/invite/${code}`, { inviteAuth: 'register' })
-  const form = within((await screen.findByRole('heading', { name: 'Create an account' })).closest('section')!)
-  expect(screen.getByRole('heading', { name: 'Playgroup-Einladung' })).toBeInTheDocument()
-  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'visitor@example.test' } })
-  fireEvent.change(form.getByLabelText('Username'), { target: { value: 'Visitor' } })
-  fireEvent.change(form.getByLabelText('Password'), { target: { value: 'correct horse battery' } })
-  fireEvent.click(form.getByRole('button', { name: 'Create account' }))
-  expect(await screen.findByText('Account created for Visitor. Sign in separately to continue.')).toBeInTheDocument()
+  const form = within((await screen.findByRole('heading', { name: 'Konto erstellen' })).closest('section')!)
+  expect(screen.getByText('Erstelle ein Konto und melde dich danach an, um mit deiner Playgroup-Einladung fortzufahren.')).toBeInTheDocument()
+  fireEvent.change(form.getByLabelText('E-Mail'), { target: { value: 'visitor@example.test' } })
+  fireEvent.change(form.getByLabelText('Benutzername'), { target: { value: 'Visitor' } })
+  fireEvent.change(form.getByLabelText('Passwort'), { target: { value: 'correct horse battery' } })
+  fireEvent.click(form.getByRole('button', { name: 'Konto erstellen' }))
+  expect(await screen.findByText('Konto erstellt! Melde dich jetzt an.')).toBeInTheDocument()
   expect(window.location.pathname).toBe(`/invite/${code}`)
+  // Registration switches to sign-in with the invitation context, the email kept and an empty password.
+  expect(screen.getByRole('heading', { name: 'Willkommen zurück!' })).toBeInTheDocument()
+  expect(screen.getByText('Melde dich an, um mit deiner Playgroup-Einladung fortzufahren.')).toBeInTheDocument()
+  expect(form.getByLabelText('E-Mail')).toHaveValue('visitor@example.test')
+  expect(form.getByLabelText('Passwort')).toHaveValue('')
   expect(screen.queryByRole('button', { name: 'Playgroup beitreten' })).not.toBeInTheDocument()
   await signIn()
   expect(await screen.findByRole('button', { name: 'Playgroup beitreten' })).toBeInTheDocument()
@@ -360,7 +365,9 @@ test('Zurück zur Einladung leaves the auth detour for the preview', async () =>
   server(null)
   show(`/invite/${code}`, { inviteAuth: 'login' })
   fireEvent.click(await screen.findByRole('link', { name: 'Zurück zur Einladung' }))
-  expect(await screen.findByRole('button', { name: 'Anmelden' })).toBeInTheDocument()
+  // The preview's own choice; the auth entry's switch is named "Noch kein Konto? Registrieren".
+  expect(await screen.findByRole('button', { name: 'Registrieren' })).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Willkommen zurück!' })).not.toBeInTheDocument()
   expect(window.location.pathname).toBe(`/invite/${code}`)
 })
 
@@ -473,7 +480,7 @@ test('an expired session during join is not treated as a consumed invitation', a
   api.next('POST /api/groups/join', () => { api.state.user = null; return response({}, 401) })
   show(`/invite/${code}`)
   fireEvent.click(await screen.findByRole('button', { name: 'Playgroup beitreten' }))
-  expect(await screen.findByText('Your session expired. Sign in again.')).toBeInTheDocument()
+  expect(await screen.findByText('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.')).toBeInTheDocument()
   expect(await screen.findByRole('button', { name: 'Anmelden' })).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: group.name })).toBeInTheDocument()
   expect(screen.queryByText('Einladung nicht verfügbar')).not.toBeInTheDocument()
@@ -482,7 +489,7 @@ test('an expired session during join is not treated as a consumed invitation', a
 test.each(['/invite/a/b', '/invite/'])('a malformed route %s never reaches the invitation API', async path => {
   const api = server(null)
   show(path)
-  expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Willkommen zurück!' })).toBeInTheDocument()
   expect(window.location.pathname).toBe('/')
   expect(api.fetchMock.mock.calls.some(([p]) => p.startsWith('/api/invitations'))).toBe(false)
 })
@@ -498,8 +505,8 @@ test('browser Back from the auth detour returns to the preview', async () => {
   server(null)
   show(`/invite/${code}`)
   fireEvent.click(await screen.findByRole('button', { name: 'Anmelden' }))
-  await screen.findByRole('heading', { name: 'Sign in' })
+  await screen.findByRole('heading', { name: 'Willkommen zurück!' })
   act(() => window.history.back())
-  expect(await screen.findByRole('button', { name: 'Anmelden' })).toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument()
+  expect(await screen.findByRole('button', { name: 'Registrieren' })).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Willkommen zurück!' })).not.toBeInTheDocument()
 })

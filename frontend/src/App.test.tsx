@@ -1,6 +1,6 @@
 import { savedCommander } from './test/commanderFixtures'
 import { openNewDeck, openExistingDeck, openDeckAction } from './test/editorEntry'
-import { act, fireEvent, screen, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App'
 import { renderApp as render, goTo } from './test/renderApp'
@@ -15,20 +15,21 @@ function jsonResponse(body: unknown, status = 200) {
   })
 }
 
+// #277: registration replaces the default sign-in form after an explicit switch.
 function registrationForm() {
-  return within(
-    screen.getByRole('heading', { name: 'Create an account' }).closest('section')!,
-  )
+  const toggle = screen.queryByRole('button', { name: 'Noch kein Konto? Registrieren' })
+  if (toggle) fireEvent.click(toggle)
+  return within(screen.getByRole('heading', { name: 'Konto erstellen' }).closest('section')!)
 }
 
 function loginForm() {
-  return within(screen.getByRole('heading', { name: 'Sign in' }).closest('section')!)
+  return within(screen.getByRole('heading', { name: 'Willkommen zurück!' }).closest('section')!)
 }
 
 async function logOutBeforeLogin() {
   fireEvent.click(within(screen.getByRole('banner', { hidden: true })).getByRole('button', { hidden: true }))
   fireEvent.click(screen.getByRole('menuitem', { name: 'Abmelden' }))
-  await screen.findByText('Logged out.')
+  await screen.findByText('Du wurdest abgemeldet.')
 }
 
 afterEach(() => {
@@ -36,7 +37,7 @@ afterEach(() => {
   vi.unstubAllEnvs()
 })
 
-test('identifies the application and shows separate auth forms', async () => {
+test('identifies the application and shows one auth form at a time', async () => {
   const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}, 401))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
@@ -44,9 +45,10 @@ test('identifies the application and shows separate auth forms', async () => {
   expect(
     screen.getByRole('heading', { level: 1, name: 'MTG Commander Stats' }),
   ).toBeInTheDocument()
-  expect(await screen.findByText('Not signed in.')).toBeInTheDocument()
-  expect(registrationForm().getByLabelText('Username')).toBeInTheDocument()
-  expect(loginForm().queryByLabelText('Username')).not.toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Willkommen zurück!' })).toBeInTheDocument()
+  expect(loginForm().queryByLabelText('Benutzername')).not.toBeInTheDocument()
+  expect(registrationForm().getByLabelText('Benutzername')).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Willkommen zurück!' })).not.toBeInTheDocument()
   const playgroundLink = screen.getByRole('link', { name: 'Open Tech Playground' })
   expect(playgroundLink).toHaveAttribute('href', '/dev/lounge.html')
   expect(playgroundLink.closest('form')).toBeNull()
@@ -60,8 +62,7 @@ test('hides the tech playground link outside development mode', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 401)))
   render(<App />)
 
-  expect(await screen.findByText('Not signed in.')).toBeInTheDocument()
-  expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Willkommen zurück!' })).toBeInTheDocument()
   expect(screen.queryByRole('link', { name: 'Open Tech Playground' })).toBeNull()
 })
 
@@ -100,8 +101,8 @@ test('a deck API 401 clears authenticated controls and reports an expired sessio
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
 
-  expect(await screen.findByText('Your session expired. Sign in again.')).toBeInTheDocument()
-  expect(screen.getByText('Not signed in.')).toBeInTheDocument()
+  expect(await screen.findByText('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.')).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Willkommen zurück!' })).toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Meine Decks' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Deck erstellen' })).not.toBeInTheDocument()
 })
@@ -116,9 +117,8 @@ test('restores and displays the current user from an existing session', async ()
 
   expect(await screen.findByText('Gandalf')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Gandalf' })).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Gandalf' })).toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: 'Create an account' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Willkommen zurück!' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Konto erstellen' })).not.toBeInTheDocument()
   expect(fetchMock).toHaveBeenCalledWith('/api/me', {
     credentials: 'same-origin',
   })
@@ -131,26 +131,26 @@ test('registers an account without treating it as an authenticated session', asy
     .mockResolvedValueOnce(jsonResponse(user, 201))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
-  await screen.findByText('Not signed in.')
+  await screen.findByRole('heading', { name: 'Willkommen zurück!' })
 
   const form = registrationForm()
-  fireEvent.change(form.getByLabelText('Email'), {
+  fireEvent.change(form.getByLabelText('E-Mail'), {
     target: { value: 'gandalf@example.com' },
   })
-  fireEvent.change(form.getByLabelText('Username'), {
+  fireEvent.change(form.getByLabelText('Benutzername'), {
     target: { value: 'Gandalf' },
   })
-  fireEvent.change(form.getByLabelText('Password'), {
+  fireEvent.change(form.getByLabelText('Passwort'), {
     target: { value: password },
   })
-  fireEvent.click(form.getByRole('button', { name: 'Create account' }))
+  fireEvent.click(form.getByRole('button', { name: 'Konto erstellen' }))
 
   expect(
     await screen.findByText(
-      'Account created for Gandalf. Sign in separately to continue.',
+      'Konto erstellt! Melde dich jetzt an.',
     ),
   ).toBeInTheDocument()
-  expect(screen.getByText('Not signed in.')).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Willkommen zurück!' })).toBeInTheDocument()
   expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/users', {
     credentials: 'same-origin',
     method: 'POST',
@@ -166,38 +166,39 @@ test('registers an account without treating it as an authenticated session', asy
 test('shows an accessible password hint before registration', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 401)))
   render(<App />)
-  await screen.findByText('Not signed in.')
+  await screen.findByRole('heading', { name: 'Willkommen zurück!' })
 
-  const input = registrationForm().getByLabelText('Password')
-  expect(input).toHaveAccessibleDescription('Use at least 12 characters. Whitespace is allowed and counts toward the minimum.')
-  expect(registrationForm().getByText(/Use at least 12 characters/)).toBeVisible()
+  expect(loginForm().getByLabelText('Passwort')).not.toHaveAccessibleDescription()
+  const input = registrationForm().getByLabelText('Passwort')
+  expect(input).toHaveAccessibleDescription('Mindestens 12 Zeichen. Leerzeichen sind erlaubt und zählen mit.')
+  expect(registrationForm().getByText(/Mindestens 12 Zeichen/)).toBeVisible()
   expect(input).not.toHaveAttribute('minlength')
-  expect(loginForm().getByLabelText('Password')).not.toHaveAccessibleDescription()
 })
 
 test.each(['short', '12345678901', '😀'.repeat(11)])('blocks a short registration password by code-point length: %s', async (shortPassword) => {
   const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}, 401))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
-  await screen.findByText('Not signed in.')
+  await screen.findByRole('heading', { name: 'Willkommen zurück!' })
 
   const form = registrationForm()
-  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'gandalf@example.com' } })
-  fireEvent.change(form.getByLabelText('Username'), { target: { value: 'Gandalf' } })
-  const input = form.getByLabelText('Password')
+  fireEvent.change(form.getByLabelText('E-Mail'), { target: { value: 'gandalf@example.com' } })
+  fireEvent.change(form.getByLabelText('Benutzername'), { target: { value: 'Gandalf' } })
+  const input = form.getByLabelText('Passwort')
   fireEvent.change(input, { target: { value: shortPassword } })
-  fireEvent.click(form.getByRole('button', { name: 'Create account' }))
+  fireEvent.click(form.getByRole('button', { name: 'Konto erstellen' }))
 
-  expect(form.getByRole('alert')).toHaveTextContent('Password must be at least 12 characters long.')
-  expect(input).toHaveAccessibleDescription('Password must be at least 12 characters long.')
+  // The field-associated error is read with the focused field; no general alert is raised.
+  expect(input).toHaveAccessibleDescription('Das Passwort muss mindestens 12 Zeichen lang sein.')
   expect(input).toHaveAttribute('aria-invalid', 'true')
   expect(input).toHaveFocus()
+  expect(form.queryByRole('alert')).not.toBeInTheDocument()
   expect(fetchMock).toHaveBeenCalledTimes(1)
-  expect(form.queryByText(/valid email|Username must/)).not.toBeInTheDocument()
+  expect(form.queryByText(/gültige E-Mail|Benutzernamen ein/)).not.toBeInTheDocument()
   expect(document.body.textContent).not.toContain(shortPassword)
 
   fireEvent.change(input, { target: { value: password } })
-  expect(form.queryByRole('alert')).not.toBeInTheDocument()
+  expect(input).toHaveAccessibleDescription('Mindestens 12 Zeichen. Leerzeichen sind erlaubt und zählen mit.')
   expect(input).toHaveAttribute('aria-invalid', 'false')
 })
 
@@ -207,52 +208,75 @@ test.each(['😀'.repeat(12), '  abcdefghij', 'abcdefghij  ', 'e\u0301'.repeat(6
     .mockResolvedValueOnce(jsonResponse(user, 201))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
-  await screen.findByText('Not signed in.')
+  await screen.findByRole('heading', { name: 'Willkommen zurück!' })
 
   const form = registrationForm()
-  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'gandalf@example.com' } })
-  fireEvent.change(form.getByLabelText('Username'), { target: { value: 'Gandalf' } })
-  fireEvent.change(form.getByLabelText('Password'), { target: { value: passphrase } })
-  fireEvent.click(form.getByRole('button', { name: 'Create account' }))
+  fireEvent.change(form.getByLabelText('E-Mail'), { target: { value: 'gandalf@example.com' } })
+  fireEvent.change(form.getByLabelText('Benutzername'), { target: { value: 'Gandalf' } })
+  fireEvent.change(form.getByLabelText('Passwort'), { target: { value: passphrase } })
+  fireEvent.click(form.getByRole('button', { name: 'Konto erstellen' }))
 
-  expect(await screen.findByText('Account created for Gandalf. Sign in separately to continue.')).toBeInTheDocument()
+  expect(await screen.findByText('Konto erstellt! Melde dich jetzt an.')).toBeInTheDocument()
   expect(fetchMock).toHaveBeenLastCalledWith('/api/users', expect.objectContaining({
     body: JSON.stringify({ email: 'gandalf@example.com', username: 'Gandalf', password: passphrase }),
   }))
-  expect(form.getByLabelText('Password')).toHaveValue('')
-  expect(screen.getByText('Not signed in.')).toBeInTheDocument()
+  expect(form.getByLabelText('Passwort')).toHaveValue('')
+  expect(screen.getByRole('heading', { name: 'Willkommen zurück!' })).toBeInTheDocument()
 })
 
 test.each([
-  [409, 'Email is already registered.'],
-  [400, 'Provide a valid email address.'],
-  [400, 'Username must not be blank.'],
-  [400, 'Password must not be blank or consist only of whitespace.'],
-  [400, 'Provide a valid email address. Username must not be blank.'],
-])('surfaces a safe registration failure (%i): %s', async (status, detail) => {
-  const fetchMock = vi
-    .fn()
-    .mockResolvedValueOnce(jsonResponse({}, 401))
-    .mockResolvedValueOnce(
-      jsonResponse({ detail }, status),
-    )
+  [409, { detail: 'Email is already registered.' }, 'E-Mail', 'Diese E-Mail-Adresse ist bereits registriert.'],
+  [409, { detail: 'Username is already taken.', errors: [{ field: 'username', code: 'USERNAME_TAKEN' }] }, 'Benutzername', 'Dieser Benutzername ist bereits vergeben.'],
+  [400, { detail: 'Provide a valid email address.', errors: [{ field: 'email', code: 'INVALID_EMAIL' }] }, 'E-Mail', 'Bitte gib eine gültige E-Mail-Adresse ein.'],
+  [400, { detail: 'Username is reserved.', errors: [{ field: 'username', code: 'USERNAME_RESERVED' }] }, 'Benutzername', 'Dieser Benutzername ist reserviert.'],
+  [400, { detail: 'Username must be at most 40 characters long.', errors: [{ field: 'username', code: 'NAME_TOO_LONG', maxLength: 40 }] }, 'Benutzername', 'Der Benutzername darf höchstens 40 Zeichen lang sein.'],
+  [400, { detail: 'Password must not be blank or consist only of whitespace.', errors: [{ field: 'password', code: 'PASSWORD_BLANK' }] }, 'Passwort', 'Das Passwort darf nicht nur aus Leerzeichen bestehen.'],
+] as const)('shows an attributable registration failure (%i) inline at its field', async (status, problem, label, message) => {
+  const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({}, 401)).mockResolvedValueOnce(jsonResponse(problem, status))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
-  await screen.findByText('Not signed in.')
+  await screen.findByRole('heading', { name: 'Willkommen zurück!' })
 
   const form = registrationForm()
-  fireEvent.change(form.getByLabelText('Email'), {
-    target: { value: 'gandalf@example.com' },
-  })
-  fireEvent.change(form.getByLabelText('Username'), {
-    target: { value: 'Gandalf' },
-  })
-  fireEvent.change(form.getByLabelText('Password'), {
-    target: { value: password },
-  })
-  fireEvent.click(form.getByRole('button', { name: 'Create account' }))
+  fireEvent.change(form.getByLabelText('E-Mail'), { target: { value: 'gandalf@example.com' } })
+  fireEvent.change(form.getByLabelText('Benutzername'), { target: { value: 'Gandalf' } })
+  fireEvent.change(form.getByLabelText('Passwort'), { target: { value: password } })
+  fireEvent.click(form.getByRole('button', { name: 'Konto erstellen' }))
 
-  expect(await screen.findByRole('alert')).toHaveTextContent(detail)
+  const field = form.getByLabelText(label)
+  await waitFor(() => expect(field).toHaveAccessibleDescription(message))
+  expect(field).toHaveAttribute('aria-invalid', 'true')
+  expect(field).toHaveFocus()
+  expect(form.queryByRole('alert')).not.toBeInTheDocument()
+  // Entered data stays available for correction; the password is never echoed as text.
+  expect(form.getByLabelText('E-Mail')).toHaveValue('gandalf@example.com')
+  expect(form.getByLabelText('Benutzername')).toHaveValue('Gandalf')
+  expect(form.getByLabelText('Passwort')).toHaveValue(password)
+  expect(document.body.textContent).not.toContain(password)
+})
+
+test.each([
+  [400, { detail: 'Provide a valid email, a nonblank username, and a nonblank password of at least 12 characters.' }, 'Bitte überprüfe deine Eingaben.'],
+  [500, { detail: 'Registration could not be completed.' }, 'Die Registrierung ist gerade nicht möglich. Bitte prüfe deine Verbindung und versuche es erneut.'],
+  [503, 'not json', 'Die Registrierung ist gerade nicht möglich. Bitte prüfe deine Verbindung und versuche es erneut.'],
+] as const)('shows an unattributable registration failure (%i) above the form', async (status, problem, message) => {
+  const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({}, 401))
+    .mockResolvedValueOnce(typeof problem === 'string' ? new Response(problem, { status }) : jsonResponse(problem, status))
+  vi.stubGlobal('fetch', fetchMock)
+  render(<App />)
+  await screen.findByRole('heading', { name: 'Willkommen zurück!' })
+
+  const form = registrationForm()
+  fireEvent.change(form.getByLabelText('E-Mail'), { target: { value: 'gandalf@example.com' } })
+  fireEvent.change(form.getByLabelText('Benutzername'), { target: { value: 'Gandalf' } })
+  fireEvent.change(form.getByLabelText('Passwort'), { target: { value: password } })
+  fireEvent.click(form.getByRole('button', { name: 'Konto erstellen' }))
+
+  const alert = await form.findByRole('alert')
+  expect(alert).toHaveTextContent(message)
+  // General errors sit at the top of the affected form, before its inputs.
+  expect(alert.compareDocumentPosition(form.getByLabelText('E-Mail')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(form.getByLabelText('Passwort')).toHaveValue(password)
   expect(document.body.textContent).not.toContain(password)
 })
 
@@ -271,19 +295,19 @@ test('logs in with the bootstrapped CSRF token, refreshes it, and confirms ident
     .mockResolvedValueOnce(jsonResponse([]))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
-  await screen.findByText('Not signed in.')
+  await screen.findByRole('heading', { name: 'Willkommen zurück!' })
 
   const form = loginForm()
-  fireEvent.change(form.getByLabelText('Email'), {
+  fireEvent.change(form.getByLabelText('E-Mail'), {
     target: { value: 'gandalf@example.com' },
   })
-  fireEvent.change(form.getByLabelText('Password'), {
+  fireEvent.change(form.getByLabelText('Passwort'), {
     target: { value: password },
   })
-  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
+  fireEvent.click(form.getByRole('button', { name: 'Anmelden' }))
 
   expect(await screen.findByText('Gandalf')).toBeInTheDocument()
-  expect(screen.getByText('Login successful.')).toBeInTheDocument()
+  expect(screen.getByText('Anmeldung erfolgreich.')).toBeInTheDocument()
   expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/csrf', {
     credentials: 'same-origin',
   })
@@ -314,19 +338,20 @@ test('invalid credentials leave an unauthenticated UI signed out', async () => {
     .mockResolvedValueOnce(jsonResponse({ detail: 'Invalid credentials.' }, 401))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
-  await screen.findByText('Not signed in.')
+  await screen.findByRole('heading', { name: 'Willkommen zurück!' })
 
   const form = loginForm()
-  fireEvent.change(form.getByLabelText('Email'), {
+  fireEvent.change(form.getByLabelText('E-Mail'), {
     target: { value: 'gandalf@example.com' },
   })
-  fireEvent.change(form.getByLabelText('Password'), {
+  fireEvent.change(form.getByLabelText('Passwort'), {
     target: { value: 'wrong password' },
   })
-  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
+  fireEvent.click(form.getByRole('button', { name: 'Anmelden' }))
 
-  expect(await screen.findByText('Invalid credentials.')).toBeInTheDocument()
-  expect(screen.getByText('Not signed in.')).toBeInTheDocument()
+  expect(await screen.findByRole('alert')).toHaveTextContent('Anmeldung fehlgeschlagen. Bitte überprüfe deine Zugangsdaten.')
+  expect(screen.queryByText('Invalid credentials.')).not.toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Willkommen zurück!' })).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Gandalf' })).not.toBeInTheDocument()
 })
 
@@ -338,8 +363,8 @@ test('confirmed authentication hides credentials forms and prevents browser re-l
   render(<App />)
   await screen.findByText(/Noch keine Decks vorhanden/)
   expect(screen.getByText(user.username)).toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: 'Create an account' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Willkommen zurück!' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Konto erstellen' })).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Gandalf' })).toBeEnabled()
   expect(fetchMock).toHaveBeenCalledTimes(2)
 })
@@ -368,17 +393,17 @@ test('does not preserve a previous identity when post-login CSRF refresh fails',
 
   await logOutBeforeLogin()
   const form = loginForm()
-  fireEvent.change(form.getByLabelText('Email'), {
+  fireEvent.change(form.getByLabelText('E-Mail'), {
     target: { value: 'saruman@example.com' },
   })
-  fireEvent.change(form.getByLabelText('Password'), {
+  fireEvent.change(form.getByLabelText('Passwort'), {
     target: { value: password },
   })
-  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
+  fireEvent.click(form.getByRole('button', { name: 'Anmelden' }))
 
-  expect(await screen.findByText('Could not prepare login.')).toBeInTheDocument()
+  expect(await screen.findByText('Deine Anmeldung konnte nicht bestätigt werden. Bitte prüfe deine Sitzung erneut.')).toBeInTheDocument()
   expect(
-    screen.getByText('Your session identity could not be confirmed.'),
+    screen.getByText('Sitzung konnte nicht überprüft werden.'),
   ).toBeInTheDocument()
   expect(screen.queryByText('Gandalf')).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Gandalf' })).not.toBeInTheDocument()
@@ -398,22 +423,22 @@ test('shows an unverified session when identity confirmation fails after login',
     .mockResolvedValueOnce(jsonResponse({}, 503))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
-  await screen.findByText('Not signed in.')
+  await screen.findByRole('heading', { name: 'Willkommen zurück!' })
 
   const form = loginForm()
-  fireEvent.change(form.getByLabelText('Email'), {
+  fireEvent.change(form.getByLabelText('E-Mail'), {
     target: { value: 'gandalf@example.com' },
   })
-  fireEvent.change(form.getByLabelText('Password'), {
+  fireEvent.change(form.getByLabelText('Passwort'), {
     target: { value: password },
   })
-  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
+  fireEvent.click(form.getByRole('button', { name: 'Anmelden' }))
 
-  expect(await screen.findByText('Could not check your session.')).toBeInTheDocument()
+  expect(await screen.findByText('Deine Anmeldung konnte nicht bestätigt werden. Bitte prüfe deine Sitzung erneut.')).toBeInTheDocument()
   expect(
-    screen.getByText('Your session identity could not be confirmed.'),
+    screen.getByText('Sitzung konnte nicht überprüft werden.'),
   ).toBeInTheDocument()
-  expect(screen.queryByText('Not signed in.')).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Willkommen zurück!' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Gandalf' })).not.toBeInTheDocument()
 })
 
@@ -427,7 +452,7 @@ test('a group 401 expires the session and clears protected content', async () =>
   vi.stubGlobal('fetch', fetchMock)
   render(<App />, '/playgroups')
   fireEvent.click(await screen.findByRole('button', { name: 'Private group' }))
-  await screen.findByText('Your session expired. Sign in again.')
+  await screen.findByText('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.')
   expect(screen.queryByRole('heading', { name: 'Playgroups' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: user.username })).not.toBeInTheDocument()
 })
@@ -474,10 +499,10 @@ test.each(['same user', 'different user'])('a confirmed login for %s discards ol
   await act(async () => {})
   await logOutBeforeLogin()
   const form = loginForm()
-  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'saruman@example.com' } })
-  fireEvent.change(form.getByLabelText('Password'), { target: { value: password } })
-  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
-  await screen.findByText('Login successful.')
+  fireEvent.change(form.getByLabelText('E-Mail'), { target: { value: 'saruman@example.com' } })
+  fireEvent.change(form.getByLabelText('Passwort'), { target: { value: password } })
+  fireEvent.click(form.getByRole('button', { name: 'Anmelden' }))
+  await screen.findByText('Anmeldung erfolgreich.')
   await goTo('Playgroups')
   await screen.findByText('Du bist noch keiner Playgroup beigetreten. Erstelle eine eigene Playgroup oder öffne einen Einladungslink.')
   await act(async () => { resolveCreate(jsonResponse({ ...group, name: 'Unconfirmed old group' }, 201)) })
@@ -545,10 +570,10 @@ for (const identity of ['same user', 'different user']) {
       expect(oldRequestStarted).toBe(true)
       await logOutBeforeLogin()
       const form = loginForm()
-      fireEvent.change(form.getByLabelText('Email'), { target: { value: 'wizard@example.com' } })
-      fireEvent.change(form.getByLabelText('Password'), { target: { value: password } })
-      fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
-      await screen.findByText('Login successful.')
+      fireEvent.change(form.getByLabelText('E-Mail'), { target: { value: 'wizard@example.com' } })
+      fireEvent.change(form.getByLabelText('Passwort'), { target: { value: password } })
+      fireEvent.click(form.getByRole('button', { name: 'Anmelden' }))
+      await screen.findByText('Anmeldung erfolgreich.')
       await goTo('Decks')
       await screen.findByText(newDeck.name)
       await act(async () => {
@@ -565,7 +590,7 @@ for (const identity of ['same user', 'different user']) {
       expect(screen.queryByText(oldDeck.name)).not.toBeInTheDocument()
       expect(screen.queryByText('Stale request failure')).not.toBeInTheDocument()
       expect(screen.queryByText('Stale network failure')).not.toBeInTheDocument()
-      expect(screen.queryByText('Your session expired. Sign in again.')).not.toBeInTheDocument()
+      expect(screen.queryByText('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.')).not.toBeInTheDocument()
       expect(screen.queryByText(`${oldDeck.name} wurde erstellt.`)).not.toBeInTheDocument()
       expect(screen.queryByText(`${oldDeck.name} wurde gespeichert.`)).not.toBeInTheDocument()
       expect(screen.queryByText(`${oldDeck.name} wurde gelöscht.`)).not.toBeInTheDocument()
@@ -591,10 +616,10 @@ test.each(['request', 'csrf'])('a current deck %s 401 after re-login still expir
   await screen.findByText(/Noch keine Decks vorhanden/)
   await logOutBeforeLogin()
   const form = loginForm()
-  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'gandalf@example.com' } })
-  fireEvent.change(form.getByLabelText('Password'), { target: { value: password } })
-  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
-  await screen.findByText('Login successful.')
+  fireEvent.change(form.getByLabelText('E-Mail'), { target: { value: 'gandalf@example.com' } })
+  fireEvent.change(form.getByLabelText('Passwort'), { target: { value: password } })
+  fireEvent.click(form.getByRole('button', { name: 'Anmelden' }))
+  await screen.findByText('Anmeldung erfolgreich.')
   await goTo('Decks')
   await screen.findByText(/Noch keine Decks vorhanden/)
   rejectDeck = true
@@ -603,8 +628,8 @@ test.each(['request', 'csrf'])('a current deck %s 401 after re-login still expir
   fireEvent.focus(screen.getByRole('combobox', { name: /Commander/ }))
   fireEvent.click(await screen.findByRole('option', { name: 'Atraxa' }))
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
-  await screen.findByText('Your session expired. Sign in again.')
-  expect(screen.getByText('Not signed in.')).toBeInTheDocument()
+  await screen.findByText('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.')
+  expect(screen.getByRole('heading', { name: 'Willkommen zurück!' })).toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Meine Decks' })).not.toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Playgroups' })).not.toBeInTheDocument()
   if (source === 'csrf') expect(fetchMock.mock.calls.some(([path, init]) => path === '/api/decks' && init?.method)).toBe(false)

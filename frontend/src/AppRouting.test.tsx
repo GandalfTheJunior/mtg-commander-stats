@@ -48,11 +48,11 @@ function show(path: string) {
 }
 
 async function signIn() {
-  const form = within(screen.getByRole('heading', { name: 'Sign in' }).closest('section')!)
-  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'owner@example.test' } })
-  fireEvent.change(form.getByLabelText('Password'), { target: { value: 'correct horse battery' } })
-  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
-  await screen.findByText('Login successful.')
+  const form = within(screen.getByRole('heading', { name: 'Willkommen zurück!' }).closest('section')!)
+  fireEvent.change(form.getByLabelText('E-Mail'), { target: { value: 'owner@example.test' } })
+  fireEvent.change(form.getByLabelText('Passwort'), { target: { value: 'correct horse battery' } })
+  fireEvent.click(form.getByRole('button', { name: 'Anmelden' }))
+  await screen.findByText('Anmeldung erfolgreich.')
 }
 
 function hidden() {
@@ -80,7 +80,7 @@ test.each([
 ] as const)('signed-out %s is safe and sign-in opens only the valid destination %s', async (path, target) => {
   const api = setup(); api.state.user = null
   show(path)
-  await screen.findByText('Not signed in.')
+  await screen.findByRole('heading', { name: 'Willkommen zurück!' })
   hidden()
   expect(api.fetchMock).toHaveBeenCalledTimes(1)
   await signIn()
@@ -103,7 +103,7 @@ test.each([
   api.next('/api/me', () => checking.promise)
   const length = window.history.length
   show(path)
-  expect(screen.getByText('Checking your session…')).toBeInTheDocument()
+  expect(screen.getByText('Sitzung wird geprüft …')).toBeInTheDocument()
   hidden()
   await act(async () => checking.resolve(response(owner)))
   await destination(target)
@@ -138,11 +138,11 @@ test.each(['Decks', 'Playgroups'] as const)('a current %s route 401 retires the 
   await screen.findByRole('button', { name: group.name })
   api.next(`/api/${name === 'Decks' ? 'decks' : 'groups'}`, () => response({}, 401))
   await goTo(name)
-  await screen.findByText('Your session expired. Sign in again.'); hidden()
+  await screen.findByText('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.'); hidden()
   await act(async () => window.history.back())
   await waitFor(() => expect(window.location.pathname).toBe('/dashboard'))
   hidden()
-  expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Willkommen zurück!' })).toBeInTheDocument()
 })
 
 test('Playgroup entries require fresh authorization and returning refetches the list', async () => {
@@ -174,14 +174,18 @@ test('Playgroup entries require fresh authorization and returning refetches the 
 test('a successful login POST does not expose navigation until rotated CSRF and identity are verified', async () => {
   const api = setup(), csrf = deferred()
   api.state.user = null
-  show('/playgroups'); await screen.findByText('Not signed in.')
+  show('/playgroups'); await screen.findByRole('heading', { name: 'Willkommen zurück!' })
   api.next('/api/csrf', () => response({ headerName: 'X-CSRF-TOKEN', token: 'before-login' }))
   api.next('/api/csrf', () => csrf.promise)
-  const form = within(screen.getByRole('heading', { name: 'Sign in' }).closest('section')!)
-  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'owner@example.test' } })
-  fireEvent.change(form.getByLabelText('Password'), { target: { value: 'correct horse battery' } })
-  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
-  await screen.findByText('Your session identity could not be confirmed.')
+  const form = within(screen.getByRole('heading', { name: 'Willkommen zurück!' }).closest('section')!)
+  fireEvent.change(form.getByLabelText('E-Mail'), { target: { value: 'owner@example.test' } })
+  fireEvent.change(form.getByLabelText('Passwort'), { target: { value: 'correct horse battery' } })
+  fireEvent.click(form.getByRole('button', { name: 'Anmelden' }))
+  await waitFor(() => expect(api.fetchMock.mock.calls.filter(([url]) => url === '/api/session')).toHaveLength(1))
+  // While rotation and identity verification run, the form stays pending without a false error or success.
+  expect(screen.getByRole('button', { name: 'Anmeldung läuft …' })).toBeDisabled()
+  expect(screen.queryByText('Sitzung konnte nicht überprüft werden.')).not.toBeInTheDocument()
+  expect(screen.queryByText('Anmeldung erfolgreich.')).not.toBeInTheDocument()
   hidden()
   expect(api.fetchMock.mock.calls.some(([url]) => url === '/api/groups')).toBe(false)
   await act(async () => csrf.resolve(response({ headerName: 'X-CSRF-TOKEN', token: 'after-login' })))
@@ -193,7 +197,7 @@ test('a signed-out protected Games deep link resumes the exact route after login
   const api = setup(); api.state.user = null
   const path = `/playgroups/${group.id}/games`
   show(path)
-  await screen.findByRole('heading', { name: 'Sign in' })
+  await screen.findByRole('heading', { name: 'Willkommen zurück!' })
   expect(api.fetchMock.mock.calls.some(([url]) => url === `/api/groups/${group.id}`)).toBe(false)
   await signIn()
   expect(await screen.findByRole('tab', { name: 'Games' })).toHaveAttribute('aria-selected', 'true')
@@ -221,21 +225,21 @@ test('ambiguous logout gates navigation during recovery and confirms a fresh ide
   await act(async () => checking.resolve(response({ id: uid(4), username: 'Fourth' })))
   await destination('Dashboard')
   expect(screen.getByRole('banner')).toHaveTextContent('Fourth')
-  expect(screen.getByText(/Logout could not be confirmed/)).toBeInTheDocument()
-  expect(screen.queryByText('Logged out.')).not.toBeInTheDocument()
+  expect(screen.getByText(/Die Abmeldung konnte nicht bestätigt werden/)).toBeInTheDocument()
+  expect(screen.queryByText('Du wurdest abgemeldet.')).not.toBeInTheDocument()
 })
 
 test('failed restoration and uncertain logout recovery never enable protected navigation', async () => {
   const api = setup()
   api.next('/api/me', () => response({}, 503))
-  show('/decks'); await screen.findByText('Your session identity could not be confirmed.'); hidden()
-  fireEvent.click(screen.getByRole('button', { name: 'Check session' }))
+  show('/decks'); await screen.findByText('Sitzung konnte nicht überprüft werden.'); hidden()
+  fireEvent.click(screen.getByRole('button', { name: 'Erneut prüfen' }))
   await screen.findByText(deck.name)
   api.next('/api/session', () => response({}, 500), 'DELETE')
   api.next('/api/me', () => response({}, 503))
   clickAccountLogout()
-  await screen.findByText('Logout could not be confirmed. Check your session before continuing.'); hidden()
-  fireEvent.click(screen.getByRole('button', { name: 'Check session' }))
+  await screen.findByText('Die Abmeldung konnte nicht bestätigt werden. Bitte prüfe deine Sitzung, bevor du fortfährst.'); hidden()
+  fireEvent.click(screen.getByRole('button', { name: 'Erneut prüfen' }))
   await destination('Dashboard')
 })
 
@@ -286,7 +290,7 @@ test('pending logout retires group details and browser Back cannot resurrect the
   hidden()
   api.state.user = null
   await act(async () => pending.resolve(new Response(null, { status: 204 })))
-  await screen.findByText('Logged out.')
+  await screen.findByText('Du wurdest abgemeldet.')
   api.state.loginUser = { id: uid(4), username: 'Fourth' }
   await signIn()
   await destination('Dashboard')

@@ -113,7 +113,7 @@ test.each(['/decks/new', `/decks/${deck.id}/edit`])('direct authenticated route 
 })
 test.each(['/decks/new', `/decks/${deck.id}/edit`])('signed out route %s resumes only after login with fresh empty draft/origin', async path => {
   const api = deckApi(); api.state.user = null; showDeckApp(path)
-  await screen.findByText('Not signed in.')
+  await screen.findByRole('heading', { name: 'Willkommen zurück!' })
   expect(window.location.pathname).toBe(path)
   await signInDeck(); await screen.findByRole('textbox', { name: /Deckname/ })
   fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
@@ -190,7 +190,7 @@ test.each(['csrf', 'write'])('logout retires a pending %s immediately without di
   clickAccountLogout()
   expect(screen.queryByRole('textbox', { name: /Deckname/ })).not.toBeInTheDocument()
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  await screen.findByText('Logged out.'); await signInDeck()
+  await screen.findByText('Du wurdest abgemeldet.'); await signInDeck()
   await act(async () => pending.resolve(response({}, 401)))
   expect(screen.getByRole('banner')).toHaveTextContent(owner.username)
   expect(screen.queryByText(/session expired/)).not.toBeInTheDocument()
@@ -201,10 +201,10 @@ test.each([false, true])('archive current vs retired 401 expires only the active
   api.next(`/api/decks/${deck.id}/archive`, () => pending.promise, 'POST')
   await menuAction('Archivieren'); fireEvent.click(screen.getByRole('button', { name: 'Deck archivieren' }))
   await waitFor(() => expect(api.writes()).toHaveLength(1))
-  if (retired) { clickAccountLogout(); await screen.findByText('Logged out.'); await signInDeck() }
+  if (retired) { clickAccountLogout(); await screen.findByText('Du wurdest abgemeldet.'); await signInDeck() }
   await act(async () => pending.resolve(response({}, 401)))
   if (retired) expect(screen.queryByText(/session expired/)).not.toBeInTheDocument()
-  else await screen.findByText('Your session expired. Sign in again.')
+  else await screen.findByText('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.')
 })
 test('StrictMode editor uses fresh confirmed fields without resetting user input on rerender', async () => {
   deckApi(); window.history.replaceState(null, '', `/decks/${deck.id}/edit`)
@@ -238,7 +238,7 @@ test('native links leaving the editor prompt, same-page skip links do not, logou
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   fireEvent.click(link); await screen.findByRole('dialog')
   clickAccountLogout()
-  await screen.findByText('Logged out.')
+  await screen.findByText('Du wurdest abgemeldet.')
   expect(warning()).toBe(false)
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   link.remove()
@@ -333,7 +333,7 @@ test.each(['network', 500, 403, 401] as const)('direct create needs no deck list
   await act(async () => pending.resolve(response({ ...deck, name: 'Created independently' }, 201)))
   // Only the fresh return overview now attempts the failing GET; create itself succeeded.
   await waitFor(() => expect(listRequests()).toHaveLength(1))
-  if (failure === 401) await screen.findByText('Your session expired. Sign in again.')
+  if (failure === 401) await screen.findByText('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.')
   else {
     expect(await screen.findByText('Created independently wurde erstellt.')).toBeInTheDocument()
     expect(await screen.findByText('Deine Decks konnten nicht geladen werden.')).toBeInTheDocument()
@@ -348,7 +348,7 @@ test.each(['network', 'malformed', 500, 403, 404, 401] as const)('edit still req
     return failure === 'malformed' ? response([{ ...deck, everUsed: undefined }]) : response({}, failure)
   })
   showDeckApp(`/decks/${deck.id}/edit`)
-  if (failure === 401) await screen.findByText('Your session expired. Sign in again.')
+  if (failure === 401) await screen.findByText('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.')
   else await screen.findByText(/Dieses Deck ist nicht verfügbar/)
   expect(screen.queryByRole('textbox', { name: /Deckname/ })).not.toBeInTheDocument()
   expect(screen.queryByDisplayValue(deck.commanders[0].name)).not.toBeInTheDocument()
