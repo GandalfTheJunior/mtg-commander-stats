@@ -155,13 +155,18 @@ function SeatContent({ seatKey, position, count, name, deck, done, expanded, for
     <Collapse in={expanded} timeout={reduced ? 0 : EXPAND_MS} unmountOnExit>
       <Stack id={`game-${seatKey}-details`} inert={!expanded} aria-hidden={expanded ? undefined : true} sx={{ px: 1.5, pl: 2.5, pb: 1.5, gap: 1 }}>
         {error && <Typography color="error" role="alert" variant="body2">{error}</Typography>}
-        <Stack direction="row" useFlexGap sx={{ gap: 1, flexWrap: 'wrap' }}>
-          <Button id={`game-${seatKey}-member`} color="secondary" variant="outlined" disabled={busy} onClick={onChangeMember}>Mitglied ändern</Button>
-          {!former && <Button id={`game-${seatKey}-deck`} color="secondary" variant={deck ? 'outlined' : 'contained'} disabled={busy}
-            onClick={onChangeDeck}>{deck ? 'Deck ändern' : 'Deck auswählen'}</Button>}
-        </Stack>
-        <Button color="inherit" size="small" disabled={busy} sx={{ alignSelf: 'flex-end', color: 'text.secondary' }}
-          aria-label={`Spieler ${position} entfernen`} onClick={onRemove}>Spieler entfernen</Button>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+          <Stack direction="row" useFlexGap sx={{ flex: 1, minWidth: 0, gap: 1, flexWrap: 'wrap', '& .MuiButton-root': { px: 1 } }}>
+            <Button id={`game-${seatKey}-member`} color="secondary" variant="outlined" disabled={busy} onClick={onChangeMember}>Mitglied ändern</Button>
+            {!former && <Button id={`game-${seatKey}-deck`} color="secondary" variant={deck ? 'outlined' : 'contained'} disabled={busy}
+              onClick={onChangeDeck}>{deck ? 'Deck ändern' : 'Deck auswählen'}</Button>}
+          </Stack>
+          {/* Icon-only so all three actions share one row on phones; the name keeps the full wording. */}
+          <IconButton disabled={busy} aria-label={`Spieler ${position} entfernen`} onClick={onRemove}
+            sx={{ width: 48, height: 48, flexShrink: 0, color: 'text.secondary', '&:hover': { bgcolor: 'interaction.hover' }, '&.Mui-focusVisible': focusOutline }}>
+            <Trash />
+          </IconButton>
+        </Box>
       </Stack>
     </Collapse>
     {done && <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mx: 1.5, ml: 2.5, py: 1.25, borderTop: '1px solid', borderColor: 'divider' }}>
@@ -174,6 +179,11 @@ function SeatContent({ seatKey, position, count, name, deck, done, expanded, for
 function Chevron({ up }: { up: boolean }) {
   return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"
     style={{ transform: up ? 'rotate(180deg)' : undefined }}><path d="m6 9 6 6 6-6" /></svg>
+}
+
+function Trash() {
+  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+    <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" /></svg>
 }
 
 function Trophy() {

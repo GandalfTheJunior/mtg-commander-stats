@@ -498,7 +498,8 @@ The PO-approved #196 functional wireframes are archived in
   saved. Another account without eligible decks shows **Keine Decks verfügbar**
   and **Anderes Mitglied auswählen**.
 - **Editing cards:** the expanded card offers **Mitglied ändern**, **Deck ändern**
-  and a discreet **Spieler entfernen** (this match only, seats compact). Changing
+  and, in the same row, a trash icon button named **Spieler N entfernen** (this
+  match only, seats compact). Changing
   the member clears that card's deck and its results in every mode; changing only
   the deck keeps them. The grip reorders by pointer/touch drag (live) or arrow
   keys; tapping or activating it without dragging opens a menu with **Nach oben**
