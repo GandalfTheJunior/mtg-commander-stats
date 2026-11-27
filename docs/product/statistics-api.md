@@ -6,7 +6,7 @@ Only an active member of the path group may read it, including an active member
 who has never played. Actor identity comes exclusively from `UserPrincipal`;
 there is no actor, member or owner selector. GET needs no CSRF token. There are
 no statistics write routes. The opened group's browser Statistics section consumes
-this contract; see the [usage guide](../../README.md#local-development).
+this contract; see the [usage guide](../development/local-development.md#local-development).
 
 ## Response
 

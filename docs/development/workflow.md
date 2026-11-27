@@ -96,7 +96,7 @@ task or an existing project decision explicitly calls for it.
 ## Verification and handoff
 
 Apply the [testing guide](testing.md) and run relevant
-[README verification commands](../../README.md#verification) before handoff.
+[verification commands](local-development.md#verification) before handoff.
 Complete every section of the [PR template](../../.github/pull_request_template.md)
 with factual Reviewer Context, following [reviewing guidance](reviewing.md).
 If a required check cannot run, disclose the blocker; an unexecuted check is not

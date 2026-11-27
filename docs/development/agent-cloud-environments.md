@@ -18,7 +18,7 @@ than treating old observations as guarantees.
   use `./mvnw` from `backend/`, not a system-wide `mvn`.
 - A reachable **Docker daemon** for PostgreSQL 18 and Testcontainers. Docker
   Compose and a developer-managed PostgreSQL database are not required for tests.
-- The canonical commands live in [README verification](../../README.md#verification).
+- The canonical commands live in [local verification guide](local-development.md#verification).
   [Testing guidance](testing.md#shared-postgresql-integration-test-infrastructure)
   explains the single shared PostgreSQL container per test JVM and separate
   databases for individual Spring test contexts (implemented in [#246](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/246)).

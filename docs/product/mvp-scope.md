@@ -73,7 +73,7 @@ authorization remains authoritative.
 
 The backend API for these rules is implemented and documented in
 [Play groups API](groups-api.md). The browser My groups area supports these
-operations; see the [usage guide](../../README.md#local-development).
+operations; see the [usage guide](../development/local-development.md#local-development).
 
 ### Quick profiles
 

@@ -161,7 +161,7 @@ For each independently authorized implementation slice, exercise relevant cases 
 - Group administration: active-member invitation creation, native sharing/copy fallback, one-use/expiry feedback, member-only confirmed leave, access loss, expired sessions, and CSRF/authorization recovery.
 - Navigation/state: back/forward and switching group/deck areas after writes, stale-request retirement on identity/session change, safe handling of uncertain network writes.
 
-Relevant test levels and exact commands follow [testing guidance](../development/testing.md) and the [README verification instructions](../../README.md#verification). Do not claim unrun checks passed.
+Relevant test levels and exact commands follow [testing guidance](../development/testing.md) and the [verification instructions](../development/local-development.md#verification). Do not claim unrun checks passed.
 
 ## Proposed implementation slices (each requires separate PO authorization)
 
