@@ -309,8 +309,14 @@ return 404 and active non-ADMIN targets 403. Only the named target can accept or
 decline; only the initiating OWNER can withdraw. An inaccessible request ID returns
 404, just like an absent ID. A completed request returns 409 to its designated
 actor, including repeated acceptance, decline, withdrawal or acknowledgement.
-A demoted/removed/departed target receives 409 on response, without changing roles;
-the still-current requesting OWNER can withdraw that stale request.
+When the target loses active ADMIN eligibility (demotion to MEMBER, removal or
+voluntary departure), the same transaction automatically resolves the pending
+request as `CANCELLED` (#294). The offer never becomes acceptable again, even if
+the same user later rejoins or is promoted back to ADMIN; a new offer requires a
+fresh request by the current OWNER. Accepting, declining or withdrawing the
+cancelled request returns 409 like any completed request, and GET base returns
+404 because nothing is pending. Changes to other members, or a role update that
+keeps the target ADMIN, leave the offer pending.
 
 Transfer status contains `id`, `groupId`, `requesterId`, `requesterUsername`,
 `targetUserId`, `targetUsername`, `state`, `createdAt`, and nullable `resolvedAt`.
@@ -331,7 +337,10 @@ the existing deferred designated-owner triggers validate the final transaction.
 All reads and writes take the group row lock before loading request/membership
 state, sharing the same ordering with join/leave, role changes, removal and game
 operations. This group lock serializes relevant row access; no additional request
-or membership row locks are needed by application operations. Errors roll back
+or membership row locks are needed by application operations. An acceptance
+that commits first stays valid, and a later demotion or departure of the new
+OWNER is refused as usual; an eligibility loss that commits first cancels the
+request, so a queued acceptance or withdrawal returns 409. Errors roll back
 roles, designated owner, request status and outcome together. Membership IDs,
 games, participants, decks and statistics stay intact. The former OWNER can leave
 as MEMBER. Permissions are rechecked from persisted state on each operation,
@@ -357,7 +366,7 @@ Display each returned accepted/declined outcome once, then explicitly acknowledg
 its ID. GET never consumes it; retrying a read can return the same notice until
 acknowledged. After acknowledging the batch, read again to drain any remaining
 outcomes. Acknowledging another recipient's or non-outcome ID returns 404.
-Withdrawal creates no notice. The incoming OWNER's immediate success toast uses
+Withdrawal and automatic cancellation create no notice. The incoming OWNER's immediate success toast uses
 the confirmed acceptance response; the former OWNER's next-open toast uses these
 persisted outcomes. Retain the request ID locally during actions and refresh
 authoritative state after conflicts. See the

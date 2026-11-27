@@ -12,10 +12,12 @@ import java.util.stream.Collectors;
 import io.github.gandalfthejunior.mtgcommanderstats.displaytext.DisplayText;
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.GroupMembership;
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.GroupRole;
+import io.github.gandalfthejunior.mtgcommanderstats.group.domain.OwnershipTransfer.State;
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.PlayGroup;
 import io.github.gandalfthejunior.mtgcommanderstats.group.domain.PlaygroupName;
 import io.github.gandalfthejunior.mtgcommanderstats.group.persistence.GroupMembershipRepository;
 import io.github.gandalfthejunior.mtgcommanderstats.group.persistence.InvitationRepository;
+import io.github.gandalfthejunior.mtgcommanderstats.group.persistence.OwnershipTransferRepository;
 import io.github.gandalfthejunior.mtgcommanderstats.group.persistence.PlayGroupRepository;
 import io.github.gandalfthejunior.mtgcommanderstats.user.application.UserDirectory;
 import io.github.gandalfthejunior.mtgcommanderstats.user.application.UserDirectory.PublicUser;
@@ -32,16 +34,18 @@ public class ManageGroups {
     private final JoinCodeGenerator codes;
     private final GroupCreationTransaction creation;
     private final InvitationRepository invitations;
+    private final OwnershipTransferRepository transfers;
 
     public ManageGroups(PlayGroupRepository groups, GroupMembershipRepository memberships, UserDirectory users,
             JoinCodeGenerator codes, GroupCreationTransaction creation,
-            InvitationRepository invitations) {
+            InvitationRepository invitations, OwnershipTransferRepository transfers) {
         this.groups = groups;
         this.memberships = memberships;
         this.users = users;
         this.codes = codes;
         this.creation = creation;
         this.invitations = invitations;
+        this.transfers = transfers;
     }
 
     public GroupSummary create(UUID actorId, String name) {
@@ -134,6 +138,7 @@ public class ManageGroups {
     public void leave(UUID actorId, UUID groupId) {
         groups.findByIdForUpdate(groupId).orElseThrow(GroupNotFoundException::new);
         activeMembership(groupId, actorId).leave();
+        cancelPendingTransferTo(groupId, actorId);
     }
 
     @Transactional
@@ -148,7 +153,11 @@ public class ManageGroups {
         if (target.getRole() == GroupRole.OWNER || isQuickProfile(userId)) {
             throw new GroupAccessDeniedException();
         }
+        GroupRole previous = target.getRole();
         target.changeRole(role);
+        if (previous == GroupRole.ADMIN && role == GroupRole.MEMBER) {
+            cancelPendingTransferTo(groupId, userId);
+        }
         return memberSummary(target, users.findAll(List.of(userId)));
     }
 
@@ -165,6 +174,17 @@ public class ManageGroups {
             throw new GroupAccessDeniedException();
         }
         target.leave();
+        cancelPendingTransferTo(groupId, userId);
+    }
+
+    /**
+     * A target that loses active ADMIN eligibility permanently invalidates its pending ownership offer (#294).
+     * Callers hold the group row lock, which serializes this with acceptance, decline and withdrawal.
+     */
+    private void cancelPendingTransferTo(UUID groupId, UUID userId) {
+        transfers.findByGroupIdAndState(groupId, State.PENDING)
+                .filter(transfer -> transfer.getTargetId().equals(userId))
+                .ifPresent(transfer -> transfer.resolve(State.CANCELLED));
     }
 
     private boolean isQuickProfile(UUID userId) {
