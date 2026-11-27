@@ -155,13 +155,14 @@ function SeatContent({ seatKey, position, count, name, deck, done, expanded, for
     <Collapse in={expanded} timeout={reduced ? 0 : EXPAND_MS} unmountOnExit>
       <Stack id={`game-${seatKey}-details`} inert={!expanded} aria-hidden={expanded ? undefined : true} sx={{ px: 1.5, pl: 2.5, pb: 1.5, gap: 1 }}>
         {error && <Typography color="error" role="alert" variant="body2">{error}</Typography>}
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-          <Stack direction="row" useFlexGap sx={{ flex: 1, minWidth: 0, gap: 1, flexWrap: 'wrap', '& .MuiButton-root': { px: 1 } }}>
+        {/* Compact labels so the three actions share one row from 375px; narrower phones wrap the deck button. */}
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75 }}>
+          <Stack direction="row" useFlexGap sx={{ flex: 1, minWidth: 0, gap: 0.75, flexWrap: 'wrap', '& .MuiButton-root': { px: 1, fontSize: '0.9375rem' } }}>
             <Button id={`game-${seatKey}-member`} color="secondary" variant="outlined" disabled={busy} onClick={onChangeMember}>Mitglied ändern</Button>
             {!former && <Button id={`game-${seatKey}-deck`} color="secondary" variant={deck ? 'outlined' : 'contained'} disabled={busy}
               onClick={onChangeDeck}>{deck ? 'Deck ändern' : 'Deck auswählen'}</Button>}
           </Stack>
-          {/* Icon-only so all three actions share one row on phones; the name keeps the full wording. */}
+          {/* Icon-only to save width; the accessible name keeps the full wording. */}
           <IconButton disabled={busy} aria-label={`Spieler ${position} entfernen`} onClick={onRemove}
             sx={{ width: 48, height: 48, flexShrink: 0, color: 'text.secondary', '&:hover': { bgcolor: 'interaction.hover' }, '&.Mui-focusVisible': focusOutline }}>
             <Trash />

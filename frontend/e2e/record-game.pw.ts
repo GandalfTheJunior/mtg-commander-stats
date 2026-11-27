@@ -205,7 +205,7 @@ test.describe('parchment player cards (#382)', () => {
     expect(await page.getByRole('button', { name: 'Spieler 1 einklappen' }).evaluate(element => getComputedStyle(element).outlineColor)).toBe('rgb(88, 44, 28)')
     await expect(page.getByRole('region', { name: 'Spieler 1' }).locator('.MuiCollapse-entered')).toHaveCount(1)
     const expanded = await height(page, 1)
-    expect(expanded).toBeGreaterThan(collapsed + 80)
+    expect(expanded).toBeGreaterThan(collapsed + 40)
     expect(await barrel(page, 1)).toBe('100% 9px, 100% 10.5px, 100% calc(100% - 18px)')
 
     // Record the card height on every frame while it collapses: intermediate heights prove the animation.
@@ -232,7 +232,11 @@ test.describe('parchment player cards (#382)', () => {
     await choose(page, 1, 1)
     const collapsed = await height(page, 1)
     await page.getByRole('button', { name: 'Spieler 1 bearbeiten' }).click()
-    expect(await height(page, 1)).toBeGreaterThan(collapsed + 80)
+    // The first measurement after the click already shows the final height: no transition ran.
+    const immediate = await height(page, 1)
+    await expect(page.getByRole('region', { name: 'Spieler 1' }).locator('.MuiCollapse-entered')).toHaveCount(1)
+    expect(immediate).toBeGreaterThan(collapsed + 40)
+    expect(await height(page, 1)).toBe(immediate)
     await page.getByRole('button', { name: 'Spieler 1 einklappen' }).click()
     await expect.poll(() => height(page, 1), { intervals: [20] }).toBe(collapsed)
   })
@@ -249,3 +253,18 @@ test('tapping the grip offers moving up or down without dragging (#382)', async 
   await expect(page.getByRole('button', { name: 'Aragorn verschieben' })).toBeFocused()
   await expect(page.getByRole('status')).toHaveText('Aragorn an Position 2 verschoben.')
 })
+
+for (const width of [375, 390]) {
+  test(`expanded card actions share one row at ${width}px (#382)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await mockApi(page)
+    await page.goto(`/playgroups/${group.id}/games/new`)
+    await choose(page, 1, 1)
+    await page.getByRole('button', { name: 'Spieler 1 bearbeiten' }).click()
+    const card = page.getByRole('region', { name: 'Spieler 1' })
+    const tops = await Promise.all(['Mitglied ändern', 'Deck ändern', 'Spieler 1 entfernen']
+      .map(async name => (await card.getByRole('button', { name, exact: true }).boundingBox())!.y))
+    expect(new Set(tops).size).toBe(1)
+    expect(await noOverflow(page)).toBe(true)
+  })
+}
