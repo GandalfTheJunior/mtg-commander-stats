@@ -98,7 +98,7 @@ is a PO decision.
 ## Required checks
 
 Run checks relevant to the changed code before declaring completion. The
-[README verification section](../../README.md#verification) owns the exact
+[verification section](local-development.md#verification) owns the exact
 commands: canonical backend verification and the frontend install, lint,
 typecheck, test, and build sequence. The frontend test script must remain CI-safe
 and terminate without interactive watch mode.

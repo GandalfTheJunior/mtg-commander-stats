@@ -2,7 +2,7 @@
 
 The backend records free-for-all Commander games within play groups. This API
 uses the existing session authentication and CSRF semantics. The selected group
-browser experience consumes this contract; see the [usage guide](../../README.md#local-development).
+browser experience consumes this contract; see the [usage guide](../development/local-development.md#local-development).
 The backend [group statistics API](statistics-api.md) derives current player/deck
 totals from these games. Opened browser groups display those figures and reload
 them after acknowledged game creation, replacement or deletion.

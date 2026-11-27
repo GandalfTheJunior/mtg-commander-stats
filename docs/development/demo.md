@@ -458,7 +458,7 @@ CSRF token. The same figures are also visible in the opened group's browser
    recover the file locally or deliberately discard the demo volume using Docker
    after checking its exact name/labels. The tool refuses unknown/mismatched data.
 6. To return to normal development, stop demo backend/Vite, optionally stop demo
-   PostgreSQL, and follow [Local development](../../README.md#local-development)
+   PostgreSQL, and follow [Local development](local-development.md#local-development)
    in your regular shell with its original database environment/credentials
    (normally port 5432). No shell variables were changed by the demo tool.
 
@@ -487,7 +487,7 @@ broken stdin and forced-stop rejection. The Windows allowlist also retains `Prog
 `PROGRAMFILES`) for Docker Compose plugin discovery while excluding
 `DOCKER_CONFIG`, remote Docker settings and application overrides. CI runs the
 tests with Node 24 on Linux and Windows. The normal
-[backend/frontend verification](../../README.md#verification) remains required.
+[backend/frontend verification](local-development.md#verification) remains required.
 
 To check Docker Compose plugin discovery with the same sanitized child environment,
 without starting Docker containers, contacting a database or requiring a running
