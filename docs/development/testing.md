@@ -56,6 +56,45 @@ If requirements changed and an existing expectation is now incorrect, update it
 and explain why the previous expectation is no longer valid. Investigate the
 underlying cause of flaky tests.
 
+## Burn-in for added or changed tests
+
+A test that fails once in a few hundred runs passes its own PR and then fails
+unrelated ones. To surface it where its author still has the context, PR CI
+repeats every frontend test file the PR adds, modifies or renames:
+
+- **Vitest** (`frontend burn-in`): 20 runs of each changed `src/**/*.test.ts(x)`
+  file, as 5 rounds of 4 concurrent single-worker runs. The concurrency matches
+  the CPU contention of the regular suite, which runs test files side by side.
+  A machine with fewer than 4 CPUs runs fewer at a time in more rounds, so the
+  total stays at 20 runs.
+- **Playwright** (`browser burn-in (chromium|webkit)`): `--repeat-each=10` for
+  each changed `e2e/**/*.pw.ts` spec, per engine, with the regular single worker
+  and container image. A PR changing more than three specs repeats each 3 times.
+  Playwright reads file arguments as regular expressions, so each spec path is
+  passed escaped and anchored; a name such as `member (mobile).pw.ts` selects
+  exactly that file.
+
+Every repetition must pass; this is the opposite of a retry. The `changed tests`
+job counts the files and the burn-in jobs are skipped when none changed. They do
+not run on pushes to `main`. A failed browser burn-in uploads
+`browser-burn-in-evidence-<engine>` with reports, traces and videos.
+
+A burn-in failure means the changed test, or the behavior it exercises, is not
+deterministic. Find and fix the cause before merge; a green rerun is not a fix.
+Burn-in does not cover unchanged tests that a product-code change destabilizes,
+nor specs affected only through a changed helper module.
+
+Reproduce locally against committed changes from the repository root after
+`npm ci` in `frontend/`:
+
+```bash
+node tools/ci/burn-in.mjs vitest origin/main
+node tools/ci/burn-in.mjs playwright origin/main -- --project=chromium
+```
+
+The burn-in jobs are not part of the `protect-main` required checks; adding them
+is a PO decision.
+
 ## Required checks
 
 Run checks relevant to the changed code before declaring completion. The
