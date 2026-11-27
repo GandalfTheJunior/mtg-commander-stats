@@ -180,7 +180,6 @@ export default function InvitationPage({ segment, user, checking, notice, onUnau
         <Button variant="outlined" color="secondary" fullWidth onClick={() => authenticate('register')} sx={{ minHeight: 52 }}>Registrieren</Button>
         <Note>
           <Typography sx={{ color: 'text.secondary' }}>Danach kehrst du zu dieser Einladung zurück.</Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary' }}>Nach der Registrierung ist eine Anmeldung erforderlich.</Typography>
         </Note>
       </>}
     </>

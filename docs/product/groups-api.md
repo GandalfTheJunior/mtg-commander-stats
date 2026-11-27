@@ -102,7 +102,7 @@ trade-off. A former member needs a different valid token to rejoin as MEMBER.
 
 The frontend builds a same-origin share link referencing this exact code.
 Opening a link, previewing, registering and logging in never admit a user.
-The #200 UI must preserve the token through registration and subsequent login
+The #200 UI must preserve the token through registration and the sign-in that follows it
 and require explicit confirmation. Manual code redemption through the API uses
 the same validation; there is no separate admission model or manual-entry UI.
 Legacy GET/POST `/api/groups/{groupId}/join-code` routes are removed (`404`).

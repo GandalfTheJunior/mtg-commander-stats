@@ -179,43 +179,120 @@ test('local validation keeps requests back and places messages below the affecte
   expect(fetchMock).toHaveBeenCalledTimes(1)
 })
 
-test('registration guards duplicate submits and returns to sign-in with only the email carried over', async () => {
-  const pending = deferred()
-  const fetchMock = vi.fn((path: string) => path === '/api/me' ? Promise.resolve(json({}, 401)) : pending.promise)
+test('registration guards duplicate submits through the chained sign-in and opens the app only after verification', async () => {
+  const users = deferred()
+  const csrf = deferred()
+  const me = deferred()
+  const csrfResponses = [csrf.promise, Promise.resolve(json({ headerName: 'X-CSRF-TOKEN', token: 'rotated' }))]
+  const meResponses = [Promise.resolve(json({}, 401)), me.promise]
+  const fetchMock = vi.fn((path: string) => {
+    if (path === '/api/me') return meResponses.shift()!
+    if (path === '/api/users') return users.promise
+    if (path === '/api/csrf') return csrfResponses.shift()!
+    if (path === '/api/session') return Promise.resolve(json(identity))
+    return Promise.resolve(json([]))
+  })
+  const calls = (path: string) => fetchMock.mock.calls.filter(([called]) => called === path)
   vi.stubGlobal('fetch', fetchMock)
   renderApp(<App />, '/')
   await screen.findByRole('heading', { name: loginHeading })
   const form = fill(openRegistration())
   act(() => { fireEvent.submit(form); fireEvent.submit(form) })
-  expect(fetchMock.mock.calls.filter(([path]) => path === '/api/users')).toHaveLength(1)
+  expect(calls('/api/users')).toHaveLength(1)
   expect(within(entry()).getByRole('button', { name: 'Konto wird erstellt …' })).toBeDisabled()
   expect(within(entry()).getByRole('status')).toHaveTextContent('Konto wird erstellt …')
   expect(within(entry()).getByRole('button', { name: toLogin })).toBeDisabled()
-  await act(async () => pending.resolve(json(identity, 201)))
 
-  expect(screen.getByRole('heading', { name: loginHeading })).toBeInTheDocument()
-  const notice = within(entry()).getByRole('status')
-  expect(notice).toHaveTextContent('Konto erstellt! Melde dich jetzt an.')
+  // #370: the created account signs in through the normal CSRF-protected login, with one continuous pending state.
+  await act(async () => users.resolve(json(identity, 201)))
+  expect(screen.getByRole('heading', { name: registerHeading })).toBeInTheDocument()
+  expect(within(entry()).getByRole('button', { name: 'Anmeldung läuft …' })).toBeDisabled()
+  expect(within(entry()).getByRole('status')).toHaveTextContent('Anmeldung läuft …')
+  expect(within(entry()).getByRole('button', { name: toLogin })).toBeDisabled()
+  fireEvent.submit(form)
+  await act(async () => csrf.resolve(json({ headerName: 'X-CSRF-TOKEN', token: 'initial' })))
+  // Still pending while the rotated session's identity is unconfirmed: no protected content, no false success.
+  await waitFor(() => expect(calls('/api/me')).toHaveLength(2))
+  fireEvent.submit(form)
+  expect(calls('/api/users')).toHaveLength(1)
+  expect(calls('/api/session')).toHaveLength(1)
+  expect(screen.queryByText('Anmeldung erfolgreich.')).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Sitzung konnte nicht überprüft werden.' })).not.toBeInTheDocument()
+  expectProtectedHidden()
+  // The registration password is used only in memory; it is never mirrored into the markup.
+  expect(document.body.innerHTML).not.toContain(password)
+
+  await act(async () => me.resolve(json(identity)))
+  await screen.findByRole('navigation', { name: 'Main navigation' })
+  expect(screen.getByText('Anmeldung erfolgreich.')).toBeInTheDocument()
+  expect(calls('/api/session')).toEqual([['/api/session', expect.objectContaining({
+    method: 'POST', body: JSON.stringify({ email: 'gandalf@example.com', password }),
+  })]])
+  expect(calls('/api/users')).toHaveLength(1)
+})
+
+test('a sign-in failure after registration continues on sign-in with only the email and never registers again', async () => {
+  const fetchMock = vi.fn((path: string) => {
+    if (path === '/api/me') return Promise.resolve(json({}, 401))
+    if (path === '/api/users') return Promise.resolve(json(identity, 201))
+    if (path === '/api/csrf') return Promise.resolve(json({ headerName: 'X-CSRF-TOKEN', token: 'initial' }))
+    return Promise.reject(new TypeError('Failed to fetch'))
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  renderApp(<App />, '/')
+  await screen.findByRole('heading', { name: loginHeading })
+  fireEvent.submit(fill(openRegistration()))
+
+  expect(await screen.findByRole('heading', { name: loginHeading })).toBeInTheDocument()
+  const alert = within(entry()).getByRole('alert')
+  expect(alert).toHaveTextContent('Dein Konto wurde erstellt, aber die Anmeldung ist fehlgeschlagen. Bitte melde dich an.')
+  expect(alert).not.toHaveTextContent(/Failed to fetch/)
+  expect(precedes(alert, within(entry()).getByLabelText('E-Mail'))).toBe(true)
   expect(within(entry()).getByLabelText('E-Mail')).toHaveValue('gandalf@example.com')
   const loginPassword = within(entry()).getByLabelText('Passwort')
   expect(loginPassword).toHaveValue('')
   expect(loginPassword).toHaveFocus()
-  expect(precedes(notice, within(entry()).getByLabelText('E-Mail'))).toBe(true)
-  // Registration alone never authenticates or starts a login.
-  expect(fetchMock.mock.calls.some(([path]) => path === '/api/csrf' || path === '/api/session')).toBe(false)
-  expect(fetchMock.mock.calls.filter(([path]) => path === '/api/me')).toHaveLength(1)
-  expect(document.body.textContent).not.toContain(password)
+  expect(document.body.innerHTML).not.toContain(password)
   expectProtectedHidden()
+  expect(fetchMock.mock.calls.filter(([path]) => path === '/api/users')).toHaveLength(1)
+  expect(fetchMock.mock.calls.filter(([path]) => path === '/api/session')).toHaveLength(1)
 
   // The registration form starts empty again; its password was never copied.
   fireEvent.click(within(entry()).getByRole('button', { name: toRegister }))
   expect(within(entry()).getByLabelText('Passwort')).toHaveValue('')
+  expect(within(entry()).getByLabelText('Benutzername')).toHaveValue('')
+})
+
+test('an unconfirmed identity after the chained sign-in shows the unverified state with sign-in below it', async () => {
+  const meResponses = [json({}, 401), json({}, 503)]
+  const fetchMock = vi.fn((path: string) => {
+    if (path === '/api/me') return Promise.resolve(meResponses.shift()!)
+    if (path === '/api/users') return Promise.resolve(json(identity, 201))
+    if (path === '/api/csrf') return Promise.resolve(json({ headerName: 'X-CSRF-TOKEN', token: 'token' }))
+    if (path === '/api/session') return Promise.resolve(json(identity))
+    return Promise.resolve(json([]))
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  renderApp(<App />, '/')
+  await screen.findByRole('heading', { name: loginHeading })
+  fireEvent.submit(fill(openRegistration()))
+
+  expect(await screen.findByRole('heading', { name: 'Sitzung konnte nicht überprüft werden.' })).toBeInTheDocument()
+  expect(screen.getAllByRole('alert')).toHaveLength(1)
+  expect(screen.getByRole('alert')).toHaveTextContent('Deine Anmeldung konnte nicht bestätigt werden. Bitte prüfe deine Sitzung erneut.')
+  expect(within(entry()).getByLabelText('E-Mail')).toHaveValue('gandalf@example.com')
+  expect(within(entry()).getByLabelText('Passwort')).toHaveValue('')
+  expect(fetchMock.mock.calls.filter(([path]) => path === '/api/users')).toHaveLength(1)
+  expectProtectedHidden()
 })
 
 test('registration failure is announced above the form, preserves inputs, and allows a retry without duplicate POSTs', async () => {
   const pending = deferred()
   const fetchMock = vi.fn().mockResolvedValueOnce(json({}, 401)).mockReturnValueOnce(pending.promise)
     .mockResolvedValueOnce(json(identity, 201))
+    .mockResolvedValueOnce(json({ headerName: 'X-CSRF-TOKEN', token: 'login' })).mockResolvedValueOnce(json(identity))
+    .mockResolvedValueOnce(json({ headerName: 'X-CSRF-TOKEN', token: 'rotated' })).mockResolvedValueOnce(json(identity))
+    .mockResolvedValue(json([]))
   vi.stubGlobal('fetch', fetchMock)
   renderApp(<App />, '/')
   await screen.findByRole('heading', { name: loginHeading })
@@ -233,12 +310,13 @@ test('registration failure is announced above the form, preserves inputs, and al
   expect(within(section).getByRole('button', { name: 'Konto erstellen' })).toBeEnabled()
   expect(document.body.textContent).not.toContain(password)
   fireEvent.submit(form)
-  await screen.findByText('Konto erstellt! Melde dich jetzt an.')
-  expect(fetchMock).toHaveBeenCalledTimes(3)
-  expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/users', expect.objectContaining({
+  // The retry registers once more and then signs in with the same credentials (#370).
+  await screen.findByRole('navigation', { name: 'Main navigation' })
+  const registrations = fetchMock.mock.calls.filter(([path]) => path === '/api/users')
+  expect(registrations).toHaveLength(2)
+  expect(registrations[1]).toEqual(['/api/users', expect.objectContaining({
     body: JSON.stringify({ email: 'gandalf@example.com', username: 'Gandalf', password }),
-  }))
-  expectProtectedHidden()
+  })])
 })
 
 test('login guards repeated submissions throughout CSRF and identity verification; a credential failure permits retry', async () => {
@@ -319,17 +397,22 @@ test.each([
   expectProtectedHidden()
 })
 
-test('unverified recovery explains the uncertainty and keeps its focused retry action available after failed checks', async () => {
+test('unverified recovery offers sign-in below its focused retry action and hides the form during each check', async () => {
   const pending = deferred()
   const fetchMock = vi.fn().mockRejectedValueOnce(new TypeError('Failed to fetch'))
     .mockReturnValueOnce(pending.promise).mockResolvedValueOnce(json({}, 401))
   vi.stubGlobal('fetch', fetchMock)
   renderApp(<App />)
-  expect(await screen.findByRole('heading', { name: 'Sitzung konnte nicht überprüft werden.' })).toBeInTheDocument()
+  const retryHeading = await screen.findByRole('heading', { name: 'Sitzung konnte nicht überprüft werden.' })
   expect(screen.getByRole('alert')).toHaveTextContent('Bitte prüfe deine Verbindung und versuche es erneut.')
-  // Uncertainty is not a confirmed logout: no sign-in or registration form is offered yet.
-  expect(document.querySelector('form')).toBeNull()
+  // #370: the retry card stays on top and the ordinary sign-in card follows below it in the same column.
   const retry = screen.getByRole('button', { name: 'Erneut prüfen' })
+  expect(document.querySelectorAll('form')).toHaveLength(1)
+  expect(precedes(retry, entry())).toBe(true)
+  expect(precedes(retryHeading, screen.getByRole('heading', { name: loginHeading }))).toBe(true)
+  expect(within(entry()).getByRole('button', { name: toRegister })).toBeEnabled()
+  expect(within(entry()).queryByRole('alert')).not.toBeInTheDocument()
+  fireEvent.change(within(entry()).getByLabelText('Passwort'), { target: { value: password } })
   retry.focus()
   fireEvent.click(retry)
   fireEvent.click(retry)
@@ -338,17 +421,47 @@ test('unverified recovery explains the uncertainty and keeps its focused retry a
   expect(retry).toHaveAttribute('aria-disabled', 'true')
   expect(screen.getByRole('status')).toHaveTextContent('Sitzung wird geprüft …')
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  // An active check hides the form, which discards the typed password.
+  expect(document.querySelector('form')).toBeNull()
   expectProtectedHidden()
   await act(async () => pending.resolve(json({}, 503)))
   expect(screen.getByRole('alert')).toHaveTextContent('Bitte prüfe deine Verbindung und versuche es erneut.')
   expect(retry).toHaveFocus()
   expect(retry).toHaveAttribute('aria-disabled', 'false')
+  expect(within(entry()).getByLabelText('Passwort')).toHaveValue('')
   expect(fetchMock).toHaveBeenCalledTimes(2)
   expectProtectedHidden()
   fireEvent.click(retry)
   await screen.findByRole('heading', { name: loginHeading })
   expect(screen.queryByRole('button', { name: 'Erneut prüfen' })).not.toBeInTheDocument()
   expect(screen.queryByText(/abgelaufen/)).not.toBeInTheDocument()
+})
+
+test('signing in from an unverified session uses the normal verified login flow', async () => {
+  const fetchMock = vi.fn().mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    .mockResolvedValueOnce(json({ headerName: 'X-CSRF-TOKEN', token: 'login' })).mockResolvedValueOnce(json({ detail: 'Invalid credentials.' }, 401))
+    .mockResolvedValueOnce(json({ headerName: 'X-CSRF-TOKEN', token: 'login' })).mockResolvedValueOnce(json(identity))
+    .mockResolvedValueOnce(json({ headerName: 'X-CSRF-TOKEN', token: 'rotated' })).mockResolvedValueOnce(json(identity))
+    .mockResolvedValue(json([]))
+  vi.stubGlobal('fetch', fetchMock)
+  renderApp(<App />)
+  await screen.findByRole('heading', { name: 'Sitzung konnte nicht überprüft werden.' })
+  const form = fill(entry())
+  fireEvent.submit(form)
+  // The retry card stays, locked, while the login runs; a rejected login is reported in the sign-in card.
+  const retry = screen.getByRole('button', { name: 'Erneut prüfen' })
+  expect(retry).toHaveAttribute('aria-disabled', 'true')
+  const alert = await within(entry()).findByRole('alert')
+  expect(alert).toHaveTextContent('Anmeldung fehlgeschlagen. Bitte überprüfe deine Zugangsdaten.')
+  expect(screen.getAllByRole('alert').map(element => element.textContent)).toEqual([
+    'Bitte prüfe deine Verbindung und versuche es erneut.', 'Anmeldung fehlgeschlagen. Bitte überprüfe deine Zugangsdaten.',
+  ])
+  expect(retry).toHaveAttribute('aria-disabled', 'false')
+  expectProtectedHidden()
+  fireEvent.submit(form)
+  await screen.findByRole('navigation', { name: 'Main navigation' })
+  expect(screen.getByText('Anmeldung erfolgreich.')).toBeInTheDocument()
+  expect(fetchMock.mock.calls.filter(([path]) => path === '/api/me')).toHaveLength(2)
 })
 
 test('a session lost after confirmation shows the expiry notice above the sign-in fields', async () => {

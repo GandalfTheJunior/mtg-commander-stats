@@ -9,7 +9,7 @@ import {
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
 import Button from '@mui/material/Button'
 import { AppShell } from './AppShell'
-import AuthEntry, { type Credentials } from './AuthEntry'
+import AuthEntry, { type Credentials, type LoginOptions } from './AuthEntry'
 import { authCopy } from './authCopy'
 import DeckManager, { type CollectionMemory } from './DeckManager'
 import DeckEditor, { type DeckOverview } from './DeckEditor'
@@ -34,7 +34,8 @@ import { claimSegment, inviteAuthIntent, inviteAuthKey, inviteSegment } from './
 const statisticsRoutes: [string, StatisticsView][] = [['', 'landing'], ['/reports', 'chooser'],
   ...(['players', 'decks', 'starting-seats', 'mana-colors'] as const).map((report): [string, StatisticsView] => [`/reports/${report}`, report])]
 
-export type Notice = { kind: 'success' | 'error'; message: string } | null
+/** `form`: a failed sign-in attempt, shown in the sign-in form even while the session is unverified (#370). */
+export type Notice = { kind: 'success' | 'error'; message: string; form?: true } | null
 type SessionStatus = 'checking' | 'signed-out' | 'authenticated' | 'unverified' | 'logging-out'
 
 export default function App() {
@@ -91,8 +92,11 @@ export default function App() {
     }
   }, [])
 
-  /** Resolves true once the server-verified identity is shown; false when the entry should allow a retry. */
-  async function submitLogin(credentials: Credentials): Promise<boolean> {
+  /**
+   * Resolves true once the server-verified identity is shown; false when the entry should allow a retry.
+   * #370: registration calls this right after the account was created, with the same credentials.
+   */
+  async function submitLogin(credentials: Credentials, { afterRegistration = false }: LoginOptions = {}): Promise<boolean> {
     if (loginPending.current || sessionStatus === 'checking' || sessionStatus === 'logging-out') return false
     loginPending.current = true
     let version = sessionVersionRef.current
@@ -122,9 +126,9 @@ export default function App() {
     } catch (error) {
       if (version !== sessionVersionRef.current) return false
       // Never assert whether an account exists; keep credential, server and verification failures distinct.
-      setSessionNotice({
-        kind: 'error',
-        message: sessionChanged ? authCopy.loginUnconfirmed
+      setSessionNotice(sessionChanged ? { kind: 'error', message: authCopy.loginUnconfirmed } : {
+        kind: 'error', form: true,
+        message: afterRegistration ? authCopy.registeredLoginFailed
           : error instanceof ApiError && error.status === 401 ? authCopy.loginFailed : authCopy.loginUnavailable,
       })
       return false

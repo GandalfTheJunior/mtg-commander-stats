@@ -526,12 +526,12 @@ test('a signed-out direct load shows only group and profile names and the existi
   expect(api.calls('GET', `/api/invitations/${code}`)).toHaveLength(0)
 })
 
-test('registration then the separate login return to the identical claim link without accepting', async () => {
+test('registration signs in right away and returns to the identical claim link without accepting', async () => {
   const api = server(null)
   const view = show(`/claim/${code}`)
   fireEvent.click(await screen.findByRole('button', { name: 'Registrieren' }))
   await waitFor(() => expect(document.getElementById('auth-register-email')).toHaveFocus())
-  expect(screen.getByText('Erstelle ein Konto und melde dich danach an, um mit der Übernahme des Schnellprofils fortzufahren.')).toBeInTheDocument()
+  expect(screen.getByText('Erstelle ein Konto, um mit der Übernahme des Schnellprofils fortzufahren.')).toBeInTheDocument()
   // Reloading keeps the auth detour for the same link.
   view.unmount()
   show(`/claim/${code}`, { inviteAuth: 'register' })
@@ -540,11 +540,10 @@ test('registration then the separate login return to the identical claim link wi
   fireEvent.change(form.getByLabelText('Benutzername'), { target: { value: 'Frodo' } })
   fireEvent.change(form.getByLabelText('Passwort'), { target: { value: 'correct horse battery' } })
   fireEvent.click(form.getByRole('button', { name: 'Konto erstellen' }))
-  expect(await screen.findByText('Konto erstellt! Melde dich jetzt an.')).toBeInTheDocument()
-  expect(window.location.pathname).toBe(`/claim/${code}`)
-  expect(screen.getByText('Melde dich an, um mit der Übernahme des Schnellprofils fortzufahren.')).toBeInTheDocument()
-  await signIn()
+  // #370: the chained sign-in returns to the preview; claiming still needs the explicit confirmation.
   expect(await screen.findByRole('button', { name: 'Profil übernehmen' })).toBeInTheDocument()
+  expect(api.calls('POST', '/api/users')).toHaveLength(1)
+  expect(api.calls('POST', '/api/session')).toHaveLength(1)
   expect(window.location.pathname).toBe(`/claim/${code}`)
   expect(screen.getByText(visitor.username)).toBeInTheDocument()
   expect(accepts(api)).toHaveLength(0)

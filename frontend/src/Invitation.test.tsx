@@ -333,7 +333,7 @@ test('login returns to the identical invitation and requires an explicit join', 
   expect(api.calls('GET', `/api/invitations/${code}`)).toHaveLength(2)
 })
 
-test('registration followed by the separate required login returns to the same invitation, surviving a reload', async () => {
+test('registration signs in right away and returns to the same invitation, surviving a reload', async () => {
   const api = server(null)
   const view = show(`/invite/${code}`)
   fireEvent.click(await screen.findByRole('button', { name: 'Registrieren' }))
@@ -342,21 +342,17 @@ test('registration followed by the separate required login returns to the same i
   view.unmount()
   show(`/invite/${code}`, { inviteAuth: 'register' })
   const form = within((await screen.findByRole('heading', { name: 'Konto erstellen' })).closest('section')!)
-  expect(screen.getByText('Erstelle ein Konto und melde dich danach an, um mit deiner Playgroup-Einladung fortzufahren.')).toBeInTheDocument()
+  expect(screen.getByText('Erstelle ein Konto, um mit deiner Playgroup-Einladung fortzufahren.')).toBeInTheDocument()
   fireEvent.change(form.getByLabelText('E-Mail'), { target: { value: 'visitor@example.test' } })
   fireEvent.change(form.getByLabelText('Benutzername'), { target: { value: 'Visitor' } })
   fireEvent.change(form.getByLabelText('Passwort'), { target: { value: 'correct horse battery' } })
   fireEvent.click(form.getByRole('button', { name: 'Konto erstellen' }))
-  expect(await screen.findByText('Konto erstellt! Melde dich jetzt an.')).toBeInTheDocument()
-  expect(window.location.pathname).toBe(`/invite/${code}`)
-  // Registration switches to sign-in with the invitation context, the email kept and an empty password.
-  expect(screen.getByRole('heading', { name: 'Willkommen zurück!' })).toBeInTheDocument()
-  expect(screen.getByText('Melde dich an, um mit deiner Playgroup-Einladung fortzufahren.')).toBeInTheDocument()
-  expect(form.getByLabelText('E-Mail')).toHaveValue('visitor@example.test')
-  expect(form.getByLabelText('Passwort')).toHaveValue('')
-  expect(screen.queryByRole('button', { name: 'Playgroup beitreten' })).not.toBeInTheDocument()
-  await signIn()
+  // #370: the chained sign-in returns to the preview; joining still needs the explicit action.
   expect(await screen.findByRole('button', { name: 'Playgroup beitreten' })).toBeInTheDocument()
+  expect(api.calls('POST', '/api/users')).toHaveLength(1)
+  expect(api.calls('POST', '/api/session')).toEqual([['/api/session', expect.objectContaining({
+    body: JSON.stringify({ email: 'visitor@example.test', password: 'correct horse battery' }),
+  })]])
   expect(window.location.pathname).toBe(`/invite/${code}`)
   expect(joinCalls(api)).toHaveLength(0)
 })

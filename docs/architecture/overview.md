@@ -222,7 +222,9 @@ membership rules on the server; frontend restrictions are not security controls.
 The security configuration permits anonymous `POST /api/users`, `GET /api/csrf`,
 and `POST /api/session`; other requests require authentication. Only that exact
 registration method/path is exempt from CSRF. Registration does not authenticate
-or create a session. API failures use `401` for missing authentication and `403`
+or create a session; the web client signs in right afterwards through the
+CSRF-protected `POST /api/session` (#370), so a session never starts from the
+CSRF-exempt endpoint. API failures use `401` for missing authentication and `403`
 for access denial/CSRF failures, without form login, Basic auth, or redirects.
 
 `UserAuthenticationDetails` loads the existing User through the repository's

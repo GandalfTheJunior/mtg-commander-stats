@@ -17,7 +17,7 @@ export const authCopy = {
   logoutStillSignedIn: 'Die Abmeldung konnte nicht bestätigt werden. Du bist weiterhin angemeldet. Bitte versuche es erneut.',
   logoutInactive: 'Die Abmeldung konnte nicht bestätigt werden. Deine Sitzung ist nicht mehr aktiv.',
   logoutUnverified: 'Die Abmeldung konnte nicht bestätigt werden. Bitte prüfe deine Sitzung, bevor du fortfährst.',
-  registered: 'Konto erstellt! Melde dich jetzt an.',
+  registeredLoginFailed: 'Dein Konto wurde erstellt, aber die Anmeldung ist fehlgeschlagen. Bitte melde dich an.',
   toRegister: 'Noch kein Konto? Registrieren',
   toLogin: 'Bereits ein Konto? Anmelden',
   submitLogin: 'Anmelden',

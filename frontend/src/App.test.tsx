@@ -124,11 +124,21 @@ test('restores and displays the current user from an existing session', async ()
   })
 })
 
-test('registers an account without treating it as an authenticated session', async () => {
-  const fetchMock = vi
+// #370: the server creates no session on registration; the client signs in through the normal login flow.
+function signInAfterRegistration(fetchMock: ReturnType<typeof vi.fn>) {
+  return fetchMock
+    .mockResolvedValueOnce(jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'login-token' }))
+    .mockResolvedValueOnce(jsonResponse(user))
+    .mockResolvedValueOnce(jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'post-login-token' }))
+    .mockResolvedValueOnce(jsonResponse(user))
+    .mockResolvedValue(jsonResponse([]))
+}
+
+test('registers an account and then signs in with the same credentials through the normal login flow', async () => {
+  const fetchMock = signInAfterRegistration(vi
     .fn()
     .mockResolvedValueOnce(jsonResponse({}, 401))
-    .mockResolvedValueOnce(jsonResponse(user, 201))
+    .mockResolvedValueOnce(jsonResponse(user, 201)))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
   await screen.findByRole('heading', { name: 'Willkommen zurück!' })
@@ -145,12 +155,15 @@ test('registers an account without treating it as an authenticated session', asy
   })
   fireEvent.click(form.getByRole('button', { name: 'Konto erstellen' }))
 
-  expect(
-    await screen.findByText(
-      'Konto erstellt! Melde dich jetzt an.',
-    ),
-  ).toBeInTheDocument()
-  expect(screen.getByRole('heading', { name: 'Willkommen zurück!' })).toBeInTheDocument()
+  expect(await screen.findByText('Anmeldung erfolgreich.')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Gandalf' })).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Willkommen zurück!' })).not.toBeInTheDocument()
+  expect(fetchMock.mock.calls.slice(1, 5).map(([path]) => path)).toEqual(['/api/users', '/api/csrf', '/api/session', '/api/csrf'])
+  expect(fetchMock).toHaveBeenNthCalledWith(4, '/api/session', expect.objectContaining({
+    method: 'POST',
+    headers: expect.objectContaining({ 'X-CSRF-TOKEN': 'login-token' }),
+    body: JSON.stringify({ email: 'gandalf@example.com', password }),
+  }))
   expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/users', {
     credentials: 'same-origin',
     method: 'POST',
@@ -203,9 +216,9 @@ test.each(['short', '12345678901', '😀'.repeat(11)])('blocks a short registrat
 })
 
 test.each(['😀'.repeat(12), '  abcdefghij', 'abcdefghij  ', 'e\u0301'.repeat(6)])('submits a valid passphrase unchanged: %s', async (passphrase) => {
-  const fetchMock = vi.fn()
+  const fetchMock = signInAfterRegistration(vi.fn()
     .mockResolvedValueOnce(jsonResponse({}, 401))
-    .mockResolvedValueOnce(jsonResponse(user, 201))
+    .mockResolvedValueOnce(jsonResponse(user, 201)))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
   await screen.findByRole('heading', { name: 'Willkommen zurück!' })
@@ -216,12 +229,14 @@ test.each(['😀'.repeat(12), '  abcdefghij', 'abcdefghij  ', 'e\u0301'.repeat(6
   fireEvent.change(form.getByLabelText('Passwort'), { target: { value: passphrase } })
   fireEvent.click(form.getByRole('button', { name: 'Konto erstellen' }))
 
-  expect(await screen.findByText('Konto erstellt! Melde dich jetzt an.')).toBeInTheDocument()
-  expect(fetchMock).toHaveBeenLastCalledWith('/api/users', expect.objectContaining({
+  expect(await screen.findByText('Anmeldung erfolgreich.')).toBeInTheDocument()
+  // Both the registration and the chained sign-in submit the password exactly as entered.
+  expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/users', expect.objectContaining({
     body: JSON.stringify({ email: 'gandalf@example.com', username: 'Gandalf', password: passphrase }),
   }))
-  expect(form.getByLabelText('Passwort')).toHaveValue('')
-  expect(screen.getByRole('heading', { name: 'Willkommen zurück!' })).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenNthCalledWith(4, '/api/session', expect.objectContaining({
+    body: JSON.stringify({ email: 'gandalf@example.com', password: passphrase }),
+  }))
 })
 
 test.each([
@@ -438,7 +453,10 @@ test('shows an unverified session when identity confirmation fails after login',
   expect(
     screen.getByText('Sitzung konnte nicht überprüft werden.'),
   ).toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: 'Willkommen zurück!' })).not.toBeInTheDocument()
+  // #370: sign-in stays available below the retry action, with the entered email kept for a retry.
+  expect(loginForm().getByLabelText('E-Mail')).toHaveValue('gandalf@example.com')
+  expect(loginForm().queryByRole('alert')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Erneut prüfen' })).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Gandalf' })).not.toBeInTheDocument()
 })
 
