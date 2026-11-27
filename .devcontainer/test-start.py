@@ -99,7 +99,7 @@ def responds(port):
 
 class StartupTest(unittest.TestCase):
     def setUp(self):
-        for port in (5173, 5174, 8080):
+        for port in (5173, 5174, 6006, 8080):
             self.assertFalse(responds(port), f"Test requires unused port {port}")
         self.temp = tempfile.TemporaryDirectory(prefix="preview lifecycle ")
         self.root = Path(self.temp.name)
@@ -126,6 +126,9 @@ class StartupTest(unittest.TestCase):
             "setTimeout(() => createServer((q,s) => s.end('ok')).listen("
             "Number(process.argv[2]), '127.0.0.1'), 500);\n")
         self.script("bin/npm", 'if [ "$1" = ci ]; then echo ci >> "$TEST_ROOT/installs"; exit; fi\n'
+                    'if [ "$2" = storybook ]; then echo "$*" >> "$TEST_ROOT/storybook-launches"\n'
+                    '  if [ -f "$TEST_ROOT/fail-storybook" ]; then echo "fixture Storybook failure" >&2; exit 23; fi\n'
+                    '  exec node "$TEST_REPO/server.mjs" 6006; fi\n'
                     'exec node "$TEST_REPO/server.mjs" 5173')
         self.script("bin/docker", 'if [ "$1" = info ]; then exit 0; fi\n'
                     'while [ -f "$TEST_ROOT/hold" ]; do sleep 0.05; done\n'
@@ -210,7 +213,7 @@ class StartupTest(unittest.TestCase):
                 os.killpg(pid, signal.SIGTERM)
             except ProcessLookupError:
                 pass
-        eventually(lambda: not any(responds(p) for p in (5173, 5174, 8080)))
+        eventually(lambda: not any(responds(p) for p in (5173, 5174, 6006, 8080)))
 
     def tearDown(self):
         for process in self.calls:
@@ -228,7 +231,8 @@ class StartupTest(unittest.TestCase):
         self.result(second)
         self.assertIn("startup finished: exit=0", (self.state / "startup.log").read_text())
         before = self.pids()
-        self.assertEqual(len(before), 3)
+        self.assertEqual(len(before), 4)
+        self.assertEqual((self.root / "storybook-launches").read_text(), "run storybook -- --ci\n")
         self.assertEqual((self.root / "installs").read_text(), "ci\n")
         self.result(self.start())
         self.assertEqual(self.pids(), before)
@@ -245,6 +249,7 @@ class StartupTest(unittest.TestCase):
         self.result(self.start())
         self.assertTrue(all(self.pids()[name] != pid for name, pid in before.items()))
         self.assertTrue(all(responds(p) for p in (5173, 5174, 8080)))
+        eventually(lambda: responds(6006))
 
     def test_db_failure_keeps_status_and_frontend(self):
         (self.root / "fail-db").touch()
@@ -258,6 +263,39 @@ class StartupTest(unittest.TestCase):
         self.assertIn("stdin_tty=no", log)
         self.assertIn("startup finished: exit=31", log)
         self.assertNotIn("startup finished: exit=0", log)
+
+    def test_storybook_failure_keeps_preview_and_backend(self):
+        (self.root / "fail-storybook").touch()
+        output = self.result(self.start())
+        self.assertTrue(all(responds(p) for p in (5173, 5174, 8080)))
+        self.assertFalse(responds(6006))
+        self.assertIn("storybook: not answering yet", output)
+        self.assertIn("fixture Storybook failure", (self.state / "storybook.log").read_text())
+        self.assertIn("Vorschau bereit", (self.state / "startup-status.txt").read_text())
+
+    def test_backend_does_not_wait_for_storybook(self):
+        self.script("bin/npm", 'if [ "$2" = storybook ]; then\n'
+                    '  while [ ! -f "$TEST_ROOT/storybook-release" ]; do /bin/sleep 0.05; done\n'
+                    '  exec node "$TEST_REPO/server.mjs" 6006; fi\n'
+                    'exec node "$TEST_REPO/server.mjs" 5173')
+        output = self.result(self.start())
+        self.assertTrue(responds(8080))
+        self.assertIn("storybook: not answering yet", output)
+        before = self.pids()
+        # A still-warming Storybook is reused, not launched a second time.
+        self.assertIn("storybook: reusing running pid=", self.result(self.start()))
+        self.assertEqual(self.pids(), before)
+        (self.root / "storybook-release").touch()
+        eventually(lambda: responds(6006))
+
+    def test_status_page_links_storybook(self):
+        self.result(self.start())
+        eventually(lambda: responds(6006))
+        with urllib.request.urlopen("http://127.0.0.1:5174/", timeout=5) as response:
+            page = response.read().decode()
+        self.assertIn('<strong>Storybook:</strong> <span class="ok">Bereit</span>', page)
+        self.assertIn('href="https://lifecycle-test-6006.app.github.dev/"', page)
+        self.assertIn("Storybook öffnen", page)
 
     def collision_start(self, **overrides):
         fixture = recovery_fixture(self.root, self.repo)
@@ -303,14 +341,14 @@ class StartupTest(unittest.TestCase):
         self.result(retry)
         self.assertEqual(self.pids(), before)
 
-    def test_kill_zero_with_empty_or_failed_ps_replaces_all_three_stale_pids(self):
+    def test_kill_zero_with_empty_or_failed_ps_replaces_all_stale_pids(self):
         foreign = self.own_fixture_process(["sleep", "120"], cwd=self.repo,
                                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         for ps_exit in (0, 1):
             with self.subTest(ps_exit=ps_exit):
                 self.ps_fixture(foreign.pid, ps_exit)
                 os.kill(foreign.pid, 0)  # Exactly the misleading liveness evidence.
-                for name in ("status-server", "frontend", "backend"):
+                for name in ("status-server", "frontend", "storybook", "backend"):
                     (self.state / f"{name}.pid").write_text(str(foreign.pid))
                 output = self.result(self.start())
                 self.assertIsNone(foreign.poll())
@@ -323,7 +361,7 @@ class StartupTest(unittest.TestCase):
     def test_foreign_live_pid_with_valid_ps_is_not_reused_or_signalled(self):
         foreign = self.own_fixture_process(["sleep", "120"], cwd=self.repo,
                                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        for name in ("status-server", "frontend", "backend"):
+        for name in ("status-server", "frontend", "storybook", "backend"):
             (self.state / f"{name}.pid").write_text(str(foreign.pid))
         output = self.result(self.start())
         self.assertIsNone(foreign.poll())
@@ -441,9 +479,10 @@ class StartupTest(unittest.TestCase):
     def test_port_configuration(self):
         config = json.loads((SOURCE / "devcontainer.json").read_text())
         self.assertEqual(config["postStartCommand"], "bash .devcontainer/start.sh")
-        self.assertEqual(config["forwardPorts"], [5173, 5174])
-        for port in ("5173", "5174"):
+        self.assertEqual(config["forwardPorts"], [5173, 5174, 6006])
+        for port in ("5173", "5174", "6006"):
             self.assertEqual(config["portsAttributes"][port]["protocol"], "http")
+            self.assertIn("label", config["portsAttributes"][port])
         for port in ("8080", "5432"):
             self.assertEqual(config["portsAttributes"][port]["onAutoForward"], "ignore")
         self.assertNotIn('"public"', json.dumps(config))

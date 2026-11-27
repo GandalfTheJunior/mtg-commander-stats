@@ -11,7 +11,8 @@
   "remoteUser": "vscode",
   "forwardPorts": [
     5173,
-    5174
+    5174,
+    6006
   ],
   "portsAttributes": {
     "5173": {
@@ -21,6 +22,11 @@
     },
     "5174": {
       "label": "MTG Commander Stats (Status)",
+      "onAutoForward": "notify",
+      "protocol": "http"
+    },
+    "6006": {
+      "label": "MTG Commander Stats (Storybook)",
       "onAutoForward": "notify",
       "protocol": "http"
     },
