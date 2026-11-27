@@ -94,9 +94,9 @@ export async function menuAction(name: 'Löschen' | 'Archivieren') {
   return screen.findByRole('dialog')
 }
 export async function signInDeck() {
-  const form = within(screen.getByRole('heading', { name: 'Sign in' }).closest('section')!)
-  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'owner@example.test' } })
-  fireEvent.change(form.getByLabelText('Password'), { target: { value: 'correct horse battery' } })
-  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
-  await screen.findByText('Login successful.')
+  const form = within(screen.getByRole('heading', { name: 'Willkommen zurück!' }).closest('section')!)
+  fireEvent.change(form.getByLabelText('E-Mail'), { target: { value: 'owner@example.test' } })
+  fireEvent.change(form.getByLabelText('Passwort'), { target: { value: 'correct horse battery' } })
+  fireEvent.click(form.getByRole('button', { name: 'Anmelden' }))
+  await screen.findByText('Anmeldung erfolgreich.')
 }

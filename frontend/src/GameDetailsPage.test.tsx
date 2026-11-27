@@ -56,10 +56,10 @@ function show(path = detailUrl, state: unknown = null, strict = false) {
   return render(strict ? <StrictMode>{ui}</StrictMode> : ui)
 }
 async function login() {
-  const form = within((await screen.findByRole('heading', { name: 'Sign in' })).closest('section')!)
-  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'user@example.test' } })
-  fireEvent.change(form.getByLabelText('Password'), { target: { value: 'a sufficient password' } })
-  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
+  const form = within((await screen.findByRole('heading', { name: 'Willkommen zurück!' })).closest('section')!)
+  fireEvent.change(form.getByLabelText('E-Mail'), { target: { value: 'user@example.test' } })
+  fireEvent.change(form.getByLabelText('Passwort'), { target: { value: 'a sufficient password' } })
+  fireEvent.click(form.getByRole('button', { name: 'Anmelden' }))
   await screen.findByRole('navigation', { name: 'Main navigation' })
 }
 async function back() {
@@ -102,7 +102,7 @@ test.each([false, true])('direct details verify session, group and game in order
 test('signed-out details resume after login and a reload starts fresh verification', async () => {
   const api = setup(); api.server.user = null
   const view = show()
-  await screen.findByRole('heading', { name: 'Sign in' })
+  await screen.findByRole('heading', { name: 'Willkommen zurück!' })
   expect(api.calls(groupPath)).toHaveLength(0)
   await login()
   await screen.findByRole('heading', { name: 'Spieldetails' })
@@ -314,7 +314,7 @@ test.each(['csrf', 'write'])('current %s 401 expires the session without exposin
   const api = setup(); show(); await gameAction('Löschen', false)
   api.next(stage === 'csrf' ? '/api/csrf' : gamePath, () => response({}, 401), stage === 'csrf' ? 'GET' : 'DELETE')
   fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
-  await screen.findByRole('heading', { name: 'Sign in' })
+  await screen.findByRole('heading', { name: 'Willkommen zurück!' })
   expect(screen.queryByRole('list', { name: 'Teilnehmende und Decks' })).not.toBeInTheDocument()
   expect(screen.queryByText(/Spiel gelöscht/)).not.toBeInTheDocument()
 })
@@ -376,7 +376,7 @@ test.each([1, 4])('logout and same/different UUID login (%s) retire old game GET
   api.next(gamePath, () => late.promise)
   show(); await waitFor(() => expect(api.calls(gamePath)).toHaveLength(1))
   clickLogout()
-  await screen.findByText('Logged out.')
+  await screen.findByText('Du wurdest abgemeldet.')
   api.server.loginUser = { id: uid(actor), username: 'New session' }
   await login()
   await act(async () => late.resolve(response({}, 401)))
@@ -390,7 +390,7 @@ test.each([1, 4])('logout and same/different UUID login (%s) retire old game GET
   fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
   await waitFor(() => expect(api.calls('/api/csrf').length).toBeGreaterThan(0))
   clickLogout()
-  await screen.findByText('Logged out.')
+  await screen.findByText('Du wurdest abgemeldet.')
   await login()
   await act(async () => csrf.resolve(response({ headerName: 'X-CSRF-TOKEN', token: 'retired' })))
   expect(api.calls(gamePath, 'DELETE')).toHaveLength(0)
@@ -405,7 +405,7 @@ test.each([1, 4].flatMap(actor => [204, 401].map(status => ({ actor, status })))
   fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
   await waitFor(() => expect(api.calls(gamePath, 'DELETE')).toHaveLength(1))
   clickLogout()
-  await screen.findByText('Logged out.')
+  await screen.findByText('Du wurdest abgemeldet.')
   api.server.loginUser = { id: uid(actor), username: 'Replacement session' }
   await login()
   await act(async () => late.resolve(status === 204 ? new Response(null, { status: 204 }) : response({}, status)))
@@ -454,7 +454,7 @@ test.each([1, 4])('LAN HTTP logout and login as %s retire a game draft and its h
   await screen.findByRole('form', { name: 'Spiel bearbeiten' })
   recordDraw()
   clickLogout()
-  await screen.findByText('Logged out.')
+  await screen.findByText('Du wurdest abgemeldet.')
   api.server.loginUser = { id: uid(actor), username: 'Replacement' }
   await login()
   await screen.findByRole('heading', { name: 'Dashboard' })
@@ -600,7 +600,7 @@ test.each([1, 4])('logout retires visible links and late authorized reads cannot
   await screen.findByRole('link', { name: /Deck 1:.*ManaBox/ })
   clickLogout()
   expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
-  await screen.findByText('Logged out.')
+  await screen.findByText('Du wurdest abgemeldet.')
   await login(); await goTo('Playgroups')
   fireEvent.click(await screen.findByRole('button', { name: group.name }))
   await selectTab('Spiele')
@@ -608,7 +608,7 @@ test.each([1, 4])('logout retires visible links and late authorized reads cannot
   fireEvent.click(await screen.findByRole('link', { name: /^Spieldetails:/ }))
   await waitFor(() => expect(api.calls(gamePath)).toHaveLength(2))
   clickLogout()
-  await screen.findByText('Logged out.')
+  await screen.findByText('Du wurdest abgemeldet.')
   api.server.loginUser = { id: uid(actor), username: 'Replacement session' }
   await login()
   await act(async () => pending.resolve(response(linkedGame())))

@@ -4,9 +4,14 @@ import App from './App'
 import { renderApp } from './test/renderApp'
 import { appTheme } from './theme/theme'
 
+// #277 signed-out entry: German copy, one form at a time, safe feedback and session recovery.
 const identity = { id: 'f058bf9c-c4ce-4b88-a252-aa176a5ef539', username: 'Gandalf' }
 // Credentials must reach the API exactly as entered, including Unicode and spaces.
 const password = ' 🌈🌈🌈🌈🌈🌈🌈🌈🌈🌈🌈🌈 '
+const loginHeading = 'Willkommen zurück!'
+const registerHeading = 'Konto erstellen'
+const toRegister = 'Noch kein Konto? Registrieren'
+const toLogin = 'Bereits ein Konto? Anmelden'
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { 'Content-Type': 'application/json' },
 })
@@ -15,104 +20,220 @@ function deferred() {
   const promise = new Promise<Response>(done => { resolve = done })
   return { promise, resolve }
 }
-function panel(name: string) {
-  return screen.getByRole('heading', { name }).closest('section')!
+function entry() {
+  return screen.getByRole('region', { name: /Willkommen zurück!|Konto erstellen/ })
 }
 function fill(section: HTMLElement) {
   const fields = within(section)
-  fireEvent.change(fields.getByLabelText('Email'), { target: { value: 'gandalf@example.com' } })
-  fireEvent.change(fields.getByLabelText('Password'), { target: { value: password } })
-  const username = fields.queryByLabelText('Username')
+  fireEvent.change(fields.getByLabelText('E-Mail'), { target: { value: 'gandalf@example.com' } })
+  fireEvent.change(fields.getByLabelText('Passwort'), { target: { value: password } })
+  const username = fields.queryByLabelText('Benutzername')
   if (username) fireEvent.change(username, { target: { value: 'Gandalf' } })
   return section.querySelector('form')!
+}
+function openRegistration() {
+  fireEvent.click(screen.getByRole('button', { name: toRegister }))
+  return entry()
 }
 function expectProtectedHidden() {
   expect(screen.queryByRole('navigation', { name: 'Main navigation' })).not.toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Meine Decks' })).not.toBeInTheDocument()
 }
+const precedes = (first: Element, second: Element) => Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)
 afterEach(() => vi.unstubAllGlobals())
 
-test('auth has themed semantic sections and distinct visible labels with unchanged native field contracts', async () => {
+test('a fresh visit shows only the German sign-in form with unchanged native field contracts', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({}, 401)))
-  renderApp(<App />)
-  await screen.findByText('Not signed in.')
+  renderApp(<App />, '/')
+  await screen.findByRole('heading', { name: loginHeading })
   expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+  expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('MTG Commander Stats')
+  expect(screen.getByText('Deine Commander-Runden, Decks und Statistiken an einem Ort.')).toBeInTheDocument()
   expect(screen.getByRole('main')).toHaveStyle({ backgroundColor: appTheme.palette.background.default, margin: '0px' })
-  for (const name of ['Your session', 'Create an account', 'Sign in']) {
-    expect(screen.getByRole('region', { name })).toBe(panel(name))
-    expect(panel(name)).toHaveStyle({ backgroundColor: appTheme.palette.background.paper })
-    expect(screen.getByRole('heading', { name }).tagName).toBe('H2')
-  }
+  expect(entry()).toHaveStyle({ backgroundColor: appTheme.palette.background.paper })
+  expect(screen.getByRole('heading', { name: loginHeading }).tagName).toBe('H2')
+  // Exactly one form; no status panel merely saying that the visitor is signed out, no expiry notice.
+  expect(document.querySelectorAll('form')).toHaveLength(1)
+  expect(screen.queryByRole('heading', { name: registerHeading })).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('Benutzername')).not.toBeInTheDocument()
+  expect(screen.queryByText(/Your session|Not signed in|abgelaufen/)).not.toBeInTheDocument()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
   const contracts = [
-    ['Create an account', 'Email', 'auth-register-email', 'email', 'email', 'email'],
-    ['Create an account', 'Username', 'auth-register-username', 'username', 'text', 'username'],
-    ['Create an account', 'Password', 'auth-register-password', 'password', 'password', 'new-password'],
-    ['Sign in', 'Email', 'auth-login-email', 'email', 'email', 'email'],
-    ['Sign in', 'Password', 'auth-login-password', 'password', 'password', 'current-password'],
-  ]
-  for (const [section, label, id, name, type, autocomplete] of contracts) {
-    const input = within(panel(section)).getByLabelText(label)
+    ['E-Mail', 'auth-login-email', 'email', 'email', 'email'],
+    ['Passwort', 'auth-login-password', 'password', 'password', 'current-password'],
+  ] as const
+  for (const [label, id, name, type, autocomplete] of contracts) {
+    const input = within(entry()).getByLabelText(label)
     expect(input).toHaveAttribute('id', id)
     expect(input).toHaveAttribute('name', name)
     expect(input).toHaveAttribute('type', type)
     expect(input).toHaveAttribute('autocomplete', autocomplete)
     expect(input).toBeRequired()
     expect(input).not.toHaveAttribute('minlength')
-    expect(input.closest('form')).toBeInTheDocument()
   }
-  expect(document.querySelectorAll('.forms, .session, .success, .error')).toHaveLength(0)
+  // Reading and tab order: email, password, its visibility toggle, submit, then the registration switch.
+  const order = [
+    within(entry()).getByLabelText('E-Mail'), within(entry()).getByLabelText('Passwort'),
+    within(entry()).getByRole('button', { name: 'Passwort anzeigen' }), within(entry()).getByRole('button', { name: 'Anmelden' }),
+    within(entry()).getByRole('button', { name: toRegister }),
+  ]
+  order.slice(1).forEach((element, index) => expect(precedes(order[index]!, element)).toBe(true))
+  expect(within(entry()).getByRole('button', { name: 'Anmelden' })).toHaveAttribute('type', 'submit')
   expectProtectedHidden()
 })
 
-test('checking blocks login while preserving available registration and guards batched duplicate registration submits', async () => {
-  const initial = deferred()
-  const pending = deferred()
-  const fetchMock = vi.fn((path: string) => path === '/api/me' ? initial.promise : pending.promise)
+test('the registration switch replaces sign-in with the approved registration inventory and back again', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({}, 401)))
+  renderApp(<App />, '/')
+  await screen.findByRole('heading', { name: loginHeading })
+  const section = openRegistration()
+  const heading = screen.getByRole('heading', { name: registerHeading })
+  expect(heading).toHaveFocus()
+  expect(screen.queryByRole('heading', { name: loginHeading })).not.toBeInTheDocument()
+  expect(document.querySelectorAll('form')).toHaveLength(1)
+  const contracts = [
+    ['E-Mail', 'auth-register-email', 'email', 'email', 'email'],
+    ['Benutzername', 'auth-register-username', 'username', 'text', 'username'],
+    ['Passwort', 'auth-register-password', 'password', 'password', 'new-password'],
+  ] as const
+  for (const [label, id, name, type, autocomplete] of contracts) {
+    const input = within(section).getByLabelText(label)
+    expect(input).toHaveAttribute('id', id)
+    expect(input).toHaveAttribute('name', name)
+    expect(input).toHaveAttribute('type', type)
+    expect(input).toHaveAttribute('autocomplete', autocomplete)
+    expect(input).toBeRequired()
+    expect(input).not.toHaveAttribute('minlength')
+  }
+  // No password confirmation field; the minimum is explained with the password.
+  expect(section.querySelectorAll('input')).toHaveLength(3)
+  expect(within(section).getByLabelText('Passwort')).toHaveAccessibleDescription('Mindestens 12 Zeichen. Leerzeichen sind erlaubt und zählen mit.')
+  expect(within(section).getByRole('button', { name: 'Konto erstellen' })).toHaveAttribute('type', 'submit')
+
+  fireEvent.click(within(section).getByRole('button', { name: toLogin }))
+  expect(screen.getByRole('heading', { name: loginHeading })).toHaveFocus()
+  expect(screen.queryByLabelText('Benutzername')).not.toBeInTheDocument()
+})
+
+test.each([['login'], ['register']] as const)('the %s password toggle reveals only its field, keeps the value and never submits', async (mode) => {
+  const fetchMock = vi.fn().mockResolvedValue(json({}, 401))
   vi.stubGlobal('fetch', fetchMock)
-  renderApp(<App />)
-  expect(screen.getByText('Checking your session…')).toHaveAttribute('role', 'status')
-  expect(within(panel('Sign in')).getByRole('button', { name: 'Sign in' })).toBeDisabled()
-  const registration = fill(panel('Create an account'))
-  const login = fill(panel('Sign in'))
-  act(() => {
-    fireEvent.submit(registration)
-    fireEvent.submit(registration)
-    fireEvent.submit(login)
-  })
-  expect(fetchMock.mock.calls.filter(([path]) => path === '/api/users')).toHaveLength(1)
-  expect(fetchMock.mock.calls.some(([path]) => path === '/api/csrf')).toBe(false)
-  expect(within(panel('Create an account')).getByRole('button', { name: 'Creating account…' })).toBeDisabled()
-  expect(within(panel('Create an account')).getByRole('status')).toHaveTextContent('Creating account…')
-  await act(async () => pending.resolve(json(identity, 201)))
-  const notice = await screen.findByText('Account created for Gandalf. Sign in separately to continue.')
-  expect(notice).toHaveAttribute('role', 'status')
-  expect(notice).toHaveStyle({ color: appTheme.palette.success.main })
-  expect(within(panel('Create an account')).getByLabelText('Password')).toHaveValue('')
-  expect(within(panel('Sign in')).getByLabelText('Password')).toHaveValue(password)
+  renderApp(<App />, '/')
+  await screen.findByRole('heading', { name: loginHeading })
+  const section = mode === 'login' ? entry() : openRegistration()
+  const input = within(section).getByLabelText('Passwort')
+  const email = within(section).getByLabelText('E-Mail')
+  expect(input).toHaveAttribute('type', 'password')
+  fireEvent.change(input, { target: { value: password } })
+  const toggle = within(section).getByRole('button', { name: 'Passwort anzeigen' })
+  expect(toggle).toHaveAttribute('type', 'button')
+  expect(toggle).toHaveAttribute('aria-controls', input.id)
+  fireEvent.click(toggle)
+  expect(input).toHaveAttribute('type', 'text')
+  expect(input).toHaveValue(password)
+  expect(email).toHaveAttribute('type', 'email')
+  expect(toggle).toHaveAccessibleName('Passwort verbergen')
+  fireEvent.click(toggle)
+  expect(input).toHaveAttribute('type', 'password')
+  expect(toggle).toHaveAccessibleName('Passwort anzeigen')
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+})
+
+test('startup shows only the brand and an accessible check until the session is answered', async () => {
+  const initial = deferred()
+  vi.stubGlobal('fetch', vi.fn(() => initial.promise))
+  renderApp(<App />, '/')
+  expect(screen.getByRole('status')).toHaveTextContent('Sitzung wird geprüft …')
+  expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('MTG Commander Stats')
+  // No flash of the sign-in form for visitors whose session is still valid.
+  expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  expect(document.querySelector('form')).toBeNull()
+  expect(screen.queryByRole('heading', { name: loginHeading })).not.toBeInTheDocument()
   expectProtectedHidden()
   await act(async () => initial.resolve(json({}, 401)))
-  expect(screen.getByText('Not signed in.')).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: loginHeading })).toBeInTheDocument()
+  expect(screen.queryByText('Sitzung wird geprüft …')).not.toBeInTheDocument()
 })
 
-test('registration failure is announced, preserves inputs, and allows an explicit retry without duplicate POSTs', async () => {
+test('local validation keeps requests back and places messages below the affected fields', async () => {
+  const fetchMock = vi.fn().mockResolvedValue(json({}, 401))
+  vi.stubGlobal('fetch', fetchMock)
+  renderApp(<App />, '/')
+  await screen.findByRole('heading', { name: loginHeading })
+  fireEvent.click(within(entry()).getByRole('button', { name: 'Anmelden' }))
+  const email = within(entry()).getByLabelText('E-Mail')
+  expect(email).toHaveAccessibleDescription('Bitte gib deine E-Mail-Adresse ein.')
+  expect(email).toHaveFocus()
+  expect(within(entry()).getByLabelText('Passwort')).toHaveAccessibleDescription('Bitte gib dein Passwort ein.')
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+
+  const section = openRegistration()
+  fireEvent.change(within(section).getByLabelText('E-Mail'), { target: { value: 'not-an-email' } })
+  fireEvent.change(within(section).getByLabelText('Benutzername'), { target: { value: '   ' } })
+  fireEvent.click(within(section).getByRole('button', { name: 'Konto erstellen' }))
+  expect(within(section).getByLabelText('E-Mail')).toHaveAccessibleDescription('Bitte gib eine gültige E-Mail-Adresse ein.')
+  expect(within(section).getByLabelText('E-Mail')).toHaveFocus()
+  expect(within(section).getByLabelText('Benutzername')).toHaveAccessibleDescription('Bitte gib einen Benutzernamen ein.')
+  expect(within(section).getByLabelText('Passwort')).toHaveAccessibleDescription('Das Passwort muss mindestens 12 Zeichen lang sein.')
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+})
+
+test('registration guards duplicate submits and returns to sign-in with only the email carried over', async () => {
+  const pending = deferred()
+  const fetchMock = vi.fn((path: string) => path === '/api/me' ? Promise.resolve(json({}, 401)) : pending.promise)
+  vi.stubGlobal('fetch', fetchMock)
+  renderApp(<App />, '/')
+  await screen.findByRole('heading', { name: loginHeading })
+  const form = fill(openRegistration())
+  act(() => { fireEvent.submit(form); fireEvent.submit(form) })
+  expect(fetchMock.mock.calls.filter(([path]) => path === '/api/users')).toHaveLength(1)
+  expect(within(entry()).getByRole('button', { name: 'Konto wird erstellt …' })).toBeDisabled()
+  expect(within(entry()).getByRole('status')).toHaveTextContent('Konto wird erstellt …')
+  expect(within(entry()).getByRole('button', { name: toLogin })).toBeDisabled()
+  await act(async () => pending.resolve(json(identity, 201)))
+
+  expect(screen.getByRole('heading', { name: loginHeading })).toBeInTheDocument()
+  const notice = within(entry()).getByRole('status')
+  expect(notice).toHaveTextContent('Konto erstellt! Melde dich jetzt an.')
+  expect(within(entry()).getByLabelText('E-Mail')).toHaveValue('gandalf@example.com')
+  const loginPassword = within(entry()).getByLabelText('Passwort')
+  expect(loginPassword).toHaveValue('')
+  expect(loginPassword).toHaveFocus()
+  expect(precedes(notice, within(entry()).getByLabelText('E-Mail'))).toBe(true)
+  // Registration alone never authenticates or starts a login.
+  expect(fetchMock.mock.calls.some(([path]) => path === '/api/csrf' || path === '/api/session')).toBe(false)
+  expect(fetchMock.mock.calls.filter(([path]) => path === '/api/me')).toHaveLength(1)
+  expect(document.body.textContent).not.toContain(password)
+  expectProtectedHidden()
+
+  // The registration form starts empty again; its password was never copied.
+  fireEvent.click(within(entry()).getByRole('button', { name: toRegister }))
+  expect(within(entry()).getByLabelText('Passwort')).toHaveValue('')
+})
+
+test('registration failure is announced above the form, preserves inputs, and allows a retry without duplicate POSTs', async () => {
   const pending = deferred()
   const fetchMock = vi.fn().mockResolvedValueOnce(json({}, 401)).mockReturnValueOnce(pending.promise)
     .mockResolvedValueOnce(json(identity, 201))
   vi.stubGlobal('fetch', fetchMock)
-  renderApp(<App />)
-  await screen.findByText('Not signed in.')
-  const section = panel('Create an account')
+  renderApp(<App />, '/')
+  await screen.findByRole('heading', { name: loginHeading })
+  const section = openRegistration()
   const form = fill(section)
   act(() => { fireEvent.submit(form); fireEvent.submit(form) })
-  await act(async () => pending.resolve(json({ detail: 'Email is already registered.' }, 409)))
-  expect(within(section).getByRole('alert')).toHaveTextContent('Email is already registered.')
-  expect(within(section).getByRole('alert')).toHaveStyle({ color: appTheme.palette.error.main })
-  expect(form).toHaveAccessibleDescription('Email is already registered.')
-  expect(within(section).getByLabelText('Password')).toHaveValue(password)
-  expect(within(section).getByRole('button', { name: 'Create account' })).toBeEnabled()
+  await act(async () => pending.resolve(json({ detail: 'Registration could not be completed.' }, 500)))
+  const alert = within(section).getByRole('alert')
+  expect(alert).toHaveTextContent('Die Registrierung ist gerade nicht möglich. Bitte prüfe deine Verbindung und versuche es erneut.')
+  expect(alert).not.toHaveTextContent('Registration could not be completed.')
+  expect(form).toHaveAccessibleDescription(alert.textContent!)
+  expect(precedes(alert, within(section).getByLabelText('E-Mail'))).toBe(true)
+  expect(within(section).getByLabelText('Passwort')).toHaveValue(password)
+  expect(within(section).getByLabelText('Benutzername')).toHaveValue('Gandalf')
+  expect(within(section).getByRole('button', { name: 'Konto erstellen' })).toBeEnabled()
   expect(document.body.textContent).not.toContain(password)
   fireEvent.submit(form)
-  await screen.findByText('Account created for Gandalf. Sign in separately to continue.')
+  await screen.findByText('Konto erstellt! Melde dich jetzt an.')
   expect(fetchMock).toHaveBeenCalledTimes(3)
   expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/users', expect.objectContaining({
     body: JSON.stringify({ email: 'gandalf@example.com', username: 'Gandalf', password }),
@@ -120,7 +241,7 @@ test('registration failure is announced, preserves inputs, and allows an explici
   expectProtectedHidden()
 })
 
-test('login guards repeated submissions throughout CSRF and identity verification; failure permits retry', async () => {
+test('login guards repeated submissions throughout CSRF and identity verification; a credential failure permits retry', async () => {
   const csrf = deferred()
   const post = deferred()
   const rotation = deferred()
@@ -132,63 +253,111 @@ test('login guards repeated submissions throughout CSRF and identity verificatio
     .mockResolvedValue(json([]))
   vi.stubGlobal('fetch', fetchMock)
   renderApp(<App />)
-  await screen.findByText('Not signed in.')
-  const section = panel('Sign in')
+  await screen.findByRole('heading', { name: loginHeading })
+  const section = entry()
   const form = fill(section)
   act(() => { fireEvent.submit(form); fireEvent.submit(form) })
   expect(fetchMock).toHaveBeenCalledTimes(2)
-  expect(within(section).getByRole('button', { name: 'Signing in…' })).toBeDisabled()
-  expect(within(section).getByRole('status')).toHaveTextContent('Signing in…')
+  expect(within(section).getByRole('button', { name: 'Anmeldung läuft …' })).toBeDisabled()
+  expect(within(section).getByRole('status')).toHaveTextContent('Anmeldung läuft …')
   await act(async () => csrf.resolve(json({ headerName: 'X-CSRF-TOKEN', token: 'initial' })))
   fireEvent.submit(form)
   expect(fetchMock).toHaveBeenCalledTimes(3)
-  await act(async () => post.resolve(json({}, 401)))
-  expect(screen.getByRole('alert')).toHaveTextContent('Login failed.')
-  expect(form).toHaveAccessibleDescription('Login failed.')
-  expect(within(section).getByLabelText('Password')).toHaveValue(password)
-  expect(within(section).getByRole('button', { name: 'Sign in' })).toBeEnabled()
+  await act(async () => post.resolve(json({ detail: 'Invalid credentials.' }, 401)))
+  const alert = within(section).getByRole('alert')
+  expect(alert).toHaveTextContent('Anmeldung fehlgeschlagen. Bitte überprüfe deine Zugangsdaten.')
+  expect(form).toHaveAccessibleDescription('Anmeldung fehlgeschlagen. Bitte überprüfe deine Zugangsdaten.')
+  expect(precedes(alert, within(section).getByLabelText('E-Mail'))).toBe(true)
+  expect(within(section).getByLabelText('E-Mail')).toHaveValue('gandalf@example.com')
+  expect(within(section).getByLabelText('Passwort')).toHaveValue(password)
+  expect(within(section).getByRole('button', { name: 'Anmelden' })).toBeEnabled()
+  expect(document.body.textContent).not.toContain(password)
+  // Password inputs stay uncontrolled, so the secret is never mirrored into a DOM attribute.
+  expect(document.body.innerHTML).not.toContain(password)
   expectProtectedHidden()
   fireEvent.submit(form)
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(6))
+  expect(within(section).queryByRole('alert')).not.toBeInTheDocument()
   fireEvent.submit(form)
   expect(fetchMock).toHaveBeenCalledTimes(6)
   expectProtectedHidden()
   await act(async () => rotation.resolve(json({ headerName: 'X-CSRF-TOKEN', token: 'rotated' })))
   fireEvent.submit(form)
   expect(fetchMock).toHaveBeenCalledTimes(7)
+  // No false success while the identity is still unverified.
+  expect(screen.queryByText('Anmeldung erfolgreich.')).not.toBeInTheDocument()
   expectProtectedHidden()
   await act(async () => me.resolve(json(identity)))
   await screen.findByRole('navigation', { name: 'Main navigation' })
-  expect(screen.queryByRole('region', { name: 'Sign in' })).not.toBeInTheDocument()
+  expect(screen.getByText('Anmeldung erfolgreich.')).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: loginHeading })).not.toBeInTheDocument()
   expect(fetchMock.mock.calls.filter(([path]) => path === '/api/session')).toHaveLength(2)
   expect(fetchMock).toHaveBeenNthCalledWith(5, '/api/session', expect.objectContaining({
     body: JSON.stringify({ email: 'gandalf@example.com', password }),
   }))
 })
 
-test('unverified recovery remains themed and keeps its focused retry action available after failed checks', async () => {
+test.each([
+  ['a server error', () => Promise.resolve(json({ detail: 'Authentication unavailable.' }, 500))],
+  ['a network failure', () => Promise.reject(new TypeError('Failed to fetch'))],
+])('login distinguishes %s from rejected credentials without asserting anything about the account', async (_, failure) => {
+  const fetchMock = vi.fn().mockResolvedValueOnce(json({}, 401))
+    .mockResolvedValueOnce(json({ headerName: 'X-CSRF-TOKEN', token: 'login' })).mockImplementationOnce(failure)
+  vi.stubGlobal('fetch', fetchMock)
+  renderApp(<App />, '/')
+  await screen.findByRole('heading', { name: loginHeading })
+  const form = fill(entry())
+  const submit = within(entry()).getByRole('button', { name: 'Anmelden' })
+  submit.focus()
+  fireEvent.submit(form)
+  const alert = await within(entry()).findByRole('alert')
+  expect(alert).toHaveTextContent('Anmeldung ist gerade nicht möglich. Bitte prüfe deine Verbindung und versuche es erneut.')
+  expect(alert).not.toHaveTextContent(/Zugangsdaten|Authentication unavailable|Failed to fetch/)
+  expect(within(entry()).getByLabelText('Passwort')).toHaveValue(password)
+  // Focus stays recoverable inside the form after the pending button re-enables.
+  expect(entry().contains(document.activeElement)).toBe(true)
+  expectProtectedHidden()
+})
+
+test('unverified recovery explains the uncertainty and keeps its focused retry action available after failed checks', async () => {
   const pending = deferred()
-  const fetchMock = vi.fn().mockRejectedValueOnce(new Error('Could not check your session.'))
+  const fetchMock = vi.fn().mockRejectedValueOnce(new TypeError('Failed to fetch'))
     .mockReturnValueOnce(pending.promise).mockResolvedValueOnce(json({}, 401))
   vi.stubGlobal('fetch', fetchMock)
   renderApp(<App />)
-  await screen.findByText('Your session identity could not be confirmed.')
-  expect(screen.getByRole('alert')).toHaveTextContent('Could not check your session.')
-  const retry = screen.getByRole('button', { name: 'Check session' })
+  expect(await screen.findByRole('heading', { name: 'Sitzung konnte nicht überprüft werden.' })).toBeInTheDocument()
+  expect(screen.getByRole('alert')).toHaveTextContent('Bitte prüfe deine Verbindung und versuche es erneut.')
+  // Uncertainty is not a confirmed logout: no sign-in or registration form is offered yet.
+  expect(document.querySelector('form')).toBeNull()
+  const retry = screen.getByRole('button', { name: 'Erneut prüfen' })
   retry.focus()
   fireEvent.click(retry)
   fireEvent.click(retry)
   expect(fetchMock).toHaveBeenCalledTimes(2)
   expect(retry).toHaveFocus()
   expect(retry).toHaveAttribute('aria-disabled', 'true')
-  expect(screen.getByText('Checking your session…')).toHaveAttribute('role', 'status')
+  expect(screen.getByRole('status')).toHaveTextContent('Sitzung wird geprüft …')
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   expectProtectedHidden()
   await act(async () => pending.resolve(json({}, 503)))
-  expect(screen.getByRole('alert')).toHaveTextContent('Could not check your session. Try again or reload.')
+  expect(screen.getByRole('alert')).toHaveTextContent('Bitte prüfe deine Verbindung und versuche es erneut.')
   expect(retry).toHaveFocus()
   expect(retry).toHaveAttribute('aria-disabled', 'false')
+  expect(fetchMock).toHaveBeenCalledTimes(2)
   expectProtectedHidden()
   fireEvent.click(retry)
-  await screen.findByText('Not signed in.')
-  expect(screen.queryByRole('button', { name: 'Check session' })).not.toBeInTheDocument()
+  await screen.findByRole('heading', { name: loginHeading })
+  expect(screen.queryByRole('button', { name: 'Erneut prüfen' })).not.toBeInTheDocument()
+  expect(screen.queryByText(/abgelaufen/)).not.toBeInTheDocument()
+})
+
+test('a session lost after confirmation shows the expiry notice above the sign-in fields', async () => {
+  vi.stubGlobal('fetch', vi.fn()
+    .mockResolvedValueOnce(json(identity)).mockResolvedValueOnce(json({}, 401)).mockResolvedValue(json([])))
+  renderApp(<App />)
+  const alert = await screen.findByRole('alert')
+  expect(alert).toHaveTextContent('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.')
+  expect(precedes(alert, within(entry()).getByLabelText('E-Mail'))).toBe(true)
+  expect(screen.getByRole('heading', { name: loginHeading })).toBeInTheDocument()
+  expectProtectedHidden()
 })

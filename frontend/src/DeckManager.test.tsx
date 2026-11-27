@@ -59,7 +59,7 @@ test.each([401, 500, 'network'] as const)('initial list failure %s is an honest 
     if (status === 'network') throw new Error('offline')
     return response({}, status)
   }); showDeckApp()
-  await screen.findByText(status === 401 ? 'Your session expired. Sign in again.' : 'Deine Decks konnten nicht geladen werden.')
+  await screen.findByText(status === 401 ? 'Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.' : 'Deine Decks konnten nicht geladen werden.')
   expect(screen.queryByText(deck.name)).not.toBeInTheDocument()
   expect(screen.queryByText(/Noch keine Decks vorhanden/)).not.toBeInTheDocument()
   if (status !== 401) {
@@ -152,7 +152,7 @@ test('logout retires owner links and late list responses cannot restore links in
   fireEvent.click(await screen.findByRole('link', { name: 'Decks' }))
   expect(screen.queryByRole('link', { name: /ManaBox/ })).not.toBeInTheDocument()
   clickAccountLogout()
-  await screen.findByText('Logged out.')
+  await screen.findByText('Du wurdest abgemeldet.')
   api.state.decks = [deck]
   await signInDeck()
   await act(async () => pending.resolve(response([{ ...deck, manaBoxUrl: 'https://manabox.app/decks/Retired' }])))

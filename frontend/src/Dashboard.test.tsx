@@ -75,11 +75,11 @@ async function loaded() {
   await screen.findByRole('button', { name: group.name })
 }
 async function signIn() {
-  const form = within(screen.getByRole('heading', { name: 'Sign in' }).closest('section')!)
-  fireEvent.change(form.getByLabelText('Email'), { target: { value: 'owner@example.test' } })
-  fireEvent.change(form.getByLabelText('Password'), { target: { value: 'correct horse battery' } })
-  fireEvent.click(form.getByRole('button', { name: 'Sign in' }))
-  await screen.findByText('Login successful.')
+  const form = within(screen.getByRole('heading', { name: 'Willkommen zurück!' }).closest('section')!)
+  fireEvent.change(form.getByLabelText('E-Mail'), { target: { value: 'owner@example.test' } })
+  fireEvent.change(form.getByLabelText('Passwort'), { target: { value: 'correct horse battery' } })
+  fireEvent.click(form.getByRole('button', { name: 'Anmelden' }))
+  await screen.findByText('Anmeldung erfolgreich.')
 }
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); window.history.replaceState(null, '', '/') })
 
@@ -243,7 +243,7 @@ test.each([owner, { id: uid(4), username: 'Fourth' }])('pending deck entry is re
   await screen.findByText('Deck wird geladen…')
   api.state.loginUser = loginUser
   fireEvent.click(within(screen.getByRole('banner', { hidden: true })).getByRole('button', { hidden: true })); fireEvent.click(screen.getByRole('menuitem', { name: 'Abmelden' }))
-  await screen.findByText('Logged out.'); await signIn(); await screen.findByRole('heading', { name: 'Dashboard' })
+  await screen.findByText('Du wurdest abgemeldet.'); await signIn(); await screen.findByRole('heading', { name: 'Dashboard' })
   await goTo('Decks'); await screen.findByRole('heading', { name: 'Meine Decks' })
   await act(async () => pending.resolve(response([deck])))
   expect(screen.queryByRole('form', { name: /^Deck .* bearbeiten$/ })).not.toBeInTheDocument()
@@ -351,7 +351,7 @@ test.each([403, 404, 503, 'invalid'] as const)('loading and failed read (%s) nev
 
 test('current groups 401 retires the session', async () => {
   const api = setup(); api.next('/api/groups', () => response({}, 401)); show()
-  await screen.findByText('Your session expired. Sign in again.')
+  await screen.findByText('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.')
   expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
 })
 
@@ -375,7 +375,7 @@ test.each([owner, { id: uid(4), username: 'Fourth' }])('logout and $username log
   await screen.findByText('Playgroups werden geladen…')
   fireEvent.click(screen.getByRole('button', { name: owner.username }))
   fireEvent.click(screen.getByRole('menuitem', { name: 'Abmelden' }))
-  await screen.findByText('Logged out.')
+  await screen.findByText('Du wurdest abgemeldet.')
   api.state.groups = []
   await signIn(); await screen.findByText(emptyMessage)
   await act(async () => pending.resolve(response([group], 401)))

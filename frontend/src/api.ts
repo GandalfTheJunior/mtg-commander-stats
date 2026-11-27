@@ -175,6 +175,31 @@ export async function restoreSession(): Promise<CurrentUser | null> {
   return currentUserFrom(response)
 }
 
+/** One server-reported registration field problem, e.g. `{ field: 'username', code: 'USERNAME_TAKEN' }`. */
+export type RegistrationFieldError = { field: string; code: string; maxLength?: number }
+
+/** A rejected registration with its status, problem detail and any field-attributable errors (#277). */
+export class RegistrationError extends ApiError {
+  readonly fieldErrors: RegistrationFieldError[]
+
+  constructor(message: string, status: number, fieldErrors: RegistrationFieldError[]) {
+    super(message, status, fieldErrors[0]?.code)
+    this.fieldErrors = fieldErrors
+  }
+}
+
+function registrationFieldErrors(problem: unknown): RegistrationFieldError[] {
+  if (typeof problem !== 'object' || problem === null) return []
+  const errors = (problem as Record<string, unknown>).errors
+  if (!Array.isArray(errors)) return []
+  return errors.flatMap((entry: unknown) => {
+    if (typeof entry !== 'object' || entry === null) return []
+    const { field, code, maxLength } = entry as Record<string, unknown>
+    if (typeof field !== 'string' || typeof code !== 'string') return []
+    return [{ field, code, ...(typeof maxLength === 'number' ? { maxLength } : {}) }]
+  })
+}
+
 export async function registerUser(registration: Registration) {
   const response = await fetch('/api/users', {
     ...requestDefaults,
@@ -183,7 +208,15 @@ export async function registerUser(registration: Registration) {
     body: JSON.stringify(registration),
   })
   if (!response.ok) {
-    throw new Error(await errorMessage(response, 'Registration failed.'))
+    let problem: unknown = null
+    try {
+      problem = await response.json()
+    } catch {
+      // Non-JSON failures keep the stable fallback message and no field errors.
+    }
+    const detail = typeof problem === 'object' && problem !== null && typeof (problem as Record<string, unknown>).detail === 'string'
+      ? (problem as Record<string, string>).detail : 'Registration failed.'
+    throw new RegistrationError(detail, response.status, registrationFieldErrors(problem))
   }
   return currentUserFrom(response)
 }
@@ -240,7 +273,8 @@ export async function login(
     body: JSON.stringify(credentials),
   })
   if (!response.ok) {
-    throw new Error(await errorMessage(response, 'Login failed.'))
+    // The status lets the entry distinguish rejected credentials (401) from server problems.
+    throw new ApiError(await errorMessage(response, 'Login failed.'), response.status)
   }
 
   // The server-side identity changed, so the previous client identity is no
