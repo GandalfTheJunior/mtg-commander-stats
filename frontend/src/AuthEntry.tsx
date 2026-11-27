@@ -368,9 +368,10 @@ export default function AuthEntry(props: Props) {
                 {/* Remounted after each failed check so a repeated failure is announced again. */}
                 {rechecking ? <Progress label={authCopy.checking} />
                   : <Alert severity="error" role="alert">{retryNotice}</Alert>}
-                {/* aria-disabled keeps keyboard focus on the action across the retry; App ignores it during a login. */}
-                <Button ref={retryRef} type="button" variant="contained" fullWidth aria-disabled={rechecking || loggingIn}
-                  onClick={() => { if (!rechecking && !loggingIn) props.onRecheck() }} sx={{ minHeight: 48 }}>
+                {/* aria-disabled keeps keyboard focus on the action across the retry. Locked during a registration or
+                    login too: a re-check would race the (chained) sign-in. */}
+                <Button ref={retryRef} type="button" variant="contained" fullWidth aria-disabled={rechecking || loggingIn || registering}
+                  onClick={() => { if (!rechecking && !loggingIn && !registering) props.onRecheck() }} sx={{ minHeight: 48 }}>
                   {authCopy.retry}
                 </Button>
               </Stack>

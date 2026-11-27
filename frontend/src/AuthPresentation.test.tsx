@@ -464,6 +464,36 @@ test('signing in from an unverified session uses the normal verified login flow'
   expect(fetchMock.mock.calls.filter(([path]) => path === '/api/me')).toHaveLength(2)
 })
 
+test('a registration from the unverified view locks the retry until its chained sign-in has finished', async () => {
+  const users = deferred()
+  const meResponses = [Promise.reject(new TypeError('Failed to fetch')), Promise.resolve(json({}, 503))]
+  const fetchMock = vi.fn((path: string) => {
+    if (path === '/api/me') return meResponses.shift()!
+    if (path === '/api/users') return users.promise
+    if (path === '/api/csrf') return Promise.resolve(json({ headerName: 'X-CSRF-TOKEN', token: 'token' }))
+    if (path === '/api/session') return Promise.resolve(json(identity))
+    return Promise.resolve(json([]))
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  renderApp(<App />)
+  await screen.findByRole('heading', { name: 'Sitzung konnte nicht überprüft werden.' })
+  fireEvent.submit(fill(openRegistration()))
+  // While the registration POST runs, a re-check would race the chained sign-in, so the retry is locked.
+  const retry = screen.getByRole('button', { name: 'Erneut prüfen' })
+  expect(retry).toHaveAttribute('aria-disabled', 'true')
+  fireEvent.click(retry)
+  expect(fetchMock.mock.calls.filter(([path]) => path === '/api/me')).toHaveLength(1)
+  expect(screen.getByRole('heading', { name: registerHeading })).toBeInTheDocument()
+
+  // The chained sign-in changes the session, but its identity check fails: the unverified view stays usable.
+  await act(async () => users.resolve(json(identity, 201)))
+  expect(await screen.findByText('Deine Anmeldung konnte nicht bestätigt werden. Bitte prüfe deine Sitzung erneut.')).toBeInTheDocument()
+  expect(retry).toHaveAttribute('aria-disabled', 'false')
+  expect(document.querySelectorAll('form')).toHaveLength(1)
+  expect(screen.queryByText('Sitzung wird geprüft …')).not.toBeInTheDocument()
+  expect(fetchMock.mock.calls.filter(([path]) => path === '/api/users')).toHaveLength(1)
+})
+
 test('a session lost after confirmation shows the expiry notice above the sign-in fields', async () => {
   vi.stubGlobal('fetch', vi.fn()
     .mockResolvedValueOnce(json(identity)).mockResolvedValueOnce(json({}, 401)).mockResolvedValue(json([])))

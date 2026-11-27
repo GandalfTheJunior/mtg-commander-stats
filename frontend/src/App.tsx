@@ -64,6 +64,8 @@ export default function App() {
   const [loggingIn, setLoggingIn] = useState(false)
   const loginPending = useRef(false)
   const [rechecking, setRechecking] = useState(false)
+  // Refs, not render state: a login chained after registration runs a closure captured before a re-check began.
+  const recheckPending = useRef(false)
   // #200/#247: invitation and claim deep links are public; their auth detour keeps the exact link URL.
   const invitation = inviteSegment(location.pathname)
   const claim = claimSegment(location.pathname)
@@ -97,7 +99,7 @@ export default function App() {
    * #370: registration calls this right after the account was created, with the same credentials.
    */
   async function submitLogin(credentials: Credentials, { afterRegistration = false }: LoginOptions = {}): Promise<boolean> {
-    if (loginPending.current || sessionStatus === 'checking' || sessionStatus === 'logging-out') return false
+    if (loginPending.current || recheckPending.current || sessionStatus === 'checking' || sessionStatus === 'logging-out') return false
     loginPending.current = true
     let version = sessionVersionRef.current
     let sessionChanged = false
@@ -189,7 +191,8 @@ export default function App() {
   }
 
   async function checkSession() {
-    if (loggingIn || sessionStatus !== 'unverified') return
+    if (loginPending.current || recheckPending.current || sessionStatus !== 'unverified') return
+    recheckPending.current = true
     editorOrigin.current = null
     collectionMemory.current = null
     forgetAllHandoffs()
@@ -209,7 +212,9 @@ export default function App() {
       setCurrentUser(null)
       setSessionStatus('unverified')
     } finally {
-      if (version === sessionVersionRef.current) setRechecking(false)
+      // Always release the retry, even when a newer session version superseded this check.
+      recheckPending.current = false
+      setRechecking(false)
     }
   }
 
