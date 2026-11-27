@@ -107,14 +107,13 @@ for (const prefix of ['claim', 'invite']) {
         await page.locator('#auth-register-email').fill(email)
         await page.locator('#auth-register-username').fill(guest.username)
         await page.locator('#auth-register-password').fill(password)
+        // #370: registration signs in right away with the same credentials.
         await page.getByRole('button', { name: 'Konto erstellen', exact: true }).click()
-        await expect(page.getByText('Konto erstellt! Melde dich jetzt an.')).toBeVisible()
-        await expect(page).toHaveURL(path)
-        expect(writes).toEqual(['POST /api/users'])
+      } else {
+        await page.locator('#auth-login-email').fill(email)
+        await page.locator('#auth-login-password').fill(password)
+        await page.getByRole('button', { name: 'Anmelden', exact: true }).click()
       }
-      await page.locator('#auth-login-email').fill(email)
-      await page.locator('#auth-login-password').fill(password)
-      await page.getByRole('button', { name: 'Anmelden', exact: true }).click()
       await expect(page.getByText('Anmeldung erfolgreich.', { exact: true })).toBeVisible()
       if (prefix === 'claim') await expect(page.getByText(guest.username, { exact: true })).toBeVisible()
       await expect(page).toHaveURL(path)

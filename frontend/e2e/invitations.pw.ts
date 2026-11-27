@@ -184,7 +184,7 @@ test('creation failure dialog offers retry and close only', async ({ page }, inf
 })
 
 for (const width of [320, 390, 1280]) {
-  test(`signed-out preview, registration, required login and explicit join at ${width}px`, async ({ page }, info) => {
+  test(`signed-out preview, registration with automatic sign-in and explicit join at ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 844 })
     const api = await mockApi(page, { user: null })
     const document = await page.goto(`/invite/${code}`)
@@ -208,12 +208,8 @@ for (const width of [320, 390, 1280]) {
     await register.getByLabel('E-Mail').fill('frodo@example.test')
     await register.getByLabel('Benutzername').fill('Frodo')
     await register.getByLabel('Passwort', { exact: true }).fill('correct horse battery')
+    // #370: registration signs in right away and returns to the preview.
     await register.getByRole('button', { name: 'Konto erstellen' }).click()
-    await expect(page.getByText('Konto erstellt! Melde dich jetzt an.')).toBeVisible()
-    const login = page.locator('section', { has: page.getByRole('heading', { name: 'Willkommen zurück!' }) })
-    await login.getByLabel('E-Mail').fill('frodo@example.test')
-    await login.getByLabel('Passwort', { exact: true }).fill('correct horse battery')
-    await login.getByRole('button', { name: 'Anmelden' }).click()
 
     const join = page.getByRole('button', { name: 'Playgroup beitreten' })
     await expect(join).toBeVisible()

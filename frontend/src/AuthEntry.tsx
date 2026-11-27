@@ -20,17 +20,20 @@ export type AuthStatus = 'checking' | 'signed-out' | 'unverified' | 'logging-out
 export type AuthMode = 'login' | 'register'
 /** #200 invitation or #247 claim detour whose public preview remains the return destination. */
 export type AuthContext = 'invitation' | 'claim' | null
-export type AuthNotice = { kind: 'success' | 'error'; message: string } | null
+/** `form`: a failed sign-in attempt; it belongs to the form even while the retry card is shown. */
+export type AuthNotice = { kind: 'success' | 'error'; message: string; form?: true } | null
 export type Credentials = { email: string; password: string }
+/** `afterRegistration`: the account already exists, so a failed sign-in must never lead to a second registration. */
+export type LoginOptions = { afterRegistration?: boolean }
 
 const contextNotices: Record<Exclude<AuthContext, null>, Record<AuthMode, string>> = {
   invitation: {
     login: 'Melde dich an, um mit deiner Playgroup-Einladung fortzufahren.',
-    register: 'Erstelle ein Konto und melde dich danach an, um mit deiner Playgroup-Einladung fortzufahren.',
+    register: 'Erstelle ein Konto, um mit deiner Playgroup-Einladung fortzufahren.',
   },
   claim: {
     login: 'Melde dich an, um mit der Übernahme des Schnellprofils fortzufahren.',
-    register: 'Erstelle ein Konto und melde dich danach an, um mit der Übernahme des Schnellprofils fortzufahren.',
+    register: 'Erstelle ein Konto, um mit der Übernahme des Schnellprofils fortzufahren.',
   },
 }
 
@@ -184,7 +187,7 @@ type Props = {
   initialMode: AuthMode
   /** Focus the first field in the commit that reveals the form (invitation/claim detours). */
   focusOnReveal: boolean
-  onLogin: (credentials: Credentials) => Promise<boolean>
+  onLogin: (credentials: Credentials, options?: LoginOptions) => Promise<boolean>
   onRecheck: () => void
   onDismissNotice: () => void
   footer?: ReactNode
@@ -193,6 +196,8 @@ type Props = {
 /**
  * #277 shared signed-out entry: one form at a time (sign-in by default), German copy, inline field errors,
  * general errors above the affected form, and explicit session-check recovery. The session lifecycle stays in App.
+ * #370: registration signs in right away through the normal login flow, and an unverified session offers
+ * sign-in below the retry action.
  */
 export default function AuthEntry(props: Props) {
   const { status, rechecking, loggingIn, notice, context } = props
@@ -202,10 +207,12 @@ export default function AuthEntry(props: Props) {
   const [registration, setRegistration] = useState({ email: '', username: '' })
   const [registrationErrors, setRegistrationErrors] = useState<FieldErrors<RegisterField>>({})
   const [registrationError, setRegistrationError] = useState<string | null>(null)
-  const [registered, setRegistered] = useState(false)
   const [registering, setRegistering] = useState(false)
   const registrationPending = useRef(false)
+  // A login started from the unverified view keeps the retry card (locked) instead of making it flash away and back.
+  const [loginFromUnverified, setLoginFromUnverified] = useState(false)
   const headingRef = useRef<HTMLHeadingElement>(null)
+  const retryRef = useRef<HTMLButtonElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const loginEmailRef = useRef<HTMLInputElement>(null)
   const loginPasswordRef = useRef<HTMLInputElement>(null)
@@ -216,16 +223,18 @@ export default function AuthEntry(props: Props) {
     (field === 'email' ? registerEmailRef : field === 'username' ? registerUsernameRef : registerPasswordRef).current
   const pendingFocus = useRef<'heading' | 'login-password' | null>(null)
 
-  // Login keeps its form (with progress) while CSRF rotation and identity verification run.
-  const view = loggingIn ? 'form'
-    : rechecking || status === 'unverified' ? 'unverified'
-      : status === 'signed-out' ? 'form'
-        : status
-  // Leaving the form (verification failure, logout, session check) unmounts it and discards typed passwords.
-  const showForm = view === 'form'
+  // A login from the signed-out form keeps only that form (with progress) while CSRF rotation and identity
+  // verification run, even though App is briefly `unverified` after the rotation. An unverified session shows the
+  // retry card and, below it, the form (#370); an active re-check hides the form, which discards typed passwords.
+  const showRetry = (!loggingIn || loginFromUnverified) && (rechecking || status === 'unverified')
+  const showForm = loggingIn || status === 'signed-out' || (status === 'unverified' && !rechecking)
+  // App reports `checking` during a re-check; the retry card shows that progress itself.
+  const progress = !loggingIn && !rechecking && (status === 'checking' || status === 'logging-out') ? status : null
 
   useLayoutEffect(() => {
     if (!props.focusOnReveal || !showForm) return
+    // A failed re-check brings the form back; focus stays on the retry action the user is operating.
+    if (retryRef.current && document.activeElement === retryRef.current) return
     focus(document.getElementById(mode === 'login' ? 'auth-login-email' : 'auth-register-email'))
     // Only the commit that reveals the form; later mode switches manage their own focus.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -236,12 +245,11 @@ export default function AuthEntry(props: Props) {
     if (!target) return
     pendingFocus.current = null
     focus(target === 'heading' ? headingRef.current : loginPasswordRef.current)
-  }, [mode, registered])
+  }, [mode])
 
   function switchMode(next: AuthMode) {
     if (registering || loggingIn) return
     props.onDismissNotice()
-    setRegistered(false)
     setLoginErrors({})
     setRegistrationErrors({})
     setRegistrationError(null)
@@ -261,8 +269,8 @@ export default function AuthEntry(props: Props) {
       focus(errors.email ? loginEmailRef.current : loginPasswordRef.current)
       return
     }
-    setRegistered(false)
     const form = formRef.current
+    setLoginFromUnverified(status === 'unverified')
     const failed = !await props.onLogin({ email: loginEmail, password })
     if (failed) restoreFocus(form, loginPasswordRef.current)
   }
@@ -291,13 +299,6 @@ export default function AuthEntry(props: Props) {
     try {
       // Exactly as entered: the server owns normalization and password rules.
       await registerUser({ email, username, password })
-      // Registration never authenticates: return to sign-in with only the email carried over.
-      setRegistration({ email: '', username: '' })
-      setLoginEmail(email)
-      setLoginErrors({})
-      setRegistered(true)
-      pendingFocus.current = 'login-password'
-      setMode('login')
     } catch (error) {
       const failure = registrationFailure(error)
       setRegistrationErrors(failure.fields)
@@ -305,16 +306,32 @@ export default function AuthEntry(props: Props) {
       const firstServerInvalid = (['email', 'username', 'password'] as const).find(field => failure.fields[field])
       if (firstServerInvalid) focus(registerField(firstServerInvalid))
       else restoreFocus(form, registerEmailRef.current)
-    } finally {
       registrationPending.current = false
       setRegistering(false)
+      return
     }
+    // #370: the server creates no session on registration; sign in through the normal, CSRF-protected login flow
+    // with the credentials just submitted. The password lives only in this closure, never in a login input.
+    setLoginFromUnverified(status === 'unverified')
+    const signedIn = await props.onLogin({ email, password }, { afterRegistration: true })
+    registrationPending.current = false
+    setRegistering(false)
+    if (signedIn) return
+    // The account exists: continue on sign-in with only the email carried over, never registering again.
+    setRegistration({ email: '', username: '' })
+    setLoginEmail(email)
+    setLoginErrors({})
+    pendingFocus.current = 'login-password'
+    setMode('login')
   }
 
-  const loginNotice = mode === 'login' ? (registered ? { kind: 'success' as const, message: authCopy.registered } : notice) : null
+  // While the retry card is shown, it owns session notices; the form shows only its own failed attempts.
+  const loginNotice = mode === 'login' && (!showRetry || notice?.form) ? notice : null
+  const retryNotice = notice?.kind === 'error' && !notice.form ? notice.message : authCopy.unverifiedDetail
   const generalError = mode === 'login' ? (loginNotice?.kind === 'error' ? loginNotice.message : null) : registrationError
   const generalSuccess = loginNotice?.kind === 'success' ? loginNotice.message : null
-  const pendingLabel = mode === 'login' ? (loggingIn ? authCopy.pendingLogin : '') : (registering ? authCopy.pendingRegister : '')
+  // Registration continues into sign-in, so its pending label follows the current phase.
+  const pendingLabel = loggingIn ? authCopy.pendingLogin : mode === 'register' && registering ? authCopy.pendingRegister : ''
   const heading = mode === 'login' ? authCopy.loginHeading : authCopy.registerHeading
   const errorId = `auth-${mode}-error`
 
@@ -342,19 +359,19 @@ export default function AuthEntry(props: Props) {
         <Stack spacing={3}>
           <Brand />
 
-          {(view === 'checking' || view === 'logging-out') &&
-            <Progress label={view === 'checking' ? authCopy.checking : authCopy.loggingOut} />}
+          {progress && <Progress label={progress === 'checking' ? authCopy.checking : authCopy.loggingOut} />}
 
-          {view === 'unverified' && (
+          {showRetry && (
             <Card component="section" aria-labelledby="auth-unverified-heading" sx={{ p: { xs: 2, sm: 3 }, minWidth: 0 }}>
               <Stack spacing={2}>
                 <Typography id="auth-unverified-heading" component="h2" variant="h6">{authCopy.unverifiedHeading}</Typography>
                 {/* Remounted after each failed check so a repeated failure is announced again. */}
                 {rechecking ? <Progress label={authCopy.checking} />
-                  : <Alert severity="error" role="alert">{notice?.kind === 'error' ? notice.message : authCopy.unverifiedDetail}</Alert>}
-                {/* aria-disabled keeps keyboard focus on the action across the retry. */}
-                <Button type="button" variant="contained" fullWidth aria-disabled={rechecking}
-                  onClick={() => { if (!rechecking) props.onRecheck() }} sx={{ minHeight: 48 }}>
+                  : <Alert severity="error" role="alert">{retryNotice}</Alert>}
+                {/* aria-disabled keeps keyboard focus on the action across the retry. Locked during a registration or
+                    login too: a re-check would race the (chained) sign-in. */}
+                <Button ref={retryRef} type="button" variant="contained" fullWidth aria-disabled={rechecking || loggingIn || registering}
+                  onClick={() => { if (!rechecking && !loggingIn && !registering) props.onRecheck() }} sx={{ minHeight: 48 }}>
                   {authCopy.retry}
                 </Button>
               </Stack>
@@ -408,7 +425,7 @@ export default function AuthEntry(props: Props) {
                       error={registrationErrors.password} hint={authCopy.passwordHint} inputRef={registerPasswordRef}
                       onChange={() => setRegistrationErrors(value => ({ ...value, password: undefined }))} />
                     <Button type="submit" variant="contained" fullWidth disabled={registering} sx={{ minHeight: 48 }}>
-                      {registering ? authCopy.pendingRegister : authCopy.submitRegister}
+                      {registering ? pendingLabel : authCopy.submitRegister}
                     </Button>
                   </Stack>
                 )}

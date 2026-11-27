@@ -9,10 +9,13 @@ const focusRing = 'rgb(219, 185, 119)'
 // Screenshots are delivered to the PO; render them sharply.
 test.use({ deviceScaleFactor: 2 })
 
-type Me = 'signed-out' | 'unavailable' | 'held' | 'expired'
+type Me = 'signed-out' | 'unavailable' | 'held' | 'expired' | 'authenticated'
+/** `reject`: rejected credentials; `unavailable`: server failure; `held`/`accept`: a held or immediate sign-in (#370). */
+type Login = 'reject' | 'unavailable' | 'held' | 'accept'
 async function mockApi(page: Page, me: Me = 'signed-out') {
-  const state = { me, writes: [] as string[], release: () => {} }
+  const state = { me, login: 'reject' as Login, writes: [] as string[], release: () => {}, releaseLogin: () => {} }
   const held = new Promise<void>(resolve => { state.release = resolve })
+  const heldLogin = new Promise<void>(resolve => { state.releaseLogin = resolve })
   await page.route('**/api/**', async route => {
     const request = route.request()
     const path = new URL(request.url()).pathname
@@ -21,12 +24,20 @@ async function mockApi(page: Page, me: Me = 'signed-out') {
     if (path === '/api/me') {
       if (state.me === 'held') await held
       if (state.me === 'unavailable') return route.fulfill({ status: 503, json: { detail: 'Unavailable' } })
-      if (state.me === 'expired') return route.fulfill({ json: guest })
+      if (state.me === 'expired' || state.me === 'authenticated') return route.fulfill({ json: guest })
       return route.fulfill({ status: 401, json: {} })
     }
     if (path === '/api/decks' && state.me === 'expired') return route.fulfill({ status: 401, json: {} })
     if (path === '/api/csrf') return route.fulfill({ json: { headerName: 'X-CSRF-TOKEN', token: 'demo' } })
-    if (path === '/api/session' && method === 'POST') return route.fulfill({ status: 401, json: { detail: 'Invalid credentials.' } })
+    if (path === '/api/session' && method === 'POST') {
+      if (state.login === 'held') await heldLogin
+      if (state.login === 'reject') return route.fulfill({ status: 401, json: { detail: 'Invalid credentials.' } })
+      if (state.login === 'unavailable') return route.fulfill({ status: 503, json: { detail: 'Authentication unavailable.' } })
+      state.me = 'authenticated'
+      return route.fulfill({ json: guest })
+    }
+    // The signed-in shell's own empty reads after a successful sign-in.
+    if (state.me === 'authenticated' && method === 'GET') return route.fulfill({ json: [] })
     if (path === '/api/users' && method === 'POST') {
       const body = request.postDataJSON() as { username: string }
       return body.username === 'Taken'
@@ -111,7 +122,7 @@ test('keyboard order, visible focus and Enter submission with a generic failure 
   await shot(page, info, 'auth-05-login-failed-390')
 })
 
-test('registration shows an inline conflict, then returns to sign-in with only the email', async ({ page }, info) => {
+test('registration shows an inline conflict, then signs in right away through the normal login', async ({ page }, info) => {
   const api = await mockApi(page)
   await page.goto('/')
   await entry(page).getByRole('button', { name: 'Noch kein Konto? Registrieren' }).click()
@@ -125,15 +136,40 @@ test('registration shows an inline conflict, then returns to sign-in with only t
   await expect(page.getByText('Dieser Benutzername ist bereits vergeben.')).toBeVisible()
   await shot(page, info, 'auth-02b-register-conflict-390')
 
+  // #370: after the account is created, the same credentials sign in; one pending state covers both steps.
+  api.login = 'held'
   await username.fill(guest.username)
   await entry(page).getByRole('button', { name: 'Konto erstellen', exact: true }).click()
+  await expect(entry(page).getByRole('button', { name: 'Anmeldung läuft …' })).toBeDisabled()
+  await expect(entry(page).getByRole('status')).toHaveText('Anmeldung läuft …')
+  expect(await page.content()).not.toContain(password)
+  await shot(page, info, 'auth-03-registration-pending-390')
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await shot(page, info, 'auth-03-registration-pending-1280')
+  api.releaseLogin()
+  await expect(page.getByText('Anmeldung erfolgreich.')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Konto erstellen' })).toHaveCount(0)
+  expect(api.writes).toEqual(['POST /api/users', 'POST /api/users', 'POST /api/session'])
+})
+
+test('a sign-in failure after registration continues on sign-in with only the email', async ({ page }, info) => {
+  const api = await mockApi(page)
+  api.login = 'unavailable'
+  await page.goto('/')
+  await entry(page).getByRole('button', { name: 'Noch kein Konto? Registrieren' }).click()
+  await page.locator('#auth-register-email').fill(email)
+  await page.locator('#auth-register-username').fill(guest.username)
+  await page.locator('#auth-register-password').fill(password)
+  await entry(page).getByRole('button', { name: 'Konto erstellen', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Willkommen zurück!' })).toBeVisible()
-  await expect(entry(page).getByRole('status')).toHaveText('Konto erstellt! Melde dich jetzt an.')
+  await expect(entry(page).getByRole('alert')).toHaveText('Dein Konto wurde erstellt, aber die Anmeldung ist fehlgeschlagen. Bitte melde dich an.')
   await expect(page.locator('#auth-login-email')).toHaveValue(email)
   await expect(page.locator('#auth-login-password')).toHaveValue('')
   await expect(page.locator('#auth-login-password')).toBeFocused()
-  expect(api.writes).toEqual(['POST /api/users', 'POST /api/users'])
-  await shot(page, info, 'auth-03-registered-390')
+  expect(api.writes).toEqual(['POST /api/users', 'POST /api/session'])
+  await shot(page, info, 'auth-03b-registered-login-failed-390')
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await shot(page, info, 'auth-03b-registered-login-failed-1280')
 })
 
 test('session check, unverified retry and known expiry states', async ({ page }, info) => {
@@ -145,11 +181,20 @@ test('session check, unverified retry and known expiry states', async ({ page },
   api.me = 'unavailable'
   api.release()
   await expect(page.getByRole('heading', { name: 'Sitzung konnte nicht überprüft werden.' })).toBeVisible()
-  await expect(page.locator('form')).toHaveCount(0)
+  // #370: sign-in is offered below the retry card in the same column.
+  await expect(page.locator('form')).toHaveCount(1)
+  const retryBox = (await page.getByRole('button', { name: 'Erneut prüfen' }).boundingBox())!
+  const formBox = (await entry(page).boundingBox())!
+  expect(formBox.y).toBeGreaterThan(retryBox.y + retryBox.height)
+  expect(Math.abs(formBox.x - retryBox.x)).toBeLessThanOrEqual(32)
+  expect(await noHorizontalOverflow(page)).toBe(true)
   await shot(page, info, 'auth-04b-unverified-390')
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await shot(page, info, 'auth-04b-unverified-1280')
   api.me = 'signed-out'
   await page.getByRole('button', { name: 'Erneut prüfen' }).click()
   await expect(page.getByRole('heading', { name: 'Willkommen zurück!' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Erneut prüfen' })).toHaveCount(0)
   await expect(page.getByText(/abgelaufen/)).toHaveCount(0)
 
   api.me = 'expired'

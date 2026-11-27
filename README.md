@@ -184,7 +184,7 @@ npm run dev
 ```
 
 Open the local URL printed by Vite (normally http://localhost:5173). The page
-supports account registration and separate login, displays the authenticated
+supports account registration (followed by automatic sign-in) and login, displays the authenticated
 username from `GET /api/me`, and restores that session after a reload. An
 authenticated user lands on **Dashboard**, a concise welcome/wayfinding screen.
 The **Dashboard / Playgroups / Decks** navigation uses `/dashboard`, `/playgroups`
@@ -387,8 +387,9 @@ by `frontend/e2e/claims.pw.ts` in the same way.
 
 The signed-out sign-in/registration entry #277 (single-form layout at 320, 375,
 390 and 1280px, keyboard order, inline and general errors, session check, retry
-and expiry states) is covered by `frontend/e2e/auth-entry.pw.ts` with synthetic
-API responses.
+and expiry states) and its #370 follow-up (automatic sign-in after registration,
+sign-in below the unverified retry) are covered by `frontend/e2e/auth-entry.pw.ts`
+with synthetic API responses.
 
 Statistics browser checks use synthetic API responses:
 with Vite running, run `python tools/ui/verify-statistics.py` (Python Playwright

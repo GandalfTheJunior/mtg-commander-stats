@@ -236,6 +236,10 @@ outside this MVP.
   a valid identity restores fresh protected views, an absent identity shows the
   signed-out controls, and an unavailable check leaves protected data hidden
   with an explicit retry. Only a confirmed `204` is reported as successful logout.
+- While the session cannot be verified, the signed-out entry offers the explicit
+  retry and, below it, the ordinary sign-in form (#370). Signing in from there is
+  a normal login with the same CSRF rotation and `GET /api/me` confirmation;
+  protected data stays hidden until that identity is confirmed.
 
 ## User identity and registration
 
@@ -277,7 +281,11 @@ outside this MVP.
   allowed and counts toward that minimum. Passwords are validated and encoded
   exactly as supplied, without trimming, case conversion, or normalization.
   Whitespace-only passwords are invalid.
-- Registration does not log the user in. Login is a separate, explicit request.
+- Registration itself does not create a session. After a successful registration
+  the web client immediately signs in with the credentials just submitted, through
+  the ordinary `POST /api/session` login (#370), so the user does not enter them
+  again. If that sign-in fails, the account still exists and the client continues
+  on sign-in with the email prefilled; it never repeats the registration.
 
 ## Display text
 
