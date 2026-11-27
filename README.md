@@ -16,7 +16,9 @@ https://github.com/user-attachments/assets/3f867806-1616-475e-98d8-2bf926b59894
 UI showcase of Player Card Elements
 
 https://github.com/user-attachments/assets/b35d5848-ead3-4373-bda6-f908810b68f0
-UI Showcase of the winrate per color statistik
+UI Showcase of the winrate per color statistics
+
+## About
 
 The idea for this application came from my own MTG Commander playgroup. We used to keep track of our games in an Excel spreadsheet, which worked, but became tedious over time.
 
