@@ -5,7 +5,6 @@ import GameEditor from './GameEditor'
 import { renderApp } from './test/renderApp'
 import { deckFor, deferred, gameApi, group, recorded, response, uid } from './test/gameFixtures'
 import { gameCard as card, selectGameDeck, selectGameMember, selectGamePlayer, selectGameWinner } from './test/gameEntry'
-import { localToday } from './gameOutcome'
 import { browserTimeZone, futurePlayedOn, invalidPlayedOn, missingPlayedOnZone } from './playedOn'
 import { savedCommander } from './test/commanderFixtures'
 import type { Game, GroupDetails } from './api'
@@ -27,12 +26,20 @@ async function fill(...players: number[]) {
   for (const [index, n] of players.entries()) await selectGamePlayer(index + 1, name(n), deckFor(n))
 }
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers() })
+// Pins the local date before rendering, so a run that crosses midnight cannot
+// make the editor's default date differ from the expected one (#367). Only Date
+// is faked; Testing Library keeps waiting with real timers.
+const pinnedToday = '2026-11-16'
+function pinClock() {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(2026, 10, 16, 12))
+}
 
 test('a new group-scoped game starts with today, Sieg, alternate off and four empty collapsed slots', () => {
-  gameApi(); show()
+  pinClock(); gameApi(); show()
   expect(screen.getAllByRole('region', { name: /^Spieler \d$/ })).toHaveLength(4)
   expect(screen.getAllByRole('button', { name: /^Spieler \d auswählen$/ })).toHaveLength(4)
-  expect(screen.getByLabelText('Spieldatum')).toHaveValue(localToday())
+  expect(screen.getByLabelText('Spieldatum')).toHaveValue(pinnedToday)
   expect(screen.getByRole('button', { name: 'Sieg' })).toHaveAttribute('aria-pressed', 'true')
   expect(screen.getByRole('switch', { name: 'Alternative Siegbedingung' })).not.toBeChecked()
   expect(screen.getByText('Friday games')).toBeInTheDocument()
@@ -40,6 +47,7 @@ test('a new group-scoped game starts with today, Sieg, alternate off and four em
 })
 
 test.each([2, 3, 4, 5, 6])('%s participants chain member and deck pickers and submit seats, date and winner-only', async count => {
+  pinClock()
   const api = gameApi()
   const details = { ...group, members: [...group.members, ...[5, 6].map(n => ({ userId: uid(n), username: `Player ${n}`, role: 'MEMBER' as const }))] }
   for (const n of [5, 6]) api.next(`/api/groups/${group.id}/members/${uid(n)}/decks`, () => response([deckFor(n)]))
@@ -57,7 +65,7 @@ test.each([2, 3, 4, 5, 6])('%s participants chain member and deck pickers and su
   else expect(screen.getByRole('button', { name: 'Spieler hinzufügen' })).toBeEnabled()
   selectGameWinner(name(1))
   save()
-  expect(onSubmit).toHaveBeenCalledExactlyOnceWith({ playedOn: localToday(), playedOnTimeZone: browserTimeZone(), result: 'WIN', alternateWinCon: false,
+  expect(onSubmit).toHaveBeenCalledExactlyOnceWith({ playedOn: pinnedToday, playedOnTimeZone: browserTimeZone(), result: 'WIN', alternateWinCon: false,
     participants: Array.from({ length: count }, (_, i) => ({ userId: uid(i + 1), deckId: deckFor(i + 1).id, startPosition: i + 1, ...(i ? {} : { placement: 1 }) })) })
 })
 
@@ -276,7 +284,7 @@ test('alternate WIN shows shared survivor place 2, needs a survivor for complete
 })
 
 test('DRAW has no winner action, preselects no status, requires every status and at least one survivor', async () => {
-  gameApi(); const { onSubmit } = show()
+  pinClock(); gameApi(); const { onSubmit } = show()
   await fill(1, 2, 3)
   mode('Unentschieden')
   expect(screen.queryByRole('switch', { name: 'Alternative Siegbedingung' })).not.toBeInTheDocument()
@@ -290,7 +298,7 @@ test('DRAW has no winner action, preselects no status, requires every status and
   expect(screen.getByText(/Mindestens ein Spieler muss noch im Spiel sein/)).toBeInTheDocument()
   for (const n of [1, 2, 3]) setResult(n, 'IN')
   save()
-  expect(onSubmit.mock.lastCall![0]).toEqual({ playedOn: localToday(), playedOnTimeZone: browserTimeZone(), result: 'DRAW', alternateWinCon: false,
+  expect(onSubmit.mock.lastCall![0]).toEqual({ playedOn: pinnedToday, playedOnTimeZone: browserTimeZone(), result: 'DRAW', alternateWinCon: false,
     participants: [1, 2, 3].map(n => ({ userId: uid(n), deckId: deckFor(n).id, startPosition: n, stillInGame: true })) })
 })
 
@@ -422,7 +430,7 @@ test('a former member’s card can only keep its exact recorded pair; duplicates
 })
 
 test('Noch ein Spiel carries only active member IDs into a new, otherwise default entry', async () => {
-  gameApi()
+  pinClock(); gameApi()
   show(null, group, [uid(4), uid(2), uid(99)])
   expect(screen.getAllByRole('region', { name: /^Spieler \d$/ })).toHaveLength(4)
   // Roster order, not the previous seats; unknown/departed IDs are dropped.
@@ -430,7 +438,7 @@ test('Noch ein Spiel carries only active member IDs into a new, otherwise defaul
   expect(card(2).getByText('Fourth')).toBeInTheDocument()
   expect(card(1).getByText('Noch kein Deck ausgewählt')).toBeInTheDocument()
   expect(card(3).getByRole('button', { name: 'Spieler 3 auswählen' })).toBeInTheDocument()
-  expect(screen.getByLabelText('Spieldatum')).toHaveValue(localToday())
+  expect(screen.getByLabelText('Spieldatum')).toHaveValue(pinnedToday)
   expect(screen.getByRole('button', { name: 'Sieg' })).toHaveAttribute('aria-pressed', 'true')
   await selectGameDeck(2, deckFor(4))
 })
