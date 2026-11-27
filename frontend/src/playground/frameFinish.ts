@@ -1,4 +1,4 @@
-import { magicColors, type MagicColor } from '../api'
+import { magicColors, type MagicColor } from '../features/decks/api'
 
 export type FrameTone = MagicColor | 'silver' | 'gold'
 const names: Record<MagicColor, string> = { W: 'Weiß', U: 'Blau', B: 'Schwarz', R: 'Rot', G: 'Grün' }

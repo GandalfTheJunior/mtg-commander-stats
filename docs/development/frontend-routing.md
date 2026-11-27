@@ -780,7 +780,7 @@ use intercepted non-sensitive data, not a live backend or physical-device test.
   for the whole app. The Vite dev/preview servers send `Cache-Control: no-store`
   and `Referrer-Policy: no-referrer` on `/invite/*`; production hosting must do
   the same (see the [cutover runbook](invitation-cutover.md)).
-- **Tests:** `src/Invitation.test.tsx` (integration) and
+- **Tests:** `src/features/groups/Invitation.test.tsx` (integration) and
   `e2e/invitations.pw.ts` (320/375/390/1280px, Chromium and WebKit, decodes the
   rendered QR code with the dev-only `jsqr`). `e2e/auth-return.pw.ts` checks
   first-visibility focus, keyboard input, Back, reload and registration/login return.
@@ -855,8 +855,8 @@ helpers (`linkSharing.ts`, `InvitationQr`, `ShareFeedback`) and `retryWindow.ts`
 - **Leakage:** the Vite dev/preview servers send `Cache-Control: no-store` and
   `Referrer-Policy: no-referrer` on `/claim/*` as on `/invite/*`; production
   hosting must do the same (see the [cutover runbook](invitation-cutover.md#quick-profile-claim-links-247)).
-- **Tests:** `src/ProfileClaim.test.tsx` (including deferred return navigation),
-  `src/ProfileClaimDialog.test.tsx` (expiry/read/write coordination and cancellation),
+- **Tests:** `src/features/claims/ProfileClaim.test.tsx` (including deferred return navigation),
+  `src/features/claims/ProfileClaimDialog.test.tsx` (expiry/read/write coordination and cancellation),
   `e2e/auth-return.pw.ts` (first-visibility input and CPU-throttled Chromium return),
   and `e2e/claims.pw.ts`
   (all seven approved wireframe scenarios at 320/375/390/1280px, Chromium and

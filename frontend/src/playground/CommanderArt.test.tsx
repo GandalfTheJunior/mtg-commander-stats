@@ -3,7 +3,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { AppThemeProvider } from '../theme/AppThemeProvider'
 import { CommanderArt } from './CommanderArt'
 import { Playground } from './Playground'
-import type { MagicColor } from '../api'
+import type { MagicColor } from '../features/decks/api'
 
 const firstId = '11111111-1111-4111-8111-111111111111'
 const secondId = '22222222-2222-4222-8222-222222222222'

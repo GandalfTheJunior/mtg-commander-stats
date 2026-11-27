@@ -27,10 +27,10 @@ const invitationHeaders = (): Plugin => ({
 // These full UI flows approach their existing time budgets when competing for
 // two CPUs. Keep their App/router integration and give them a worker to themselves.
 const interactiveSuites = [
-  'src/GroupPage.test.tsx',
-  'src/GroupStatistics.test.tsx',
-  'src/GameEditor.test.tsx',
-  'src/GameSession.test.tsx',
+  'src/features/groups/GroupPage.test.tsx',
+  'src/features/statistics/GroupStatistics.test.tsx',
+  'src/features/games/GameEditor.test.tsx',
+  'src/features/games/GameSession.test.tsx',
 ]
 
 // Known flaky tests listed in test-quarantine.json are skipped until their entry

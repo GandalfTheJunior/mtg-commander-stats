@@ -1,5 +1,5 @@
 import { savedCommander } from './commanderFixtures'
-import type { GroupStatistics } from '../api'
+import type { GroupStatistics } from '../features/statistics/api'
 import { uid } from './gameFixtures'
 
 export function statistics(): GroupStatistics {

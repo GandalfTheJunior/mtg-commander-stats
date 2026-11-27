@@ -1,4 +1,4 @@
-import type { MagicColor, SavedCommander } from '../api'
+import type { MagicColor, SavedCommander } from '../features/decks/api'
 export const printingId = '00000000-0000-4000-8000-000000000301'
 export function savedCommander(name = 'Karn', colors: MagicColor[] = []): SavedCommander {
   return { pairing: { roles: [], partnerWith: [], variants: [] }, position: 1, oracleId: '00000000-0000-4000-8000-000000000401', name,

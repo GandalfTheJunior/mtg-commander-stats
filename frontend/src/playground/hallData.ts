@@ -1,4 +1,4 @@
-import type { MagicColor } from '../api'
+import type { MagicColor } from '../features/decks/api'
 
 export type HallDeck = { id: string; name: string; owner: string; colors: MagicColor[]; games: number; wins: number; ink: string; sky: string; motif: 'sun' | 'tower' | 'forest' | 'moon' | 'mountain' | 'sea' }
 // Authored fictional snapshots, not a ranking/allocation algorithm.

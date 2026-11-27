@@ -458,7 +458,7 @@ only the actual winner.
 ## Browser integration handoff (#196, #195)
 
 The browser now consumes the backend two-state ranking contract (#228). The shared
-parser in `frontend/src/api.ts` accepts explicit null WIN ranks and unknown alternate
+parser in `frontend/src/features/games/api.ts` accepts explicit null WIN ranks and unknown alternate
 statuses. #195 details render them as unknown, #194/#193 derive the winner/draw from
 `winnerUserId`/`result`, and the #196 editor below never submits inferred ranks.
 

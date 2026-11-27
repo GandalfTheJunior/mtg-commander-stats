@@ -1,10 +1,11 @@
 import { savedCommander } from './commanderFixtures'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { AppRouter as BrowserRouter } from '../AppRouter'
+import { AppRouter as BrowserRouter } from '../app/AppRouter'
 import { expect, vi } from 'vitest'
-import App from '../App'
+import App from '../app/App'
 import { AppThemeProvider } from '../theme/AppThemeProvider'
-import type { CurrentUser, Deck } from '../api'
+import type { CurrentUser } from '../features/auth/api'
+import type { Deck } from '../features/decks/api'
 import { group, response, uid } from './gameFixtures'
 
 export const deck: Deck = { id: uid(101), name: 'Alpha', commanders: [savedCommander('Karn')], colorIdentity: [], everUsed: false, archived: false, manaBoxUrl: null }

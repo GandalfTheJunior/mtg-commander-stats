@@ -7,9 +7,10 @@ const baselineCss = git('show', `${baseline}:frontend/src/playground/mana.css`)
   .replaceAll("url('./", "url('/src/playground/")
 
 // Reproduce A with its exact CSS, only while its rendering inputs remain intact.
+// Import-path-only changes (the #378 folder move) are ignored; any other change fails.
 test.beforeAll(() => {
   for (const file of ['ManaStatistics.tsx', 'manaData.ts', 'landingClock.ts', 'paper-grain.webp', 'mana-walnut.webp']) {
-    expect(git('diff', baseline, '--', `src/playground/${file}`)).toBe('')
+    expect(git('diff', '-I', '^import ', baseline, '--', `src/playground/${file}`)).toBe('')
   }
 })
 
