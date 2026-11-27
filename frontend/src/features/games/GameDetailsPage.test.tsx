@@ -94,7 +94,8 @@ test.each([false, true])('direct details verify session, group and game in order
   await waitFor(() => expect(api.calls(gamePath)).toHaveLength(1))
   expect(screen.queryByRole('button', { name: 'Spiel löschen' })).not.toBeInTheDocument()
   await act(async () => game.resolve(response(recorded())))
-  expect(await screen.findByRole('heading', { name: 'Spieldetails' })).toHaveFocus()
+  // The element can render before its passive focus effect runs.
+  await waitFor(() => expect(screen.getByRole('heading', { name: 'Spieldetails' })).toHaveFocus())
   expect(screen.getByText('Commander 2')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('link', { name: 'Zur Spielehistorie' }))
   await waitFor(() => expect(window.location.pathname).toBe(groupUrl(group.id, 'games')))

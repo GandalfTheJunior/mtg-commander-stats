@@ -236,7 +236,8 @@ test('one deliberate create reveals the code once; share, copy and QR use the id
   expect(await within(dialog).findByRole('button', { name: 'Einladung wird erstellt…' })).toBeDisabled()
   for (const close of within(dialog).getAllByRole('button', { name: 'Schließen' })) expect(close).toBeDisabled()
   await act(async () => pending.resolve(response({ code, expiresAt: api.state.expiresAt }, 201)))
-  expect(await within(dialog).findByText('Neue Einladung erstellt')).toHaveFocus()
+  // The element can render before its passive focus effect runs.
+  await waitFor(() => expect(within(dialog).getByText('Neue Einladung erstellt')).toHaveFocus())
   expect(writes(api)).toHaveLength(1)
   expect(within(dialog).getByLabelText('Einladungslink')).toHaveValue(link)
   expect(within(dialog).getByText('Einmalig verwendbar · 1 Stunde')).toBeInTheDocument()
@@ -349,7 +350,8 @@ test.each([
   const dialog = await openClaim()
   fireEvent.click(await within(dialog).findByRole('button', { name: 'Neue Einladung erstellen' }))
   fireEvent.click(within(await screen.findByRole('dialog', { name: 'Einladung ersetzen?' })).getByRole('button', { name: 'Neuen Link erstellen' }))
-  expect(await within(dialog).findByText('Erstellung nicht bestätigt')).toHaveFocus()
+  // The element can render before its passive focus effect runs.
+  await waitFor(() => expect(within(dialog).getByText('Erstellung nicht bestätigt')).toHaveFocus())
   expect(within(dialog).queryByText('Aktive Einladung')).not.toBeInTheDocument()
   expect(within(dialog).queryByLabelText('Einladungslink')).not.toBeInTheDocument()
   expect(within(dialog).queryByRole('button', { name: /erstellen/ })).not.toBeInTheDocument()
@@ -627,7 +629,8 @@ test('a 400 on accept shows the generic unavailable state and discards the names
   show(`/claim/${code}`)
   fireEvent.click(await screen.findByRole('button', { name: 'Profil übernehmen' }))
   fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Jetzt übernehmen' }))
-  expect(await screen.findByRole('heading', { name: 'Einladung nicht verfügbar' })).toHaveFocus()
+  // The element can render before its passive focus effect runs.
+  await waitFor(() => expect(screen.getByRole('heading', { name: 'Einladung nicht verfügbar' })).toHaveFocus())
   expect(screen.queryByText(groupName)).not.toBeInTheDocument()
   expect(screen.queryByText(profileName)).not.toBeInTheDocument()
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -640,7 +643,8 @@ test('a same-game 409 changes nothing; a manual re-check is read-only and a new 
   show(`/claim/${code}`)
   fireEvent.click(await screen.findByRole('button', { name: 'Profil übernehmen' }))
   fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Jetzt übernehmen' }))
-  expect(await screen.findByRole('heading', { name: 'Übernahme noch nicht möglich' })).toHaveFocus()
+  // The element can render before its passive focus effect runs.
+  await waitFor(() => expect(screen.getByRole('heading', { name: 'Übernahme noch nicht möglich' })).toHaveFocus())
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   expect(screen.getByText(`Schnellprofil: ${profileName}`)).toBeInTheDocument()
   expect(screen.getByText('Es wurden keine Daten verändert. Der Link bleibt bis zum Ablauf gültig.')).toBeInTheDocument()
@@ -667,7 +671,8 @@ test.each([
   show(`/claim/${code}`)
   fireEvent.click(await screen.findByRole('button', { name: 'Profil übernehmen' }))
   fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Jetzt übernehmen' }))
-  expect(await screen.findByRole('heading', { name: 'Übernahme konnte nicht bestätigt werden' })).toHaveFocus()
+  // The element can render before its passive focus effect runs.
+  await waitFor(() => expect(screen.getByRole('heading', { name: 'Übernahme konnte nicht bestätigt werden' })).toHaveFocus())
   expect(screen.getByText('Status unklar')).toBeInTheDocument()
   expect(screen.queryByText(groupName)).not.toBeInTheDocument()
   expect(screen.queryByText(/erfolgreich/)).not.toBeInTheDocument()
@@ -895,7 +900,8 @@ test('a failed preview hides names, keeps the token and retries only on request'
   const api = server(null)
   api.next(`GET ${previewPath}`, lost)
   show(`/claim/${code}`)
-  expect(await screen.findByRole('heading', { name: 'Einladung konnte nicht geladen werden' })).toHaveFocus()
+  // The element can render before its passive focus effect runs.
+  await waitFor(() => expect(screen.getByRole('heading', { name: 'Einladung konnte nicht geladen werden' })).toHaveFocus())
   expect(screen.getByText('Vorschau nicht geladen')).toBeInTheDocument()
   expect(screen.queryByText(groupName)).not.toBeInTheDocument()
   expect(api.calls('GET', previewPath)).toHaveLength(1)
