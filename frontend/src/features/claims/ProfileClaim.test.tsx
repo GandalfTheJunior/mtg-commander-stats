@@ -447,6 +447,13 @@ test('reaching the expiry instant only re-reads the status; a server-confirmed i
   fireEvent.click(await within(dialog).findByRole('button', { name: 'Einladung erstellen' }))
   expect(await within(dialog).findByLabelText('Einladungslink')).toHaveValue(link)
   const reads = api.calls('GET', invitationPath).length
+  // The server confirms the expiry on the next read. A timer may fire up to ~1 ms before Date.now()
+  // reaches expiresAt; a strictly clock-based fake server would then still report "active" and the
+  // dialog would correctly re-check once more (covered by the device-clock test below).
+  api.next(`GET ${invitationPath}`, () => {
+    api.state.status = { active: false, expiresAt: null }
+    return response(api.state.status)
+  })
   expect(await within(dialog).findByText('Die Einladung ist nicht mehr aktiv.', {}, { timeout: 3000 })).toBeInTheDocument()
   expect(api.calls('GET', invitationPath)).toHaveLength(reads + 1)
   expect(within(dialog).getByText('Keine aktive Einladung')).toBeInTheDocument()
