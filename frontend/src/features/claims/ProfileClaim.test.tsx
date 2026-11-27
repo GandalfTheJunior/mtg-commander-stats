@@ -450,12 +450,17 @@ test('reaching the expiry instant only re-reads the status; a server-confirmed i
   // The server confirms the expiry on the next read. A timer may fire up to ~1 ms before Date.now()
   // reaches expiresAt; a strictly clock-based fake server would then still report "active" and the
   // dialog would correctly re-check once more (covered by the device-clock test below).
+  let readAt = 0
   api.next(`GET ${invitationPath}`, () => {
+    readAt = Date.now()
     api.state.status = { active: false, expiresAt: null }
     return response(api.state.status)
   })
   expect(await within(dialog).findByText('Die Einladung ist nicht mehr aktiv.', {}, { timeout: 3000 })).toBeInTheDocument()
   expect(api.calls('GET', invitationPath)).toHaveLength(reads + 1)
+  // The queued reply is not tied to the clock, so check that the read happened at the expiry instant
+  // (allowing for early timer firing), not earlier.
+  expect(readAt).toBeGreaterThanOrEqual(Date.parse(api.state.expiresAt) - 50)
   expect(within(dialog).getByText('Keine aktive Einladung')).toBeInTheDocument()
   expect(document.body.textContent).not.toContain(code)
   expect(writes(api)).toHaveLength(1)
