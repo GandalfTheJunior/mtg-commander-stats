@@ -79,6 +79,7 @@ for (const width of [320, 390, 1280]) {
     await page.mouse.up()
     await expect(page.getByRole('region', { name: 'Spieler 1' }).getByRole('heading', { name: 'Gimli' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Mitglied ändern' })).toHaveCount(0)
+    await expect(page.getByRole('menu')).toHaveCount(0)
 
     await page.getByRole('button', { name: 'Legolas: Sieger des Spiels' }).click()
     await page.getByLabel('Ergebnis für Gandalf').selectOption('2')
@@ -235,4 +236,16 @@ test.describe('parchment player cards (#382)', () => {
     await page.getByRole('button', { name: 'Spieler 1 einklappen' }).click()
     await expect.poll(() => height(page, 1), { intervals: [20] }).toBe(collapsed)
   })
+})
+
+test('tapping the grip offers moving up or down without dragging (#382)', async ({ page }) => {
+  await mockApi(page)
+  await page.goto(`/playgroups/${group.id}/games/new`)
+  await choose(page, 1, 1); await choose(page, 2, 2)
+  await page.getByRole('button', { name: 'Aragorn verschieben' }).tap()
+  await page.getByRole('menuitem', { name: 'Spieler 1 nach unten' }).tap()
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'Spieler 2' }).getByRole('heading', { name: 'Aragorn' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Aragorn verschieben' })).toBeFocused()
+  await expect(page.getByRole('status')).toHaveText('Aragorn an Position 2 verschoben.')
 })

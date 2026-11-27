@@ -461,7 +461,8 @@ test('dirty guard covers date, seats and hidden mode-specific results, not expan
   fireEvent.change(screen.getByLabelText('Spieldatum'), { target: { value: '' } })
   expect(register.mock.lastCall?.[0]).toBe(false)
   fireEvent.click(card(1).getByRole('button', { name: 'Spieler 1 bearbeiten' }))
-  fireEvent.click(card(1).getByRole('button', { name: 'Spieler 1 nach unten' }))
+  fireEvent.click(card(1).getByRole('button', { name: / verschieben$/ }))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Spieler 1 nach unten' }))
   expect(register.mock.lastCall?.[0]).toBe(true)
 })
 

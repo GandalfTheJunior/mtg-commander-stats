@@ -1,5 +1,5 @@
-import type { ComponentProps } from 'react'
-import { Box, Button, Card, CardActionArea, Collapse, IconButton, Stack, TextField, Typography, useMediaQuery } from '@mui/material'
+import { useRef, useState, type ComponentProps } from 'react'
+import { Box, Button, Card, CardActionArea, Collapse, IconButton, Menu, MenuItem, Stack, TextField, Typography, useMediaQuery } from '@mui/material'
 import { ThemeProvider } from '@mui/material/styles'
 import { commanderNames } from '../decks/api'
 import type { DeckSelection } from './api'
@@ -98,14 +98,42 @@ export function PlayerSeatCard(props: PlayerSeatCardProps) {
 function SeatContent({ seatKey, position, count, name, deck, done, expanded, former = false, archived = false, startSeat, error, busy, result, grip,
   onToggle, onChangeMember, onChangeDeck, onMoveUp, onMoveDown, onRemove, onResult, onDraw }: PlayerSeatCardProps & { name: string }) {
   const reduced = useMediaQuery('(prefers-reduced-motion: reduce)')
+  // A tap on the grip (no drag) opens the move menu: the single-pointer alternative to dragging
+  // without spending space on the card. Keyboard activation opens it too; arrow keys still move.
+  const [moveMenu, setMoveMenu] = useState<HTMLElement | null>(null)
+  const pressed = useRef<{ x: number; y: number } | null>(null)
+  const dragged = useRef(false)
+  const move = (action: () => void) => { setMoveMenu(null); action() }
   return <>
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1.5, pl: done ? 1.5 : 2.5 }}>
       {done && <Box component="button" type="button" disabled={busy} aria-label={`${name} verschieben`} aria-describedby="game-reorder-hint"
         sx={{ flexShrink: 0, width: 44, minHeight: 64, border: 0, borderRadius: 1, bgcolor: 'transparent', color: 'text.secondary',
           cursor: busy ? 'default' : 'grab', touchAction: 'none', fontSize: 20, '&:hover': { bgcolor: 'interaction.hover' }, '&:focus-visible': focusOutline }}
-        {...grip}>
+        aria-haspopup="menu" aria-expanded={moveMenu ? true : undefined} aria-controls={moveMenu ? `game-${seatKey}-move` : undefined}
+        {...grip}
+        onPointerDown={event => {
+          pressed.current = { x: event.clientX, y: event.clientY }
+          dragged.current = false
+          grip?.onPointerDown?.(event)
+        }}
+        onPointerMove={event => {
+          const start = pressed.current
+          if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 8) dragged.current = true
+          grip?.onPointerMove?.(event)
+        }}
+        onClick={event => {
+          pressed.current = null
+          if (dragged.current) { dragged.current = false; return }
+          setMoveMenu(event.currentTarget)
+        }}>
         <span aria-hidden="true">⠿</span>
       </Box>}
+      {done && <Menu id={`game-${seatKey}-move`} anchorEl={moveMenu} open={Boolean(moveMenu)} onClose={() => setMoveMenu(null)}
+        anchorOrigin={{ vertical: 'center', horizontal: 'right' }} transformOrigin={{ vertical: 'center', horizontal: 'left' }}
+        slotProps={{ list: { 'aria-label': `${name} verschieben` } }}>
+        <MenuItem disabled={busy || position === 1} aria-label={`Spieler ${position} nach oben`} onClick={() => move(onMoveUp)} sx={{ minHeight: 48 }}>Nach oben</MenuItem>
+        <MenuItem disabled={busy || position === count} aria-label={`Spieler ${position} nach unten`} onClick={() => move(onMoveDown)} sx={{ minHeight: 48 }}>Nach unten</MenuItem>
+      </Menu>}
       <DeckArtwork deck={deck} />
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography component="h4" sx={{ fontWeight: 700, fontSize: '1.0625rem' }}>{name}</Typography>
@@ -131,10 +159,6 @@ function SeatContent({ seatKey, position, count, name, deck, done, expanded, for
           <Button id={`game-${seatKey}-member`} color="secondary" variant="outlined" disabled={busy} onClick={onChangeMember}>Mitglied ändern</Button>
           {!former && <Button id={`game-${seatKey}-deck`} color="secondary" variant={deck ? 'outlined' : 'contained'} disabled={busy}
             onClick={onChangeDeck}>{deck ? 'Deck ändern' : 'Deck auswählen'}</Button>}
-          {done && <>
-            <Button color="secondary" disabled={busy || position === 1} aria-label={`Spieler ${position} nach oben`} onClick={onMoveUp}>Nach oben</Button>
-            <Button color="secondary" disabled={busy || position === count} aria-label={`Spieler ${position} nach unten`} onClick={onMoveDown}>Nach unten</Button>
-          </>}
         </Stack>
         <Button color="inherit" size="small" disabled={busy} sx={{ alignSelf: 'flex-end', color: 'text.secondary' }}
           aria-label={`Spieler ${position} entfernen`} onClick={onRemove}>Spieler entfernen</Button>

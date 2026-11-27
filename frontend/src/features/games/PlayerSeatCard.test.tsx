@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { PlayerSeatCard, type PlayerSeatCardProps } from './PlayerSeatCard'
 import { savedCommander } from '../../test/commanderFixtures'
@@ -52,4 +52,24 @@ test('an empty slot offers member selection (#382)', () => {
   render(<PlayerSeatCard {...props({ name: undefined, deck: undefined, done: false, expanded: false, onSelect })} />)
   screen.getByRole('button', { name: 'Spieler 1 auswählen' }).click()
   expect(onSelect).toHaveBeenCalledOnce()
+})
+
+test('tapping the grip opens a move menu instead of card buttons; a drag does not (#382)', () => {
+  const onMoveUp = vi.fn(), onMoveDown = vi.fn()
+  render(<PlayerSeatCard {...props({ position: 1, count: 2, onMoveUp, onMoveDown })} />)
+  expect(screen.queryByRole('button', { name: 'Spieler 1 nach unten' })).not.toBeInTheDocument()
+  const grip = screen.getByRole('button', { name: 'Ada verschieben' })
+  expect(grip).toHaveAttribute('aria-haspopup', 'menu')
+
+  fireEvent.pointerDown(grip, { clientX: 10, clientY: 10 })
+  fireEvent.pointerMove(grip, { clientX: 10, clientY: 60 })
+  fireEvent.click(grip)
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+
+  fireEvent.pointerDown(grip, { clientX: 10, clientY: 10 })
+  fireEvent.click(grip)
+  expect(screen.getByRole('menuitem', { name: 'Spieler 1 nach oben' })).toHaveAttribute('aria-disabled', 'true')
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Spieler 1 nach unten' }))
+  expect(onMoveDown).toHaveBeenCalledOnce()
+  expect(onMoveUp).not.toHaveBeenCalled()
 })

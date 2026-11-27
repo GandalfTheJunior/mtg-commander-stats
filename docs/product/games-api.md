@@ -497,11 +497,13 @@ The PO-approved #196 functional wireframes are archived in
   Cancelling returns to the same member's deck picker; the created profile stays
   saved. Another account without eligible decks shows **Keine Decks verfügbar**
   and **Anderes Mitglied auswählen**.
-- **Editing cards:** the expanded card offers **Mitglied ändern**, **Deck ändern**,
-  move up/down and a discreet **Spieler entfernen** (this match only, seats
-  compact). Changing the member clears that card's deck and its results in every
-  mode; changing only the deck keeps them. The grip reorders by pointer/touch
-  (live) or arrow keys and changes starting seats only. Former members can keep
+- **Editing cards:** the expanded card offers **Mitglied ändern**, **Deck ändern**
+  and a discreet **Spieler entfernen** (this match only, seats compact). Changing
+  the member clears that card's deck and its results in every mode; changing only
+  the deck keeps them. The grip reorders by pointer/touch drag (live) or arrow
+  keys; tapping or activating it without dragging opens a menu with **Nach oben**
+  and **Nach unten**, the single-pointer alternative to dragging (#382). Reordering
+  changes starting seats only. Former members can keep
   only their exact recorded pair.
 - **Results:** every complete card has one result row below its summary. Without a
   winner, WIN cards show **Sieger des Spiels**; the winner shows a trophy with

@@ -411,7 +411,7 @@ export default function GameEditor({ group, game, currentUserId, initialMembers,
       <Typography component="h3" variant="h6">Spieler</Typography>
       <Typography variant="body2" sx={{ color: 'text.secondary' }}>2–6 Teilnehmer</Typography>
       <Typography id="game-reorder-hint" variant="body2" sx={{ color: 'text.secondary', width: '100%' }}>
-        Reihenfolge am Griff links ändern (Pfeiltasten hoch/runter)
+        Reihenfolge: Griff links ziehen oder antippen (Pfeiltasten hoch/runter)
       </Typography>
     </Box>
     <Typography role="status" aria-live="polite" sx={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{movement}</Typography>

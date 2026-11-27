@@ -27,7 +27,7 @@ const meta = {
   },
   // The editor's reorder hint is referenced by every grip; a column frame matches the editor's width.
   decorators: [Story => <Stack sx={{ gap: 2, maxWidth: 560 }}>
-    <span id="game-reorder-hint" hidden>Reihenfolge am Griff links ändern (Pfeiltasten hoch/runter)</span>
+    <span id="game-reorder-hint" hidden>Reihenfolge: Griff links ziehen oder antippen (Pfeiltasten hoch/runter)</span>
     <Story />
   </Stack>],
 } satisfies Meta<typeof PlayerSeatCard>
