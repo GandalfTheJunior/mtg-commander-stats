@@ -88,7 +88,9 @@ component only**: the player cards of the game editor ("Spiel erfassen" /
   for expanding/collapsing that is immediate under reduced motion. This applies
   to empty, collapsed and expanded cards.
 - **Kept from the existing foundations:** system sans-serif typography,
-  commander artwork, the left drag grip, the chevron toggle and all behavior.
+  commander artwork, the left drag grip, the chevron toggle and the editing
+  behavior. Moving up/down moved from card buttons into a menu opened by
+  tapping the grip (PO decision during #382).
 - **Not approved:** the mini wax-seal toggle, playground deck-mark tiles,
   serif player names, wood backdrop, stone, firelight or any other Lounge
   material, and parchment on any other surface or screen. Each needs its own
