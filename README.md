@@ -13,9 +13,11 @@ A companion app for Magic: The Gathering Commander playgroups: record your games
 ## Design prototypes from the motion playground, planned for the app's upcoming redesign
 
 https://github.com/user-attachments/assets/3f867806-1616-475e-98d8-2bf926b59894
+
 UI showcase of Player Card Elements
 
 https://github.com/user-attachments/assets/b35d5848-ead3-4373-bda6-f908810b68f0
+
 UI Showcase of the winrate per color statistics
 
 ## About
