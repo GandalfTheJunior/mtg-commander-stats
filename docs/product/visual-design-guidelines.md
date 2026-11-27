@@ -72,7 +72,30 @@ not authorize production changes or a palette inversion.
 The specific **wood backdrop / parchment foreground** interpretation in the
 [Mana material comparison](../development/motion-playground.md#inverse-mana-material-study-182)
 is still a Playground experiment. Neither material, texture nor component has
-been approved for production by this high-level direction.
+been approved for production by this high-level direction. The only approved
+adoption so far is the component-scoped exception below.
+
+## Approved: parchment player cards in the game editor
+
+The PO approved the parchment surface from the Lounge study (#165) for **one
+component only**: the player cards of the game editor ("Spiel erfassen" /
+"Spiel bearbeiten"), implemented as `PlayerSeatCard` in
+[issue #382](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/382).
+
+- **Adopted:** paper grain, irregular torn edge, the rolled-paper barrel on the
+  left edge (three-part, so its caps keep their shape at every card height),
+  dark ink text and controls on the light sheet, and a short height animation
+  for expanding/collapsing that is immediate under reduced motion. This applies
+  to empty, collapsed and expanded cards.
+- **Kept from the existing foundations:** system sans-serif typography,
+  commander artwork, the left drag grip, the chevron toggle and all behavior.
+- **Not approved:** the mini wax-seal toggle, playground deck-mark tiles,
+  serif player names, wood backdrop, stone, firelight or any other Lounge
+  material, and parchment on any other surface or screen. Each needs its own
+  PO decision.
+
+Colors come from the `parchment` palette entry and the nested `parchmentTheme`
+described in the [theme guidance](../development/frontend-theme.md#parchment-surface).
 
 ## Exploration: not yet binding
 

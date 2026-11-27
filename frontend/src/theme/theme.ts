@@ -7,6 +7,7 @@ declare module '@mui/material/styles' {
   }
   interface Palette {
     mana: Record<'W' | 'U' | 'B' | 'R' | 'G' | 'C', string>
+    parchment: Parchment
     interaction: {
       border: string
       focus: string
@@ -17,6 +18,7 @@ declare module '@mui/material/styles' {
   }
   interface PaletteOptions {
     mana?: Palette['mana']
+    parchment?: Parchment
     interaction?: Palette['interaction']
   }
   interface TypographyVariants {
@@ -36,11 +38,56 @@ declare module '@mui/material/Typography' {
   }
 }
 
+/**
+ * Light parchment foreground surface (#382), approved only for the game editor's player cards.
+ * `edge`/`rim` paint the torn border behind the grain; the remaining entries feed `parchmentTheme`.
+ */
+export type Parchment = {
+  surface: string
+  edge: string
+  rim: string
+  raised: string
+  ink: string
+  inkSecondary: string
+  accent: string
+  accentHover: string
+  accentPressed: string
+  burgundy: string
+  error: string
+  border: string
+  focus: string
+  hover: string
+  pressed: string
+  disabled: string
+  disabledBackground: string
+}
+
+const parchment: Parchment = {
+  surface: '#EDD091',
+  edge: '#C89646',
+  rim: '#9B703D',
+  raised: '#D9B874',
+  ink: '#2E2014',
+  inkSecondary: '#4E3822',
+  accent: '#5C3A14',
+  accentHover: '#6B4719',
+  accentPressed: '#4A2E10',
+  burgundy: '#6E2C40',
+  error: '#7E1B17',
+  border: '#6E4B2A',
+  focus: '#582C1C',
+  hover: '#E0BD78',
+  pressed: '#D3AD66',
+  disabled: '#5F4E3A',
+  disabledBackground: '#E6C98A',
+}
+
 // Keep product colors here. Screens consume semantic theme tokens through sx.
 export const appTheme = createTheme({
   palette: {
     mode: 'dark',
     mana: { W: '#F4EBDF', U: '#8DBBFF', B: '#19171B', R: '#FF9C90', G: '#A6CFAB', C: '#A7ADB5' },
+    parchment,
     contrastThreshold: 4.5,
     background: { default: '#19171B', paper: '#29242A', raised: '#342A31' },
     primary: { main: '#854358', light: '#C98C9F', dark: '#71364A', contrastText: '#F4EBDF' },
@@ -195,6 +242,31 @@ export const appTheme = createTheme({
           '&.Mui-disabled': { color: theme.palette.text.disabled },
         }),
       },
+    },
+  },
+})
+
+/**
+ * Nested theme for content painted on parchment. The shared component overrides read
+ * their colors from the palette, so buttons, inputs, text and focus outlines switch to
+ * dark ink without component-specific color rules.
+ */
+export const parchmentTheme = createTheme(appTheme, {
+  palette: {
+    mode: 'light',
+    background: { default: parchment.surface, paper: parchment.surface, raised: parchment.raised },
+    primary: { main: parchment.burgundy, light: parchment.burgundy, dark: parchment.accentPressed, contrastText: '#F4EBDF' },
+    secondary: { main: parchment.accent, light: parchment.accentHover, dark: parchment.accentPressed, contrastText: '#F4EBDF' },
+    error: { main: parchment.error, light: parchment.error, dark: parchment.error, contrastText: '#F4EBDF' },
+    text: { primary: parchment.ink, secondary: parchment.inkSecondary, disabled: parchment.disabled },
+    divider: parchment.rim,
+    action: { active: parchment.ink, disabled: parchment.disabled, disabledBackground: parchment.disabledBackground },
+    interaction: {
+      border: parchment.border,
+      focus: parchment.focus,
+      hover: parchment.hover,
+      pressed: parchment.pressed,
+      primaryHover: parchment.burgundy,
     },
   },
 })
