@@ -1,5 +1,5 @@
-import type { ManaStatistics } from '../api'
-import { rankedColors } from '../statisticsOrder'
+import type { ManaStatistics } from '../features/statistics/api'
+import { rankedColors } from '../features/statistics/statisticsOrder'
 
 export const manaColors = ['W', 'U', 'B', 'R', 'G', 'C'] as const
 export const manaNames = { W: 'Weiß', U: 'Blau', B: 'Schwarz', R: 'Rot', G: 'Grün', C: 'Farblos' }

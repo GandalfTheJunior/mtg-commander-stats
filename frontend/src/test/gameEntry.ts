@@ -1,7 +1,7 @@
-import { commanderNames } from '../api'
+import { commanderNames } from '../features/decks/api'
 import { fireEvent, screen, within } from '@testing-library/react'
 import { expect } from 'vitest'
-import type { DeckSelection } from '../api'
+import type { DeckSelection } from '../features/games/api'
 
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 export const gameCard = (slot: number) => within(screen.getByRole('region', { name: `Spieler ${slot}` }))

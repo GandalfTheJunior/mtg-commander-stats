@@ -41,6 +41,24 @@ genuinely cross-cutting infrastructure. Prefer a clear application-level
 interaction over reaching into another feature's persistence implementation.
 Introduce abstractions only for concrete problems, not to simulate loose coupling.
 
+## Frontend organization
+
+`frontend/src` mirrors the backend features (#378):
+
+- `features/<feature>/` (`auth`, `decks`, `groups`, `games`, `statistics`,
+  `claims`): the feature's pages, components, helpers, tests and stories, plus
+  its typed REST operations and response parsing in `api.ts`.
+- `shared/http/`: the HTTP client core used by every feature API module (CSRF bootstrap,
+  unsafe requests, `ApiError` and response checks).
+- `shared/ui/`: components genuinely used by several features.
+- `app/`: the application shell, routing and editor navigation guards.
+- `theme/`, `playground/` and `test/` keep their roles; `main.tsx` and
+  `index.css` stay at the root as entry points.
+
+The same ownership rule applies as in the backend: a file belongs to its owning
+feature, and moves to `shared/` only when it is genuinely cross-cutting.
+Tests and stories live next to the file they cover.
+
 ## Data and security
 
 PostgreSQL is the database for local development and the production direction.
@@ -351,7 +369,7 @@ guide for detailed editor guards, detail recovery and deletion lifetimes. Deck
 creation and lifecycle actions use the dedicated MUI editor at `/decks/new`
 or `/decks/:deckId/edit`, with scoped drafts, origin-aware return and
 navigation protection described in the routing guide. GroupManager uses typed
-operations in `frontend/src/api.ts` against the
+operations in `frontend/src/features/groups/api.ts` against the
 [play groups API](../product/groups-api.md); unsafe operations reuse the existing
 same-origin cookies and fresh CSRF bootstrap. Group responses are validated
 before updating the UI. Failed CSRF preparation retains HTTP status information,
@@ -465,7 +483,7 @@ spotlight data directly, without mounting the Statistics screens.
 reports at `/playgroups/:groupId/statistics/reports/{players,decks,starting-seats,mana-colors}`.
 
 The abortable `useGroupStatistics` reader validates the [statistics API](../product/statistics-api.md)
-response using `api.ts`; only server-supplied public rows, counts and rates
+response using `features/statistics/api.ts`; only server-supplied public rows, counts and rates
 are displayed, without deriving statistics from raw game history.
 Each focused report offers a shared Spielerzahl filter (Alle, 2–6);
 player and deck reports show sortable semantic tables with header-cell

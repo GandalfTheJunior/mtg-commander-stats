@@ -1,5 +1,5 @@
 import { useId, type CSSProperties, type ReactNode } from 'react'
-import type { MagicColor } from '../api'
+import type { MagicColor } from '../features/decks/api'
 import { frameFinish, type FrameTone } from './frameFinish'
 import './artworkFrame.css'
 

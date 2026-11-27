@@ -4,7 +4,7 @@ import type {} from 'vitest'
 
 export type QuarantineEntry = {
   runner: 'vitest' | 'playwright'
-  /** Path relative to frontend/, for example src/DeckManager.test.tsx or e2e/claims.pw.ts. */
+  /** Path relative to frontend/, for example src/features/decks/DeckManager.test.tsx or e2e/claims.pw.ts. */
   file: string
   /** Full title path below the file: describe titles and the test title, joined by ` › `. */
   test: string

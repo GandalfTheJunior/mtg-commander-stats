@@ -1,7 +1,9 @@
 import { emptyStatistics } from './statisticsFixtures'
 import { savedCommander } from './commanderFixtures'
 import { vi } from 'vitest'
-import type { DeckSelection, Game, GameInput, GroupDetails, GroupMember, GroupStatistics } from '../api'
+import type { DeckSelection, Game, GameInput } from '../features/games/api'
+import type { GroupDetails, GroupMember } from '../features/groups/api'
+import type { GroupStatistics } from '../features/statistics/api'
 
 export const uid = (n: number) => `00000000-0000-4000-8000-${n.toString().padStart(12, '0')}`
 export const members: GroupMember[] = [

@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { manaColors, manaDataset, manaPercent, type ManaFilter } from './manaData'
-import { rankedColors } from '../statisticsOrder'
+import { rankedColors } from '../features/statistics/statisticsOrder'
 
 test('all is the sum of discrete snapshots, each rate is derived and all categories remain', () => {
   for (const filter of ['all', '2', '3', '4', '5', '6'] as ManaFilter[]) {

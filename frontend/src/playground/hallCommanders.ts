@@ -1,5 +1,6 @@
-import { ApiError, listArtworks, searchCommanders, type Artwork, type CommanderChoice } from '../api'
-import { safeArtworkUrl } from '../artworkUrl'
+import { ApiError } from '../shared/http/client'
+import { listArtworks, searchCommanders, type Artwork, type CommanderChoice } from '../features/decks/api'
+import { safeArtworkUrl } from '../shared/ui/artworkUrl'
 
 // Distinct, standalone Commanders with no pregame chosen-color requirement.
 export const hallCommanderPool = [

@@ -76,7 +76,7 @@ still paints a light legacy page, the frame also paints the application surface
 2. Add one story per relevant state: normal, long names, loading, empty, error,
    disabled or pressed, as applicable.
 3. Use local sample data. Stories must not need a backend, a login or any network
-   access: do not call `src/api.ts` functions, and leave saved artwork URLs `null`
+   access: do not call API functions (`src/features/*/api.ts`, `src/shared/http/`), and leave saved artwork URLs `null`
    so components show their no-artwork fallback. Plain sample builders such as
    `src/test/commanderFixtures.ts` may be reused; fixtures that import Vitest or
    Testing Library may not.

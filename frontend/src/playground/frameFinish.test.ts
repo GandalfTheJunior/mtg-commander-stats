@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import type { MagicColor } from '../api'
+import type { MagicColor } from '../features/decks/api'
 import { frameFinish, type FrameTone } from './frameFinish'
 
 const cases: { colors: MagicColor[]; left: FrameTone; right: FrameTone; kind: string; label: string }[] = [
