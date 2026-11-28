@@ -13,6 +13,13 @@ const uid = (n: number) => `00000000-0000-4000-8000-${n.toString().padStart(12, 
 const deck = (n: number, name: string, commanders: string[], colors: MagicColor[]): DeckSelection =>
   ({ id: uid(100 + n), name, commanders: commanders.map(commander => savedCommander(commander, colors)), colorIdentity: colors, companion: null })
 
+// A Companion keeps only the saved-card fields the artwork needs, like a real saved deck.
+function withCompanion(selection: DeckSelection): DeckSelection {
+  const { oracleId, name, selectionRef, scryfallCardId, colorIdentity, artworkFaceIndex, artCropUrl, illustrationId, artist, scryfallUri, cardFaces } =
+    savedCommander('Lutri, the Spellchaser', ['U', 'R'])
+  return { ...selection, companion: { oracleId, name, selectionRef, scryfallCardId, colorIdentity, artworkFaceIndex, artCropUrl, illustrationId, artist, scryfallUri, cardFaces } }
+}
+
 const atraxa = deck(1, 'Praetors’ Council', ['Atraxa, Praetors’ Voice'], ['W', 'U', 'B', 'G'])
 const krenko = deck(2, 'Goblin Hour', ['Krenko, Mob Boss'], ['R'])
 
@@ -69,6 +76,11 @@ export const LongNames: Story = {
 export const TwoCommanders: Story = {
   name: 'Two commanders',
   args: { name: 'Margaret', deck: deck(4, 'Blue Farm', ['Tymna the Weaver', 'Thrasios, Triton Hero'], ['W', 'U', 'B', 'G']) },
+}
+
+export const TwoCommandersCompanion: Story = {
+  name: 'Two commanders + companion',
+  args: { name: 'Margaret', expanded: true, deck: withCompanion(deck(5, 'Blue Farm Lutri', ['Tymna the Weaver', 'Thrasios, Triton Hero'], ['W', 'U', 'B', 'G'])) },
 }
 
 export const Busy: Story = { args: { busy: true, expanded: true } }
