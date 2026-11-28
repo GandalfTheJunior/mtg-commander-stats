@@ -71,6 +71,35 @@ message keeps at least 12rem; otherwise the action wraps below the message,
 right-aligned, instead of shrinking until its button label breaks between
 letters (#353). Alerts without an action keep MUI's single-row layout.
 
+## Parchment surface
+
+`palette.parchment` holds the light parchment sheet approved for the game
+editor's player cards only (#382, see the
+[visual design guidelines](../product/visual-design-guidelines.md#approved-parchment-player-cards-in-the-game-editor)).
+Its `edge`/`rim` colors paint the torn border, `surface` sits behind the grain
+image. Content on the sheet is wrapped in a nested `ThemeProvider` with
+`parchmentTheme`, which maps the same semantic paths (`text.*`, `primary`,
+`secondary`, `error`, `interaction.*`, `action.*`, `divider`, `background.*`)
+to dark ink values. Shared overrides for buttons, inputs and focus therefore
+work unchanged; do not hard-code ink colors in components. Because `sx` on an
+ancestor resolves against the outer dark theme, a parchment container must
+re-assert focus and disabled-select colors with higher specificity, as
+`PlayerSeatCard` does.
+
+Measured with the WCAG formula against the darkest grain tone behind text
+(`#DEBB79`) and the darkest edge patina (`#CFA964`):
+
+| Token on parchment | Ratio (text area / edge) |
+| --- | ---: |
+| Ink `text.primary` | 8.62 / 7.14:1 |
+| Secondary ink `text.secondary` | 6.01 / 4.97:1 |
+| Accent `secondary.main` (outlined buttons, winner badge) | 5.55 / 4.59:1 |
+| Burgundy `primary.main` | 5.48 / 4.54:1 |
+| Error | 5.59 / 4.63:1 |
+| Focus outline | 6.41 / 5.31:1 |
+| Control border `interaction.border` | 4.25 / 3.52:1 |
+| Cream on contained accent button | 8.60:1 |
+
 ## Coexistence and fixture
 
 There is deliberately **no CssBaseline or global theme reset**. Emotion retains

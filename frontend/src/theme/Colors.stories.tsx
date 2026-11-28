@@ -7,7 +7,7 @@ import { appTheme } from './theme'
 const groups: { name: string; keys?: string[] }[] = [
   { name: 'background' }, { name: 'text', keys: ['primary', 'secondary', 'disabled'] }, { name: 'primary' }, { name: 'secondary' },
   { name: 'success' }, { name: 'warning' }, { name: 'error' }, { name: 'info' },
-  { name: 'interaction' }, { name: 'mana' }, { name: 'divider' }, { name: 'action', keys: ['disabled', 'disabledBackground'] },
+  { name: 'interaction' }, { name: 'mana' }, { name: 'parchment' }, { name: 'divider' }, { name: 'action', keys: ['disabled', 'disabledBackground'] },
 ]
 
 function tokens(name: string, keys?: string[]): [string, string][] {

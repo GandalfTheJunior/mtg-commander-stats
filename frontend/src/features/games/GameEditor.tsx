@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import {
-  Alert, Box, Button, Card, CardActionArea, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle,
+  Alert, Box, Button, Card, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle,
   FormControlLabel, IconButton, List, ListItemButton, Stack, Switch, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material'
 import { ApiError } from '../../shared/http/client'
 import { commanderNames, createDeck, listDecks, type Deck } from '../decks/api'
 import { createQuickProfile, createQuickProfileDeck, listQuickProfileDecks, type GroupDetails, type GroupMember } from '../groups/api'
 import { memberDecks, type DeckSelection, type Game, type GameInput } from './api'
-import { CommanderArtwork } from '../../shared/ui/CommanderArtwork'
+import { DeckArtwork, PlayerSeatCard } from './PlayerSeatCard'
 import { DeckForm, type DeckFormContext } from '../decks/DeckEditor'
 import { EditorGuard, EditorLeave, useEditorGuard, type EditorGuardOptions } from '../../app/editorGuard'
 import {
@@ -411,108 +411,63 @@ export default function GameEditor({ group, game, currentUserId, initialMembers,
       <Typography component="h3" variant="h6">Spieler</Typography>
       <Typography variant="body2" sx={{ color: 'text.secondary' }}>2–6 Teilnehmer</Typography>
       <Typography id="game-reorder-hint" variant="body2" sx={{ color: 'text.secondary', width: '100%' }}>
-        Reihenfolge am Griff links ändern (Pfeiltasten hoch/runter)
+        Reihenfolge: Griff links ziehen oder antippen (Pfeiltasten hoch/runter)
       </Typography>
     </Box>
     <Typography role="status" aria-live="polite" sx={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{movement}</Typography>
     {rows.map((row, index) => {
       const deck = selectedDeck(row)
       const done = valid(row)
-      const expanded = row.expanded || (Boolean(row.userId) && !done)
-      const former = Boolean(row.userId && !active(row.userId) && original(row.userId))
-      const seat = complete.indexOf(row) + 1
       const name = label(row.userId)
-      const error = attempted ? errors.get(row.key) : undefined
-      return <Card component="section" key={row.key} data-seat-key={row.key} aria-label={`Spieler ${index + 1}`} sx={{ minWidth: 0 }}>
-        {!row.userId ? <CardActionArea id={`game-${row.key}-select`} disabled={busy} onClick={() => openMemberPicker(row.key)}
-          aria-label={`Spieler ${index + 1} auswählen`} sx={{ p: 1.5, display: 'flex', gap: 1.5, justifyContent: 'flex-start', minHeight: 88,
-            '&.Mui-focusVisible': { ...focusOutline, outlineOffset: -3 } }}>
-          <DeckArtwork />
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontWeight: 700 }}>Spieler auswählen</Typography>
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>Gruppenmitglied und Deck wählen</Typography>
-          </Box>
-          <Box component="span" aria-hidden="true" sx={{ color: 'text.secondary', fontSize: 24, px: 1 }}>+</Box>
-        </CardActionArea> : <>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1.5, pl: done ? 0.5 : 1.5 }}>
-            {done && <Box component="button" type="button" disabled={busy} aria-label={`${name} verschieben`} aria-describedby="game-reorder-hint"
-              sx={{ flexShrink: 0, width: 44, minHeight: 64, border: 0, borderRadius: 1, bgcolor: 'transparent', color: 'text.secondary',
-                cursor: busy ? 'default' : 'grab', touchAction: 'none', fontSize: 20, '&:hover': { bgcolor: 'interaction.hover' }, '&:focus-visible': focusOutline }}
-              onKeyDown={event => {
-                if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
-                event.preventDefault()
-                move(row.key, index + (event.key === 'ArrowUp' ? -1 : 1))
-              }}
-              onPointerDown={event => {
-                if (busy || event.button !== 0) return
-                dragKey.current = row.key
-                dragMoved.current = false
-                event.currentTarget.setPointerCapture?.(event.pointerId)
-              }}
-              onPointerMove={event => {
-                if (dragKey.current === null) return
-                const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-seat-key]')
-                if (!target?.parentElement) return
-                // Live movement: the dragged card takes the hovered seat immediately. Use the
-                // seat's rendered position, not the hovered player: several pointermoves can
-                // arrive before React renders the previous move, and the stale card's new
-                // index would move the dragged card back again.
-                const seat = Array.from(target.parentElement.querySelectorAll(':scope > [data-seat-key]')).indexOf(target)
-                const from = rowsRef.current.findIndex(candidate => candidate.key === dragKey.current)
-                if (seat < 0 || seat === from) return
-                dragMoved.current = true
-                move(dragKey.current, seat, false)
-              }}
-              onPointerUp={() => {
-                const key = dragKey.current
-                dragKey.current = null
-                if (key === null || !dragMoved.current) return
-                const position = rowsRef.current.findIndex(candidate => candidate.key === key)
-                setMovement(`${name} an Position ${position + 1} verschoben.`)
-              }}
-              onPointerCancel={() => { dragKey.current = null }}>
-              <span aria-hidden="true">⠿</span>
-            </Box>}
-            <DeckArtwork deck={deck} />
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography component="h4" sx={{ fontWeight: 700, fontSize: '1.0625rem' }}>{name}</Typography>
-              {deck ? <>
-                <Typography>{commanderNames(deck)}</Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>{deck.name}</Typography>
-              </> : <Typography variant="body2" sx={{ color: 'text.secondary' }}>Noch kein Deck ausgewählt</Typography>}
-              {former && <Typography variant="body2" sx={{ color: 'text.secondary' }}>Ehemaliges Mitglied · nur erfasste Zuordnung</Typography>}
-              {deck && original(row.userId)?.deckId === row.deckId && original(row.userId)?.deck.archived &&
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>Archiviertes Deck · nur erfasste Zuordnung</Typography>}
-            </Box>
-            {done && <IconButton id={`game-${row.key}-toggle`} disabled={busy} aria-expanded={expanded} aria-controls={`game-${row.key}-details`}
-              aria-label={`Spieler ${index + 1} ${expanded ? 'einklappen' : 'bearbeiten'}`} sx={{ width: 48, height: 48, flexShrink: 0 }}
-              onClick={() => update(row.key, current => ({ ...current, expanded: !expanded }))}>
-              <Chevron up={expanded} />
-            </IconButton>}
-          </Box>
-          {expanded && <Stack id={`game-${row.key}-details`} sx={{ px: 1.5, pb: 1.5, gap: 1 }}>
-            {error && <Typography color="error" role="alert" variant="body2">{error}</Typography>}
-            <Stack direction="row" useFlexGap sx={{ gap: 1, flexWrap: 'wrap' }}>
-              <Button id={`game-${row.key}-member`} color="secondary" variant="outlined" disabled={busy} onClick={() => openMemberPicker(row.key)}>Mitglied ändern</Button>
-              {!former && <Button id={`game-${row.key}-deck`} color="secondary" variant={deck ? 'outlined' : 'contained'} disabled={busy}
-                onClick={() => setPicker({ kind: 'deck', key: row.key })}>{deck ? 'Deck ändern' : 'Deck auswählen'}</Button>}
-              {done && <>
-                <Button color="secondary" disabled={busy || index === 0} aria-label={`Spieler ${index + 1} nach oben`} onClick={() => move(row.key, index - 1)}>Nach oben</Button>
-                <Button color="secondary" disabled={busy || index === rows.length - 1} aria-label={`Spieler ${index + 1} nach unten`} onClick={() => move(row.key, index + 1)}>Nach unten</Button>
-              </>}
-            </Stack>
-            <Button color="inherit" size="small" disabled={busy} sx={{ alignSelf: 'flex-end', color: 'text.secondary' }}
-              aria-label={`Spieler ${index + 1} entfernen`} onClick={() => remove(row.key)}>Spieler entfernen</Button>
-          </Stack>}
-          {done && <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mx: 1.5, py: 1.25, borderTop: '1px solid', borderColor: 'divider' }}>
-            <Typography sx={{ color: 'text.secondary', whiteSpace: 'nowrap', flexShrink: 0 }}>Startplatz {seat}</Typography>
-            <ResultControl key={mode} mode={mode} draft={row.outcome} name={name} count={complete.length} busy={busy}
-              hasWinner={winMode !== null && complete.some(other => outcomeValue(other.outcome, winMode) === 1)}
-              onDraw={value => update(row.key, current => ({ ...current, outcome: { ...current.outcome, draw: value } }))}
-              onResult={value => setResult(row.key, value)} />
-          </Box>}
-        </>}
-      </Card>
+      const recorded = original(row.userId)
+      return <PlayerSeatCard key={row.key} seatKey={row.key} position={index + 1} count={rows.length}
+        name={row.userId ? name : undefined} deck={deck} done={done} expanded={row.expanded || (Boolean(row.userId) && !done)}
+        former={Boolean(row.userId && !active(row.userId) && recorded)} archived={Boolean(deck && recorded?.deckId === row.deckId && recorded.deck.archived)}
+        startSeat={complete.indexOf(row) + 1} error={attempted ? errors.get(row.key) : undefined} busy={busy}
+        result={{ mode, draft: row.outcome, count: complete.length, hasWinner: winMode !== null && complete.some(other => outcomeValue(other.outcome, winMode) === 1) }}
+        grip={{
+          onKeyDown: event => {
+            if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+            event.preventDefault()
+            move(row.key, index + (event.key === 'ArrowUp' ? -1 : 1))
+          },
+          onPointerDown: event => {
+            if (busy || event.button !== 0) return
+            dragKey.current = row.key
+            dragMoved.current = false
+            event.currentTarget.setPointerCapture?.(event.pointerId)
+          },
+          onPointerMove: event => {
+            if (dragKey.current === null) return
+            const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-seat-key]')
+            if (!target?.parentElement) return
+            // Live movement: the dragged card takes the hovered seat immediately. Use the
+            // seat's rendered position, not the hovered player: several pointermoves can
+            // arrive before React renders the previous move, and the stale card's new
+            // index would move the dragged card back again.
+            const seat = Array.from(target.parentElement.querySelectorAll(':scope > [data-seat-key]')).indexOf(target)
+            const from = rowsRef.current.findIndex(candidate => candidate.key === dragKey.current)
+            if (seat < 0 || seat === from) return
+            dragMoved.current = true
+            move(dragKey.current, seat, false)
+          },
+          onPointerUp: () => {
+            const key = dragKey.current
+            dragKey.current = null
+            if (key === null || !dragMoved.current) return
+            const position = rowsRef.current.findIndex(candidate => candidate.key === key)
+            setMovement(`${name} an Position ${position + 1} verschoben.`)
+          },
+          onPointerCancel: () => { dragKey.current = null },
+        }}
+        onSelect={() => openMemberPicker(row.key)}
+        onToggle={() => update(row.key, current => ({ ...current, expanded: !current.expanded }))}
+        onChangeMember={() => openMemberPicker(row.key)}
+        onChangeDeck={() => setPicker({ kind: 'deck', key: row.key })}
+        onMoveUp={() => move(row.key, index - 1)} onMoveDown={() => move(row.key, index + 1)}
+        onRemove={() => remove(row.key)}
+        onDraw={value => update(row.key, current => ({ ...current, outcome: { ...current.outcome, draw: value } }))}
+        onResult={value => setResult(row.key, value)} />
     })}
     <Button id="game-add-player" variant="outlined" color="secondary" disabled={busy || rows.length >= MAX_PLAYERS} sx={{ minHeight: 56 }}
       onClick={() => {
@@ -562,74 +517,6 @@ export default function GameEditor({ group, game, currentUserId, initialMembers,
       </DialogActions>
     </Dialog>
   </Stack>
-}
-
-function Chevron({ up }: { up: boolean }) {
-  return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"
-    style={{ transform: up ? 'rotate(180deg)' : undefined }}><path d="m6 9 6 6 6-6" /></svg>
-}
-
-function Trophy() {
-  return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-    <path d="M7 3h10l-1 8a4 4 0 0 1-8 0L7 3ZM7 5H3v3a4 4 0 0 0 5 4m9-7h4v3a4 4 0 0 1-5 4M12 15v6m-4 0h8" /></svg>
-}
-
-/** Read-only saved artwork: Commander(s) side by side, a genuine Companion smaller behind. */
-function DeckArtwork({ deck }: { deck?: DeckSelection }) {
-  const frame = { borderRadius: 1, overflow: 'hidden', bgcolor: 'background.raised', border: '1px solid', borderColor: 'divider' }
-  if (!deck) return <Box aria-hidden="true" sx={{ ...frame, width: 48, height: 64, flexShrink: 0 }} />
-  const pair = deck.commanders.length === 2
-  return <Box aria-hidden="true" sx={{ position: 'relative', flexShrink: 0, width: pair ? 76 : 48, height: 64, mb: deck.companion ? 1.5 : 0 }}>
-    {deck.companion && <Box sx={{ ...frame, position: 'absolute', left: '30%', bottom: -12, width: 28, height: 36, zIndex: 0 }}>
-      <CommanderArtwork commander={deck.companion} compact />
-    </Box>}
-    <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${deck.commanders.length}, minmax(0, 1fr))`, gap: 0.5, height: '100%', position: 'relative', zIndex: 1 }}>
-      {deck.commanders.map(commander => <Box key={`${commander.oracleId}:${commander.position}`} sx={{ ...frame, minWidth: 0 }}>
-        <CommanderArtwork commander={commander} compact />
-      </Box>)}
-    </Box>
-  </Box>
-}
-
-function ResultControl({ mode, draft, name, count, busy, hasWinner, onResult, onDraw }: {
-  mode: OutcomeMode; draft: OutcomeDraft; name: string; count: number; busy: boolean; hasWinner: boolean
-  onResult: (value: OutcomeValue) => void; onDraw: (value: boolean | undefined) => void
-}) {
-  const field = { minWidth: 0, flex: '0 1 220px', '& select': { minHeight: 24, py: 1.25, pl: { xs: 1.25, sm: 1.75 }, fontSize: { xs: '0.9375rem', sm: '1rem' } } }
-  if (mode === 'DRAW') {
-    return <TextField select size="small" value={draft.draw === undefined ? '' : draft.draw ? 'IN' : 'OUT'} disabled={busy} sx={field}
-      slotProps={{ select: { native: true }, htmlInput: { 'aria-label': `Ergebnis für ${name}` } }}
-      onChange={event => onDraw(event.target.value === '' ? undefined : event.target.value === 'IN')}>
-      <option value="">Status wählen</option>
-      <option value="IN">Noch im Spiel</option>
-      <option value="OUT">Ausgeschieden</option>
-    </TextField>
-  }
-  const value = outcomeValue(draft, mode)
-  if (value === 1) {
-    return <Box role="img" aria-label={`${name}: Sieger des Spiels, Platz 1`} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, minHeight: 44,
-      border: '2px solid', borderColor: 'secondary.main', borderRadius: 1, color: 'secondary.main', fontWeight: 700, whiteSpace: 'nowrap' }}>
-      <Trophy /><span aria-hidden="true">Sieger · Platz 1</span>
-    </Box>
-  }
-  if (!hasWinner && value === undefined) {
-    return <Button variant="outlined" color="secondary" disabled={busy} aria-label={`${name}: Sieger des Spiels`} onClick={() => onResult(1)}
-      startIcon={<Trophy />}>Sieger des Spiels</Button>
-  }
-  const first = mode === 'WIN' ? 2 : 3
-  const places = Array.from({ length: Math.max(0, count - first + 1) }, (_, i) => i + first)
-  if (typeof value === 'number' && !places.includes(value)) places.push(value)
-  return <TextField select size="small" value={value === undefined ? '' : String(value)} disabled={busy} sx={field}
-    slotProps={{ select: { native: true }, htmlInput: { 'aria-label': `Ergebnis für ${name}` } }}
-    onChange={event => {
-      const raw = event.target.value
-      onResult(raw === '' ? undefined : raw === 'WINNER' ? 1 : raw === 'SURVIVOR' ? 'SURVIVOR' : Number(raw))
-    }}>
-    <option value="">Keine Platzierung</option>
-    <option value="WINNER">Sieger des Spiels</option>
-    {mode === 'ALTERNATE' && <option value="SURVIVOR">Noch im Spiel · Platz 2</option>}
-    {places.map(place => <option key={place} value={String(place)}>Platz {place}</option>)}
-  </TextField>
 }
 
 /** Shows the sticky search only when the unfiltered list overflows the dialog. */

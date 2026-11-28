@@ -79,6 +79,7 @@ for (const width of [320, 390, 1280]) {
     await page.mouse.up()
     await expect(page.getByRole('region', { name: 'Spieler 1' }).getByRole('heading', { name: 'Gimli' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Mitglied ändern' })).toHaveCount(0)
+    await expect(page.getByRole('menu')).toHaveCount(0)
 
     await page.getByRole('button', { name: 'Legolas: Sieger des Spiels' }).click()
     await page.getByLabel('Ergebnis für Gandalf').selectOption('2')
@@ -181,3 +182,89 @@ test.describe('played-on validation', () => {
     })
   }
 })
+
+test.describe('parchment player cards (#382)', () => {
+  // Barrel cap/shaft geometry: the caps keep fixed sizes while only the shaft follows the card height.
+  const barrel = (page: Page, slot: number) => page.getByRole('region', { name: `Spieler ${slot}` })
+    .evaluate(element => getComputedStyle(element, '::after').backgroundSize)
+  const height = (page: Page, slot: number) => page.getByRole('region', { name: `Spieler ${slot}` }).evaluate(element => element.getBoundingClientRect().height)
+
+  test('collapse and expand animate, keep ink focus and fixed barrel caps', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 900 })
+    await mockApi(page)
+    await page.goto(`/playgroups/${group.id}/games/new`)
+    await choose(page, 1, 1); await choose(page, 2, 2)
+    expect(await barrel(page, 1)).toBe('100% 9px, 100% 10.5px, 100% calc(100% - 18px)')
+    const collapsed = await height(page, 1)
+
+    const toggle = page.getByRole('button', { name: 'Spieler 1 bearbeiten' })
+    await toggle.focus()
+    await page.keyboard.press('Enter')
+    await expect(page.getByRole('button', { name: 'Spieler 1 einklappen' })).toBeFocused()
+    // Dark ink outline on parchment instead of the editor's gold outline.
+    expect(await page.getByRole('button', { name: 'Spieler 1 einklappen' }).evaluate(element => getComputedStyle(element).outlineColor)).toBe('rgb(88, 44, 28)')
+    await expect(page.getByRole('region', { name: 'Spieler 1' }).locator('.MuiCollapse-entered')).toHaveCount(1)
+    const expanded = await height(page, 1)
+    expect(expanded).toBeGreaterThan(collapsed + 40)
+    expect(await barrel(page, 1)).toBe('100% 9px, 100% 10.5px, 100% calc(100% - 18px)')
+
+    // Record the card height on every frame while it collapses: intermediate heights prove the animation.
+    const frames = await page.getByRole('region', { name: 'Spieler 1' }).evaluate(async card => {
+      const heights: number[] = []
+      card.querySelector<HTMLButtonElement>('[aria-expanded="true"]')!.click()
+      const start = performance.now()
+      while (performance.now() - start < 400) {
+        await new Promise(requestAnimationFrame)
+        heights.push(card.getBoundingClientRect().height)
+      }
+      return heights
+    })
+    expect(frames.some(value => value > collapsed + 1 && value < expanded - 1)).toBe(true)
+    await expect(page.getByRole('region', { name: 'Spieler 1' }).getByRole('button', { name: 'Mitglied ändern' })).toHaveCount(0)
+    await expect.poll(() => height(page, 1)).toBe(collapsed)
+    expect(await noOverflow(page)).toBe(true)
+  })
+
+  test('reduced motion toggles immediately', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await mockApi(page)
+    await page.goto(`/playgroups/${group.id}/games/new`)
+    await choose(page, 1, 1)
+    const collapsed = await height(page, 1)
+    await page.getByRole('button', { name: 'Spieler 1 bearbeiten' }).click()
+    // The first measurement after the click already shows the final height: no transition ran.
+    const immediate = await height(page, 1)
+    await expect(page.getByRole('region', { name: 'Spieler 1' }).locator('.MuiCollapse-entered')).toHaveCount(1)
+    expect(immediate).toBeGreaterThan(collapsed + 40)
+    expect(await height(page, 1)).toBe(immediate)
+    await page.getByRole('button', { name: 'Spieler 1 einklappen' }).click()
+    await expect.poll(() => height(page, 1), { intervals: [20] }).toBe(collapsed)
+  })
+})
+
+test('tapping the grip offers moving up or down without dragging (#382)', async ({ page }) => {
+  await mockApi(page)
+  await page.goto(`/playgroups/${group.id}/games/new`)
+  await choose(page, 1, 1); await choose(page, 2, 2)
+  await page.getByRole('button', { name: 'Aragorn verschieben' }).tap()
+  await page.getByRole('menuitem', { name: 'Spieler 1 nach unten' }).tap()
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'Spieler 2' }).getByRole('heading', { name: 'Aragorn' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Aragorn verschieben' })).toBeFocused()
+  await expect(page.getByRole('status')).toHaveText('Aragorn an Position 2 verschoben.')
+})
+
+for (const width of [375, 390]) {
+  test(`expanded card actions share one row at ${width}px (#382)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await mockApi(page)
+    await page.goto(`/playgroups/${group.id}/games/new`)
+    await choose(page, 1, 1)
+    await page.getByRole('button', { name: 'Spieler 1 bearbeiten' }).click()
+    const card = page.getByRole('region', { name: 'Spieler 1' })
+    const tops = await Promise.all(['Mitglied ändern', 'Deck ändern', 'Spieler 1 entfernen']
+      .map(async name => (await card.getByRole('button', { name, exact: true }).boundingBox())!.y))
+    expect(new Set(tops).size).toBe(1)
+    expect(await noOverflow(page)).toBe(true)
+  })
+}

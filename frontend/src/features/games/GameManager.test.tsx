@@ -202,8 +202,8 @@ test('an active ADMIN can open a cross-creator game edit with saved assignments'
   api.next(`/api/groups/${group.id}`, () => response({ ...group, role: 'ADMIN' }))
   renderApp(<App />, `${gamesPath}/${uid(20)}/edit`)
   await screen.findByRole('form', { name: 'Spiel bearbeiten' })
-  expect(screen.getByText('Deck 2')).toBeInTheDocument()
-  expect(screen.getByText('Deck 3')).toBeInTheDocument()
+  expect(screen.getByText('Commander 2')).toBeInTheDocument()
+  expect(screen.getByText('Commander 3')).toBeInTheDocument()
 })
 
 test('the success panel offers the same players again, the overview, or closing without leaving Games', async () => {
@@ -213,7 +213,8 @@ test('the success panel offers the same players again, the overview, or closing 
   fireEvent.change(screen.getByLabelText('Spieldatum'), { target: { value: '2026-10-31' } })
   await players()
   fireEvent.click(gameCard(1).getByRole('button', { name: 'Spieler 1 bearbeiten' }))
-  fireEvent.click(gameCard(1).getByRole('button', { name: 'Spieler 1 nach unten' }))
+  fireEvent.click(gameCard(1).getByRole('button', { name: / verschieben$/ }))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Spieler 1 nach unten' }))
   selectGameWinner('Same name (…0002)')
   fireEvent.click(screen.getByRole('button', { name: 'Spiel speichern' }))
   const panel = within(await screen.findByRole('region', { name: 'Spiel erfolgreich gespeichert' }))

@@ -482,9 +482,10 @@ The PO-approved #196 functional wireframes are archived in
   the card again, or removes a card just added by **+ Spieler hinzufügen** (hidden
   at six cards). Choosing a member opens that member's deck picker immediately; X
   keeps the member without a deck. A complete card collapses to a full-width
-  summary: left drag grip, saved artwork (two Commanders side by side, a genuine
-  Companion smaller behind), player name, Commander name(s), smaller deck name and
-  an edit chevron. Untouched blank cards are omitted; a member without a deck
+  summary: left drag grip, saved artwork in one portrait tile (two Commanders share
+  it in vertical halves, a genuine Companion as a small round badge), player name,
+  Commander name(s), the Companion's name in italics and an edit chevron; the deck
+  name is not shown on the card (#382). Untouched blank cards are omitted; a member without a deck
   blocks saving.
 - **Pickers:** active members and #223 quick profiles appear together (quick
   profiles marked **Schnellprofil**); members chosen on other cards are excluded.
@@ -497,11 +498,14 @@ The PO-approved #196 functional wireframes are archived in
   Cancelling returns to the same member's deck picker; the created profile stays
   saved. Another account without eligible decks shows **Keine Decks verfügbar**
   and **Anderes Mitglied auswählen**.
-- **Editing cards:** the expanded card offers **Mitglied ändern**, **Deck ändern**,
-  move up/down and a discreet **Spieler entfernen** (this match only, seats
-  compact). Changing the member clears that card's deck and its results in every
-  mode; changing only the deck keeps them. The grip reorders by pointer/touch
-  (live) or arrow keys and changes starting seats only. Former members can keep
+- **Editing cards:** the expanded card offers **Mitglied ändern**, **Deck ändern**
+  and, in the same row, a trash icon button named **Spieler N entfernen** (this
+  match only, seats compact). Changing
+  the member clears that card's deck and its results in every mode; changing only
+  the deck keeps them. The grip reorders by pointer/touch drag (live) or arrow
+  keys; tapping or activating it without dragging opens a menu with **Nach oben**
+  and **Nach unten**, the single-pointer alternative to dragging (#382). Reordering
+  changes starting seats only. Former members can keep
   only their exact recorded pair.
 - **Results:** every complete card has one result row below its summary. Without a
   winner, WIN cards show **Sieger des Spiels**; the winner shows a trophy with

@@ -72,7 +72,39 @@ not authorize production changes or a palette inversion.
 The specific **wood backdrop / parchment foreground** interpretation in the
 [Mana material comparison](../development/motion-playground.md#inverse-mana-material-study-182)
 is still a Playground experiment. Neither material, texture nor component has
-been approved for production by this high-level direction.
+been approved for production by this high-level direction. The only approved
+adoption so far is the component-scoped exception below.
+
+## Approved: parchment player cards in the game editor
+
+The PO approved the parchment surface from the Lounge study (#165) for **one
+component only**: the player cards of the game editor ("Spiel erfassen" /
+"Spiel bearbeiten"), implemented as `PlayerSeatCard` in
+[issue #382](https://github.com/GandalfTheJunior/mtg-commander-stats/issues/382).
+
+- **Adopted:** paper grain, irregular torn edge, the rolled-paper barrel on the
+  left edge (three-part, so its caps keep their shape at every card height),
+  dark ink text and controls on the light sheet, and a short height animation
+  for expanding/collapsing that is immediate under reduced motion. This applies
+  to empty, collapsed and expanded cards.
+- **Artwork tile (PO decision during #382):** commander artwork sits in one
+  fixed 52×64px portrait tile; partners share it in two vertical halves,
+  separated by a thin line in the surface colour, each showing the middle of
+  its art. A Companion appears as a small round badge on the lower-right corner
+  and as an italic name line. The card text shows player and commanders only,
+  not the deck name. The deck picker uses the same tile. (A diagonal split was
+  tried and rejected.)
+- **Kept from the existing foundations:** system sans-serif typography,
+  the left drag grip, the chevron toggle and the editing
+  behavior. Moving up/down moved from card buttons into a menu opened by
+  tapping the grip (PO decision during #382).
+- **Not approved:** the mini wax-seal toggle, playground deck-mark tiles,
+  serif player names, wood backdrop, stone, firelight or any other Lounge
+  material, and parchment on any other surface or screen. Each needs its own
+  PO decision.
+
+Colors come from the `parchment` palette entry and the nested `parchmentTheme`
+described in the [theme guidance](../development/frontend-theme.md#parchment-surface).
 
 ## Exploration: not yet binding
 
