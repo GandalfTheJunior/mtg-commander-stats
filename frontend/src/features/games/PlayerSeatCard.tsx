@@ -142,6 +142,7 @@ function SeatContent({ seatKey, position, count, name, deck, done, expanded, for
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>{deck.name}</Typography>
         </> : <Typography variant="body2" sx={{ color: 'text.secondary' }}>Noch kein Deck ausgewählt</Typography>}
         {former && <Typography variant="body2" sx={{ color: 'text.secondary' }}>Ehemaliges Mitglied · nur erfasste Zuordnung</Typography>}
+        {deck?.companion && <Typography variant="body2" sx={{ color: 'text.secondary' }}>Companion: {deck.companion.name}</Typography>}
         {deck && archived && <Typography variant="body2" sx={{ color: 'text.secondary' }}>Archiviertes Deck · nur erfasste Zuordnung</Typography>}
       </Box>
       {done && <IconButton id={`game-${seatKey}-toggle`} disabled={busy} aria-expanded={expanded} aria-controls={`game-${seatKey}-details`}
@@ -192,20 +193,34 @@ function Trophy() {
     <path d="M7 3h10l-1 8a4 4 0 0 1-8 0L7 3ZM7 5H3v3a4 4 0 0 0 5 4m9-7h4v3a4 4 0 0 1-5 4M12 15v6m-4 0h8" /></svg>
 }
 
-/** Read-only saved artwork: Commander(s) side by side, a genuine Companion smaller behind. */
+const TILE = 56
+const BADGE = 24
+// Second partner fills the lower-right triangle; a 2px line in the surface colour separates both halves.
+const lowerRight = 'polygon(100% 0, 100% 100%, 0 100%)'
+
+/**
+ * Read-only saved artwork in one fixed square tile (#382): one Commander fills it, partners
+ * share it diagonally, and a genuine Companion sits as a round badge on the lower-right corner.
+ * The tile never widens, so the text column keeps the same width for every deck.
+ */
 export function DeckArtwork({ deck }: { deck?: DeckSelection }) {
-  const frame = { borderRadius: 1, overflow: 'hidden', bgcolor: 'background.raised', border: '1px solid', borderColor: 'divider' }
-  if (!deck) return <Box aria-hidden="true" sx={{ ...frame, width: 48, height: 64, flexShrink: 0 }} />
-  const pair = deck.commanders.length === 2
-  return <Box aria-hidden="true" sx={{ position: 'relative', flexShrink: 0, width: pair ? 76 : 48, height: 64, mb: deck.companion ? 1.5 : 0 }}>
-    {deck.companion && <Box sx={{ ...frame, position: 'absolute', left: '30%', bottom: -12, width: 28, height: 36, zIndex: 0 }}>
+  const frame = { position: 'absolute', inset: 0, borderRadius: '8px', overflow: 'hidden', bgcolor: 'background.raised', border: '1px solid', borderColor: 'divider' } as const
+  if (!deck) return <Box aria-hidden="true" sx={{ position: 'relative', width: TILE, height: TILE, flexShrink: 0 }}><Box sx={frame} /></Box>
+  const [first, second] = deck.commanders
+  return <Box aria-hidden="true" sx={{ position: 'relative', width: TILE, height: TILE, flexShrink: 0 }}>
+    <Box sx={frame}>
+      {first && <Box sx={{ position: 'absolute', inset: 0 }}><CommanderArtwork commander={first} compact /></Box>}
+      {second && <>
+        <Box sx={{ position: 'absolute', inset: 0, clipPath: lowerRight }}><CommanderArtwork commander={second} compact /></Box>
+        <Box sx={theme => ({ position: 'absolute', inset: 0, pointerEvents: 'none',
+          background: `linear-gradient(to top left, transparent calc(50% - 1px), ${theme.palette.background.paper} calc(50% - 1px), ${theme.palette.background.paper} calc(50% + 1px), transparent calc(50% + 1px))` })} />
+      </>}
+    </Box>
+    {deck.companion && <Box sx={{ position: 'absolute', right: -6, bottom: -6, width: BADGE, height: BADGE, borderRadius: '50%', overflow: 'hidden',
+      border: '2px solid', borderColor: 'background.paper', bgcolor: 'background.raised', boxShadow: '0 1px 2px rgb(0 0 0 / .3)',
+      '& [role="img"]:not(img)': { p: 0, fontSize: 0 } }}>
       <CommanderArtwork commander={deck.companion} compact />
     </Box>}
-    <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${deck.commanders.length}, minmax(0, 1fr))`, gap: 0.5, height: '100%', position: 'relative', zIndex: 1 }}>
-      {deck.commanders.map(commander => <Box key={`${commander.oracleId}:${commander.position}`} sx={{ ...frame, minWidth: 0 }}>
-        <CommanderArtwork commander={commander} compact />
-      </Box>)}
-    </Box>
   </Box>
 }
 

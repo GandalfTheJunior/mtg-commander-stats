@@ -73,3 +73,10 @@ test('tapping the grip opens a move menu instead of card buttons; a drag does no
   expect(onMoveDown).toHaveBeenCalledOnce()
   expect(onMoveUp).not.toHaveBeenCalled()
 })
+
+test('a companion is named in the card text next to its artwork badge (#382)', () => {
+  const base = props().deck!
+  const { name, oracleId, selectionRef, scryfallCardId, colorIdentity, artworkFaceIndex, artCropUrl, illustrationId, artist, scryfallUri, cardFaces } = savedCommander('Lutri, the Spellchaser')
+  render(<PlayerSeatCard {...props({ deck: { ...base, companion: { name, oracleId, selectionRef, scryfallCardId, colorIdentity, artworkFaceIndex, artCropUrl, illustrationId, artist, scryfallUri, cardFaces } } })} />)
+  expect(screen.getByText('Companion: Lutri, the Spellchaser')).toBeInTheDocument()
+})

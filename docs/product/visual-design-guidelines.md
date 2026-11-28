@@ -87,8 +87,13 @@ component only**: the player cards of the game editor ("Spiel erfassen" /
   dark ink text and controls on the light sheet, and a short height animation
   for expanding/collapsing that is immediate under reduced motion. This applies
   to empty, collapsed and expanded cards.
+- **Artwork tile (PO decision during #382):** commander artwork sits in one
+  fixed 56px square tile; partners share it diagonally, separated by a thin line
+  in the surface colour, and a Companion appears as a small round badge on the
+  lower-right corner and as a "Companion: …" text line. The deck picker uses the
+  same tile.
 - **Kept from the existing foundations:** system sans-serif typography,
-  commander artwork, the left drag grip, the chevron toggle and the editing
+  the left drag grip, the chevron toggle and the editing
   behavior. Moving up/down moved from card buttons into a menu opened by
   tapping the grip (PO decision during #382).
 - **Not approved:** the mini wax-seal toggle, playground deck-mark tiles,
