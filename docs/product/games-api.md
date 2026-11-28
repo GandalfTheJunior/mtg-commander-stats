@@ -482,8 +482,8 @@ The PO-approved #196 functional wireframes are archived in
   the card again, or removes a card just added by **+ Spieler hinzufügen** (hidden
   at six cards). Choosing a member opens that member's deck picker immediately; X
   keeps the member without a deck. A complete card collapses to a full-width
-  summary: left drag grip, saved artwork in one square tile (two Commanders share
-  it diagonally, a genuine Companion as a small round badge), player name,
+  summary: left drag grip, saved artwork in one portrait tile (two Commanders share
+  it in vertical halves, a genuine Companion as a small round badge), player name,
   Commander name(s), the Companion's name in italics and an edit chevron; the deck
   name is not shown on the card (#382). Untouched blank cards are omitted; a member without a deck
   blocks saving.

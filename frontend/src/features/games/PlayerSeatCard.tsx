@@ -197,32 +197,27 @@ function Trophy() {
     <path d="M7 3h10l-1 8a4 4 0 0 1-8 0L7 3ZM7 5H3v3a4 4 0 0 0 5 4m9-7h4v3a4 4 0 0 1-5 4M12 15v6m-4 0h8" /></svg>
 }
 
-const TILE = 56
+const TILE_WIDTH = 52
+const TILE_HEIGHT = 64
 const BADGE = 24
-// Second partner fills the lower-right triangle; a 2px line in the surface colour separates both halves.
-const lowerRight = 'polygon(100% 0, 100% 100%, 0 100%)'
 
 /**
- * Read-only saved artwork in one fixed square tile (#382): one Commander fills it, partners
- * share it diagonally, and a genuine Companion sits as a round badge on the lower-right corner.
- * The tile never widens, so the text column keeps the same width for every deck.
+ * Read-only saved artwork in one fixed portrait tile (#382): one Commander fills it, partners
+ * share it in two vertical halves (each showing the middle of its art), and a genuine Companion
+ * sits as a round badge on the lower-right corner. The tile never widens, so the text column
+ * keeps the same width for every deck.
  */
 export function DeckArtwork({ deck }: { deck?: DeckSelection }) {
-  const frame = { position: 'absolute', inset: 0, borderRadius: '8px', overflow: 'hidden', bgcolor: 'background.raised', border: '1px solid', borderColor: 'divider' } as const
-  if (!deck) return <Box aria-hidden="true" sx={{ position: 'relative', width: TILE, height: TILE, flexShrink: 0 }}><Box sx={frame} /></Box>
-  const [first, second] = deck.commanders
-  return <Box aria-hidden="true" sx={{ position: 'relative', width: TILE, height: TILE, flexShrink: 0 }}>
+  const tile = { position: 'relative', width: TILE_WIDTH, height: TILE_HEIGHT, flexShrink: 0 } as const
+  const frame = { position: 'absolute', inset: 0, display: 'flex', borderRadius: '6px', overflow: 'hidden', bgcolor: 'background.raised', border: '1px solid', borderColor: 'divider' } as const
+  if (!deck) return <Box aria-hidden="true" sx={tile}><Box sx={frame} /></Box>
+  return <Box aria-hidden="true" sx={tile}>
     <Box sx={frame}>
-      {first && <Box sx={{ position: 'absolute', inset: 0 }}><CommanderArtwork commander={first} compact /></Box>}
-      {second && <>
-        <Box sx={{ position: 'absolute', inset: 0, clipPath: lowerRight }}>
-          {/* Enlarged a third and centred on the triangle's centroid (2/3, 2/3), so the visible
-              half shows the middle of the art rather than its lower-right corner. */}
-          <Box sx={{ position: 'absolute', left: 0, top: 0, width: '133.34%', height: '133.34%' }}><CommanderArtwork commander={second} compact /></Box>
-        </Box>
-        <Box sx={theme => ({ position: 'absolute', inset: 0, pointerEvents: 'none',
-          background: `linear-gradient(to top left, transparent calc(50% - 1px), ${theme.palette.background.paper} calc(50% - 1px), ${theme.palette.background.paper} calc(50% + 1px), transparent calc(50% + 1px))` })} />
-      </>}
+      {/* A 2px line in the surface colour separates partners; object-fit centres each half. */}
+      {deck.commanders.slice(0, 2).map((commander, index) => <Box key={`${commander.oracleId}:${commander.position}`}
+        sx={{ flex: 1, minWidth: 0, ...(index > 0 && { borderLeft: '2px solid', borderColor: 'background.paper' }) }}>
+        <CommanderArtwork commander={commander} compact />
+      </Box>)}
     </Box>
     {deck.companion && <Box sx={{ position: 'absolute', right: -6, bottom: -6, width: BADGE, height: BADGE, borderRadius: '50%', overflow: 'hidden',
       border: '2px solid', borderColor: 'background.paper', bgcolor: 'background.raised', boxShadow: '0 1px 2px rgb(0 0 0 / .3)',

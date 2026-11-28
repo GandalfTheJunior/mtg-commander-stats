@@ -88,12 +88,12 @@ component only**: the player cards of the game editor ("Spiel erfassen" /
   for expanding/collapsing that is immediate under reduced motion. This applies
   to empty, collapsed and expanded cards.
 - **Artwork tile (PO decision during #382):** commander artwork sits in one
-  fixed 56px square tile; partners share it diagonally, separated by a thin line
-  in the surface colour; the lower-right partner is enlarged and centred on its
-  triangle so the middle of the art stays visible. A Companion appears as a
-  small round badge on the lower-right corner and as an italic name line. The
-  card text shows player and commanders only, not the deck name. The deck
-  picker uses the same tile.
+  fixed 52×64px portrait tile; partners share it in two vertical halves,
+  separated by a thin line in the surface colour, each showing the middle of
+  its art. A Companion appears as a small round badge on the lower-right corner
+  and as an italic name line. The card text shows player and commanders only,
+  not the deck name. The deck picker uses the same tile. (A diagonal split was
+  tried and rejected.)
 - **Kept from the existing foundations:** system sans-serif typography,
   the left drag grip, the chevron toggle and the editing
   behavior. Moving up/down moved from card buttons into a menu opened by
