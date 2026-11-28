@@ -205,7 +205,7 @@ test('a new quick profile is saved, routes into its deck creation, survives canc
   fireEvent.click(await screen.findByRole('option', { name: 'Commander 7' }))
   fireEvent.click(screen.getByRole('button', { name: 'Deck erstellen' }))
   await screen.findByRole('form', { name: 'Spiel erfassen' })
-  expect(card(2).getByText('Deck 7')).toBeInTheDocument()
+  expect(card(2).getByText('Commander 7')).toBeInTheDocument()
   expect(card(2).getByRole('button', { name: 'Spieler 2 bearbeiten' })).toHaveFocus()
   expect(card(2).getByText('Extrovert Cat')).toBeInTheDocument()
 })
@@ -360,7 +360,7 @@ test('the grip reorders only starting seats by keyboard; the result follows its 
   const grip = card(3).getByRole('button', { name: `${name(3)} verschieben` })
   fireEvent.keyDown(grip, { key: 'ArrowUp' })
   fireEvent.keyDown(card(2).getByRole('button', { name: `${name(3)} verschieben` }), { key: 'ArrowUp' })
-  expect(card(1).getByText('Deck 3')).toBeInTheDocument()
+  expect(card(1).getByText('Commander 3')).toBeInTheDocument()
   expect(card(1).getByText('Startplatz 1')).toBeInTheDocument()
   expect(screen.getByRole('status', { hidden: true })).toHaveTextContent(`${name(3)} an Position 1 verschoben.`)
   // Moving never expands a card or touches results.
@@ -390,7 +390,7 @@ test('pointer moves that arrive before the reorder renders keep the hovered seat
   } finally {
     Reflect.deleteProperty(document, 'elementFromPoint')
   }
-  expect(card(1).getByText('Deck 3')).toBeInTheDocument()
+  expect(card(1).getByText('Commander 3')).toBeInTheDocument()
   expect(screen.getByRole('status', { hidden: true })).toHaveTextContent(`${name(3)} an Position 1 verschoben.`)
 })
 

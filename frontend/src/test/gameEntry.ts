@@ -26,7 +26,8 @@ export async function selectGameDeck(slot: number, deck: DeckSelection) {
   fireEvent.click(await dialog.findByRole('button', { name: new RegExp(`^${escape(commanderNames(deck))} · ${escape(deck.name)}`) }))
   const card = gameCard(slot)
   expect(card.getByRole('button', { name: `Spieler ${slot} bearbeiten` })).toBeInTheDocument()
-  expect(card.getByText(deck.name)).toBeInTheDocument()
+  // The card shows the commanders, not the deck name (#382).
+  expect(card.getByText(commanderNames(deck))).toBeInTheDocument()
 }
 
 export async function selectGamePlayer(slot: number, name: string, deck: DeckSelection) {

@@ -45,6 +45,8 @@ export type PlayerSeatCardProps = {
   onDraw: (value: boolean | undefined) => void
 }
 
+// Screen-reader-only text (same technique as the editor's live region).
+const visuallyHidden = { position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' } as const
 const focusOutline = { outline: '3px solid', outlineColor: 'interaction.focus', outlineOffset: 2 }
 const EXPAND_MS = 200
 
@@ -137,12 +139,14 @@ function SeatContent({ seatKey, position, count, name, deck, done, expanded, for
       <DeckArtwork deck={deck} />
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography component="h4" sx={{ fontWeight: 700, fontSize: '1.0625rem' }}>{name}</Typography>
+        {/* Compact by PO decision: commanders, then the Companion in italics; the deck name is not shown. */}
         {deck ? <>
           <Typography>{commanderNames(deck)}</Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary' }}>{deck.name}</Typography>
+          {deck.companion && <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+            <Box component="span" sx={visuallyHidden}>Companion: </Box>{deck.companion.name}
+          </Typography>}
         </> : <Typography variant="body2" sx={{ color: 'text.secondary' }}>Noch kein Deck ausgewählt</Typography>}
         {former && <Typography variant="body2" sx={{ color: 'text.secondary' }}>Ehemaliges Mitglied · nur erfasste Zuordnung</Typography>}
-        {deck?.companion && <Typography variant="body2" sx={{ color: 'text.secondary' }}>Companion: {deck.companion.name}</Typography>}
         {deck && archived && <Typography variant="body2" sx={{ color: 'text.secondary' }}>Archiviertes Deck · nur erfasste Zuordnung</Typography>}
       </Box>
       {done && <IconButton id={`game-${seatKey}-toggle`} disabled={busy} aria-expanded={expanded} aria-controls={`game-${seatKey}-details`}
@@ -211,7 +215,11 @@ export function DeckArtwork({ deck }: { deck?: DeckSelection }) {
     <Box sx={frame}>
       {first && <Box sx={{ position: 'absolute', inset: 0 }}><CommanderArtwork commander={first} compact /></Box>}
       {second && <>
-        <Box sx={{ position: 'absolute', inset: 0, clipPath: lowerRight }}><CommanderArtwork commander={second} compact /></Box>
+        <Box sx={{ position: 'absolute', inset: 0, clipPath: lowerRight }}>
+          {/* Enlarged a third and centred on the triangle's centroid (2/3, 2/3), so the visible
+              half shows the middle of the art rather than its lower-right corner. */}
+          <Box sx={{ position: 'absolute', left: 0, top: 0, width: '133.34%', height: '133.34%' }}><CommanderArtwork commander={second} compact /></Box>
+        </Box>
         <Box sx={theme => ({ position: 'absolute', inset: 0, pointerEvents: 'none',
           background: `linear-gradient(to top left, transparent calc(50% - 1px), ${theme.palette.background.paper} calc(50% - 1px), ${theme.palette.background.paper} calc(50% + 1px), transparent calc(50% + 1px))` })} />
       </>}

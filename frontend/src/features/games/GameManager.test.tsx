@@ -202,8 +202,8 @@ test('an active ADMIN can open a cross-creator game edit with saved assignments'
   api.next(`/api/groups/${group.id}`, () => response({ ...group, role: 'ADMIN' }))
   renderApp(<App />, `${gamesPath}/${uid(20)}/edit`)
   await screen.findByRole('form', { name: 'Spiel bearbeiten' })
-  expect(screen.getByText('Deck 2')).toBeInTheDocument()
-  expect(screen.getByText('Deck 3')).toBeInTheDocument()
+  expect(screen.getByText('Commander 2')).toBeInTheDocument()
+  expect(screen.getByText('Commander 3')).toBeInTheDocument()
 })
 
 test('the success panel offers the same players again, the overview, or closing without leaving Games', async () => {
